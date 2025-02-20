@@ -38,13 +38,19 @@ Next_Conditions = {
     "VT_amv": [300],
     "VT_ev": [400],
     "P_sp": [66], # not sure
-    "V_sa": [22], #
+    "V_sa": [0], #
     "P_sa": [92], # not sure
     "Q_sa": [0], # at ED, Q_sa = 0 so that dP_sa_dt = 0
     "VT_vc": [350],
     "Qi_lv": [],
     "Qi_rv": [],
     "prev_flat_bit": [0],
+    "Q_vc": [],
+    "alp": [],
+    "P_im": [],
+    "Q_amv": [],
+    "Q_sp": [],
+    "Q_ep": [],
 
     "P_pa": [],
     "P_pp": [],
@@ -114,6 +120,13 @@ Next_Conditions = {
     "Emax_lv": [2.392],
     "Emax_rv": [1.412],
     "I": [0],
+    "P_ev": [],
+    "V_u": [],
+    "V_sv": [],
+    "V_rmv": [],
+    "V_amv": [],
+    "V_bv": [],
+    "V_hv": [],
 
     # cardiovascular controller
     "theta_change_O2_sp": [0],
@@ -149,6 +162,7 @@ Next_Conditions = {
     "x_met": [0],
     "Nt": [],
     "P_amv": [],
+    "Q_jp": [],
 
     # initial condition of inputs from other controllers
     "Wh_lv": [10800],

@@ -18,7 +18,7 @@ Initial_Conditions = {
     "VT_amv": 286.4,
     "VT_ev": 607.8,
     "P_sp": 66,
-    "V_sa": 22,
+    "V_sa": 0,
     "P_sa": 92,
     "Q_sa": 0,
     "VT_vc": 350, # set in parameters as the max vc
