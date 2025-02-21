@@ -74,15 +74,15 @@ Parameters = {
     "C_la": 4, # 19.23,          # Left atrial compliances changed
     "C_ra": 5, # 31.25,          # Right atrial compliances changed
     "KE_lv": 0.014, # 0.014      # End-diastolic P-V relationship in left ventricle # adjusted (changes a lot depending on whether it is 0.06 or 0.05)
-    "KE_rv": 0.011, # 0.011       # End-diastolic P-V relationship in right ventricle
+    "KE_rv": 0.011, # 0.011       # End-diastolic P-V relationship in right ventricle Another model use 0.027
     "KR_lv": 0.000375,     # Viscosity of left ventricle
     "KR_rv": 0.0014,       # Viscosity of right ventricle (this parameter affects RA pressure)
     "ksys": 0.075,         # Duration of systole as function of heart rate (this parameter affects RA pressure)
-    "P0_lv": 1.5, # 1.5        # End-diastolic P-V relationship in left ventricle # adjusted
+    "P0_lv": 1.5, # 1.5        # End-diastolic P-V relationship in left ventricle # another model use 1.0
     "P0_rv": 1.5, # 1.5         # End-diastolic P-V relationship in right ventricle (check this one first, has strong effect with the smallest change in volume)
     "R_la": 0.0025,         # Left atrial flow resistance
     "R_ra": 0.0025,         # Right atrial flow resistance
-    "Tsys_0": 0.5,         # Duration of systole as function of heart rate
+    "Tsys_0": 0.5,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
     "Vu_la": 24,           # Left atrial unstressed volume
     "Vu_lv": 15.908,       # Left ventricular unstressed volume
     "Vu_ra": 24,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
@@ -304,7 +304,7 @@ Parameters = {
     "fv_IC": 4.2748,         # Initial condition for the efferent vagal activity
     "GT_s": -0.13,          # Constant gain factor
     "GT_v": 0.09,           # Constant gain factor
-    "T0": 0.58,              # Heart period in the absence of cardiac innervation # want to change to 0.83333
+    "T0": 0.83333,              # Heart period in the absence of cardiac innervation # want to change to 0.83333 from 0.58
     "tau_Ts": 2,              # Time constant
     "tau_Tv": 1.5,            # Time constant
 # }

@@ -58,7 +58,7 @@ Initial_Conditions = {
     "R_sp": 2.49,
     "R_bp": 6.57,
     "R_hp": 19.71,
-    "HR": 1.72, # want to change to 1.2 but following from 0.58 heart period
+    "HR": 1.2, # want to change to 1.2 but following from 0.58 heart period
     "Emax_lv": 2.392, # 5.2, # should change based on literature (before: 2.392)
     "Emax_rv": 1.412,
     "I": 0,

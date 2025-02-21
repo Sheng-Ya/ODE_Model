@@ -72,6 +72,7 @@ Next_Conditions = {
     "P_vc": [],
     "V_pa": [],
     "phi": [],
+    "phi_atr": [],
     "S": [],
     "V_pv": [],
     "V_pp": [],
@@ -116,7 +117,7 @@ Next_Conditions = {
     "R_sp": [2.49],
     "R_bp": [6.57],
     "R_hp": [19.71],
-    "HR": [1.72], # changed to 1.2 from 1.72, T0 was set at 0.58. doesnt make sense for t0 to be that high
+    "HR": [1.2], # changed to 1.2 from 1.72, T0 was set at 0.58. doesnt make sense for t0 to be that high
     "Emax_lv": [2.392],
     "Emax_rv": [1.412],
     "I": [0],
