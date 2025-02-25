@@ -59,7 +59,7 @@ Parameters = {
 # pulmonary_circulation = {
     "C_pa": 5, # 0.76,           # Pulmonary arterial compliances want to chang to 5
     "C_pp": 10, # 5.8,            # Pulmonary peripheral compliances want to chang to 10
-    "C_pv": 15, # 25.37,          # Pulmonary venous compliances want to chang to 15
+    "C_pv": 25.37, # 25.37,          # Pulmonary venous compliances want to chang to 15
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
     "R_pp": 0.0894,         # Pulmonary peripheral flow resistance
@@ -76,13 +76,13 @@ Parameters = {
     "KE_lv": 0.014, # 0.014      # End-diastolic P-V relationship in left ventricle # adjusted (changes a lot depending on whether it is 0.06 or 0.05)
     "KE_rv": 0.011, # 0.011       # End-diastolic P-V relationship in right ventricle Another model use 0.027
     "KR_lv": 0.000375,     # Viscosity of left ventricle
-    "KR_rv": 0.0014,       # Viscosity of right ventricle (this parameter affects RA pressure)
+    "KR_rv": 0.00014,       # Viscosity of right ventricle (this parameter affects RA pressure)
     "ksys": 0.075,         # Duration of systole as function of heart rate (this parameter affects RA pressure)
     "P0_lv": 1.5, # 1.5        # End-diastolic P-V relationship in left ventricle # another model use 1.0
     "P0_rv": 1.5, # 1.5         # End-diastolic P-V relationship in right ventricle (check this one first, has strong effect with the smallest change in volume)
     "R_la": 0.0025,         # Left atrial flow resistance
     "R_ra": 0.0025,         # Right atrial flow resistance
-    "Tsys_0": 0.5,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
+    "Tsys_0": 0.4,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
     "Vu_la": 24,           # Left atrial unstressed volume
     "Vu_lv": 15.908,       # Left ventricular unstressed volume
     "Vu_ra": 24,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
@@ -102,8 +102,8 @@ Parameters = {
     "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
     "P_abdmax_n": 0,        # Basal value of abdominal pressure at the end of expiration
     "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
-    "P_thormax_n": -4,      # Basal value of intrathoracic pressure at the end of expiration
-    "P_thormin_n": -9,      # Basal value of intrathoracic pressure at the end of inspiration
+    "P_thormax_n": -3.5,      # Basal value of intrathoracic pressure at the end of expiration
+    "P_thormin_n": -5,      # Basal value of intrathoracic pressure at the end of inspiration
     "VT_n": 0.73, # had it as 0.4, changed back to its original parameter          # Basal value of tidal volume
 # }
 

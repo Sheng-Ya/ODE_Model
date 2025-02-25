@@ -1,4 +1,9 @@
 import bisect
+import math
+
+
+def frac(x):
+    return x - math.floor(x)
 
 import numpy as np
 
@@ -213,11 +218,12 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
                                                                                "f_v_history", "f_sv_history",
                                                                                "phi_met_history"]]
 
+    time_delay = time_history
+
     # added the below to get f_sp_delay from previous iterations.
     delay_time2 = t - 2
     if delay_time2 >= 0:
         # Find the index for delay_time in time_history
-        # index = max([i for i, t in enumerate(time_history) if t <= delay_time2])
         index = bisect.bisect_right(time_history, delay_time2) - 1
         f_sp_delay2 = f_sp_history[index]
         f_sh_delay2 = f_sh_history[index]
@@ -341,9 +347,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     T = Tv_change + Ts_change + T0
 
-    HR = 1 / T
-
-
+    HR1 = 1 / T
 
     ## Blood Flow Local Control
     # Cerebral Blood Flow constant parameters
@@ -452,17 +456,17 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     else:
         phi_met_delay = phi_met
 
+
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
-    if t > 0.0007:
-        a = 2
+
 
     if t != 0:
         if t < all_time[-1]:
             for key in [
                 "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
                 "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
-                "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2"
+                "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1", "U2"
             ]:
                 updates[key] = updates[key][:-num_removed]
 
@@ -489,7 +493,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["R_sp"].append(R_sp)
     updates["R_bp"].append(R_bp)
     updates["R_hp"].append(R_hp)
-    updates["HR"].append(HR)
+    updates["HR1"].append(HR1)
     updates["Emax_lv"].append(Emax_lv)
     updates["Emax_rv"].append(Emax_rv)
     updates["I"].append(I)
@@ -498,6 +502,22 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["Vu_sv_change"].append(Vu_sv_change)
     updates["prev_flat_bit"].append(prev_flat_bit)
     updates["Pa_O2"].append(Pa_O2)
+
+
+    if t == 0:
+        HR = HR1
+    else:
+        HR = updates["HR"][-1]
+
+
+    U2 = frac(updates["beta"][-1])
+
+    if U2 < 0.01 and updates["U2"][-1] > 0.99:
+        HR = np.mean(updates["HR1"])
+        updates["HR1"].clear()
+
+    updates["HR"].append(HR)
+    updates["U2"].append(U2)
 
     # updates["t_eval2"] = updates["t_eval2"][1:]
 

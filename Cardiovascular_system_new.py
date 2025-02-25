@@ -1,6 +1,8 @@
 import numpy as np
 import math
 
+from Activation_Functions import activation_U, activation_H, activation_Naghavi, g_function
+
 
 def frac(x):
     return x - math.floor(x)
@@ -74,11 +76,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     if 0 <= S < first:
         P_thor = P_thormax - (P_thormax - P_thormin) * (T_resp / TI) * S
 
-    elif first <= S < second:
+    elif first <= S <= second:
         P_thor = P_thormax - (P_thormax - P_thormin) * ((TI + TE - T_resp * S) / TE)
 
-    elif second <= S <= 1:
-        P_thor = P_thormax
+    # elif second <= S <= 1:
+    #     P_thor = P_thormax
 
     if 0 <= S < third:
         P_abd = P_abdmax - (P_abdmax - P_abdmin) * (T_resp / (TI / 2)) * S
@@ -86,11 +88,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     elif third <= S < first:
         P_abd = P_abdmin
 
-    elif first <= S < second:
+    elif first <= S <= second:
         P_abd = P_abdmax - (P_abdmax - P_abdmin) * ((TI + TE - T_resp * S) / TE)
 
-    elif second <= S <= 1:
-        P_abd = P_abdmax
+    # elif second <= S <= 1:
+    #     P_abd = P_abdmax
 
     ## Pulmonary Circulation
     C_pa = params["C_pa"]
@@ -118,9 +120,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_pp = 0
 
     P_pp = V_pp / C_pp
-
-    # if P_pa < P_pp:
-    #     raise ValueError("P_pa cannot be less than P_pp")
 
     if VT_pv > Vu_pv:
         V_pv = VT_pv - Vu_pv
@@ -163,29 +162,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_la = 0
 
-    ##############################################################
-    # tr = 0.3 * T
-    # td = 0.45 * T
-    #
-    # ti = t % T
-    #
-    # if ti <= 0.9 * T:
-    #     t_la = ti + 0.1 * T
-    # else:
-    #     t_la = ti - 0.9 * T
-    #
-    # # activation 1
-    # # phi_atr = np.where(t_la <= tr,
-    # #                    0.5 * (1.0 - np.cos(np.pi * t_la / T)),
-    # #                    np.where(t_la <= T,
-    # #                             0.5 * (np.exp(-(t_la - tr) * (1 / 0.025))),
-    # #                             0))
-    # # activation 2
-    # phi_atr = np.where(t_la <= tr,
-    #                0.5 * (1.0 - np.cos(np.pi * t_la / tr)),
-    #                np.where(t_la <= td,
-    #                         0.5 * (1.0 + np.cos(np.pi * (t_la - tr) / (td - tr))),
-    #                         0))
+
+
+
+
     Emax_la = 0.45
     P0_la = 0.45
     KE_la = 0.05
@@ -194,19 +174,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P0_ra = 0.45
     KE_ra = 0.05
 
-
-
-    Tsys = Tsys_0 - ksys * (1/T)
-
-    U_t0 = 0.1
-
-    U1 = frac(beta + U_t0)
-
-
-    if 0 <= U1 <= (Tsys / T):
-        phi_atr = (np.sin(((np.pi * T) / Tsys) * U1)) ** 2
-    else:
-        phi_atr = 0
+    # phi_atr = activation_U(beta, 1)
+    phi_atr = activation_H(t, 1)
+    # phi_atr = activation_Naghavi(t, 1)
+    # phi_atr = g_function(t, 1)
 
 
     # P_la = (V_la / C_la) + P_thor
@@ -222,49 +193,26 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_lv = 0
 
-    ############################################################
-    # the previous u
-    U_t0 = 0
+    # phi = activation_U(beta, 0)
+    phi = activation_H(t, 0)
+    # phi = activation_Naghavi(t, 0)
+    # phi = g_function(t, 0)
 
-    U = frac(beta + U_t0)
 
-    Tsys = Tsys_0 - ksys * (1/T)
 
-    if 0 <= U <= (Tsys / T):
-        phi = (np.sin(((np.pi * T) / Tsys) * U)) ** 2
-    else:
-        phi = 0
-    #############################################################
-    # tr = 0.3 * T # activation function 2 from modularcirc
-    # td = 0.45 * T
-    # Emax_lv = Emax_lv
-    #
-    # ti = t % T
-    #
-    # phi = np.where(ti <= tr,
-    #                0.5 * (1.0 - np.cos(np.pi * ti / tr)),
-    #                np.where(ti <= td,
-    #                         0.5 * (1.0 + np.cos(np.pi * (ti - tr) / (td - tr))),
-    #                         0))
 
-    ##############################################################
-
-    # phi = np.where(ti <= tr,
-    #                0.5 * (1.0 - np.cos(np.pi * ti / T)),
-    #                np.where(ti <= T,
-    #                         0.5 * (np.exp(-(ti - tr) * (1 / 0.025))),
-    #                         0))
-    ##############################################################
 
     Pmax_lv = phi * Emax_lv * (V_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * V_lv) - 1) + P_thor
 
     # P_sa: aortic pressure 80-120 mmhg?
     if Pmax_lv > P_sa:
         Q_lv = (Pmax_lv - P_sa) / (KR_lv * Pmax_lv)
+        P_lv = P_sa
     else:
         Q_lv = 0
+        P_lv = Pmax_lv
 
-    P_lv = Pmax_lv - (KR_lv * Pmax_lv) * Q_lv
+    # P_lv = Pmax_lv - (KR_lv * Pmax_lv) * Q_lv
 
 
     ##################
@@ -308,10 +256,12 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     if Pmax_rv > P_pa:
         Q_rv = (Pmax_rv - P_pa) / (KR_rv * Pmax_rv)
+        P_rv = P_pa
     else:
         Q_rv = 0
+        P_rv = Pmax_rv
 
-    P_rv = Pmax_rv - (KR_rv * Pmax_rv) * Q_rv
+    # P_rv = Pmax_rv - (KR_rv * Pmax_rv) * Q_rv
 
     ####################################
     if Pmax_ra > P_rv:
@@ -376,16 +326,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
 
-    # edited to avoid division by 0 error
-    if V_vc != 0:
-        R_vc = Kr_vc * (Vvc_max / V_vc) ** 2 + Rvc_n
-    else:
-        R_vc = Rvc_n
+    R_vc = Kr_vc * (Vvc_max / V_vc) ** 2 + Rvc_n
 
-    if P_vc < P_ra:
-        Q_ra = 0
-    else:
-        Q_ra = (P_vc - P_ra) / R_vc
+    # removed Q_ra if statement
+    Q_ra = (P_vc - P_ra) / R_vc
 
     dVT_rv_dt = Qi_rv - Q_rv
     dVT_ra_dt = Q_ra - Qi_rv
@@ -652,7 +596,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "Pmax_lv", "Pmax_rv", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
                 "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
-                "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr"
+                "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd", "beta", "Q_ep", "Pmax_la", "Pmax_ra"
             ]:
                 updates[key] = updates[key][:-num_removed]
 
@@ -678,6 +622,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["P_rv"].append(P_rv)
     updates["Pmax_lv"].append(Pmax_lv)
     updates["Pmax_rv"].append(Pmax_rv)
+    updates["Pmax_la"].append(Pmax_la)
+    updates["Pmax_ra"].append(Pmax_ra)
 
     updates["V_rv"].append(V_rv)
     updates["V_ra"].append(V_ra)
@@ -719,6 +665,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["Q_sp"].append(Q_sp)
     updates["Q_ep"].append(Q_ep)
     updates["Q_pa"].append(Q_pa)
+    updates["P_abd"].append(P_abd)
+    updates["beta"].append(beta)
 
 
     # updates["t_eval1"] = updates["t_eval1"][1:]

@@ -76,7 +76,7 @@ Next_Conditions = {
     "S": [],
     "V_pv": [],
     "V_pp": [],
-
+    "P_abd": [],
 
 
     # state # edited so that total is initially the unstressed volumes
@@ -105,6 +105,7 @@ Next_Conditions = {
     # initial condition of inputs from other controllers
     "U": [0],
     "U1": [0],
+    "U2": [0],
     "beta": [0],
     "BF": [0.25], # changed to 0.25 from 1/3 today, forgot why i had it as 1/3, nd is 4 s for t1+t2
     "Vu_ev": [607.8],
@@ -128,6 +129,8 @@ Next_Conditions = {
     "V_amv": [],
     "V_bv": [],
     "V_hv": [],
+    "HR1": [],
+    "check": [0],
 
     # cardiovascular controller
     "theta_change_O2_sp": [0],
@@ -247,6 +250,8 @@ Next_Conditions = {
     "Q_la": [10], # set based on simulation results and visually looking at plot (need to change)
     "VD": [0.15],
     "Pmax_rv": [],
+    "Pmax_ra": [],
+    "Pmax_la": [],
 
     # exp inputs/time history
     "f_sp_history": [],
