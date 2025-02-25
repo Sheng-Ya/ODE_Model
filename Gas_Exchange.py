@@ -183,7 +183,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
                 "Pb_CO2", "Pa_O2", "Pa_CO2", "MRV", "MRTCO2", "Pb_CO2_history",
                 "Pa_O2_history", "Pa_CO2_history", "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2"
             ]:
-                updates[key] = updates[key][:-num_removed]
+                del updates[key][-num_removed:]
 
     # t_eval = updates["t_eval3"][0]
     # tolerance = 1e-3

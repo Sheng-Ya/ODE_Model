@@ -110,7 +110,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             for key in [
                 "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
             ]:
-                updates[key] = updates[key][:-num_removed]
+                del updates[key][-num_removed:]
 
     # t_eval = updates["t_eval5"][0]
     # tolerance = 1e-3

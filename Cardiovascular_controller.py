@@ -468,7 +468,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
                 "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
                 "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1", "U2"
             ]:
-                updates[key] = updates[key][:-num_removed]
+                del updates[key][-num_removed:]
 
     # t_eval = updates["t_eval2"][0]
     # check2 = t

@@ -117,7 +117,7 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
                 "G_AW_guess", "Vflow_ua", "P_ua", "G_AW", "Vflow_ua", "P_ua",
                 "P_musc", "dV_dt", "V", "previous_dV_dt", "P_pl"
             ]:
-                updates[key] = updates[key][:-num_removed]
+                del updates[key][-num_removed:]
 
     # t_eval = updates["t_eval6"][0]
     # tolerance = 1e-3

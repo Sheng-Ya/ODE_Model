@@ -181,7 +181,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
 
     # P_la = (V_la / C_la) + P_thor
-    Pmax_la = phi_atr * Emax_la * (V_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * V_la) - 1) + P_thor
+    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1)
     ##############################################################
 
 
@@ -202,15 +202,15 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
 
 
-    Pmax_lv = phi * Emax_lv * (V_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * V_lv) - 1) + P_thor
+    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1)
 
     # P_sa: aortic pressure 80-120 mmhg?
     if Pmax_lv > P_sa:
         Q_lv = (Pmax_lv - P_sa) / (KR_lv * Pmax_lv)
-        P_lv = P_sa
+        P_lv = P_sa + P_thor
     else:
         Q_lv = 0
-        P_lv = Pmax_lv
+        P_lv = Pmax_lv + P_thor
 
     # P_lv = Pmax_lv - (KR_lv * Pmax_lv) * Q_lv
 
@@ -218,10 +218,12 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     ##################
     if Pmax_la > P_lv:
         Qi_lv = (Pmax_la - P_lv) / R_la
+        P_la = P_lv + P_thor
     else:
         Qi_lv = 0
+        P_la = Pmax_la + P_thor
 
-    P_la = Pmax_la - R_la * Qi_lv
+    # P_la = Pmax_la - R_la * Qi_lv
     ####################
 
 
@@ -238,7 +240,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     ##################################
     # P_ra = (V_ra / C_ra) + P_thor
-    Pmax_ra = phi_atr * Emax_ra * (V_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * V_ra) - 1) + P_thor
+    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1)
     ##################################
 
 
@@ -252,24 +254,26 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_rv = 0
 
 
-    Pmax_rv = phi * Emax_rv * (V_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * V_rv) - 1) + P_thor
+    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1)
 
     if Pmax_rv > P_pa:
         Q_rv = (Pmax_rv - P_pa) / (KR_rv * Pmax_rv)
-        P_rv = P_pa
+        P_rv = P_pa + P_thor
     else:
         Q_rv = 0
-        P_rv = Pmax_rv
+        P_rv = Pmax_rv + P_thor
 
     # P_rv = Pmax_rv - (KR_rv * Pmax_rv) * Q_rv
 
     ####################################
     if Pmax_ra > P_rv:
         Qi_rv = (Pmax_ra - P_rv) / R_ra
+        P_ra = P_rv + P_thor
     else:
         Qi_rv = 0
+        P_ra = Pmax_ra + P_thor
 
-    P_ra = Pmax_ra - R_ra * Qi_rv
+    # P_ra = Pmax_ra - R_ra * Qi_rv
     ####################################
 
 
@@ -328,7 +332,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     R_vc = Kr_vc * (Vvc_max / V_vc) ** 2 + Rvc_n
 
-    # removed Q_ra if statement
+    # removed Q_ra if statement so that back flow is possible into the vena cava
     Q_ra = (P_vc - P_ra) / R_vc
 
     dVT_rv_dt = Qi_rv - Q_rv
@@ -545,8 +549,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     left_over_volume = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
             - V_hv - V_vc - V_u - P_sp * C_jp)
 
-    if left_over_volume < 0:
-        raise ValueError("Error: wrong")
+    # if left_over_volume < 0:
+    #     raise ValueError("Error: wrong")
 
     P_ev = left_over_volume / C_ev
 
@@ -582,7 +586,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
     dV_sa_dt = dP_sa_dt * C_sa
     # VT_sa = V_sa + Vu_sa
-    check2 = ((P_sa - P_thor) - R_sa * Q_sa - P_sp)
     dQ_sa_dt = ((P_sa - P_thor) - R_sa * Q_sa - P_sp) / L_sa
 
     d_beta_dt = heart_control_inputs["HR"][-1]
@@ -598,78 +601,26 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
                 "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd", "beta", "Q_ep", "Pmax_la", "Pmax_ra"
             ]:
-                updates[key] = updates[key][:-num_removed]
+                del updates[key][-num_removed:]
 
     # t_eval = updates["t_eval1"][0]
     # tolerance = 1e-3
     # if t > Next_Conditions["time_history"][-1]:
-    updates["Q_pp"].append(Q_pp)
-    updates["Q_bp"].append(Q_bp)
-    updates["Q_hp"].append(Q_hp)
-    updates["Q_rmp"].append(Q_rmp)
-    updates["Q_amp"].append(Q_amp)
-    updates["Q_la"].append(Q_la)
-    updates["Q_lv"].append(Q_lv)
-    updates["Q_ra"].append(Q_ra)
-    updates["Q_rv"].append(Q_rv)
-    updates["Wh_lv"].append(Wh_lv)
-    updates["Wh_rv"].append(Wh_rv)
-    updates["dP_sa_dt"].append(dP_sa_dt)
-    updates["P_sa"].append(P_sa)
-    updates["P_ra"].append(P_ra)
-    updates["P_la"].append(P_la)
-    updates["P_lv"].append(P_lv)
-    updates["P_rv"].append(P_rv)
-    updates["Pmax_lv"].append(Pmax_lv)
-    updates["Pmax_rv"].append(Pmax_rv)
-    updates["Pmax_la"].append(Pmax_la)
-    updates["Pmax_ra"].append(Pmax_ra)
+    data_to_append = {
+        "Q_pp": Q_pp, "Q_bp": Q_bp, "Q_hp": Q_hp, "Q_rmp": Q_rmp, "Q_amp": Q_amp,
+        "Q_la": Q_la, "Q_lv": Q_lv, "Q_ra": Q_ra, "Q_rv": Q_rv, "Wh_lv": Wh_lv, "Wh_rv": Wh_rv,
+        "dP_sa_dt": dP_sa_dt, "P_sa": P_sa, "P_ra": P_ra, "P_la": P_la, "P_lv": P_lv,
+        "P_rv": P_rv, "Pmax_lv": Pmax_lv, "Pmax_rv": Pmax_rv, "Pmax_la": Pmax_la, "Pmax_ra": Pmax_ra,
+        "V_rv": V_rv, "V_ra": V_ra, "V_lv": V_lv, "V_la": V_la, "VT_rv": VT_rv, "VT_ra": VT_ra,
+        "VT_lv": VT_lv, "VT_la": VT_la, "P_pa": P_pa, "P_pp": P_pp, "P_pv": P_pv, "P_thor": P_thor,
+        "V_vc": V_vc, "P_vc": P_vc, "Qi_lv": Qi_lv, "Qi_rv": Qi_rv, "V_pa": V_pa, "phi": phi,
+        "phi_atr": phi_atr, "S": S, "V_pv": V_pv, "V_pp": V_pp, "P_amv": P_amv, "P_ev": P_ev,
+        "V_u": V_u, "V_sv": V_sv, "V_rmv": V_rmv, "V_amv": V_amv, "V_bv": V_bv, "V_hv": V_hv,
+        "P_sp": P_sp, "Q_sa": Q_sa, "Q_jp": Q_jp, "Q_vc": Q_vc, "VT_amv": VT_amv, "P_im": P_im,
+        "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "beta": beta
+    }
 
-    updates["V_rv"].append(V_rv)
-    updates["V_ra"].append(V_ra)
-    updates["V_lv"].append(V_lv)
-    updates["V_la"].append(V_la)
-    updates["VT_rv"].append(VT_rv)
-    updates["VT_ra"].append(VT_ra)
-    updates["VT_lv"].append(VT_lv)
-    updates["VT_la"].append(VT_la)
-    updates["P_pa"].append(P_pa)
-    updates["P_pp"].append(P_pp)
-    updates["P_pv"].append(P_pv)
-    updates["P_thor"].append(P_thor)
-    updates["V_vc"].append(V_vc)
-    updates["P_vc"].append(P_vc)
-    updates["Qi_lv"].append(Qi_lv)
-    updates["Qi_rv"].append(Qi_rv)
-    updates["V_pa"].append(V_pa)
-    updates["phi"].append(phi)
-    updates["phi_atr"].append(phi_atr)
-    updates["S"].append(S)
-    updates["V_pv"].append(V_pv)
-    updates["V_pp"].append(V_pp)
-    updates["P_amv"].append(P_amv)
-    updates["P_ev"].append(P_ev)
-    updates["V_u"].append(V_u)
-    updates["V_sv"].append(V_sv)
-    updates["V_rmv"].append(V_rmv)
-    updates["V_amv"].append(V_amv)
-    updates["V_bv"].append(V_bv)
-    updates["V_hv"].append(V_hv)
-    updates["P_sp"].append(P_sp)
-    updates["Q_sa"].append(Q_sa)
-    updates["Q_jp"].append(Q_jp)
-    updates["Q_vc"].append(Q_vc)
-    updates["VT_amv"].append(VT_amv)
-    updates["P_im"].append(P_im)
-    updates["Q_amv"].append(Q_amv)
-    updates["Q_sp"].append(Q_sp)
-    updates["Q_ep"].append(Q_ep)
-    updates["Q_pa"].append(Q_pa)
-    updates["P_abd"].append(P_abd)
-    updates["beta"].append(beta)
-
-
-    # updates["t_eval1"] = updates["t_eval1"][1:]
+    [updates[key].append(value) for key, value in data_to_append.items()]
 
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
