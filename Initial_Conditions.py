@@ -5,7 +5,7 @@ Initial_Conditions = {
 # state
     "VT_pa": 70, # 9.264, # trenhago
     "VT_pp": 200, # 193.1305 would be trenhago
-    "VT_pv": 215, # 344.590143
+    "VT_pv": 344.59, # 344.590143
     "Q_pa": 0,
     "VT_la": 50, # (Vu_la + (P_la-P_thor) * C_la) where P_la = 0 at end diastole, P_thor = -4
     "VT_lv": 180, # 291.924595828,

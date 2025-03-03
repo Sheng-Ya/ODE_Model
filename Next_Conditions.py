@@ -38,7 +38,7 @@ Next_Conditions = {
     "VT_amv": [300],
     "VT_ev": [400],
     "P_sp": [66], # not sure
-    "V_sa": [0], #
+    "V_sa": [], #
     "P_sa": [92], # not sure
     "Q_sa": [0], # at ED, Q_sa = 0 so that dP_sa_dt = 0
     "VT_vc": [350],
@@ -103,6 +103,8 @@ Next_Conditions = {
 
 
     # initial condition of inputs from other controllers
+    "Cvb_O2": [],
+    "P_bv": [],
     "U": [0],
     "U1": [0],
     "U2": [0],
@@ -154,6 +156,8 @@ Next_Conditions = {
     "Emax_rv_change": [0],
     "Ts_change": [0],
     "Tv_change": [0],
+    "Q_bv": [],
+    "R_bv": [],
     "xb_O2": [0],
     "xb_CO2": [0],
     "xh_O2": [0],
@@ -167,6 +171,12 @@ Next_Conditions = {
     "Nt": [],
     "P_amv": [],
     "Q_jp": [],
+    "Vu_ev1": [],
+    "Vu_sv1": [],
+    "Vu_rmv1": [],
+    "Vu_amv1": [],
+    "Emax_lv1": [],
+    "Emax_rv1": [],
 
     # initial condition of inputs from other controllers
     "Wh_lv": [10800],
@@ -265,7 +275,7 @@ Next_Conditions = {
     "previous_WI": [0],
     "previous_WE": [0],
     "previous_dV_dt": [0],
-    "Pa_O2_history": [45],
+    "Pa_O2_history": [100],
     "Pa_CO2_history": [40],
     "Pb_CO2_history": [48.5383],
     "Pb_CO2": [48.5383],
@@ -280,6 +290,7 @@ Next_Conditions = {
     "t_eval6": [],
     "P_pl": [],
     "VAflow": [],
+    "T": [],
 
     "PamO2": [],
     "PamCO2": [],

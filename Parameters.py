@@ -2,9 +2,9 @@
 Parameters = {
     # Table 1. Systemic arteries
 # systemic_arteries = {
-    "C_sa": 0.28,  # Systemic arterial compliance
+    "C_sa": 0.28,  # Systemic arterial compliance (decreasing C_sa allows Q_sa to match closer to Q_lv)
     "L_sa": 0.00022,  # Systemic arterial inertance
-    "R_sa": 0.06,  # Systemic arterial hydraulic resistance
+    "R_sa": 0.06,  # Systemic arterial hydraulic resistance (want to increase from 0.06 to 0.2 to increase Psys). This is because P_sa decreases at a slower rater (first order)
     "Vu_sa": 0, # Systemic arterial unstressed volume
 # }
 #
@@ -49,7 +49,7 @@ Parameters = {
     "K1_vc": 0.15,     # Parameter for P-V curve of vena cava
     "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
     "Kr_vc": 0.001,    # Gain for vena cava flow resistance
-    "Rvc_n": 0.025,    # Nominal vena cava flow resistance
+    "Rvc_n": 0.0025,    # Nominal vena cava flow resistance (changed to 0.0025 from 0.025 for better left atrial pressures)
     "Vu_vc": 123,      # Vena cava unstressed volume
     "Vvc_max": 350,     # Maximum volume of vena cava
     "Vvc_min": 50,      # Minimum volume of vena cava
@@ -57,8 +57,8 @@ Parameters = {
 #
 #     # Table 4. Pulmonary Circulation Parameters
 # pulmonary_circulation = {
-    "C_pa": 0.76, # 0.76,           # Pulmonary arterial compliances want to change to 5
-    "C_pp": 5.8, # 5.8,            # Pulmonary peripheral compliances want to change to 10
+    "C_pa": 5, # 0.76,           # Pulmonary arterial compliances want to change to 5
+    "C_pp": 10, # 5.8,            # Pulmonary peripheral compliances want to change to 10
     "C_pv": 25.37, # 25.37,          # Pulmonary venous compliances want to change to 15
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)

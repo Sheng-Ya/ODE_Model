@@ -31,11 +31,12 @@ def activation_U(beta, atr):
 
 
 def activation_H(t, atr):
-    tr_atr = 0.06*T
+    # rise and decrease
+    tr_atr = 0.045*T
     td_atr = 0.09*T
 
-    tr_ven = 0.3 * T
-    td_ven = 0.45 * T
+    tr_ven = 0.15 * T
+    td_ven = 0.3 * T
 
     ti = t % T
 

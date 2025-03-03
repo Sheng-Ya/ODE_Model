@@ -20,7 +20,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # State variables
     (VT_pa, VT_pp, VT_pv, Q_pa,
      VT_la, VT_lv, VT_ra, VT_rv,
-     VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, V_sa, P_sa, Q_sa, VT_vc, beta) = state
+     VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc, beta) = state
 
 
     ## Muscle Pump
@@ -174,29 +174,29 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
 
     ############################################################
-    # # the previous u
-    # U_t0 = 0
-    #
-    # U = frac(beta + U_t0)
-    #
-    # Tsys = Tsys_0 - ksys * (1/T)
-    #
-    # if 0 <= U <= (Tsys / T):
-    #     phi = (np.sin(((np.pi * T) / Tsys) * U)) ** 2
-    # else:
-    #     phi = 0
+    # the previous u
+    U_t0 = 0
+
+    U = frac(beta + U_t0)
+
+    Tsys = Tsys_0 - ksys * (1/T)
+
+    if 0 <= U <= (Tsys / T):
+        phi = (np.sin(((np.pi * T) / Tsys) * U)) ** 2
+    else:
+        phi = 0
     #############################################################
-    tr = 0.3 * T
-    td = 0.45 * T
-    Emax_lv = Emax_lv
-
-    ti = t % T
-
-    phi = np.where(ti <= tr,
-                   0.5 * (1.0 - np.cos(np.pi * ti / tr)),
-                   np.where(ti <= td,
-                            0.5 * (1.0 + np.cos(np.pi * (ti - tr) / (td - tr))),
-                            0))
+    # tr = 0.3 * T
+    # td = 0.45 * T
+    # Emax_lv = Emax_lv
+    #
+    # ti = t % T
+    #
+    # phi = np.where(ti <= tr,
+    #                0.5 * (1.0 - np.cos(np.pi * ti / tr)),
+    #                np.where(ti <= td,
+    #                         0.5 * (1.0 + np.cos(np.pi * (ti - tr) / (td - tr))),
+    #                         0))
 
     ##############################################################
     # tr = 0.42
@@ -531,6 +531,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     # added myself
     check = V_ep + V_amp + V_bp + V_hp+ V_rmp + V_sp + V_amv
+    V_sa = P_sa * C_sa
 
     left_over_volume = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
             - V_hv - V_vc - V_u - P_sp * C_jp)
@@ -570,7 +571,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     dVT_ev_dt = Q_ep - Q_ev
     dVT_vc_dt = Q_vc - Q_ra
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
-    dV_sa_dt = dP_sa_dt * C_sa
     # VT_sa = V_sa + Vu_sa
     check2 = ((P_sa - P_thor) - R_sa * Q_sa - P_sp)
     dQ_sa_dt = ((P_sa - P_thor) - R_sa * Q_sa - P_sp) / L_sa
@@ -586,7 +586,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "Pmax_lv", "Pmax_rv", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
                 "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
-                "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa"
+                "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "P_bv"
             ]:
                 updates[key] = updates[key][:-num_removed]
 
@@ -604,7 +604,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["Q_rv"].append(Q_rv)
     updates["Wh_lv"].append(Wh_lv)
     updates["Wh_rv"].append(Wh_rv)
-    # updates["U"].append(U)
+    updates["U"].append(U)
     updates["dP_sa_dt"].append(dP_sa_dt)
     updates["P_sa"].append(P_sa)
     updates["P_ra"].append(P_ra)
@@ -653,10 +653,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["Q_sp"].append(Q_sp)
     updates["Q_ep"].append(Q_ep)
     updates["Q_pa"].append(Q_pa)
+    updates["P_bv"].append(P_bv)
 
 
     # updates["t_eval1"] = updates["t_eval1"][1:]
 
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
-            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dV_sa_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt, d_beta_dt]
+            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt, d_beta_dt]

@@ -1,10 +1,6 @@
 import bisect
 import math
 
-
-def frac(x):
-    return x - math.floor(x)
-
 import numpy as np
 
 def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, all_time, num_removed):
@@ -36,7 +32,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # T_resp = 1 / resp_control_inputs["BF"]
     previous_VE = exp_inputs["previous_VE"][-1]
 
-    a = updates["VE_integral"]
     VE_integral = resp_control_inputs["VE_integral"][-1]
 
 
@@ -188,7 +183,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         f_sv = fes_max
 
     Y_v = (Yv_min + Yv_max * np.exp((I - Io_v) / kcc_v)) / (1 + np.exp((I - Io_v) / kcc_v))
-    first_term = ((fev_o + fev_inf * np.exp((f_ab - fab_o)/kev)) / (1 + np.exp((f_ab - fab_o)/kev)))
+    first_term = (fev_o + fev_inf * np.exp((f_ab - fab_o)/kev)) / (1 + np.exp((f_ab - fab_o)/kev))
     # f_v = first_term - Wt_v * Nt - Wc_v * f_ac - Wp_v * f_ap - theta_v + Y_v
     f_v = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
     #
@@ -218,8 +213,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
                                                                                "f_v_history", "f_sv_history",
                                                                                "phi_met_history"]]
 
-    time_delay = time_history
-
     # added the below to get f_sp_delay from previous iterations.
     delay_time2 = t - 2
     if delay_time2 >= 0:
@@ -232,7 +225,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             f_sp_delay2 = f_sp
             f_sh_delay2 = f_sh
         else:
-            f_sp_delay2 = np.mean(f_sp_history)
+            # f_sp_delay2 = np.mean(f_sp_history)
+            f_sp_delay2 = 3.97
             f_sh_delay2 = 3.8576 #(f_shIC)
 
     delay_time5 = t - 5
@@ -244,7 +238,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         if t == 0:
             f_sv_delay5 = f_sv
         else:
-            f_sv_delay5 = np.mean(f_sv_history)
+            f_sv_delay5 = 3.97
+            # f_sv_delay5 = np.mean(f_sv_history)
 
     # continue with equations
     if f_sp < fes_min:
@@ -300,16 +295,13 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     R_rmp_n = R_rmp_n_change + R_rmp0
     R_amp_n = R_amp_n_change + R_amp0
 
-    Vu_ev = Vu_ev_change + Vu_ev0
-    Vu_sv = Vu_sv_change + Vu_sv0
-    Vu_rmv = Vu_rmv_change + Vu_rmv0
-    Vu_amv = Vu_amv_change + Vu_amv0
+    Vu_ev1 = Vu_ev_change + Vu_ev0
+    Vu_sv1 = Vu_sv_change + Vu_sv0
+    Vu_rmv1 = Vu_rmv_change + Vu_rmv0
+    Vu_amv1 = Vu_amv_change + Vu_amv0
 
-    Emax_lv = Emax_lv_change + Emax_lv0
-    Emax_rv = Emax_rv_change + Emax_rv0
-
-    if t>2:
-        a = 2
+    Emax_lv1 = Emax_lv_change + Emax_lv0
+    Emax_rv1 = Emax_rv_change + Emax_rv0
 
     # heart period constants
     DT_s = params["DT_s"]
@@ -372,9 +364,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
     R_bp = 1 / G_bp
     Cvb_O2 = Ca_O2 - MO2_bp / Q_bp
-
-    dxb_O2_dt = - (xb_O2 - gb_O2 * (Cvb_O2 - Cvb_O2_n)) / tau_O2
-
+    dxb_O2_dt = (- xb_O2 - gb_O2 * (Cvb_O2 - Cvb_O2_n)) / tau_O2
     numerator = A + (B / (1 + C * np.exp(D * np.log10(Pa_CO2))))
     denominator = A + (B / (1 + C * np.exp(D * np.log10(PaCO2_n))))
     phi_b = numerator / denominator - 1
@@ -459,6 +449,53 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
+    if t == 0:
+        HR = HR1
+        Vu_ev = Vu_ev1
+        Vu_sv = Vu_sv1
+        Vu_rmv = Vu_rmv1
+        Vu_amv = Vu_amv1
+        Emax_lv = Emax_lv1
+        Emax_rv = Emax_rv1
+    else:
+        HR = updates["HR"][-1]
+        Vu_ev = updates["Vu_ev"][-1]
+        Vu_sv = updates["Vu_sv"][-1]
+        Vu_rmv = updates["Vu_rmv"][-1]
+        Vu_amv = updates["Vu_amv"][-1]
+        Emax_lv = updates["Emax_lv"][-1]
+        Emax_rv = updates["Emax_rv"][-1]
+
+    U2 = updates["U2"][-1]
+
+    # update after every heartbeat
+    if U2 < 0.01 and updates["U2"][-2] > 0.99:
+
+        HR = np.mean(updates["HR1"])
+        a = updates["HR1"]
+        if math.isnan(HR):
+            s = 2
+
+
+        updates["HR1"].clear()
+
+        Vu_ev = np.mean(updates["Vu_ev1"])
+        updates["Vu_ev1"].clear()
+
+        Vu_sv = np.mean(updates["Vu_sv1"])
+        updates["Vu_sv1"].clear()
+
+        Vu_rmv = np.mean(updates["Vu_rmv1"])
+        updates["Vu_rmv1"].clear()
+
+        Vu_amv = np.mean(updates["Vu_amv1"])
+        updates["Vu_amv1"].clear()
+
+        Emax_lv = np.mean(updates["Emax_lv1"])
+        updates["Emax_lv1"].clear()
+
+        Emax_rv = np.mean(updates["Emax_rv1"])
+        updates["Emax_rv1"].clear()
 
 
     if t != 0:
@@ -466,7 +503,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             for key in [
                 "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
                 "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
-                "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1", "U2"
+                "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1", "Vu_ev1",
+                "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1", "T", "xb_O2", "Cvb_O2", "xb_CO2"
             ]:
                 del updates[key][-num_removed:]
 
@@ -476,7 +514,17 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     #
     # tolerance = 1e-3
     # if np.abs(t - t_eval) < tolerance:
+
+
         # update history
+    updates["HR1"].append(HR1)
+    updates["Vu_ev1"].append(Vu_ev1)
+    updates["Vu_sv1"].append(Vu_sv1)
+    updates["Vu_rmv1"].append(Vu_rmv1)
+    updates["Vu_amv1"].append(Vu_amv1)
+    updates["Emax_lv1"].append(Emax_lv1)
+    updates["Emax_rv1"].append(Emax_rv1)
+
     updates["f_sp_history"].append(f_sp)
     updates["f_sh_history"].append(f_sh)
     updates["f_v_history"].append(f_v)
@@ -493,7 +541,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["R_sp"].append(R_sp)
     updates["R_bp"].append(R_bp)
     updates["R_hp"].append(R_hp)
-    updates["HR1"].append(HR1)
     updates["Emax_lv"].append(Emax_lv)
     updates["Emax_rv"].append(Emax_rv)
     updates["I"].append(I)
@@ -502,22 +549,11 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["Vu_sv_change"].append(Vu_sv_change)
     updates["prev_flat_bit"].append(prev_flat_bit)
     updates["Pa_O2"].append(Pa_O2)
-
-
-    if t == 0:
-        HR = HR1
-    else:
-        HR = updates["HR"][-1]
-
-
-    U2 = frac(updates["beta"][-1])
-
-    if U2 < 0.01 and updates["U2"][-1] > 0.99:
-        HR = np.mean(updates["HR1"])
-        updates["HR1"].clear()
-
     updates["HR"].append(HR)
-    updates["U2"].append(U2)
+    updates["xb_O2"].append(xb_O2)
+    updates["T"].append(T)
+    updates["Cvb_O2"].append(Cvb_O2)
+    updates["xb_CO2"].append(xb_CO2)
 
     # updates["t_eval2"] = updates["t_eval2"][1:]
 
