@@ -61,6 +61,38 @@ def activation_H(t, atr):
     return phi
 
 
+def activation_H_derivative(t, atr):
+    # rise and decrease
+    tr_atr = 0.045*T
+    td_atr = 0.09*T
+
+    tr_ven = 0.15 * T
+    td_ven = 0.3 * T
+
+    ti = t % T
+
+    if ti <= 0.9 * T:
+        t_la = ti + 0.1 * T
+    else:
+        t_la = ti - 0.9 * T
+
+    if atr == 1:
+        dphi_dt = np.where(t_la <= tr_atr,
+                           0.5 * (np.sin(np.pi * t_la / tr_atr)) * np.pi / tr_atr,
+                       np.where(t_la <= td_atr,
+                                -0.5 * (np.sin(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))) * (np.pi/(td_atr - tr_atr)),
+                                0))
+    else:
+        dphi_dt = np.where(ti <= tr_ven,
+                       0.5 * (np.sin(np.pi * ti / tr_ven)) * np.pi / tr_ven,
+                       np.where(ti <= td_ven,
+                                -0.5 * (np.sin(np.pi * (ti - tr_ven) / (td_ven - tr_ven))) * (np.pi/(td_ven - tr_ven)),
+                                0))
+
+    return dphi_dt
+
+
+
 
 
 def activation_Naghavi(t, atr):

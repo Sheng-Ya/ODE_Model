@@ -57,7 +57,7 @@ Parameters = {
 #
 #     # Table 4. Pulmonary Circulation Parameters
 # pulmonary_circulation = {
-    "C_pa": 5, # 0.76,           # Pulmonary arterial compliances want to change to 5
+    "C_pa": 8, # 0.76,           # Pulmonary arterial compliances want to change to 5
     "C_pp": 10, # 5.8,            # Pulmonary peripheral compliances want to change to 10
     "C_pv": 25.37, # 25.37,          # Pulmonary venous compliances want to change to 15
     "L_pa": 0.00018,        # Pulmonary arterial inertance
@@ -83,10 +83,10 @@ Parameters = {
     "R_la": 0.0025,         # Left atrial flow resistance
     "R_ra": 0.0025,         # Right atrial flow resistance
     "Tsys_0": 0.4,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
-    "Vu_la": 24,           # Left atrial unstressed volume
-    "Vu_lv": 15.908,       # Left ventricular unstressed volume
-    "Vu_ra": 24,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
-    "Vu_rv": 38.703,       # Right ventricular unstressed volume
+    "Vu_la": 4,           # Left atrial unstressed volume
+    "Vu_lv": 5,       # Left ventricular unstressed volume
+    "Vu_ra": 4,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
+    "Vu_rv": 10,       # Right ventricular unstressed volume
 # }
 
     # Table 6. Muscle Pump
@@ -405,10 +405,10 @@ Parameters = {
 # parameters_body_tissues_compartment = {
     "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
     "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
-    "MRCO2": 0.3,               # Minimum metabolic production rate for CO2 (l/min STPD)
-    "MRO2": 0.33,               # Minimum metabolic consumption rate for O2 (l/min STPD)
-    "MRTCO2_basal": 0.3,            # Basal metabolic production rate for CO2 (l/min STPD)
-    "MRTO2_basal": 0.33,            # Basal metabolic consumption rate for O2 (l/min STPD)
+    "MRCO2": 0.3/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
+    "MRO2": 0.33/60,               # Minimum metabolic consumption rate for O2 (l/min STPD)
+    "MRTCO2_basal": 0.3/60,            # Basal metabolic production rate for CO2 (l/min STPD)
+    "MRTO2_basal": 0.33/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
     "VTCO2": 15,                    # Body tissue storage volume for CO2 (l)
     "VTO2": 6,                      # Body tissue storage volume for O2 (l)

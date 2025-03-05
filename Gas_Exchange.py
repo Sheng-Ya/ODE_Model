@@ -160,6 +160,9 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     QT = Q_pp - Q_bp
 
+    if t > 10:
+        a = 2
+
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 

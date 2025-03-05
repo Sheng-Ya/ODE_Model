@@ -470,13 +470,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     # update after every heartbeat
     if U2 < 0.01 and updates["U2"][-2] > 0.99:
-
         HR = np.mean(updates["HR1"])
-        a = updates["HR1"]
-        if math.isnan(HR):
-            s = 2
-
-
         updates["HR1"].clear()
 
         Vu_ev = np.mean(updates["Vu_ev1"])

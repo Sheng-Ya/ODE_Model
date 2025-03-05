@@ -133,6 +133,9 @@ Next_Conditions = {
     "V_hv": [],
     "HR1": [],
     "check": [0],
+    "theta_ao": [],
+    "AR_ao": [],
+    "d2theta_ao_dt2": [],
 
     # cardiovascular controller
     "theta_change_O2_sp": [0],

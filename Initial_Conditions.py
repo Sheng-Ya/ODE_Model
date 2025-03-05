@@ -62,6 +62,8 @@ Initial_Conditions = {
     "Emax_lv": 2.392, # 5.2, # should change based on literature (before: 2.392)
     "Emax_rv": 1.412,
     "I": 0,
+    "dtheta_ao_dt": 0,
+    "theta_ao": 0.0872665, # 5 degrees
 
 # cardiovascular controller
     "theta_change_O2_sp": 0,
