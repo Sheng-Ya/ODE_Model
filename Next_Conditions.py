@@ -27,9 +27,9 @@ Next_Conditions = {
     "VT_pp": [200],
     "VT_pv": [215],
     "Q_pa": [0], # not sure
-    "VT_la": [100],
+    "VT_la": [20],
     "VT_lv": [150],
-    "VT_ra": [100],
+    "VT_ra": [20],
     "VT_rv": [180],
     "VT_sv": [1400],
     "VT_bv": [300],
@@ -108,6 +108,7 @@ Next_Conditions = {
     "U": [0],
     "U1": [0],
     "U2": [0],
+    "time_since_beat": [0],
     "beta": [0],
     "BF": [0.25], # changed to 0.25 from 1/3 today, forgot why i had it as 1/3, nd is 4 s for t1+t2
     "Vu_ev": [607.8],
@@ -136,6 +137,11 @@ Next_Conditions = {
     "theta_ao": [],
     "AR_ao": [],
     "d2theta_ao_dt2": [],
+    "dVT_la_dt": [700],
+    "dPmax_la_dt": [],
+    "dVT_ra_dt": [100],
+    "dPmax_ra_dt": [],
+    "phi_cond": [],
 
     # cardiovascular controller
     "theta_change_O2_sp": [0],
@@ -144,7 +150,7 @@ Next_Conditions = {
     "theta_change_CO2_sv": [0],
     "theta_change_O2_sh": [0],
     "theta_change_CO2_sh": [0],
-    "P_tilda": [92],
+    "P_tilda": [80],
     "f_ac": [8.0807],
     "f_ap": [4.4492],
     "R_ep_change": [0],
@@ -180,14 +186,13 @@ Next_Conditions = {
     "Vu_amv1": [],
     "Emax_lv1": [],
     "Emax_rv1": [],
+    "source_values": [0],
 
     # initial condition of inputs from other controllers
     "Wh_lv": [10800],
     "Wh_rv": [1860],
     "Ca_O2": [0.2],
     "Ca_CO2": [0.2],
-    "Cv_O2": [0.2],
-    "Cv_CO2": [0.2],
     # "Q_bp": 0,
     "Q_hp": [10],
     "Q_rmp": [10],
@@ -250,11 +255,16 @@ Next_Conditions = {
     "PA_CO2": [40.9432],
     "PvbCO2": [43.7], # set 0 here, but it is another value initially from Gas_Exchange.py
     "PCSFCO2": [43.6],
-    "MRTO2": [0.33],
-    "MRTCO2": [0.3],
-    "CvO2": [0.1639],
-    "CvCO2": [0.5247],
+    "MRTO2": [0.33/60],
+    "MRTCO2": [0.3/60],
+    "Cv_O2": [0.1639],
+    "Cv_CO2": [0.5247],
     "MRV": [0],
+    "FO2": [],
+    "FCO2":[],
+    "QT": [],
+    "phi_atr1": [],
+    "phi_atr2": [],
     # other inputs from other systems
     # "dV_dt":
     # "V": [0],

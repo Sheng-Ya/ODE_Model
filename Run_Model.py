@@ -1,4 +1,5 @@
 import numpy as np
+import bisect
 from scipy.integrate import solve_ivp
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
@@ -35,7 +36,7 @@ initial_Nd_guess = np.array([0, 0, 0, 0.4, 1, 2])  # Example initial values for 
 # # Optimize
 # result = minimize(breath_optimiser, initial_Nd_guess, args=(t, Next_Conditions["time_history"], Parameters, Next_Conditions, Next_Conditions, Next_Conditions, Next_Conditions["all_time"]), method='SLSQP', bounds=bounds)
 # print(result.x)
-
+target_values = np.arange(0, 500, 10)
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -45,9 +46,9 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
     """
     if t != 0:
         if t < all_time[-1]:
-            num_removed = sum(1 for x in time_history if x > t)
-            for _ in range(num_removed):
-                time_history.pop()
+            index = bisect.bisect_left(time_history, t)
+            num_removed = len(time_history[index:])
+            time_history[:] = time_history[:index]
         else:
             num_removed = 0
     else:
@@ -55,7 +56,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
 
     # just for checking progress of code
     if t != 0:
-        target_values = np.arange(0, 300, 10)
         if t > 0.00001:
             if time_history[-1] < time_history[-2]:
                 print("ISSUE")
@@ -65,7 +65,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
     # Indices for slicing
     idx_cardio = num_cardio
     idx_cardio_contr = idx_cardio + num_cardio_control
-    idx_gas = idx_cardio_contr + num_gas
+    # idx_gas = idx_cardio_contr + num_gas
     # idx_resp_mech = idx_gas + num_resp_mech
     # idx_resp_contr = idx_resp_mech + num_resp_control
 
@@ -84,7 +84,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
     # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr))
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech, d_resp_vent))
+    # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
 
     time_history.append(t)
     all_time.append(t)
@@ -95,20 +95,20 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
 def simulate():
 
 
-    t_span = (0,100) # Simulate for x seconds
+    t_span = (0,200) # Simulate for x seconds
 
     # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
     # gas exchange
     required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
                          "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
-                         "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "CvO2", "CvCO2", "MRV"]
+                         "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "Cv_O2", "Cv_CO2", "MRV"]
     IC_gas = np.array([Initial_Conditions[key] for key in required_gas_keys], dtype=float)
     num_gas = len(required_gas_keys)
 
     # cardiovascular system
     required_cardio_keys = [ "VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
-                               "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "beta", "theta_ao", "dtheta_ao_dt"]
+                               "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "theta_ao", "dtheta_ao_dt"]
     IC_cardio = np.array([Initial_Conditions[key] for key in required_cardio_keys], dtype=float)
     num_cardio = len(required_cardio_keys)
 
@@ -134,12 +134,12 @@ def simulate():
     IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
     num_resp_mech = len(required_resp_mech_keys)
 
-    IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
+    # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
     # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
 
 
     # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, max_step = 0.003, method='RK23', rtol=1e-3,
+    ODE_solution = solve_ivp(combined_system, t_span, IC_cardio, max_step = 0.003, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Parameters, Next_Conditions["time_history"], Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech, Next_Conditions["all_time"]))
 
     return ODE_solution
@@ -148,11 +148,14 @@ def simulate():
 if __name__ == "__main__":
 
     # lp = LineProfiler()
+    # lp.add_function(combined_system)
     # lp.add_function(cardiovascular_controller)
     # lp.add_function(cardiovascular_system)
+    # lp.add_function(gas_exchange)
+    # lp.add_function(respiratory_mechanics)
     # lp.enable()
     solution = simulate()
-    # cProfile.run('simulate()', sort='time')
+    # # # # cProfile.run('simulate()', sort='time')
     # lp.disable()
     # lp.print_stats()
 
@@ -160,7 +163,7 @@ if __name__ == "__main__":
     state_variables = solution.y
 
     required_cardio_keys = ["VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
-                            "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "beta", "theta_ao", "dtheta_ao_dt"]
+                            "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "theta_ao", "dtheta_ao_dt"]
     required_cardio_control_keys = ["theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv",
                                     "theta_change_O2_sh", "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", "R_ep_change",
                                     "R_sp_change", "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change",
@@ -169,7 +172,7 @@ if __name__ == "__main__":
                                     "xam_O2", "xM", "x_met"]
     required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
                          "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
-                         "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "CvO2", "CvCO2", "MRV"]
+                         "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "Cv_O2", "Cv_CO2", "MRV"]
     required_resp_mech_keys = ["V", "alpha"]
     required_resp_control_keys = ["VE_integral"]
 
@@ -191,44 +194,51 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.show()
 
-
-    variables_to_plot = [
-        "f_sp_history", "f_sh_history", "f_v_history",
-        # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
-        "AR_ao", "theta_ao", "HR", "d2theta_ao_dt2" # , "T", "xb_O2", "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
-        # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
-        # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
-        # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
-    ]
-
-    for key in variables_to_plot:
-        if key in Next_Conditions:  # Check if the key exists in updates
-            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
-            plt.plot(Next_Conditions[key], label=key, linewidth=2)
-            plt.xlabel("Time Steps")
-            plt.ylabel(key)
-            plt.title(f"Plot of {key} over Time")
-            plt.legend()
-            plt.grid(True)
-            plt.show()
-
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][92500:], Next_Conditions["P_sa"][92501:], label="P_sa", color="r")
-    ax1.plot(Next_Conditions["time_history"][92500:], Next_Conditions["P_lv"][92500:], label="P_lv", color="b")
-    ax1.plot(Next_Conditions["time_history"][92500:], Next_Conditions["VT_lv"][92501:], label="VT_lv", color="k")
+    # variables_to_plot = [
+    #     # "f_sp_history", "f_sh_history", "f_v_history",
+    #     # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+    #     # "AR_ao", "theta_ao", "HR", "d2theta_ao_dt2" # , "T", "xb_O2", "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
+    #     "VE_integral", "Nt" #"V", "Cv_O2", "Ca_O2"
+    #     # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
+    #     # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
+    #     # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
+    # ]
+    #
+    # for key in variables_to_plot:
+    #     if key in Next_Conditions:  # Check if the key exists in updates
+    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+    #         plt.plot(Next_Conditions[key], label=key, linewidth=2)
+    #         plt.xlabel("Time Steps")
+    #         plt.ylabel(key)
+    #         plt.title(f"Plot of {key} over Time")
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
 
 
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi"][99500:], label="phi", color="g")
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Cv_O2"][1:], label="Cv_O2", color="b")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Ca_O2"][1:], label="Ca_O2", color="g")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Ca_CO2"][1:], label="Ca_CO2", color="r")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Cv_CO2"][1:], label="Cv_CO2", color="k")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["FO2"], label="FO2", color="m")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["FCO2"], label="FCO2", color="c")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["QT"], label="QT", color="k")
+
+
+
+
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Nt"], label="Nt", color="g")
     # ax1.plot(Next_Conditions["time_history"][92500:], Next_Conditions["V_sa"][92500:], label="V_sa", color="k")
 
 
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Pressure (mmHg)", color="k")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    #
-    # Create second y-axis for volume
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Pressure (mmHg)", color="k")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+
+    # # Create second y-axis for volume
     # ax2 = ax1.twinx()
     # ax2.plot(Next_Conditions["time_history"][92500:], Next_Conditions["Q_lv"][92500:], label="Q_lv", linestyle="dashed",
     #          color="b")
@@ -237,7 +247,7 @@ if __name__ == "__main__":
     # ax2.set_ylabel("Flow (mL/s)", color="k")
     # ax2.tick_params(axis='y', labelcolor="k")
     # ax2.legend(loc="upper right")
-    plt.show()
+    # plt.show()
 
 
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["f_sp_history"], label="f_sp_history")
@@ -281,8 +291,9 @@ if __name__ == "__main__":
 
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_ra"], label="Pmax_ra")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_lv"], label="Pmax_lv (Left Ventricle)")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_la"], label="P_la (Left Atrium)")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra (Right Atrium)")
+    # plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"][1:], label="VT_lv (Left Ventricle)")
+    # # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_la"], label="P_la (Left Atrium)")
+    # # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra (Right Atrium)")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_sa"][1:], label="P_sa")
 
@@ -294,7 +305,7 @@ if __name__ == "__main__":
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv (Right Ventricle)")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_pa"], label="P_pa")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_pp"], label="P_pp")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_amv"], label="P_amv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["P_amv"], label="P_amv")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_ev"], label="P_ev")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_sa"][1:], label="P_sa")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc")
@@ -302,23 +313,23 @@ if __name__ == "__main__":
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_im"], label="P_im")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_ev"], label="P_ev")
 
-    # # Add labels and legend
-    # plt.ylabel("Pressure (mmHg)")
-    # plt.xlabel("Time (s)")
-    # plt.title("Pressure Traces")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
+    # Add labels and legend
+    plt.ylabel("Pressure (mmHg)")
+    plt.xlabel("Time (s)")
+    plt.title("Pressure Traces")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 
     plt.plot(Next_Conditions["VT_lv"][97501:], Next_Conditions["P_lv"][97500:], label="P_lv (Left Ventricle)")  # 10 s all
-    # plt.plot(Next_Conditions["VT_lv"][99501:][1:], Next_Conditions["Pmax_lv"][99500:], label="Pmax_lv (Left Ventricle)")  # 10 s all
-
-    # plt.plot(Next_Conditions["V_lv"][100000:], Next_Conditions["P_lv"][100000:], label="P_lv (Left Ventricle)")
-    # plt.plot(Next_Conditions["V_rv"][120000:], Next_Conditions["P_rv"][120000:], label="P_rv")
-    # plt.plot(Next_Conditions["V_rv"][120000:], Next_Conditions["Pmax_rv"][120000:], label="Pmax_rv")
-    # plt.plot(Next_Conditions["V_la"][80000:], Next_Conditions["P_la"][80000:], label="LA")
+    # # plt.plot(Next_Conditions["VT_lv"][99501:][1:], Next_Conditions["Pmax_lv"][99500:], label="Pmax_lv (Left Ventricle)")  # 10 s all
+    #
+    # # plt.plot(Next_Conditions["V_lv"][140000:], Next_Conditions["P_lv"][140000:], label="P_lv (Left Ventricle)")
+    # # plt.plot(Next_Conditions["V_rv"][140000:], Next_Conditions["P_rv"][140000:], label="P_rv")
+    # # plt.plot(Next_Conditions["V_rv"][140000:], Next_Conditions["Pmax_rv"][140000:], label="Pmax_rv")
+    # # plt.plot(Next_Conditions["V_la"][80000:], Next_Conditions["P_la"][80000:], label="LA")
     # Add labels and legend
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
@@ -326,96 +337,58 @@ if __name__ == "__main__":
     plt.legend()
     # plt.grid(True)
     plt.show()
-
+    # #
     fig, ax1 = plt.subplots()
+    #
+    # # Plot pressures on primary y-axis
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_rv"][99500:], label="P_rv", color="b")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_ra"][99500:], label="P_ra", color="g")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_la"], label="Pmax_la", color="g")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["VT_rv"][1:], label="VT_rv", color="r")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"][1:], label="VT_lv", color="m")
 
-    # Plot pressures on primary y-axis
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_rv"][99500:], label="P_rv", color="b")
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_ra"][99500:], label="P_ra", color="g")
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_la"][99500:], label="Pmax_la", color="k")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["VT_la"][1:], label="VT_la", color="c")
+    #
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_rv"], label="P_rv", color="g")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv", color="r")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_rv"][99500:], label="Pmax_rv", color="c")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pa"], label="P_pa", color="g")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pv"], label="P_pv", color="r")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pp"], label="P_pp", color="b")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc", color="c")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_pa"][99500:], label="P_pa", color="r")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_thor"], label="P_thor", linestyle="dashed", color="c")
+    #
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi_atr1"], label="phi_atr1", color="c")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi_atr2"], label="phi_atr2", color="k")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi", color="r")
 
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_rv"], label="P_rv", color="g")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv", color="r")
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_rv"][99500:], label="Pmax_rv", color="c")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pa"], label="P_pa", color="g")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pv"], label="P_pv", color="r")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pp"], label="P_pp", color="b")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc", color="c")
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_pa"][99500:], label="P_pa", color="r")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_thor"], label="P_thor", linestyle="dashed", color="c")
 
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi_atr"][99500:], label="phi_atr", color="m")
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi"][99500:], label="phi", color="k")
+    # ax1.plot(Next_Conditions["time_history"][0:11400], Next_Conditions["VT_ra"][0:11400], label="VT_ra", color="m")
+    # ax1.plot(Next_Conditions["time_history"][0:11400], Next_Conditions["P_ra"][0:11400], label="P_ra", color="m")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["VT_la"][1:], label="VT_la", color="m")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_la"], label="P_la", color="b")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_lv"], label="P_lv", color="c")
+
+    # ax1.plot(Next_Conditions["time_history"][0:11400], Next_Conditions["phi"][0:11400], label="phi", color="k")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi_cond"], label="phi_cond", color="m")
 
     ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Pressure (mmHg)", color="k")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.set_title("R_la and R_ra = 0.025 mmHg.s/ml")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    #
-    # Create second y-axis for volume
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_rv"][99500:], label="Q_rv", linestyle="dashed",
-             color="b")
-    ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Qi_rv"][99500:], label="Qi_rv",
-             linestyle="dashed", color="c")
-    ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_ra"][99500:], label="Q_ra", linestyle="dashed",
-             color="g")
-
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pa"], label="V_pa", color="g")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pv"], label="V_pv", color="r")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pp"], label="V_pp", color="b")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_ra"], label="V_ra", color="r")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_rv"], label="V_rv", color="g")
-
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_la"], label="V_la", linestyle="dashed", color="c")
-
-    ax2.set_ylabel("Flow (mL/s)", color="k")
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
-    #
-    plt.show()
-
-
-
-
-
-
-    fig, ax1 = plt.subplots()
-
-    # Plot pressures on primary y-axis
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_lv"][99500:], label="P_lv", color="b")
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_la"][99500:], label="P_la", color="g")
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_la"][99500:], label="Pmax_la", color="k")
-
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_rv"], label="P_rv", color="g")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv", color="r")
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_lv"][99500:], label="Pmax_lv", color="c")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pa"], label="P_pa", color="g")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pv"], label="P_pv", color="r")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pp"], label="P_pp", color="b")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc", color="c")
-    ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_sa"][99501:], label="P_sa", color="r")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_thor"], label="P_thor", linestyle="dashed", color="c")
-
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi_atr"][99500:], label="phi_atr", color="m")
-    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi"][99500:], label="phi", color="k")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Pressure (mmHg)", color="k")
+    # ax1.set_ylabel("Pressure (mmHg)", color="k")
     ax1.tick_params(axis='y', labelcolor="k")
     # ax1.set_title("R_la and R_ra = 0.025 mmHg.s/ml")
     ax1.legend(loc="upper left")
     ax1.grid(True)
-    #
-    # Create second y-axis for volume
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_lv"][99500:], label="Q_lv", linestyle="dashed", color="b")
-    ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Qi_lv"][99500:], label="Qi_lv", linestyle="dashed", color="c")
-    ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_la"][99501:], label="Q_la", linestyle="dashed", color="g")
+    # #
+    # # Create second y-axis for volume
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_rv"][99500:], label="Q_rv", linestyle="dashed",
+    #          color="b")
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Qi_rv"][99500:], label="Qi_rv",
+    #          linestyle="dashed", color="c")
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_ra"][99500:], label="Q_ra", linestyle="dashed",
+    #          color="g")
 
     # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pa"], label="V_pa", color="g")
     # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pv"], label="V_pv", color="r")
@@ -425,16 +398,123 @@ if __name__ == "__main__":
 
     # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_la"], label="V_la", linestyle="dashed", color="c")
 
-    ax2.set_ylabel("Volume (mL)", color="k")
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
-    #
+    # ax2.set_ylabel("Flow (mL/s)", color="k")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    # #
     plt.show()
 
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_ev"][1:], label="Vu_ev")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_amv"][1:], label="Vu_amv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_rmv"][1:], label="Vu_rmv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_sv"][1:], label="Vu_sv")
+
+
+
+
+
+    # fig, ax1 = plt.subplots()
+    #
+    # # Plot pressures on primary y-axis
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_lv"][99500:], label="P_lv", color="b")
+    # # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_la"][99500:], label="P_la", color="g")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_la"][99500:], label="Pmax_la", color="k")
+    # # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["dPmax_la_dt"][99500:], label="dPmax_la_dt", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_rv"], label="P_rv", color="g")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv", color="r")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_lv"][99500:], label="Pmax_lv", color="c")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pa"], label="P_pa", color="g")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pv"], label="P_pv", color="r")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pp"], label="P_pp", color="b")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc", color="c")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_sa"][99501:], label="P_sa", color="r")
+    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_thor"], label="P_thor", linestyle="dashed", color="c")
+
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi_atr"][99500:], label="phi_atr", color="m")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi"][99500:], label="phi", color="k")
+
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Pressure (mmHg)", color="k")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # # ax1.set_title("R_la and R_ra = 0.025 mmHg.s/ml")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # #
+    # # Create second y-axis for volume
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_lv"][99500:], label="Q_lv", linestyle="dashed", color="b")
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Qi_lv"][99500:], label="Qi_lv", linestyle="dashed", color="c")
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_la"][99501:], label="Q_la", linestyle="dashed", color="g")
+
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pa"], label="V_pa", color="g")
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pv"], label="V_pv", color="r")
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pp"], label="V_pp", color="b")
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_ra"], label="V_ra", color="r")
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_rv"], label="V_rv", color="g")
+
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_la"], label="V_la", linestyle="dashed", color="c")
+
+    # ax2.set_ylabel("Flow (mL/s)", color="k")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    # #
+    # plt.show()
+    #
+    # fig, ax1 = plt.subplots()
+
+    # Plot pressures on primary y-axis
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_lv"][99500:], label="P_lv", color="b")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_la"][99500:], label="P_la", color="g")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_la"][99500:], label="Pmax_la", color="k")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["dPmax_la_dt"][99500:], label="dPmax_la_dt",
+    #          color="k")
+
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_rv"], label="P_rv", color="g")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv", color="r")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Pmax_lv"][99500:], label="Pmax_lv", color="c")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pa"], label="P_pa", color="g")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pv"], label="P_pv", color="r")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_pp"], label="P_pp", color="b")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc", color="c")
+    # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["P_sa"][99501:], label="P_sa", color="r")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_thor"], label="P_thor", linestyle="dashed", color="c")
+    #
+    # # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi_atr"][99500:], label="phi_atr", color="m")
+    # # ax1.plot(Next_Conditions["time_history"][99500:], Next_Conditions["phi"][99500:], label="phi", color="k")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Pressure (mmHg)", color="k")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # # ax1.set_title("R_la and R_ra = 0.025 mmHg.s/ml")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # #
+    # # Create second y-axis for volume
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_lv"][99500:], label="Q_lv", linestyle="dashed",
+    #          color="b")
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Qi_lv"][99500:], label="Qi_lv",
+    #          linestyle="dashed", color="c")
+    # ax2.plot(Next_Conditions["time_history"][99500:], Next_Conditions["Q_la"][99501:], label="Q_la", linestyle="dashed",
+    #          color="g")
+    #
+    # # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pa"], label="V_pa", color="g")
+    # # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pv"], label="V_pv", color="r")
+    # # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pp"], label="V_pp", color="b")
+    # # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_ra"], label="V_ra", color="r")
+    # # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_rv"], label="V_rv", color="g")
+    #
+    # # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_la"], label="V_la", linestyle="dashed", color="c")
+    #
+    # ax2.set_ylabel("Volume (mL)", color="k")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    # #
+    # plt.show()
+
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_ev"][1:], label="Vu_ev")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_amv"][1:], label="Vu_amv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_rmv"][1:], label="Vu_rmv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["Vu_sv"][1:], label="Vu_sv")
     plt.plot(Next_Conditions["time_history"], Next_Conditions["R_ep"][1:], label="R_ep")
     plt.plot(Next_Conditions["time_history"], Next_Conditions["R_amp"][1:], label="R_amp")
     plt.plot(Next_Conditions["time_history"], Next_Conditions["R_rmp"][1:], label="R_rmp")
@@ -502,22 +582,21 @@ if __name__ == "__main__":
     # a = Next_Conditions["time_history"]
     # b = Next_Conditions["V_lv"]
     # # # for 20 s, go from [8750:]
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"][1:], label="VT_lv (Left Ventricle)")
+    # plt.plot(Next_Conditions["time_history"][:900], Next_Conditions["VT_lv"][:900], label="VT_lv (Left Ventricle)")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_lv"], label="P_lv")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_la"][1:], label="VT_la (Left Atrium)")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_rv"][1:], label="VT_rv (Left Ventricle)")
+    # plt.plot(Next_Conditions["time_history"][:900], Next_Conditions["VT_la"][:900], label="VT_la (Left Atrium)")
+    # plt.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi")
+    # plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_rv"][1:], label="VT_rv (Left Ventricle)")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["P_lv"], label="P_lv")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_ra"][1:], label="VT_ra (Left Atrium)")
+    # plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_ra"][1:], label="VT_ra (Left Atrium)")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_ra"], label="V_ra (Right Atrium)")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_sv"], label="V_sv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_rmv"], label="V_rmv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_amv"][1:], label="VT_amv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_amv"], label="V_amv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_vc"], label="V_vc", linestyle="dashed", color="c")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_vc"][1:], label="VT_amv", linestyle="dashed", color="b")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_hv"], label="V_hv")
-    # plt.plot(Next_Conditions["time_history"], Next_Conditions["V_ev"], label="V_ev")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["V_sv"], label="V_sv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["V_rmv"], label="V_rmv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_amv"][1:], label="VT_amv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["V_amv"], label="V_amv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["V_vc"], label="V_vc", linestyle="dashed", color="c")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["V_hv"], label="V_hv")
+    plt.plot(Next_Conditions["time_history"], Next_Conditions["VT_ev"][1:], label="VT_ev")
 
     # Add labels and legend
     plt.xlabel("Time (s)")
@@ -531,7 +610,9 @@ if __name__ == "__main__":
 
     # plt.plot(Next_Conditions["V_lv"][80000:], Next_Conditions["Pmax_lv"][80000:], label="P_lv (Left Ventricle)")
     # get max's plot with Pmax_la instead of P_la
-    plt.plot(Next_Conditions["VT_la"][80001:], Next_Conditions["P_la"][80000:], label="LA")
+    plt.plot(Next_Conditions["VT_ra"][97501:], Next_Conditions["P_ra"][97500:], label="RA")
+    # plt.plot(Next_Conditions["VT_ra"][1:], Next_Conditions["P_ra"], label="LA")
+
     # # Add labels and legend
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
@@ -550,12 +631,12 @@ if __name__ == "__main__":
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_rmp"][1:], label="Q_rmp")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_amp"][1:], label="Q_amp")
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_amv"], label="Q_amv")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_la"][1:], label="Q_la (into LA)")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_ra"], label="Q_ra (into RA)")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_rv"], label="Q_rv (leaving RV/into pul art)")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_lv"], label="Q_lv (leaving LV)")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["Qi_lv"], label="Qi_lv")
-    plt.plot(Next_Conditions["time_history"], Next_Conditions["Qi_rv"], label="Qi_rv")
+    plt.plot(Next_Conditions["time_history"][7500:], Next_Conditions["Q_la"][7501:], label="Q_la (into LA)")
+    plt.plot(Next_Conditions["time_history"][7500:], Next_Conditions["Q_ra"][7500:], label="Q_ra (into RA)")
+    plt.plot(Next_Conditions["time_history"][7500:], Next_Conditions["Q_rv"][7500:], label="Q_rv (leaving RV/into pul art)")
+    plt.plot(Next_Conditions["time_history"][7500:], Next_Conditions["Q_lv"][7500:], label="Q_lv (leaving LV)")
+    plt.plot(Next_Conditions["time_history"][7500:], Next_Conditions["Qi_lv"][7500:], label="Qi_lv")
+    plt.plot(Next_Conditions["time_history"][7500:], Next_Conditions["Qi_rv"][7500:], label="Qi_rv")
 
 
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["Q_la"][1:], label="Q_la")
@@ -579,7 +660,7 @@ if __name__ == "__main__":
 
 
     required_cardio_keys = [ "VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
-                               "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "beta", "theta_ao", "dtheta_ao_dt"]
+                               "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "theta_ao", "dtheta_ao_dt"]
 
     # Number of state variables
     num_variables = state_variables.shape[0]
@@ -723,48 +804,48 @@ if __name__ == "__main__":
 
 
 
-    # fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots()
 
     # Plot pressures on primary y-axis
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_lv"], label="Pmax_lv", color="c")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_rv"], label="P_rv", color="r")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Pmax_rv"], label="Pmax_rv", color="g")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_ra"], label="P_ra", color="r")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_amv"], label="P_amv", color="r")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_im"], label="P_im", color="b")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_vc"], label="P_vc", color="g")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_la"], label="P_la", color="b")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_la"], label="P_la", color="b")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Qi_rv"], label="Qi_rv", color="r")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Qi_lv"], label="Qi_lv", color="c")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_thor"], label="P_thor", color="c")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_sa"][1:], label="P_sa", color="g")
 
-    #
-    # ax1.set_xlabel("Time (s)")
-    # ax1.set_ylabel("Pressure (mmHg)", color="k")
-    # ax1.tick_params(axis='y', labelcolor="k")
-    # ax1.set_title("Pressure Trace")
-    # ax1.legend(loc="upper left")
-    # ax1.grid(True)
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Pressure (mmHg)", color="k")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.set_title("Pressure Trace")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
 
     # Create second y-axis for volume
-    # ax2 = ax1.twinx()
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_lv"], label="V_lv", linestyle="dashed", color="c")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pa"], label="V_pa", linestyle="dashed", color="g")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pv"], label="V_pv", linestyle="dashed", color="r")
-    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_pp"], label="V_pp", linestyle="dashed", color="b")
+    ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"], label="VT_lv", linestyle="dashed", color="c")
+    ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_la"][1:], label="VT_la", linestyle="dashed", color="g")
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_rv"], label="VT_rv", linestyle="dashed", color="r")
+    ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_ra"][1:], label="VT_ra", linestyle="dashed", color="b")
     # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_amv"], label="V_amv", linestyle="dashed", color="r")
     # ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_amv"][1:], label="VT_amv", linestyle="dashed", color="g")
-
+    #
     # ax2.plot(Next_Conditions["time_history"], Next_Conditions["V_la"], label="V_la", linestyle="dashed", color="b")
 
-    # ax2.set_ylabel("Volume (mL)", color="k")
-    # ax2.tick_params(axis='y', labelcolor="k")
-    # ax2.legend(loc="upper right")
-    #
-    # plt.show()
+    ax2.set_ylabel("Volume (mL)", color="k")
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
 
-    # fig, ax1 = plt.subplots()
+    plt.show()
+
+    fig, ax1 = plt.subplots()
 
     # Plot pressures on primary y-axis
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["P_amv"], label="P_amv", color="r")

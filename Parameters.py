@@ -83,10 +83,10 @@ Parameters = {
     "R_la": 0.0025,         # Left atrial flow resistance
     "R_ra": 0.0025,         # Right atrial flow resistance
     "Tsys_0": 0.4,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
-    "Vu_la": 4,           # Left atrial unstressed volume
-    "Vu_lv": 5,       # Left ventricular unstressed volume
-    "Vu_ra": 4,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
-    "Vu_rv": 10,       # Right ventricular unstressed volume
+    "Vu_la": 4,           # Left atrial unstressed volume # adjusted to the shi paper
+    "Vu_lv": 5,       # Left ventricular unstressed volume # adjusted to the shi paper
+    "Vu_ra": 4,           # Right atrial unstressed volume # adjusted to the shi paper
+    "Vu_rv": 10,       # Right ventricular unstressed volume # adjusted to the shi paper
 # }
 
     # Table 6. Muscle Pump

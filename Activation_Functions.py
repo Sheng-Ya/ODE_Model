@@ -32,8 +32,8 @@ def activation_U(beta, atr):
 
 def activation_H(t, atr):
     # rise and decrease
-    tr_atr = 0.045*T
-    td_atr = 0.09*T
+    tr_atr = 0.05*T
+    td_atr = 0.1*T
 
     tr_ven = 0.15 * T
     td_ven = 0.3 * T
@@ -59,6 +59,60 @@ def activation_H(t, atr):
                                 0))
 
     return phi
+
+
+def activation_S(t, atr):
+    # rise and decrease
+    tr_atr = 0.05*T
+    td_atr = 0.1*T
+
+    tr_ven = 0.15 * T
+    td_ven = 0.3 * T
+
+    ti = t % T
+
+    if ti <= 0.9 * T:
+        t_la = ti + 0.1 * T
+    else:
+        t_la = ti - 0.9 * T
+
+    if atr == 1:
+        phi1 = np.where(t_la <= tr_atr,
+                        0.5 * (1.0 - np.cos(np.pi * t_la / tr_atr)),
+                        0)
+
+        phi2 = np.where(np.logical_and(t_la > tr_atr, t_la <= td_atr),
+                        0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))),
+                        0)
+
+    return phi1, phi2
+
+
+
+
+def activation_conduit(t):
+    # rise and decrease
+
+    td_ven = 0.3 * T
+    t_end = 0.9 * T
+    rise_end = 0.6 * T
+
+    ti = t % T
+
+    phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
+                        0.5 * (1.0 - np.cos(np.pi * (ti - (td_ven - 0.06)) / (t_end - (td_ven - 0.06)))),
+                        0)
+
+    # phi_cond = np.where(
+    #     np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
+    #     0.5 * (1.0 - np.cos(np.pi * (ti - td_ven) / (rise_end - td_ven))),
+    #         0
+    #     )
+
+
+    # phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end), 1, 0)
+
+    return phi_cond
 
 
 def activation_H_derivative(t, atr):

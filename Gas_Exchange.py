@@ -142,9 +142,6 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     dPvbCO2_dt = (MRBCO2 + Q_bp * SCO2 * (Pa_CO2 - PvbCO2) - h) / SbCO2
     dPCSFCO2_dt = (PvbCO2 - PCSFCO2) / KCSFCO2
 
-    if t > 2:
-        a = 2
-
     # Body Tissues Compartment
     Cv_CO2_IC = params["Cv_CO2_IC"]
     Cv_O2_IC = params["Cv_O2_IC"]
@@ -166,8 +163,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 
-    dCvO2_dt = (-0 + QT * (CaO2 - CvO2)) / VTO2
-    dCvCO2_dt = (0 + QT * (CaCO2 - CvCO2)) / VTCO2
+    dCvO2_dt = (-MRTO2 + QT * (CaO2 - CvO2)) / VTO2
+    dCvCO2_dt = (MRTCO2 + QT * (CaCO2 - CvCO2)) / VTCO2
 
     # Metabolism Dynamic
     MRR = (MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal)
@@ -184,7 +181,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
         if t < all_time[-1]:
             for key in [
                 "Pb_CO2", "Pa_O2", "Pa_CO2", "MRV", "MRTCO2", "Pb_CO2_history",
-                "Pa_O2_history", "Pa_CO2_history", "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2"
+                "Pa_O2_history", "Pa_CO2_history", "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT"
             ]:
                 del updates[key][-num_removed:]
 
@@ -205,6 +202,9 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     updates["Cv_CO2"].append(CvCO2)
     updates["PA_O2"].append(PA_O2)
     updates["PA_CO2"].append(PA_CO2)
+    updates["FCO2"].append(FCO2)
+    updates["FO2"].append(FO2)
+    updates["QT"].append(QT)
 
     # updates["t_eval3"] = updates["t_eval3"][1:]
 

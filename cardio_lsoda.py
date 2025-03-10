@@ -1,6 +1,5 @@
 import numpy as np
 import math
-from Test_controller import source
 
 from Activation_Functions import activation_U, activation_H, activation_Naghavi, g_function, activation_H_derivative, \
     activation_conduit, activation_S
@@ -24,7 +23,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # State variables
     (VT_pa, VT_pp, VT_pv, Q_pa,
      VT_la, VT_lv, VT_ra, VT_rv,
-     VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc, theta_ao, dtheta_ao_dt) = state
+     VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc, beta, theta_ao, dtheta_ao_dt) = state
 
 
     ## Muscle Pump
@@ -183,7 +182,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     phi_cond = activation_conduit(t)
 
     # P_la = (V_la / C_la) + P_thor
-    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
+    exp_la = np.clip(KE_la * VT_la, -5, 5)
+    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(exp_la) - 1) + P_thor
+    # Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * ((0.5 * (VT_la - 27) ** 2 - (VT_la - 27))/VT_la + 0.5) + P_thor
+
     ##############################################################
 
 
@@ -200,8 +202,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # phi = activation_Naghavi(t, 0)
     # phi = g_function(t, 0)
 
-
-    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1) + P_thor
+    exp_lv = np.clip(KE_lv * VT_lv, -5, 5)
+    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(exp_lv) - 1) + P_thor
 
     # if Q_lv > 0:
     #     d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao) - Kv_ao * Q_lv * np.sin(theta_ao)
@@ -274,7 +276,17 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     ##################################
     # P_ra = (V_ra / C_ra) + P_thor
-    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor
+    exp_ra = np.clip(KE_ra * VT_ra, -5, 5)
+    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(exp_ra) - 1) + P_thor
+    # Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * ((0.5 * (VT_ra - 27) ** 2 - (VT_ra - 27))/VT_ra + 0.5) + P_thor
+
+    VT_ra_ok = VT_la
+    VT_raa = Pmax_la
+    VT_raaa = t
+
+    if t > 0.815:
+        a = 2
+
     ##################################
 
 
@@ -287,8 +299,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_rv = 0
 
-
-    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1) + P_thor
+    exp_rv = np.clip(KE_rv * VT_rv, -5, 5)
+    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(exp_rv) - 1) + P_thor
 
     # P_pa already considers P_thor, no need to add again
     if Pmax_rv > P_pa:
@@ -361,28 +373,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_vc = 0
 
-    source_values = updates["source_values"][-1] + source(t)
-
-    # source_values = source(t)
-
-
-    # if V_vc < Vu_vc:
-    #     P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor + source_values
-    # else:
-    #     P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor + source_values
-
-
     if V_vc < Vu_vc:
-        if t != 0:
-            P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor + source_values * (t-updates["time_history"][-1])
-        else:
-            P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor
+        exp_vc = np.clip(V_vc / Vvc_min, -40, 40)
+        P_vc = D2 + K2_vc * np.exp(exp_vc) + P_thor
     else:
-        if t != 0:
-            P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor + source_values * (t-updates["time_history"][-1])
-        else:
-            P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
-
+        P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
 
     if V_vc > 0:
         R_vc = Kr_vc * (Vvc_max / V_vc) ** 2 + Rvc_n
@@ -460,9 +455,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Q_sp = (P_sp - P_sv) / R_sp
 
     P_s = P_abd
+    epsilon = 1e-6
 
     if P_vc < P_s:
-        R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))
+        R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s + epsilon))
     else:
         R_sv = R_sv_n
 
@@ -486,10 +482,9 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Q_bp = (P_sp - P_bv) / R_bp
 
     P_b = 0
-    epsilon1 = 1e-6
 
     if P_vc < P_b:
-        R_bv = R_bv_n * ((P_bv - P_vc) / (P_bv - P_b + epsilon1))
+        R_bv = R_bv_n * ((P_bv - P_vc) / (P_bv - P_b + epsilon))
     else:
         R_bv = R_bv_n
 
@@ -518,7 +513,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P_h = 0
 
     if P_vc < P_h:
-        R_hv = R_hv_n * ((P_hv - P_vc) / (P_hv - P_h + epsilon1))
+        R_hv = R_hv_n * ((P_hv - P_vc) / (P_hv - P_h + epsilon))
     else:
         R_hv = R_hv_n
 
@@ -545,7 +540,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P_rm = 0
 
     if P_vc < P_rm:
-        R_rmv = R_rmv_n * ((P_rmv - P_vc) / (P_rmv - P_rm + epsilon1))
+        R_rmv = R_rmv_n * ((P_rmv - P_vc) / (P_rmv - P_rm + epsilon))
     else:
         R_rmv = R_rmv_n
 
@@ -566,13 +561,15 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         P_amv = V_amv / C_amv + P_im
     else:
         V_amv = 0
-        if VT_amv > 0:
+        # help with stability
+        if VT_amv > 0 and Vu_amv > 0:
             P_amv = P_im + P_0 * (1 - (VT_amv / Vu_amv) ** -1.5)
         else:
             P_amv = P_im
-            VT_amv = 0
         # P_amv = P_0 + P_im
 
+    if abs(P_amv) > 6:
+        P_amv = P_im + P_0
 
     Q_amp = (P_sp - P_amv) / R_amp
 
@@ -582,7 +579,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     if I > 0:
         R_amv = kr_am / VT_amv
     elif P_vc < P_am:
-        R_amv = R_amv_n * ((P_amv - P_vc) / (P_amv - P_am + epsilon1))
+        R_amv = R_amv_n * ((P_amv - P_vc) / (P_amv - P_am))
     else:
         R_amv = R_amv_n
 
@@ -661,6 +658,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # should be + ?, edit: removed P_thor from here
     dQ_sa_dt = (P_sa + P_thor - R_sa * Q_sa - P_sp) / L_sa
 
+    d_beta_dt = heart_control_inputs["HR"][-1]
+
+    U2 = frac(beta)
+
 
     if t != 0:
         if t < all_time[-1]:
@@ -670,8 +671,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "Pmax_lv", "Pmax_rv", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
                 "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
-                "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
-                "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "phi_cond", "VT_ev", "source_values"
+                "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd", "beta",
+                "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "phi_cond", "VT_ev"
             ]:
                 del updates[key][-num_removed:]
 
@@ -689,8 +690,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         "phi_atr": phi_atr, "S": S, "V_pv": V_pv, "V_pp": V_pp, "P_amv": P_amv, "P_ev": P_ev,
         "V_u": V_u, "V_sv": V_sv, "V_rmv": V_rmv, "V_amv": V_amv, "V_bv": V_bv, "V_hv": V_hv,
         "P_sp": P_sp, "Q_sa": Q_sa, "Q_jp": Q_jp, "Q_vc": Q_vc, "VT_amv": VT_amv, "P_im": P_im,
-        "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "V_sa": V_sa,
-        "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2, "phi_cond": phi_cond, "VT_ev": VT_ev, "source_values": source_values
+        "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "beta": beta, "V_sa": V_sa, "U2": U2,
+        "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2, "phi_cond": phi_cond, "VT_ev": VT_ev
     }
 
     for key, value in data_to_append.items():
@@ -698,4 +699,4 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
-            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt, dtheta_ao_dt, d2theta_ao_dt2]
+            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt, d_beta_dt, dtheta_ao_dt, d2theta_ao_dt2]

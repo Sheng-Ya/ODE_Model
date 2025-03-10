@@ -3,10 +3,6 @@ import math
 
 import numpy as np
 
-def frac(x):
-    return x - math.floor(x)
-
-
 def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, all_time, num_removed):
     """
     Afferent Pathways state variables:
@@ -87,19 +83,22 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     Pa_CO2 = gas_exchange_inputs["Pa_CO2"][-1]
 
     # cns response
-    w_sp = x_sp / (1 + np.exp((Pa_O2 - PO2_sp)/kisc_sp))
+    exp_wsp = np.clip((Pa_O2 - PO2_sp)/kisc_sp, -40, 40)
+    w_sp = x_sp / (1 + np.exp(exp_wsp))
     dtheta_change_O2_sp_dt = (-theta_change_O2_sp + w_sp) / tau_isc
     dtheta_change_CO2_sp_dt = (-theta_change_CO2_sp + g_ccsp * (Pa_CO2 - PaCO2_n))/tau_cc
 
     theta_sp = theta_spn - theta_change_O2_sp - theta_change_CO2_sp
 
-    w_sv = x_sv / (1 + np.exp((Pa_O2 - PO2_sv) / kisc_sv))
+    exp_wsv = np.clip((Pa_O2 - PO2_sv) / kisc_sv, -40, 40)
+    w_sv = x_sv / (1 + np.exp(exp_wsv))
     dtheta_change_O2_sv_dt = (-theta_change_O2_sv + w_sv) / tau_isc
     dtheta_change_CO2_sv_dt = (-theta_change_CO2_sv + g_ccsv * (Pa_CO2 - PaCO2_n)) / tau_cc
 
     theta_sv = theta_svn - theta_change_O2_sv - theta_change_CO2_sv
 
-    w_sh = x_sh / (1 + np.exp((Pa_O2 - PO2_sh) / kisc_sh))
+    exp_wsh = np.clip((Pa_O2 - PO2_sh) / kisc_sh, -40, 40)
+    w_sh = x_sh / (1 + np.exp(exp_wsh))
     dtheta_change_O2_sh_dt = (-theta_change_O2_sh + w_sh) / tau_isc
     dtheta_change_CO2_sh_dt = (-theta_change_CO2_sh + g_ccsh * (Pa_CO2 - PaCO2_n)) / tau_cc
 
@@ -142,7 +141,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     else:
         K = K_H - 1.6
 
-    phi_ac = ((f_ac_max + f_ac_min * np.exp((Pa_O2 - PaO2_ac_n)/k_ac))/(1 + np.exp((Pa_O2 - PaO2_ac_n)/k_ac)) *
+    exp_phi_ac = np.clip((Pa_O2 - PaO2_ac_n)/k_ac, -40, 40)
+    phi_ac = ((f_ac_max + f_ac_min * np.exp(exp_phi_ac))/(1 + np.exp(exp_phi_ac)) *
               (K * np.log(Pa_CO2/PaCO2_n) + f_acCO2_n))
 
     d_fac_dt = (phi_ac - f_ac) / tau_ac
@@ -471,13 +471,10 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         Emax_lv = updates["Emax_lv"][-1]
         Emax_rv = updates["Emax_rv"][-1]
 
-    if t == 0:
-        time_since_beat = 0
-    else:
-        time_since_beat = updates["time_since_beat"][-1] + (t - time_history[-1])
+    U2 = updates["U2"][-1]
 
     # update after every heartbeat
-    if updates["time_since_beat"][-1] >= (1 / HR):
+    if U2 < 0.01 and updates["U2"][-2] > 0.99:
         HR = np.mean(updates["HR1"])
         updates["HR1"].clear()
 
@@ -499,8 +496,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         Emax_rv = np.mean(updates["Emax_rv1"])
         updates["Emax_rv1"].clear()
 
-        time_since_beat = 0
-
 
     if t != 0:
         if t < all_time[-1]:
@@ -508,7 +503,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
                 "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
                 "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
                 "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1", "Vu_ev1",
-                "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1", "T", "xb_O2", "Cvb_O2", "xb_CO2", "time_since_beat"
+                "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1", "T", "xb_O2", "Cvb_O2", "xb_CO2"
             ]:
                 del updates[key][-num_removed:]
 
@@ -558,7 +553,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["T"].append(T)
     updates["Cvb_O2"].append(Cvb_O2)
     updates["xb_CO2"].append(xb_CO2)
-    updates["time_since_beat"].append(time_since_beat)
 
     # updates["t_eval2"] = updates["t_eval2"][1:]
 

@@ -7,9 +7,9 @@ Initial_Conditions = {
     "VT_pp": 200, # 193.1305 would be trenhago
     "VT_pv": 344.59, # 344.590143
     "Q_pa": 0,
-    "VT_la": 50, # (Vu_la + (P_la-P_thor) * C_la) where P_la = 0 at end diastole, P_thor = -4
+    "VT_la": 20, # (Vu_la + (P_la-P_thor) * C_la) where P_la = 0 at end diastole, P_thor = -4
     "VT_lv": 180, # 291.924595828,
-    "VT_ra": 50,
+    "VT_ra": 20,
     "VT_rv": 200,
     "VT_sv": 1361.6,
     "VT_bv": 300,
@@ -64,6 +64,8 @@ Initial_Conditions = {
     "I": 0,
     "dtheta_ao_dt": 0,
     "theta_ao": 0.0872665, # 5 degrees
+    "Pmax_la": 1.532,
+    "Pmax_ra": 1.5,
 
 # cardiovascular controller
     "theta_change_O2_sp": 0,
@@ -72,7 +74,7 @@ Initial_Conditions = {
     "theta_change_CO2_sv": 0,
     "theta_change_O2_sh": 0,
     "theta_change_CO2_sh": 0,
-    "P_tilda": 92,
+    "P_tilda": 80,
     "f_ac": 8.0807,
     "f_ap": 4.4492,
     "R_ep_change": 0,
@@ -152,7 +154,7 @@ Initial_Conditions = {
     "Pd_4_CO2": 40.0061,
     "Pd_5_O2": 103.3579,
     "Pd_5_CO2": 40.3359,
-    "Pa_O2": 100, # ignore: set 0 here, but it is another value initially from Gas_Exchange.py
+    "Pa_O2": 102.5153, # ignore: set 0 here, but it is another value initially from Gas_Exchange.py
     "Pa_CO2": 40, # ignore: set 0 here, but it is another value initially from Gas_Exchange.py
     "dPa_O2_dt": 0.3557,
     "dPa_CO2_dt": -0.2465,
@@ -160,10 +162,10 @@ Initial_Conditions = {
     "PA_CO2": 40.9432,
     "PvbCO2": 43.7, # # can't be 0 here. set 0 here, but it is another value initially from Gas_Exchange.py
     "PCSFCO2": 43.6,
-    "MRTO2": 0.33,
-    "MRTCO2": 0.3,
-    "CvO2": 0.1639,
-    "CvCO2": 0.5247,
+    "MRTO2": 0.33/60,
+    "MRTCO2": 0.3/60,
+    "Cv_O2": 0.1639,
+    "Cv_CO2": 0.5247,
     "MRV": 0,
     # other inputs from other systems
     # "dV_dt":
