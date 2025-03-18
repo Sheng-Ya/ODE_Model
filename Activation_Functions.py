@@ -2,10 +2,12 @@ import math
 
 import numpy as np
 
+from Old_Next_Conditions import Next_Conditions
 from Parameters import Parameters
 
 Tsys_0 = Parameters["Tsys_0"]
 ksys = Parameters["ksys"]
+T = 1/Next_Conditions["HR"][-1]
 
 def frac(x):
     return x - math.floor(x)
@@ -27,7 +29,7 @@ def activation_U(beta, atr, T, Tsys):
 
 
 
-def activation_H(t, atr, T):
+def activation_H(ti, atr, T):
     # rise and decrease
     tr_atr = 0.05*T
     td_atr = 0.1*T
@@ -35,12 +37,12 @@ def activation_H(t, atr, T):
     tr_ven = 0.15 * T
     td_ven = 0.3 * T
 
-    ti = t % T
-
     if ti <= 0.9 * T:
         t_la = ti + 0.1 * T
     else:
         t_la = ti - 0.9 * T
+
+    # t_la = ti
 
     if atr == 1:
         phi = np.where(t_la <= tr_atr,
@@ -48,6 +50,7 @@ def activation_H(t, atr, T):
                        np.where(t_la <= td_atr,
                                 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))),
                                 0))
+
     else:
         phi = np.where(ti <= tr_ven,
                        0.5 * (1.0 - np.cos(np.pi * ti / tr_ven)),

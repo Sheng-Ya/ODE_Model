@@ -63,26 +63,26 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Indices for slicing
     idx_cardio = num_cardio
-    # idx_cardio_contr = idx_cardio + num_cardio_control
+    idx_cardio_contr = idx_cardio + num_cardio_control
     # idx_gas = idx_cardio_contr + num_gas
     # idx_resp_mech = idx_gas + num_resp_mech
     # idx_resp_contr = idx_resp_mech + num_resp_control
 
     # Extract each subsystem's state variables
     cardio_state = Initial_Conditions_numpy[:idx_cardio]
-    # cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
+    cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
     # gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
     # resp_mech_state = Initial_Conditions_numpy[idx_gas:idx_resp_mech]
     # resp_contr_state = Initial_Conditions_numpy[idx_resp_mech:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Next_Conditions["all_time"], num_removed, i)
-    # d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Next_Conditions["all_time"], num_removed, i)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Next_Conditions["all_time"], num_removed, i)
     # d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Next_Conditions["all_time"], num_removed, i)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Next_Conditions["all_time"], num_removed, i)
     # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed, i)
 
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr))
     # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
 
     if num_removed == 0:
@@ -108,10 +108,10 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
             if np.any(diff < 0.001):
                 print(last_nonzero_value1)
 
-    return d_cardio
+    return d_combined
 
 
-t_span = (0,180) # Simulate for x seconds
+t_span = (0,10) # Simulate for x seconds
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -150,14 +150,14 @@ required_resp_mech_keys = ["V", "alpha"]
 IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
 num_resp_mech = len(required_resp_mech_keys)
 
-# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
 # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech))
 
 
 def simulate():
     # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_cardio, max_step = 0.001, method="RK23", rtol=1e-3,
+    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, max_step = 0.001, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech))
 
     return ODE_solution
@@ -273,7 +273,8 @@ if __name__ == "__main__":
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] -1
 
     print(len(Next_Conditions["time_history"][:index]))
-
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["T"][:index], label="T", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["time_since_beat"][:index], label="time_since_beat", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="phi", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="phi_atr", color="k")
 

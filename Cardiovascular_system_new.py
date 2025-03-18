@@ -64,13 +64,13 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     VT_n = params["VT_n"]
 
     # Determine the correct index based on t
-    # index = i if t == 0 else i - 1
-    index = 0
+    index = i if t == 0 else i - 1
+    index1 = 0
 
     # respiratory controller inputs
-    T_resp = 1 / resp_control_inputs["BF"][index]
-    TI = resp_control_inputs["TI"][index]
-    VT = resp_control_inputs["VT"][index]
+    T_resp = 1 / resp_control_inputs["BF"][index1]
+    TI = resp_control_inputs["TI"][index1]
+    VT = resp_control_inputs["VT"][index1]
 
     # inputs from the cardiovascular controller
     T = 1/heart_control_inputs["HR"][index] # heart period

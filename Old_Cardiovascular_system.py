@@ -169,10 +169,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_la = 0
 
-
-
-
-
     Emax_la = 0.45
     P0_la = 0.45
     KE_la = 0.05
@@ -182,10 +178,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     KE_ra = 0.05
 
     # phi_atr = activation_U(beta, 1, T)
-    phi_atr = activation_H(t, 1, T)
+    phi_atr = activation_H(t - updates["time_since_beat"][-1], 1, T)
     # phi_atr = activation_Naghavi(t, 1, T)
     # phi_atr = g_function(t, 1, T)
-    phi_cond = activation_conduit(t, T)
+    # phi_cond = activation_conduit(t, T)
 
     # P_la = (V_la / C_la) + P_thor
     Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
@@ -201,7 +197,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_lv = 0
 
     # phi = activation_U(beta, 0)
-    phi = activation_H(t, 0, T)
+    phi = activation_H(t - updates["time_since_beat"][-1], 0, T)
     # phi = activation_Naghavi(t, 0)
     # phi = g_function(t, 0)
 
@@ -670,7 +666,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
                 "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
-                "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "phi_cond", "VT_ev"
+                "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "VT_ev"
             ]:
                 del updates[key][-num_removed:]
 
@@ -689,7 +685,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         "V_u": V_u, "V_sv": V_sv, "V_rmv": V_rmv, "V_amv": V_amv, "V_bv": V_bv, "V_hv": V_hv,
         "P_sp": P_sp, "Q_sa": Q_sa, "Q_jp": Q_jp, "Q_vc": Q_vc, "VT_amv": VT_amv, "P_im": P_im,
         "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "V_sa": V_sa,
-        "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2, "phi_cond": phi_cond, "VT_ev": VT_ev
+        "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2, "VT_ev": VT_ev
     }
 
     for key, value in data_to_append.items():

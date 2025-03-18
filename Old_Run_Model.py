@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 from line_profiler import LineProfiler
 import cProfile
 
-from Cardiovascular_controller import cardiovascular_controller
+from Old_Cardiovascular_controller import cardiovascular_controller
 from Old_Cardiovascular_system import cardiovascular_system
 from Gas_Exchange import gas_exchange
 from Initial_Conditions import Initial_Conditions
@@ -64,38 +64,38 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
 
     # Indices for slicing
     idx_cardio = num_cardio
-    # idx_cardio_contr = idx_cardio + num_cardio_control
+    idx_cardio_contr = idx_cardio + num_cardio_control
     # idx_gas = idx_cardio_contr + num_gas
     # idx_resp_mech = idx_gas + num_resp_mech
     # idx_resp_contr = idx_resp_mech + num_resp_control
 
     # Extract each subsystem's state variables
     cardio_state = Initial_Conditions_numpy[:idx_cardio]
-    # cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
+    cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
     # gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
     # resp_mech_state = Initial_Conditions_numpy[idx_gas:idx_resp_mech]
     # resp_contr_state = Initial_Conditions_numpy[idx_resp_mech:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
-    # d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, time_history, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, time_history, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
     # d_gas = gas_exchange(t, gas_state, Parameters, time_history, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
     # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
 
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr))
     # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
 
     time_history.append(t)
     all_time.append(t)
 
-    return d_cardio
+    return d_combined
 
 
 def simulate():
 
 
-    t_span = (0,80) # Simulate for x seconds
+    t_span = (0,100) # Simulate for x seconds
 
     # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -134,12 +134,12 @@ def simulate():
     IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
     num_resp_mech = len(required_resp_mech_keys)
 
-    # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
+    IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
     # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
 
 
     # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_cardio, max_step = 0.001, method="RK23", rtol=1e-3,
+    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, max_step = 0.001, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Parameters, Next_Conditions["time_history"], Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech, Next_Conditions["all_time"]))
 
     return ODE_solution
@@ -196,29 +196,29 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.show()
 
-    variables_to_plot = [
-        # "f_sp_history", "f_sh_history", "f_v_history",
-        # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
-        # "AR_ao", "theta_ao", "HR", "d2theta_ao_dt2" # , "T", "xb_O2", "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
-        "phi", "phi_atr" #"V", "Cv_O2", "Ca_O2"
-        # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
-        # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
-        # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
-    ]
+    # variables_to_plot = [
+    #     # "f_sp_history", "f_sh_history", "f_v_history",
+    #     # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+    #     # "AR_ao", "theta_ao", "HR", "d2theta_ao_dt2" # , "T", "xb_O2", "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
+    #     "phi", "phi_atr" #"V", "Cv_O2", "Ca_O2"
+    #     # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
+    #     # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
+    #     # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
+    # ]
+    #
+    # for key in variables_to_plot:
+    #     if key in Next_Conditions:  # Check if the key exists in updates
+    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+    #         plt.plot(Next_Conditions[key], label=key, linewidth=2)
+    #         plt.xlabel("Time Steps")
+    #         plt.ylabel(key)
+    #         plt.title(f"Plot of {key} over Time")
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
 
-    for key in variables_to_plot:
-        if key in Next_Conditions:  # Check if the key exists in updates
-            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
-            plt.plot(Next_Conditions[key], label=key, linewidth=2)
-            plt.xlabel("Time Steps")
-            plt.ylabel(key)
-            plt.title(f"Plot of {key} over Time")
-            plt.legend()
-            plt.grid(True)
-            plt.show()
 
-
-    # fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Cv_O2"][1:], label="Cv_O2", color="b")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Ca_O2"][1:], label="Ca_O2", color="g")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Ca_CO2"][1:], label="Ca_CO2", color="r")
@@ -230,26 +230,27 @@ if __name__ == "__main__":
 
 
 
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Nt"], label="Nt", color="g")
-    # ax1.plot(Next_Conditions["time_history"][92500:], Next_Conditions["V_sa"][92500:], label="V_sa", color="k")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi", color="g")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi_atr"], label="phi_atr", color="k")
+    ax1.plot(Next_Conditions["time_history"], Next_Conditions["T"], label="T", color="b")
 
 
-    # ax1.set_xlabel("Time (s)")
+
+    ax1.set_xlabel("Time (s)")
     # ax1.set_ylabel("Pressure (mmHg)", color="k")
     # ax1.tick_params(axis='y', labelcolor="k")
-    # ax1.legend(loc="upper left")
-    # ax1.grid(True)
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
 
     # # Create second y-axis for volume
-    # ax2 = ax1.twinx()
-    # ax2.plot(Next_Conditions["time_history"][92500:], Next_Conditions["Q_lv"][92500:], label="Q_lv", linestyle="dashed",
-    #          color="b")
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"][1:], label="VT_lv", color="c")
     # ax2.plot(Next_Conditions["time_history"][92500:], Next_Conditions["Q_sa"][92501:], label="Q_sa",
     #          linestyle="dashed", color="c")
     # ax2.set_ylabel("Flow (mL/s)", color="k")
     # ax2.tick_params(axis='y', labelcolor="k")
     # ax2.legend(loc="upper right")
-    # plt.show()
+    plt.show()
 
 
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["f_sp_history"], label="f_sp_history")
