@@ -74,7 +74,7 @@ Initial_Conditions = {
     "theta_change_CO2_sv": 0,
     "theta_change_O2_sh": 0,
     "theta_change_CO2_sh": 0,
-    "P_tilda": 80,
+    "P_tilda": 92,
     "f_ac": 8.0807,
     "f_ap": 4.4492,
     "R_ep_change": 0,

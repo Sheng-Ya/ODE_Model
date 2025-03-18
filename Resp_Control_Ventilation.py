@@ -41,6 +41,10 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             updates["PamO2"].append(PamO2)
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
+
+            exp_inputs["Pa_O2_history"].clear()
+            exp_inputs["Pa_CO2_history"].clear()
+            exp_inputs["Pb_CO2_history"].clear()
     else:
         PamO2 = updates["PamO2"][-1]
         PamCO2 = updates["PamCO2"][-1]
@@ -95,15 +99,12 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
 
     VT = VE_flow * (t1 + t2)
 
-    if t >0.5:
-        a = 2
-
     # from cardiovascular controller
     if 0 <= (t % (t1 + t2)) <= TI:
         # NT = VE_flow
         d_VE_integral_dt = VE_flow
     else:
-        d_VE_integral_dt = 0
+        d_VE_integral_dt = VE_flow
 
     if t != 0:
         if t < all_time[-1]:

@@ -2,18 +2,15 @@ import math
 
 import numpy as np
 
-from Next_Conditions import Next_Conditions
 from Parameters import Parameters
 
 Tsys_0 = Parameters["Tsys_0"]
 ksys = Parameters["ksys"]
-T = 1/Next_Conditions["HR"][-1]
-Tsys = Tsys_0 - ksys * (1/T)
 
 def frac(x):
     return x - math.floor(x)
 
-def activation_U(beta, atr):
+def activation_U(beta, atr, T, Tsys):
     if atr == 1:
         U_t0 = 0.1
     else:
@@ -30,7 +27,7 @@ def activation_U(beta, atr):
 
 
 
-def activation_H(t, atr):
+def activation_H(t, atr, T):
     # rise and decrease
     tr_atr = 0.05*T
     td_atr = 0.1*T
@@ -61,7 +58,7 @@ def activation_H(t, atr):
     return phi
 
 
-def activation_S(t, atr):
+def activation_S(t, atr, T):
     # rise and decrease
     tr_atr = 0.05*T
     td_atr = 0.1*T
@@ -90,32 +87,65 @@ def activation_S(t, atr):
 
 
 
-def activation_conduit(t):
+def activation_conduit(t, T):
     # rise and decrease
 
     td_ven = 0.3 * T
     t_end = 0.9 * T
-    rise_end = 0.6 * T
+    rise_end = 0.5 * T
 
     ti = t % T
 
-    phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
-                        0.5 * (1.0 - np.cos(np.pi * (ti - (td_ven - 0.06)) / (t_end - (td_ven - 0.06)))),
-                        0)
+    phi_cond = np.where(
+        ti < td_ven,
+        0,
+        np.where(
+            ti <= rise_end,
+            0.5 * (1 - np.cos(np.pi * (ti - td_ven) / (rise_end - td_ven))),
+            np.where(
+                ti <= t_end,
+                0.5 * (1 + np.cos(np.pi * (ti - rise_end) / (t_end - rise_end))),
+                0
+            )
+        )
+    )
+
+
+    # phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
+    #                     0.5 * (1.0 - np.cos(np.pi * (ti - (td_ven - 0.06)) / (t_end - (td_ven - 0.06)))),
+    #                     0)
+
+    # phi_cond = np.where(
+    #     ti < td_ven,
+    #     0,
+    #     np.where(np.logical_and(td_ven <= ti, ti <= rise_end),
+    #                     0.5 * (1.0 - np.cos(np.pi * (ti - (td_ven)) / (rise_end - (td_ven)))),
+    #                     np.where(ti <= t_end,
+    #                              1,
+    #                              0)))
+
+    # phi_cond = np.where(
+    #     ti < td_ven,
+    #     0,
+    #     np.where(np.logical_and(td_ven <= ti, ti <= rise_end),
+    #              1,
+    #              np.where(ti <= t_end,
+    #                       1,
+    #                       0)))
 
     # phi_cond = np.where(
     #     np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
     #     0.5 * (1.0 - np.cos(np.pi * (ti - td_ven) / (rise_end - td_ven))),
     #         0
     #     )
-
+    # phi_cond = 2*phi_cond
 
     # phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end), 1, 0)
 
     return phi_cond
 
 
-def activation_H_derivative(t, atr):
+def activation_H_derivative(t, atr, T):
     # rise and decrease
     tr_atr = 0.045*T
     td_atr = 0.09*T
@@ -149,7 +179,7 @@ def activation_H_derivative(t, atr):
 
 
 
-def activation_Naghavi(t, atr):
+def activation_Naghavi(t, atr, T, Tsys):
     tr = Tsys
 
     ti = t % T
@@ -175,7 +205,7 @@ def activation_Naghavi(t, atr):
     return phi
 
 
-def g_function(t, atr):
+def g_function(t, atr, T):
     tmax = T
     ti = t % T
 

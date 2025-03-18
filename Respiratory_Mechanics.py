@@ -117,23 +117,23 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
                 "G_AW_guess", "Vflow_ua", "P_ua", "G_AW", "Vflow_ua", "P_ua",
                 "P_musc", "dV_dt", "V", "previous_dV_dt", "P_pl"
             ]:
-                del updates[key][-num_removed:]
+                updates[key] = updates[key][:-num_removed]
 
     # t_eval = updates["t_eval6"][0]
     # tolerance = 1e-3
     # if np.abs(t - t_eval) < tolerance:
-    exp_inputs["G_AW_guess"].append(G_AW)
-    exp_inputs["Vflow_ua"].append(Vflow_ua)
-    exp_inputs["P_ua"].append(P_ua)
+    exp_inputs["G_AW_guess"] = np.append(exp_inputs["G_AW_guess"], G_AW)
+    exp_inputs["Vflow_ua"] = np.append(exp_inputs["Vflow_ua"], Vflow_ua)
+    exp_inputs["P_ua"] = np.append(exp_inputs["P_ua"], P_ua)
 
-    updates["G_AW"].append(G_AW)
-    updates["Vflow_ua"].append(Vflow_ua)
-    updates["P_ua"].append(P_ua)
-    updates["P_musc"].append(P_musc)
-    updates["dV_dt"].append(dV_dt)
-    updates["V"].append(V)
-    updates["previous_dV_dt"].append(dV_dt)
-    updates["P_pl"].append(P_pl)
+    updates["G_AW"] = np.append(updates["G_AW"], G_AW)
+    updates["Vflow_ua"] = np.append(updates["Vflow_ua"], Vflow_ua)
+    updates["P_ua"] = np.append(updates["P_ua"], P_ua)
+    updates["P_musc"] = np.append(updates["P_musc"], P_musc)
+    updates["dV_dt"] = np.append(updates["dV_dt"], dV_dt)
+    updates["V"] = np.append(updates["V"], V)
+    updates["previous_dV_dt"] = np.append(updates["previous_dV_dt"], dV_dt)
+    updates["P_pl"] = np.append(updates["P_pl"], P_pl)
 
     # updates["t_eval6"] = updates["t_eval6"][1:]
 

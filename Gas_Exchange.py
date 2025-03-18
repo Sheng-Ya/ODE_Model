@@ -89,7 +89,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     Ta = LCTV / Q_la
     t_minus_Ta = t - Ta
-    if t_minus_Ta >= 0 and time_history != []:
+    if t_minus_Ta >= 0 and time_history.size != 0:
         # Find the index for delay_time in time_history
         # index = max([i for i, t in enumerate(time_history) if t <= t_minus_Ta])
         index = bisect.bisect_right(time_history, t_minus_Ta) - 1
@@ -157,14 +157,14 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     QT = Q_pp - Q_bp
 
-    if t > 10:
-        a = 2
-
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 
     dCvO2_dt = (-MRTO2 + QT * (CaO2 - CvO2)) / VTO2
     dCvCO2_dt = (MRTCO2 + QT * (CaCO2 - CvCO2)) / VTCO2
+
+    cO2_diff = QT * (CaO2 - CvO2)
+    cCO2_diff = QT * (CaCO2 - CvCO2)
 
     # Metabolism Dynamic
     MRR = (MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal)
@@ -181,30 +181,35 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
         if t < all_time[-1]:
             for key in [
                 "Pb_CO2", "Pa_O2", "Pa_CO2", "MRV", "MRTCO2", "Pb_CO2_history",
-                "Pa_O2_history", "Pa_CO2_history", "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT"
+                "Pa_O2_history", "Pa_CO2_history", "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
+                "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt"
             ]:
-                del updates[key][-num_removed:]
+                updates[key] = updates[key][:-num_removed]
 
     # t_eval = updates["t_eval3"][0]
     # tolerance = 1e-3
     # if np.abs(t - t_eval) < tolerance:
-    updates["Pb_CO2"].append(Pb_CO2)
-    updates["Pa_O2"].append(Pa_O2)
-    updates["Pa_CO2"].append(Pa_CO2)
-    updates["MRV"].append(MRV)
-    updates["MRTCO2"].append(MRTCO2)
-    updates["Pb_CO2_history"].append(Pb_CO2)
-    updates["Pa_O2_history"].append(Pa_O2)
-    updates["Pa_CO2_history"].append(Pa_CO2)
-    updates["Ca_O2"].append(CaO2)
-    updates["Cv_O2"].append(CvO2)
-    updates["Ca_CO2"].append(CaCO2)
-    updates["Cv_CO2"].append(CvCO2)
-    updates["PA_O2"].append(PA_O2)
-    updates["PA_CO2"].append(PA_CO2)
-    updates["FCO2"].append(FCO2)
-    updates["FO2"].append(FO2)
-    updates["QT"].append(QT)
+    updates["Pb_CO2"] = np.append(updates["Pb_CO2"], Pb_CO2)
+    updates["Pa_O2"] = np.append(updates["Pa_O2"], Pa_O2)
+    updates["Pa_CO2"] = np.append(updates["Pa_CO2"], Pa_CO2)
+    updates["MRV"] = np.append(updates["MRV"], MRV)
+    updates["MRTCO2"] = np.append(updates["MRTCO2"], MRTCO2)
+    updates["Pb_CO2_history"] = np.append(updates["Pb_CO2_history"], Pb_CO2)
+    updates["Pa_O2_history"] = np.append(updates["Pa_O2_history"], Pa_O2)
+    updates["Pa_CO2_history"] = np.append(updates["Pa_CO2_history"], Pa_CO2)
+    updates["Ca_O2"] = np.append(updates["Ca_O2"], CaO2)
+    updates["Cv_O2"] = np.append(updates["Cv_O2"], CvO2)
+    updates["Ca_CO2"] = np.append(updates["Ca_CO2"], CaCO2)
+    updates["Cv_CO2"] = np.append(updates["Cv_CO2"], CvCO2)
+    updates["PA_O2"] = np.append(updates["PA_O2"], PA_O2)
+    updates["PA_CO2"] = np.append(updates["PA_CO2"], PA_CO2)
+    updates["FCO2"] = np.append(updates["FCO2"], FCO2)
+    updates["FO2"] = np.append(updates["FO2"], FO2)
+    updates["QT"] = np.append(updates["QT"], QT)
+    updates["cCO2_diff"] = np.append(updates["cCO2_diff"], cCO2_diff)
+    updates["cO2_diff"] = np.append(updates["cO2_diff"], cO2_diff)
+    updates["dCvO2_dt"] = np.append(updates["dCvO2_dt"], dCvO2_dt)
+    updates["dCvCO2_dt"] = np.append(updates["dCvCO2_dt"], dCvCO2_dt)
 
     # updates["t_eval3"] = updates["t_eval3"][1:]
 

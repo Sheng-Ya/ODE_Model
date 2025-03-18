@@ -479,25 +479,25 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # update after every heartbeat
     if updates["time_since_beat"][-1] >= (1 / HR):
         HR = np.mean(updates["HR1"])
-        updates["HR1"].clear()
+        updates["HR1"] = np.array([])
 
         Vu_ev = np.mean(updates["Vu_ev1"])
-        updates["Vu_ev1"].clear()
+        updates["Vu_ev1"] = np.array([])
 
         Vu_sv = np.mean(updates["Vu_sv1"])
-        updates["Vu_sv1"].clear()
+        updates["Vu_sv1"] = np.array([])
 
         Vu_rmv = np.mean(updates["Vu_rmv1"])
-        updates["Vu_rmv1"].clear()
+        updates["Vu_rmv1"] = np.array([])
 
         Vu_amv = np.mean(updates["Vu_amv1"])
-        updates["Vu_amv1"].clear()
+        updates["Vu_amv1"] = np.array([])
 
         Emax_lv = np.mean(updates["Emax_lv1"])
-        updates["Emax_lv1"].clear()
+        updates["Emax_lv1"] = np.array([])
 
         Emax_rv = np.mean(updates["Emax_rv1"])
-        updates["Emax_rv1"].clear()
+        updates["Emax_rv1"] = np.array([])
 
         time_since_beat = 0
 
@@ -508,9 +508,9 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
                 "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
                 "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
                 "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1", "Vu_ev1",
-                "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1", "T", "xb_O2", "Cvb_O2", "xb_CO2", "time_since_beat"
+                "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1", "T", "xb_O2", "Cvb_O2", "xb_CO2", "time_since_beat", "f_ab_history"
             ]:
-                del updates[key][-num_removed:]
+                updates[key] = updates[key][:-num_removed]
 
     # t_eval = updates["t_eval2"][0]
     # check2 = t
@@ -521,44 +521,48 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
 
         # update history
-    updates["HR1"].append(HR1)
-    updates["Vu_ev1"].append(Vu_ev1)
-    updates["Vu_sv1"].append(Vu_sv1)
-    updates["Vu_rmv1"].append(Vu_rmv1)
-    updates["Vu_amv1"].append(Vu_amv1)
-    updates["Emax_lv1"].append(Emax_lv1)
-    updates["Emax_rv1"].append(Emax_rv1)
+    updates["HR1"] = np.append(updates["HR1"], HR1)
+    updates["Vu_ev1"] = np.append(updates["Vu_ev1"], Vu_ev1)
+    updates["Vu_sv1"] = np.append(updates["Vu_sv1"], Vu_sv1)
+    updates["Vu_rmv1"] = np.append(updates["Vu_rmv1"], Vu_rmv1)
+    updates["Vu_amv1"] = np.append(updates["Vu_amv1"], Vu_amv1)
+    updates["Emax_lv1"] = np.append(updates["Emax_lv1"], Emax_lv1)
+    updates["Emax_rv1"] = np.append(updates["Emax_rv1"], Emax_rv1)
 
-    updates["f_sp_history"].append(f_sp)
-    updates["f_sh_history"].append(f_sh)
-    updates["f_v_history"].append(f_v)
-    updates["phi_met_history"].append(phi_met)
-    updates["f_sv_history"].append(f_sv)
+    updates["HR"] = np.append(updates["HR"], HR)
+    updates["Vu_ev"] = np.append(updates["Vu_ev"], Vu_ev)
+    updates["Vu_sv"] = np.append(updates["Vu_sv"], Vu_sv)
+    updates["Vu_rmv"] = np.append(updates["Vu_rmv"], Vu_rmv)
+    updates["Vu_amv"] = np.append(updates["Vu_amv"], Vu_amv)
+    updates["Emax_lv"] = np.append(updates["Emax_lv"], Emax_lv)
+    updates["Emax_rv"] = np.append(updates["Emax_rv"], Emax_rv)
 
-    updates["Vu_ev"].append(Vu_ev)
-    updates["Vu_amv"].append(Vu_amv)
-    updates["Vu_rmv"].append(Vu_rmv)
-    updates["Vu_sv"].append(Vu_sv)
-    updates["R_ep"].append(R_ep)
-    updates["R_amp"].append(R_amp)
-    updates["R_rmp"].append(R_rmp)
-    updates["R_sp"].append(R_sp)
-    updates["R_bp"].append(R_bp)
-    updates["R_hp"].append(R_hp)
-    updates["Emax_lv"].append(Emax_lv)
-    updates["Emax_rv"].append(Emax_rv)
-    updates["I"].append(I)
-    updates["phi_met"].append(phi_met)
-    updates["Nt"].append(Nt)
-    updates["Vu_sv_change"].append(Vu_sv_change)
-    updates["prev_flat_bit"].append(prev_flat_bit)
-    updates["Pa_O2"].append(Pa_O2)
-    updates["HR"].append(HR)
-    updates["xb_O2"].append(xb_O2)
-    updates["T"].append(T)
-    updates["Cvb_O2"].append(Cvb_O2)
-    updates["xb_CO2"].append(xb_CO2)
-    updates["time_since_beat"].append(time_since_beat)
+    updates["f_sp_history"] = np.append(updates["f_sp_history"], f_sp)
+    updates["f_sh_history"] = np.append(updates["f_sh_history"], f_sh)
+    updates["f_v_history"] = np.append(updates["f_v_history"], f_v)
+    updates["phi_met_history"] = np.append(updates["phi_met_history"], phi_met)
+    updates["f_sv_history"] = np.append(updates["f_sv_history"], f_sv)
+    updates["f_ab_history"] = np.append(updates["f_ab_history"], f_ab)
+
+    updates["R_ep"] = np.append(updates["R_ep"], R_ep)
+    updates["R_amp"] = np.append(updates["R_amp"], R_amp)
+    updates["R_rmp"] = np.append(updates["R_rmp"], R_rmp)
+    updates["R_sp"] = np.append(updates["R_sp"], R_sp)
+    updates["R_bp"] = np.append(updates["R_bp"], R_bp)
+    updates["R_hp"] = np.append(updates["R_hp"], R_hp)
+
+    updates["I"] = np.append(updates["I"], I)
+    updates["phi_met"] = np.append(updates["phi_met"], phi_met)
+    updates["Nt"] = np.append(updates["Nt"], Nt)
+    updates["Vu_sv_change"] = np.append(updates["Vu_sv_change"], Vu_sv_change)
+    updates["prev_flat_bit"] = np.append(updates["prev_flat_bit"], prev_flat_bit)
+    updates["Pa_O2"] = np.append(updates["Pa_O2"], Pa_O2)
+    updates["xb_O2"] = np.append(updates["xb_O2"], xb_O2)
+    updates["T"] = np.append(updates["T"], T)
+    updates["Cvb_O2"] = np.append(updates["Cvb_O2"], Cvb_O2)
+    updates["xb_CO2"] = np.append(updates["xb_CO2"], xb_CO2)
+
+    updates["time_since_beat"] = np.append(updates["time_since_beat"], time_since_beat)
 
     # updates["t_eval2"] = updates["t_eval2"][1:]
 
