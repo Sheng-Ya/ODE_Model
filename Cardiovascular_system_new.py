@@ -14,7 +14,7 @@ from Activation_Functions import activation_U, activation_H, activation_Naghavi,
 def frac(x):
     return x - math.floor(x)
 
-def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, all_time, num_removed, i):
+def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, i):
     """
     Pulmonary circulation state variables: VT_pa, VT_pp, VT_pv, Q_pa
     Cardiovascular system state variables: VT_la, VT_lv, VT_ra, VT_rv
@@ -31,7 +31,14 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
      VT_la, VT_lv, VT_ra, VT_rv,
      VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc, theta_ao, dtheta_ao_dt) = state
 
-
+    # Determine the correct index based on t
+    if t == 0:
+        heart_control_index = i
+        resp_control_index = 0
+    else:
+        heart_control_index = i - 1
+        resp_control_index = 0
+    
     ## Muscle Pump
     A_im = params["A_im"]
     Tc = params["Tc"]
@@ -63,32 +70,28 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P_thormin_n = params["P_thormin_n"]
     VT_n = params["VT_n"]
 
-    # Determine the correct index based on t
-    index = i if t == 0 else i - 1
-    index1 = 0
-
     # respiratory controller inputs
-    T_resp = 1 / resp_control_inputs["BF"][index1]
-    TI = resp_control_inputs["TI"][index1]
-    VT = resp_control_inputs["VT"][index1]
+    T_resp = 1 / resp_control_inputs["BF"][resp_control_index]
+    TI = resp_control_inputs["TI"][resp_control_index]
+    VT = resp_control_inputs["VT"][resp_control_index]
 
     # inputs from the cardiovascular controller
-    T = 1/heart_control_inputs["HR"][index] # heart period
-    Emax_lv = heart_control_inputs["Emax_lv"][index]
-    Emax_rv = heart_control_inputs["Emax_rv"][index]
-    I = heart_control_inputs["I"][index]
+    T = 1/heart_control_inputs["HR"][heart_control_index] # heart period
+    Emax_lv = heart_control_inputs["Emax_lv"][heart_control_index]
+    Emax_rv = heart_control_inputs["Emax_rv"][heart_control_index]
+    I = heart_control_inputs["I"][heart_control_index]
 
     # input from other systems
-    Vu_ev = heart_control_inputs["Vu_ev"][index]
-    Vu_amv = heart_control_inputs["Vu_amv"][index]
-    Vu_rmv = heart_control_inputs["Vu_rmv"][index]
-    Vu_sv = heart_control_inputs["Vu_sv"][index]
-    R_ep = heart_control_inputs["R_ep"][index]
-    R_amp = heart_control_inputs["R_amp"][index]
-    R_rmp = heart_control_inputs["R_rmp"][index]
-    R_sp = heart_control_inputs["R_sp"][index]
-    R_bp = heart_control_inputs["R_bp"][index]
-    R_hp = heart_control_inputs["R_hp"][index]
+    Vu_ev = heart_control_inputs["Vu_ev"][heart_control_index]
+    Vu_amv = heart_control_inputs["Vu_amv"][heart_control_index]
+    Vu_rmv = heart_control_inputs["Vu_rmv"][heart_control_index]
+    Vu_sv = heart_control_inputs["Vu_sv"][heart_control_index]
+    R_ep = heart_control_inputs["R_ep"][heart_control_index]
+    R_amp = heart_control_inputs["R_amp"][heart_control_index]
+    R_rmp = heart_control_inputs["R_rmp"][heart_control_index]
+    R_sp = heart_control_inputs["R_sp"][heart_control_index]
+    R_bp = heart_control_inputs["R_bp"][heart_control_index]
+    R_hp = heart_control_inputs["R_hp"][heart_control_index]
 
 
     VT_change = VT - VT_n # units of L
@@ -198,8 +201,13 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P0_ra = 0.45
     KE_ra = 0.05
 
+    if t == 0:
+        time_since_beat = updates["time_since_beat"][i]
+    else:
+        time_since_beat = updates["time_since_beat"][i - 1]
+
     # phi_atr = activation_U(beta, 1)
-    phi_atr = activation_H(t, 1, T)
+    phi_atr = activation_H(t - time_since_beat, 1, T)
     # phi_atr = activation_Naghavi(t, 1)
     # phi_atr = g_function(t, 1)
     phi_cond = activation_conduit(t, T)
@@ -218,7 +226,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_lv = 0
 
     # phi = activation_U(beta, 0)
-    phi = activation_H(t, 0, T)
+    phi = activation_H(t - time_since_beat, 0, T)
     # phi = activation_Naghavi(t, 0)
     # phi = g_function(t, 0)
 
@@ -666,20 +674,18 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
 
 
-    # need the all_time array because time_history has already been adjusted with num_removed and need all_time to remember the value for removal
-
-    keys =  [
-        "Q_pp", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Q_la", "Q_lv", "Q_ra", "Q_rv",
-        "Wh_lv", "Wh_rv", "U", "dP_sa_dt", "P_sa", "P_ra", "P_la", "P_lv", "P_rv",
-        "Pmax_lv", "Pmax_rv", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
-        "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
-        "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
-        "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
-        "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2",
-        "phi_cond", "VT_ev", "psi", "Q_ev"
-    ]
-
     if num_removed > 0:
+        keys = [
+            "Q_pp", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Q_la", "Q_lv", "Q_ra", "Q_rv",
+            "Wh_lv", "Wh_rv", "U", "dP_sa_dt", "P_sa", "P_ra", "P_la", "P_lv", "P_rv",
+            "Pmax_lv", "Pmax_rv", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
+            "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
+            "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa", "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv",
+            "V_bv",
+            "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
+            "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2",
+            "phi_cond", "VT_ev", "psi", "Q_ev", "time_since_beat"
+        ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6) # Replace values with 1e6
 
@@ -700,7 +706,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     #     "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao,
     #     "d2theta_ao_dt2": d2theta_ao_dt2, "phi_cond": phi_cond, "VT_ev": VT_ev
     # }
-    #
+
     # # Define the CSV file path
     # csv_file = "output.csv"
     #
@@ -710,6 +716,15 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # df.to_csv(csv_file, mode='a', index=False, header=write_header)
     # # Ensure headers are written only once
     # write_header = False
+
+    # update after every heartbeat
+    if t - time_since_beat > T:
+        time_since_beat = t
+    else:
+        if i > 1:
+            time_since_beat = updates["time_since_beat"][i - 1]
+        else:
+            time_since_beat = 0
 
     # t_eval = updates["t_eval1"][0]
     # tolerance = 1e-3
@@ -787,6 +802,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["VT_ev"][i] = VT_ev
     updates["psi"][i] = psi
     updates["Q_ev"][i] = Q_ev
+    updates["time_since_beat"][i] = time_since_beat
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
             dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt, dtheta_ao_dt, d2theta_ao_dt2]

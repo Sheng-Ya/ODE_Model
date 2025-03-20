@@ -42,7 +42,6 @@ def activation_H(ti, atr, T):
     else:
         t_la = ti - 0.9 * T
 
-    # t_la = ti
 
     if atr == 1:
         phi = np.where(t_la <= tr_atr,

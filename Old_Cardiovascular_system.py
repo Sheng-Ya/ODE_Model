@@ -177,8 +177,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P0_ra = 0.45
     KE_ra = 0.05
 
+    time_since_beat = updates["time_since_beat"][-1]
+
     # phi_atr = activation_U(beta, 1, T)
-    phi_atr = activation_H(t - updates["time_since_beat"][-1], 1, T)
+    phi_atr = activation_H(t - time_since_beat, 1, T)
     # phi_atr = activation_Naghavi(t, 1, T)
     # phi_atr = g_function(t, 1, T)
     # phi_cond = activation_conduit(t, T)
@@ -197,7 +199,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_lv = 0
 
     # phi = activation_U(beta, 0)
-    phi = activation_H(t - updates["time_since_beat"][-1], 0, T)
+    phi = activation_H(t - time_since_beat, 0, T)
     # phi = activation_Naghavi(t, 0)
     # phi = g_function(t, 0)
 
@@ -617,10 +619,18 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     #     raise ValueError(f"Negative volumes detected: {negative_volumes}")
 
     if left_over_volume < 0:
-        A= all_time
+        B = 2
         # raise ValueError("Error: wrong")
 
-    P_ev = left_over_volume / C_ev
+
+    # if t!=0:
+    #     source_values = updates["source_values"][-1] + source(t) * (t - updates["time_history"][-1])
+    #     A = source_values
+    # else:
+    #     source_values = 0
+    #     A = 0
+
+    P_ev = left_over_volume / C_ev # + source_values
 
     Q_ep = (P_sp - P_ev) / R_ep
 
@@ -656,9 +666,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # should be + ?, edit: removed P_thor from here
     dQ_sa_dt = (P_sa + P_thor - R_sa * Q_sa - P_sp) / L_sa
 
-    A = updates["Q_pp"]
     if t != 0:
-        if t < all_time[-1]:
+        if num_removed > 0:
             for key in [
                 "Q_pp", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Q_la", "Q_lv", "Q_ra", "Q_rv",
                 "Wh_lv", "Wh_rv", "U", "dP_sa_dt", "P_sa", "P_ra", "P_la", "P_lv", "P_rv",
@@ -666,13 +675,17 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
                 "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
-                "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "VT_ev"
+                "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "VT_ev",
+                "time_since_beat" #, "source_values", "A"
             ]:
                 del updates[key][-num_removed:]
 
-    # t_eval = updates["t_eval1"][0]
-    # tolerance = 1e-3
-    # if t > Next_Conditions["time_history"][-1]:
+    # update after every heartbeat
+    if t - time_since_beat > T:
+        time_since_beat = t
+    else:
+        time_since_beat = updates["time_since_beat"][-1]
+
     data_to_append = {
         "Q_pp": Q_pp, "Q_bp": Q_bp, "Q_hp": Q_hp, "Q_rmp": Q_rmp, "Q_amp": Q_amp,
         "Q_la": Q_la, "Q_lv": Q_lv, "Q_ra": Q_ra, "Q_rv": Q_rv, "Wh_lv": Wh_lv, "Wh_rv": Wh_rv,
@@ -685,7 +698,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         "V_u": V_u, "V_sv": V_sv, "V_rmv": V_rmv, "V_amv": V_amv, "V_bv": V_bv, "V_hv": V_hv,
         "P_sp": P_sp, "Q_sa": Q_sa, "Q_jp": Q_jp, "Q_vc": Q_vc, "VT_amv": VT_amv, "P_im": P_im,
         "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "V_sa": V_sa,
-        "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2, "VT_ev": VT_ev
+        "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2,
+        "VT_ev": VT_ev, "time_since_beat": time_since_beat, # "source_values": source_values, "A": A
     }
 
     for key, value in data_to_append.items():

@@ -1,7 +1,10 @@
 import bisect
 import math
+import os
 
 import numpy as np
+import pandas as pd
+
 
 def frac(x):
     return x - math.floor(x)
@@ -34,7 +37,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # Other inputs
     MRTCO2 = gas_exchange_inputs["MRTCO2"][-1]
     # T_resp = 1 / resp_control_inputs["BF"]
-    previous_VE = exp_inputs["previous_VE"][-1]
 
     VE_integral = resp_control_inputs["VE_integral"][-1]
 
@@ -296,6 +298,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     dEmax_rv_change_dt = (- Emax_rv_change + sigma_Emax_rv) / tau_Emax_rv
 
     R_ep = R_ep_change + R_ep0
+
     R_sp = R_sp_change + R_sp0
     R_rmp_n = R_rmp_n_change + R_rmp0
     R_amp_n = R_amp_n_change + R_amp0
@@ -481,20 +484,44 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
                 "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR1",
                 "Vu_ev1",
                 "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1", "T", "xb_O2", "Cvb_O2", "xb_CO2",
-                "time_since_beat",
             ]:
                 del updates[key][-num_removed:]
 
+    # keys5 = {
+    #     "f_sp_history": f_sp_history, "f_sh_history": f_sh_history, "f_v_history": f_v_history,
+    #     "phi_met_history": phi_met_history, "f_sv_history": f_sv_history, "Vu_ev": Vu_ev,
+    #     "Vu_amv": Vu_amv, "Vu_rmv": Vu_rmv, "Vu_sv": Vu_sv, "R_ep": R_ep, "R_amp": R_amp,
+    #     "R_rmp": R_rmp, "R_sp": R_sp, "R_bp": R_bp, "R_hp": R_hp, "HR": HR, "Emax_lv": Emax_lv,
+    #     "Emax_rv": Emax_rv, "I": I, "phi_met": phi_met, "Nt": Nt, "Vu_sv_change": Vu_sv_change,
+    #     "prev_flat_bit": prev_flat_bit, "Pa_O2": Pa_O2, "T": T, "xb_O2": xb_O2, "Cvb_O2": Cvb_O2,
+    #     "xb_CO2": xb_CO2
+    # }
+    #
+    # # Define the CSV file path
+    # csv_file = "output_old.csv"
+    #
+    # # Write headers only if the file doesn't exist
+    # write_header = not os.path.exists(csv_file)
+    # df = pd.DataFrame([keys5])
+    # df.to_csv(csv_file, mode='a', index=False, header=write_header)
+    # # Ensure headers are written only once
+    # write_header = False
 
 
-    time_since_beat = updates["time_since_beat"][-1]
+
+
+
+    time_since_beat1 = updates["time_since_beat"][-1]
+    time_since_beat2 = updates["time_since_beat"][-2]
+
     # else:
         # time_since_beat = updates["time_since_beat"][-1] + (t - time_history[-1])
         # time_since_beat = time_history[-1] % (1/HR) + (t - time_history[-1])
         # time_since_beat = t % (1/HR)
 
     # update after every heartbeat
-    if t - time_since_beat > 1/HR:
+    if time_since_beat1 != time_since_beat2:
+        A = updates["HR1"]
         HR = np.mean(updates["HR1"])
         updates["HR1"].clear()
 
@@ -515,8 +542,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
         Emax_rv = np.mean(updates["Emax_rv1"])
         updates["Emax_rv1"].clear()
-
-        time_since_beat = t
 
         # update history
     updates["HR1"].append(HR1)
@@ -558,7 +583,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["T"].append(1/HR)
     updates["Cvb_O2"].append(Cvb_O2)
     updates["xb_CO2"].append(xb_CO2)
-    updates["time_since_beat"].append(time_since_beat)
 
     # updates["t_eval2"] = updates["t_eval2"][1:]
 

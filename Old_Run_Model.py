@@ -11,13 +11,13 @@ import cProfile
 
 from Old_Cardiovascular_controller import cardiovascular_controller
 from Old_Cardiovascular_system import cardiovascular_system
-from Gas_Exchange import gas_exchange
+from Old_Gas_Exchange import gas_exchange
 from Initial_Conditions import Initial_Conditions
 from Old_Next_Conditions import Next_Conditions
 from Parameters import Parameters
 from Resp_Control_Breath_Optimiser import breath_optimiser
 from Resp_Control_Ventilation import resp_control_vent
-from Respiratory_Mechanics import respiratory_mechanics
+from Old_Respiratory_Mechanics import respiratory_mechanics
 
 
 # Resp control breath optimiser
@@ -65,26 +65,26 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
     # Indices for slicing
     idx_cardio = num_cardio
     idx_cardio_contr = idx_cardio + num_cardio_control
-    # idx_gas = idx_cardio_contr + num_gas
-    # idx_resp_mech = idx_gas + num_resp_mech
+    idx_gas = idx_cardio_contr + num_gas
+    idx_resp_mech = idx_gas + num_resp_mech
     # idx_resp_contr = idx_resp_mech + num_resp_control
 
     # Extract each subsystem's state variables
     cardio_state = Initial_Conditions_numpy[:idx_cardio]
     cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
-    # gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
-    # resp_mech_state = Initial_Conditions_numpy[idx_gas:idx_resp_mech]
+    gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
+    resp_mech_state = Initial_Conditions_numpy[idx_gas:idx_resp_mech]
     # resp_contr_state = Initial_Conditions_numpy[idx_resp_mech:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
     d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, time_history, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
-    # d_gas = gas_exchange(t, gas_state, Parameters, time_history, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
-    # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
+    d_gas = gas_exchange(t, gas_state, Parameters, time_history, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
+    d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
     # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, all_time, num_removed)
 
-    d_combined = np.concatenate((d_cardio, d_cardio_contr))
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
+    # d_combined = np.concatenate((d_cardio, d_cardio_contr))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
 
     time_history.append(t)
     all_time.append(t)
@@ -92,54 +92,54 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
     return d_combined
 
 
+t_span = (0,210) # Simulate for x seconds
+
+# t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
+
+# gas exchange
+required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
+                     "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
+                     "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "Cv_O2", "Cv_CO2", "MRV"]
+IC_gas = np.array([Initial_Conditions[key] for key in required_gas_keys], dtype=float)
+num_gas = len(required_gas_keys)
+
+# cardiovascular system
+required_cardio_keys = [ "VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
+                           "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "theta_ao", "dtheta_ao_dt"]
+IC_cardio = np.array([Initial_Conditions[key] for key in required_cardio_keys], dtype=float)
+num_cardio = len(required_cardio_keys)
+
+# cardiovascular controller
+required_cardio_control_keys = ["theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv",
+                         "theta_change_O2_sh", "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", "R_ep_change",
+                         "R_sp_change", "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change",
+                         "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change", "Emax_rv_change", "Ts_change",
+                         "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2", "xam_O2",
+                         "xM", "x_met"]
+
+IC_cardio_contr = np.array([Initial_Conditions[key] for key in required_cardio_control_keys], dtype=float)
+num_cardio_control = len(required_cardio_control_keys)
+
+# resp control ventilation
+required_resp_control_keys = ["VE_integral"]
+IC_resp_contr = np.array([Initial_Conditions[key] for key in required_resp_control_keys], dtype=float)
+num_resp_control = len(required_resp_control_keys)
+
+
+# resp mechanics
+required_resp_mech_keys = ["V", "alpha"]
+IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
+num_resp_mech = len(required_resp_mech_keys)
+
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech))
+# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
+
+
+
 def simulate():
 
-
-    t_span = (0,100) # Simulate for x seconds
-
-    # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
-
-    # gas exchange
-    required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
-                         "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
-                         "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "Cv_O2", "Cv_CO2", "MRV"]
-    IC_gas = np.array([Initial_Conditions[key] for key in required_gas_keys], dtype=float)
-    num_gas = len(required_gas_keys)
-
-    # cardiovascular system
-    required_cardio_keys = [ "VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
-                               "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc", "theta_ao", "dtheta_ao_dt"]
-    IC_cardio = np.array([Initial_Conditions[key] for key in required_cardio_keys], dtype=float)
-    num_cardio = len(required_cardio_keys)
-
-    # cardiovascular controller
-    required_cardio_control_keys = ["theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv",
-                             "theta_change_O2_sh", "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", "R_ep_change",
-                             "R_sp_change", "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change",
-                             "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change", "Emax_rv_change", "Ts_change",
-                             "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2", "xam_O2",
-                             "xM", "x_met"]
-
-    IC_cardio_contr = np.array([Initial_Conditions[key] for key in required_cardio_control_keys], dtype=float)
-    num_cardio_control = len(required_cardio_control_keys)
-
-    # resp control ventilation
-    required_resp_control_keys = ["VE_integral"]
-    IC_resp_contr = np.array([Initial_Conditions[key] for key in required_resp_control_keys], dtype=float)
-    num_resp_control = len(required_resp_control_keys)
-
-
-    # resp mechanics
-    required_resp_mech_keys = ["V", "alpha"]
-    IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
-    num_resp_mech = len(required_resp_mech_keys)
-
-    IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
-    # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
-
-
     # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, max_step = 0.001, method="RK23", rtol=1e-3,
+    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, max_step = 0.003, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Parameters, Next_Conditions["time_history"], Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech, Next_Conditions["all_time"]))
 
     return ODE_solution
@@ -199,8 +199,10 @@ if __name__ == "__main__":
     # variables_to_plot = [
     #     # "f_sp_history", "f_sh_history", "f_v_history",
     #     # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+    #     "dCvO2_dt", "dCvCO2_dt", "cCO2_diff", "cO2_diff", "PA_CO2", "QT", "PA_O2", "Cv_CO2", "Ca_CO2", "Cv_O2", "Ca_O2", "Q_bp" #"V", "Cv_O2", "Ca_O2"
+    #
     #     # "AR_ao", "theta_ao", "HR", "d2theta_ao_dt2" # , "T", "xb_O2", "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
-    #     "phi", "phi_atr" #"V", "Cv_O2", "Ca_O2"
+    #     # "phi", "phi_atr" #"V", "Cv_O2", "Ca_O2"
     #     # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
     #     # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
     #     # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
@@ -218,39 +220,39 @@ if __name__ == "__main__":
     #         plt.show()
 
 
-    fig, ax1 = plt.subplots()
+    # fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Cv_O2"][1:], label="Cv_O2", color="b")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Ca_O2"][1:], label="Ca_O2", color="g")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Ca_CO2"][1:], label="Ca_CO2", color="r")
     # ax1.plot(Next_Conditions["time_history"], Next_Conditions["Cv_CO2"][1:], label="Cv_CO2", color="k")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["FO2"], label="FO2", color="m")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["FCO2"], label="FCO2", color="c")
-    # ax1.plot(Next_Conditions["time_history"], Next_Conditions["QT"], label="QT", color="k")
-
-
-
-
-    ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi", color="g")
-    ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi_atr"], label="phi_atr", color="k")
-    ax1.plot(Next_Conditions["time_history"], Next_Conditions["T"], label="T", color="b")
-
-
-
-    ax1.set_xlabel("Time (s)")
-    # ax1.set_ylabel("Pressure (mmHg)", color="k")
-    # ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["FO2"], label="FO2", color="m")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["FCO2"], label="FCO2", color="c")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["QT"], label="QT", color="k")
+    #
+    #
+    #
+    #
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi"], label="phi", color="g")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["phi_atr"], label="phi_atr", color="k")
+    # # ax1.plot(Next_Conditions["time_history"], Next_Conditions["T"], label="T", color="b")
+    #
+    #
+    #
+    # ax1.set_xlabel("Time (s)")
+    # # ax1.set_ylabel("Pressure (mmHg)", color="k")
+    # # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
 
     # # Create second y-axis for volume
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"][1:], label="VT_lv", color="c")
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"], Next_Conditions["VT_lv"][1:], label="VT_lv", color="c")
     # ax2.plot(Next_Conditions["time_history"][92500:], Next_Conditions["Q_sa"][92501:], label="Q_sa",
     #          linestyle="dashed", color="c")
     # ax2.set_ylabel("Flow (mL/s)", color="k")
     # ax2.tick_params(axis='y', labelcolor="k")
     # ax2.legend(loc="upper right")
-    plt.show()
+    # plt.show()
 
 
     # plt.plot(Next_Conditions["time_history"], Next_Conditions["f_sp_history"], label="f_sp_history")
@@ -324,15 +326,27 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.show()
 
+    plt.plot(Next_Conditions["VT_ra"][1:], Next_Conditions["P_ra"], label="RA")  # 10 s all
+    # Add labels and legend
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+    plt.plot(Next_Conditions["VT_la"][1:], Next_Conditions["P_la"], label="LA")  # 10 s all
+    # Add labels and legend
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
 
 
     plt.plot(Next_Conditions["VT_lv"][1:], Next_Conditions["P_lv"], label="P_lv (Left Ventricle)")  # 10 s all
-    # # plt.plot(Next_Conditions["VT_lv"][99501:][1:], Next_Conditions["Pmax_lv"][99500:], label="Pmax_lv (Left Ventricle)")  # 10 s all
-    #
-    # # plt.plot(Next_Conditions["V_lv"][140000:], Next_Conditions["P_lv"][140000:], label="P_lv (Left Ventricle)")
-    # # plt.plot(Next_Conditions["V_rv"][140000:], Next_Conditions["P_rv"][140000:], label="P_rv")
-    # # plt.plot(Next_Conditions["V_rv"][140000:], Next_Conditions["Pmax_rv"][140000:], label="Pmax_rv")
-    # # plt.plot(Next_Conditions["V_la"][80000:], Next_Conditions["P_la"][80000:], label="LA")
     # Add labels and legend
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")

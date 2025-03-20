@@ -1,13 +1,16 @@
 import bisect
 import math
+import os
 
 import numpy as np
+import pandas as pd
+
 
 def frac(x):
     return x - math.floor(x)
 
 
-def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, all_time, num_removed, i):
+def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, i):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,
@@ -30,15 +33,29 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # constant parameters
     AT = params["AT"]
     MRTCO2_basal = params["MRTCO2_basal"]
+    
+    if t == 0:
+        heart_index = i
+        gas_index = i
+        resp_control_index = 0
+        # gas_index = 0
+    elif num_removed > 0:
+        heart_index = i - num_removed - 1
+        # gas exchange variables have not been removed yet
+        gas_index = i - 1
+        resp_control_index = 0
+        # gas_index = 0
+    else:
+        heart_index = i - 1
+        gas_index = i - 1
+        resp_control_index = 0
+        # gas_index = 0
 
-    index1 = 0
-
-    # Other inputs
-    MRTCO2 = gas_exchange_inputs["MRTCO2"][index1]
+        # Other inputs
+    MRTCO2 = gas_exchange_inputs["MRTCO2"][gas_index]
     # T_resp = 1 / resp_control_inputs["BF"]
-    previous_VE = exp_inputs["previous_VE"][index1]
 
-    VE_integral = resp_control_inputs["VE_integral"][index1]
+    VE_integral = resp_control_inputs["VE_integral"][resp_control_index]
 
 
     I = (MRTCO2 - MRTCO2_basal)/(AT - MRTCO2_basal)
@@ -54,7 +71,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # Nt = VE_integral
 
     a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][:6]
-    prev_flat_bit = updates["prev_flat_bit"][index1]
+    prev_flat_bit = updates["prev_flat_bit"][gas_index]
 
     if t % (t1 + t2) < t1:
         Nt = VE_integral - prev_flat_bit  # Take value minus previous flat bit
@@ -85,8 +102,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     PaCO2_n = params["PaCO2_n"]
 
     # Other inputs
-    Pa_O2 = gas_exchange_inputs["Pa_O2"][index1]
-    Pa_CO2 = gas_exchange_inputs["Pa_CO2"][index1]
+    Pa_O2 = gas_exchange_inputs["Pa_O2"][gas_index]
+    Pa_CO2 = gas_exchange_inputs["Pa_CO2"][gas_index]
 
     # cns response
     w_sp = x_sp / (1 + np.exp((Pa_O2 - PO2_sp)/kisc_sp))
@@ -118,11 +135,15 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     tau_p = params["tau_p"]
     tau_z = params["tau_z"]
 
-    index = i if t == 0 else i - 1
-
     # Other inputs
-    P_sa = heart_inputs["P_sa"][index] # cardiovascular controller was run after cardio was run with states appended/updated so it must take the nonupdated version
-    dP_sa_dt = heart_inputs["dP_sa_dt"][index]
+    P_sa = heart_inputs["P_sa"][heart_index] # cardiovascular controller was run after cardio was run with states appended/updated so it must take the nonupdated version
+    dP_sa_dt = heart_inputs["dP_sa_dt"][heart_index]
+    Q_bp = heart_inputs["Q_bp"][heart_index]
+    Q_hp = heart_inputs["Q_hp"][heart_index]
+    Q_rmp = heart_inputs["Q_rmp"][heart_index]
+    Q_amp = heart_inputs["Q_amp"][heart_index]
+    Wh_lv = heart_inputs["Wh_lv"][heart_index]
+    Wh_rv = heart_inputs["Wh_rv"][heart_index]
 
     exp_arg = np.clip((P_tilda - P_n) / k_ab, -40, 40)  # Prevent overflow
     f_ab = (f_ab_min + f_ab_max * np.exp(exp_arg)) / (1 + np.exp(exp_arg))
@@ -157,7 +178,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     tau_ap = params["tau_ap"]
 
     # Other inputs
-    VT = resp_control_inputs["VT"][index1]
+    VT = resp_control_inputs["VT"][resp_control_index]
 
     phi_ap = G_ap * VT
     df_ap_dt = (phi_ap - f_ap)/tau_ap
@@ -364,11 +385,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     tau_O2 = params["tau_O2"]
 
     # other inputs
-    Ca_O2 = gas_exchange_inputs["Ca_O2"][index1]
-    Q_bp = heart_inputs["Q_bp"][index]
-    Q_hp = heart_inputs["Q_hp"][index]
-    Q_rmp = heart_inputs["Q_rmp"][index]
-    Q_amp = heart_inputs["Q_amp"][index]
+    Ca_O2 = gas_exchange_inputs["Ca_O2"][gas_index]
 
     G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
     R_bp = 1 / G_bp
@@ -394,8 +411,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     W_hn = params["W_hn"]
 
     # other inputs
-    Wh_lv = heart_inputs["Wh_lv"][index]
-    Wh_rv = heart_inputs["Wh_rv"][index]
 
     # coronary
     R_hp = R_hpn * (1 + xh_CO2) / (1 + xh_O2)
@@ -438,6 +453,9 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     R_amp = R_amp_n / (1 + xam_O2 + x_met)
 
+    if i > 520:
+        A = 2
+
     MO2_amp = MO2_ampn * (1 + xM)
     Cvam_O2 = Ca_O2 - MO2_amp / Q_amp
 
@@ -467,76 +485,100 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         Emax_lv = Emax_lv1
         Emax_rv = Emax_rv1
     else:
-        HR = updates["HR"][index]
-        Vu_ev = updates["Vu_ev"][index]
-        Vu_sv = updates["Vu_sv"][index]
-        Vu_rmv = updates["Vu_rmv"][index]
-        Vu_amv = updates["Vu_amv"][index]
-        Emax_lv = updates["Emax_lv"][index]
-        Emax_rv = updates["Emax_rv"][index]
-
-    if t == 0:
-        time_since_beat = 0
-    else:
-        time_since_beat = updates["time_since_beat"][index] + (t - time_history[index])
-
-    # update after every heartbeat
-    if updates["time_since_beat"][index] >= (1 / HR):
-        HR = np.mean(updates["HR1"])
-        updates["HR1"] = np.array([])
-
-        Vu_ev = np.mean(updates["Vu_ev1"])
-        updates["Vu_ev1"] = np.array([])
-
-        Vu_sv = np.mean(updates["Vu_sv1"])
-        updates["Vu_sv1"] = np.array([])
-
-        Vu_rmv = np.mean(updates["Vu_rmv1"])
-        updates["Vu_rmv1"] = np.array([])
-
-        Vu_amv = np.mean(updates["Vu_amv1"])
-        updates["Vu_amv1"] = np.array([])
-
-        Emax_lv = np.mean(updates["Emax_lv1"])
-        updates["Emax_lv1"] = np.array([])
-
-        Emax_rv = np.mean(updates["Emax_rv1"])
-        updates["Emax_rv1"] = np.array([])
-
-        time_since_beat = 0
+        HR = updates["HR"][heart_index]
+        Vu_ev = updates["Vu_ev"][heart_index]
+        Vu_sv = updates["Vu_sv"][heart_index]
+        Vu_rmv = updates["Vu_rmv"][heart_index]
+        Vu_amv = updates["Vu_amv"][heart_index]
+        Emax_lv = updates["Emax_lv"][heart_index]
+        Emax_rv = updates["Emax_rv"][heart_index]
 
 
+
+
+    if num_removed > 0:
         keys = [
             "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
             "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
-            "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "T", "xb_O2", "Cvb_O2", "xb_CO2", "time_since_beat", "f_ab_history"
+            "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "T", "xb_O2",
+            "Cvb_O2", "xb_CO2", "f_ab_history"
         ]
         keys2 = [
             "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
         ]
-        if num_removed > 0:
-            for key in keys:
-                updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
-                i = i - num_removed
-            for key in keys2:
-                updates[key] = updates[key][:-num_removed]
+        for key in keys:
+            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+        for key in keys2:
+            del updates[key][-num_removed:]
 
-    # t_eval = updates["t_eval2"][0]
-    # check2 = t
-    # check3 = np.abs(t - t_eval)
+        i = i - num_removed
+
+    # keys5 = {
+    #     "f_sp_history": f_sp_history, "f_sh_history": f_sh_history, "f_v_history": f_v_history,
+    #     "phi_met_history": phi_met_history, "f_sv_history": f_sv_history, "Vu_ev": Vu_ev,
+    #     "Vu_amv": Vu_amv, "Vu_rmv": Vu_rmv, "Vu_sv": Vu_sv, "R_ep": R_ep, "R_amp": R_amp,
+    #     "R_rmp": R_rmp, "R_sp": R_sp, "R_bp": R_bp, "R_hp": R_hp, "HR": HR, "Emax_lv": Emax_lv,
+    #     "Emax_rv": Emax_rv, "I": I, "phi_met": phi_met, "Nt": Nt, "Vu_sv_change": Vu_sv_change,
+    #     "prev_flat_bit": prev_flat_bit, "Pa_O2": Pa_O2, "T": T, "xb_O2": xb_O2, "Cvb_O2": Cvb_O2,
+    #     "xb_CO2": xb_CO2
+    # }
     #
-    # tolerance = 1e-3
-    # if np.abs(t - t_eval) < tolerance:
+    # # Define the CSV file path
+    # csv_file = "output.csv"
+    #
+    # # Write headers only if the file doesn't exist
+    # write_header = not os.path.exists(csv_file)
+    # df = pd.DataFrame([keys5])
+    # df.to_csv(csv_file, mode='a', index=False, header=write_header)
+    # # Ensure headers are written only once
+    # write_header = False
+
+    if heart_index <= 1:
+        time_since_beat1 = updates["time_since_beat"][heart_index]
+        time_since_beat2 = updates["time_since_beat"][heart_index]
+    else:
+        time_since_beat1 = updates["time_since_beat"][heart_index]
+        time_since_beat2 = updates["time_since_beat"][heart_index - 1]
+
+    # update after every heartbeat
+    if time_since_beat1 != time_since_beat2 and num_removed == 0:
+        HR = np.mean(updates["HR1"])
+        updates["HR1"].clear()
+
+        Vu_ev = np.mean(updates["Vu_ev1"])
+        updates["Vu_ev1"].clear()
+
+        Vu_sv = np.mean(updates["Vu_sv1"])
+        updates["Vu_sv1"].clear()
+
+        Vu_rmv = np.mean(updates["Vu_rmv1"])
+        updates["Vu_rmv1"].clear()
+
+        Vu_amv = np.mean(updates["Vu_amv1"])
+        updates["Vu_amv1"].clear()
+
+        Emax_lv = np.mean(updates["Emax_lv1"])
+        updates["Emax_lv1"].clear()
+
+        Emax_rv = np.mean(updates["Emax_rv1"])
+        updates["Emax_rv1"].clear()
 
 
         # update history
-    updates["HR1"] = np.append(updates["HR1"], HR1)
-    updates["Vu_ev1"] = np.append(updates["Vu_ev1"], Vu_ev1)
-    updates["Vu_sv1"] = np.append(updates["Vu_sv1"], Vu_sv1)
-    updates["Vu_rmv1"] = np.append(updates["Vu_rmv1"], Vu_rmv1)
-    updates["Vu_amv1"] = np.append(updates["Vu_amv1"], Vu_amv1)
-    updates["Emax_lv1"] = np.append(updates["Emax_lv1"], Emax_lv1)
-    updates["Emax_rv1"] = np.append(updates["Emax_rv1"], Emax_rv1)
+    # updates["HR1"] = np.append(updates["HR1"], HR1)
+    # updates["Vu_ev1"] = np.append(updates["Vu_ev1"], Vu_ev1)
+    # updates["Vu_sv1"] = np.append(updates["Vu_sv1"], Vu_sv1)
+    # updates["Vu_rmv1"] = np.append(updates["Vu_rmv1"], Vu_rmv1)
+    # updates["Vu_amv1"] = np.append(updates["Vu_amv1"], Vu_amv1)
+    # updates["Emax_lv1"] = np.append(updates["Emax_lv1"], Emax_lv1)
+    # updates["Emax_rv1"] = np.append(updates["Emax_rv1"], Emax_rv1)
+    updates["HR1"].append(HR1)
+    updates["Vu_ev1"].append(Vu_ev1)
+    updates["Vu_sv1"].append(Vu_sv1)
+    updates["Vu_rmv1"].append(Vu_rmv1)
+    updates["Vu_amv1"].append(Vu_amv1)
+    updates["Emax_lv1"].append(Emax_lv1)
+    updates["Emax_rv1"].append(Emax_rv1)
 
     updates["HR"][i] = HR
     updates["Vu_ev"][i] = Vu_ev
@@ -570,8 +612,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["T"][i] = 1/HR
     updates["Cvb_O2"][i] = Cvb_O2
     updates["xb_CO2"][i] = xb_CO2
-
-    updates["time_since_beat"][i] = time_since_beat
 
 
     return [dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,

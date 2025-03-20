@@ -108,7 +108,7 @@ Next_Conditions = {
     "U": [0],
     "U1": [0],
     "U2": [0],
-    "time_since_beat": [0],
+    "time_since_beat": [0,0],
     "beta": [0],
     "BF": [0.25], # changed to 0.25 from 1/3 today, forgot why i had it as 1/3, nd is 4 s for t1+t2
     "Vu_ev": [607.8],
@@ -142,6 +142,7 @@ Next_Conditions = {
     "dVT_ra_dt": [100],
     "dPmax_ra_dt": [],
     "phi_cond": [],
+    "A": [],
 
     # cardiovascular controller
     "theta_change_O2_sp": [0],
@@ -275,6 +276,10 @@ Next_Conditions = {
     "Pmax_rv": [],
     "Pmax_ra": [],
     "Pmax_la": [],
+    "cCO2_diff": [],
+    "cO2_diff": [],
+    "dCvO2_dt": [],
+    "dCvCO2_dt": [],
 
     # exp inputs/time history
     "f_sp_history": [],
