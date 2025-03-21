@@ -3,7 +3,6 @@ import os
 import numpy as np
 import pandas as pd
 
-
 def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i):
     """
         Pulmonary Mechanics state variables: V
@@ -11,7 +10,7 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
 
     """
 
-    (V, alpha) = state
+    (V, Vflow_ua) = state
 
     # exp_inputs is updated in resp_mech
     if t == 0:
@@ -56,8 +55,6 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
 
     # initial value for G_AW
     G_AW = exp_inputs["G_AW_guess"][exp_index]
-    Vflow_ua = exp_inputs["Vflow_ua"][exp_index]
-    P_ua = exp_inputs["P_ua"][exp_index]
     max_iterations = 20
 
     # Iterative calculation for G_AW
@@ -80,19 +77,11 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
 
         P_pl = P_CW + P_a - P_musc
 
-        tolerance = 1e-6
+        Vflow_LA = Vflow_ua + dV_dt
+        P_ua = P_pl + Vflow_LA * R_rs
+        dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
 
-        for _ in range(max_iterations):
-            # Airway pressure and flow
-            Vflow_LA = Vflow_ua + dV_dt
-            new_P_ua = P_pl + Vflow_LA * R_rs
-            new_Vflow_ua = -(1 / R_trachea) * (new_P_ua + (1 / C_ua) * alpha)
-            if abs(new_Vflow_ua - Vflow_ua) < tolerance and abs(new_P_ua - P_ua) < tolerance:
-                Vflow_ua = new_Vflow_ua
-                P_ua = new_P_ua
-                break
-            Vflow_ua = new_Vflow_ua
-            P_ua = new_P_ua
+        dVflow_ua_dt = -(1 / R_trachea) * (dP_ua_dt + (1 / C_ua) * Vflow_ua)
 
         # Set based on fixed parameters
         Pcrit = Pcrit_min
@@ -106,7 +95,7 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
             new_G_AW = A0_ua * K_ua
 
         # Convergence check
-        if abs(new_G_AW - G_AW) < tolerance:
+        if abs(new_G_AW - G_AW) < 1e-6:
             G_AW = new_G_AW
             break
         G_AW = new_G_AW
@@ -119,8 +108,6 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     # Vflow_ua = Vflow_LA - dV_dt
     # P_ua = (-R_trachea) * Vflow_ua - alpha / C_ua
     # Vflow_ua = (1/(1+R_trachea/R_rs)) * ((- (1/(R_rs * C_ua)) * alpha) - P_pl/R_rs - dV_dt)
-
-    d_alpha_dt = Vflow_ua
     # R_rs = R_AW + R_L + R_CW
 
 
@@ -161,4 +148,4 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     updates["previous_dV_dt"][i] = dV_dt
     updates["P_pl"][i] = P_pl
 
-    return [dV_dt, d_alpha_dt]
+    return [dV_dt, dVflow_ua_dt]

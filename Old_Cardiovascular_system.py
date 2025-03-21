@@ -676,7 +676,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
                 "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",  "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv",
                 "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
                 "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv", "theta_ao", "AR_ao", "d2theta_ao_dt2", "VT_ev",
-                "time_since_beat" #, "source_values", "A"
+                "time_since_beat", "Q_ev" #, "source_values", "A"
             ]:
                 del updates[key][-num_removed:]
 
@@ -699,7 +699,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         "P_sp": P_sp, "Q_sa": Q_sa, "Q_jp": Q_jp, "Q_vc": Q_vc, "VT_amv": VT_amv, "P_im": P_im,
         "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "V_sa": V_sa,
         "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao, "d2theta_ao_dt2": d2theta_ao_dt2,
-        "VT_ev": VT_ev, "time_since_beat": time_since_beat, # "source_values": source_values, "A": A
+        "VT_ev": VT_ev, "time_since_beat": time_since_beat, "Q_ev": Q_ev # "source_values": source_values, "A": A
     }
 
     for key, value in data_to_append.items():

@@ -102,8 +102,8 @@ Parameters = {
     "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
     "P_abdmax_n": 0,        # Basal value of abdominal pressure at the end of expiration
     "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
-    "P_thormax_n": -3.5,      # Basal value of intrathoracic pressure at the end of expiration
-    "P_thormin_n": -5,      # Basal value of intrathoracic pressure at the end of inspiration
+    "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
+    "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
     "VT_n": 0.73, # had it as 0.4, changed back to its original parameter          # Basal value of tidal volume
 # }
 
@@ -313,14 +313,14 @@ Parameters = {
 # parameters_upper_airways = {
     "A0_ua": 1,               # Maximum area of opening in upper airway
     "b_ua": 1,                 # Upper airway mechanics constant
-    "C_ua": 0.001,             # Upper airway compliance
-    "K_ua": 1,                 # Proportionality coefficient
-    "Pcrit_min": -40,         # Critical upper airway pressure
-    "R_AW": 0.82128,           # Airway wall resistance
-    "R_CW": 0.8326,            # Chest wall resistance
-    "R_L": 1.3661,             # Lung transmural resistance
-    "R_trachea": 1000000,      # Upper airway wall resistance
-    "R_rs": 3.02,              # Overall resistance
+    "C_ua": 0.001 / 0.73559,             # Upper airway compliance
+    "K_ua": 1 / 0.73559,                 # Proportionality coefficient
+    "Pcrit_min": -40 * 0.73559,         # Critical upper airway pressure
+    "R_AW": 0.82128 * 0.73559,           # Airway wall resistance
+    "R_CW": 0.8326 * 0.73559,            # Chest wall resistance
+    "R_L": 1.3661 * 0.73559,             # Lung transmural resistance
+    "R_trachea": 1000000 * 0.73559,      # Upper airway wall resistance
+    "R_rs": 3.02 * 0.73559,              # Overall resistance
 # }
 
 # Table 20: Parameters of the Pulmonary Mechanics
@@ -410,8 +410,8 @@ Parameters = {
     "MRTCO2_basal": 0.3/60,            # Basal metabolic production rate for CO2 (l/min STPD)
     "MRTO2_basal": 0.33/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
-    "VTCO2": 15,                    # Body tissue storage volume for CO2 (l)
-    "VTO2": 6,                      # Body tissue storage volume for O2 (l)
+    "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l)
+    "VTO2": 0.25,                      # Body tissue storage volume for O2 (l)
 # }
 
 # Table 26: Gas Transport: Metabolism Dynamic

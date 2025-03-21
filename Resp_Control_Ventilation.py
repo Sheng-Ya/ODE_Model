@@ -1,10 +1,6 @@
 import numpy as np
-from scipy.optimize import minimize
 
-from Next_Conditions import Next_Conditions
-from Resp_Control_Breath_Optimiser import breath_optimiser
-
-def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates, all_time, num_removed):
+def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates, num_removed):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -104,7 +100,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
         d_VE_integral_dt = VE_flow
 
     if t != 0:
-        if t < all_time[-1]:
+        if num_removed > 0:
             for key in [
                 "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
             ]:

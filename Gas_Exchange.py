@@ -106,14 +106,18 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     Ta = LCTV / Q_la
     t_minus_Ta = t - Ta
-    if t_minus_Ta >= 0 and len(time_history) != 0:
+    if t_minus_Ta >= 0 and t > 0 and t > abs(Ta):
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, t_minus_Ta) - 1
         PA_O2_old = updates["PA_O2"][delay_index]
         PA_CO2_old = updates["PA_CO2"][delay_index]
     else:
-        PA_O2_old = PAO2_Delay_IC
-        PA_CO2_old = PACO2_Delay_IC
+        if t == 0:
+            PA_O2_old = PAO2_Delay_IC
+            PA_CO2_old = PACO2_Delay_IC
+        else:
+            PA_O2_old = updates["PA_O2_old"][i-1]
+            PA_CO2_old = updates["PA_CO2_old"][i-1]
 
     x1 = Pa_O2
     x2 = Pa_CO2
@@ -131,6 +135,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     V_O2 = V + VL_O2
     V_CO2 = V + VL_CO2
+
+    QT = Q_pp - Q_bp
 
     if dV_dt >= 0:
         dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2
@@ -169,8 +175,6 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     tau_MRV = params["tau_MRV"]
 
-    QT = Q_pp - Q_bp
-
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 
@@ -195,7 +199,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
         keys = [
             "Pb_CO2", "Pa_O2", "Pa_CO2", "MRV", "MRTCO2", "Pb_CO2_history",
             "Pa_O2_history", "Pa_CO2_history", "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
-            "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt", "Ta"
+            "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
+            "t_minus_Ta", "PA_O2_old", "PA_CO2_old"
         ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
@@ -245,6 +250,14 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     updates["dCvO2_dt"][i] = dCvO2_dt
     updates["dCvCO2_dt"][i] = dCvCO2_dt
     updates["Ta"][i] = Ta
+    updates["dPA_O2_dt"][i] = dPA_O2_dt
+    updates["dPA_CO2_dt"][i] = dPA_CO2_dt
+    updates["Pd_5_O2"][i] = Pd_5_O2
+    updates["Pd_5_CO2"][i] = Pd_5_CO2
+    updates["t_minus_Ta"][i] = t_minus_Ta
+    updates["PA_O2_old"][i] = PA_O2_old
+    updates["PA_CO2_old"][i] = PA_CO2_old
+
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
             dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
