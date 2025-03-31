@@ -79,7 +79,13 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
 
         Vflow_LA = Vflow_ua + dV_dt
         P_ua = P_pl + Vflow_LA * R_rs
-        dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
+
+        if t == 0:
+            dP_ua_dt = 0
+        else:
+            A = updates["P_ua"][i - 1]
+            AA = updates["time_history"][i - 1]
+            dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
 
         dVflow_ua_dt = -(1 / R_trachea) * (dP_ua_dt + (1 / C_ua) * Vflow_ua)
 

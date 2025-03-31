@@ -5,9 +5,6 @@ import numpy as np
 from Old_Next_Conditions import Next_Conditions
 from Parameters import Parameters
 
-Tsys_0 = Parameters["Tsys_0"]
-ksys = Parameters["ksys"]
-T = 1/Next_Conditions["HR"][-1]
 
 def frac(x):
     return x - math.floor(x)

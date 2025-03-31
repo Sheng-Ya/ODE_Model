@@ -1,6 +1,6 @@
 import numpy as np
 
-def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates, num_removed, i):
+def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates, num_removed):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -21,14 +21,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     V0_dead = params["V0_dead"]
     VA_rest = params["VA_rest"]
 
-    if t == 0:
-        gas_exchange_index = i
-    elif num_removed > 0:
-        gas_exchange_index = i - num_removed - 1
-    else:
-        gas_exchange_index = i - 1
-
-    MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
+    MRV = gas_exchange_inputs["MRV"][-2]
 
     a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][-6:]
     Pa_O2_history = exp_inputs["Pa_O2_history"]

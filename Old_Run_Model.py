@@ -16,7 +16,7 @@ from Initial_Conditions import Initial_Conditions
 from Old_Next_Conditions import Next_Conditions
 from Parameters import Parameters
 from Resp_Control_Breath_Optimiser import breath_optimiser
-from Resp_Control_Ventilation import resp_control_vent
+from Old_Resp_Control_Ventilation import resp_control_vent
 from Old_Respiratory_Mechanics import respiratory_mechanics
 
 
