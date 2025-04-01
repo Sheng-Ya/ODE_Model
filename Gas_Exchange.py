@@ -105,12 +105,20 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
 
     Ta = LCTV / Q_la
+    Ta = 25
+
+    if t > 0:
+        Ta = 0.01 * Ta + 0.99 * updates["Ta"][i - 1]
+
     t_minus_Ta = t - Ta
-    if t_minus_Ta >= 0 and t > 0 and t > abs(Ta):
+
+    if t_minus_Ta >= 0 and t > abs(Ta):
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, t_minus_Ta) - 1
         PA_O2_old = updates["PA_O2"][delay_index]
         PA_CO2_old = updates["PA_CO2"][delay_index]
+        # PA_O2_old = updates["PA_O2"][i - 1]
+        # PA_CO2_old = updates["PA_CO2"][i - 1]
     else:
         if t == 0:
             PA_O2_old = PAO2_Delay_IC
@@ -126,10 +134,15 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     d2Pa_O2_dt2 = (PA_O2_old - (T1 + T2) * dx1_dt - x1) / (T1 * T2)
     d2Pa_CO2_dt2 = (PA_CO2_old - (T1 + T2) * dx2_dt - x2) / (T1 * T2)
 
+    # PA_CO2 = 40 + np.cos(t)
+    # PA_O2 = 100 + np.cos(t)
+
     FCO2 = (PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2))
-    CaCO2 = (C2 * Z) * (FCO2 ** (1/a2)) / (1 + (FCO2 ** (1/a2)))
+    # FCO2 = 1 + 0.25* np.cos(t)
+    CaCO2 = (C2 * Z) * (FCO2 ** (1 / a2)) / (1 + (FCO2 ** (1 / a2)))
 
     FO2 = (PA_O2 * (1 + beta1 * PA_CO2)) / (K1 * (1 + alpha1 * PA_CO2))
+    # FO2 = 4.5 + np.cos(t)
     CaO2 = (C1 * Z) * (FO2 ** (1 / a1)) / (1 + (FO2 ** (1 / a1)))
 
 

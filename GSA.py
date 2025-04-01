@@ -8,6 +8,7 @@ from SALib.test_functions import Ishigami
 import matplotlib.pyplot as plt
 import numpy as np
 from autoemulate.compare import AutoEmulate
+from autoemulate.logging_config import _configure_logging
 
 lower = 0.9
 upper = 1.1
@@ -67,20 +68,21 @@ sp = ProblemSpec({
 
 
 ae = AutoEmulate()
+ae.logger = _configure_logging()
 best_emulator = ae.load("best_emulator")
 
 
 #
-# test set results for the best emulator
-ae.evaluate(best_emulator)
-ae.plot_eval(best_emulator)
-
-# Run model (example)
-emulator = ae.refit(best_emulator)
+# # test set results for the best emulator
+# ae.evaluate(best_emulator)
+# ae.plot_eval(best_emulator)
+#
+# # Run model (example)
+# emulator = ae.refit(best_emulator)
 
 
 (sp.sample_saltelli(1024, calc_second_order = True)
-.evaluate(emulator.predict)
+.evaluate(best_emulator.predict)
 .analyze_sobol()
  )
 
@@ -98,6 +100,7 @@ for ax in axes:
     ax.set_yscale("log")
 
 axes[0].set_title("Example custom plot with log scale")
+plt.show()
 
 # Other custom layouts can be created in the usual matplotlib style
 # with the basic bar plotter.
@@ -106,7 +109,7 @@ axes[0].set_title("Example custom plot with log scale")
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6, 16))
 
 # Get result DataFrames
-total, first = sp.to_df()
+total, first, second = sp.to_df()
 
 ax1 = barplot(total, ax=ax1)
 ax2 = barplot(first, ax=ax2)

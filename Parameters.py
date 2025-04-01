@@ -364,19 +364,19 @@ Parameters = {
 # Table 23: Parameters of the Gas Exchange and Mixing
 # parameters_gas_exchange_mixing = {
     "a1": 0.3836,           # Parameter for O2 dissociation in blood (Dimensionless)
-    "a2": 1.819,            # Parameter for CO2 dissociation in blood (Dimensionless)
+    "a2": 1.219,            # Parameter for CO2 dissociation in blood (Dimensionless) # changed
     "alpha1": 0.03198,      # O2 dissociation constant (mmHg^-1)
     "alpha2": 0.05591,      # CO2 dissociation constant (mmHg^-1)
     "beta1": 0.008275,      # O2 Bohr-Haldane parameter (mmHg^-1)
     "beta2": 0.03255,       # CO2 Bohr-Haldane parameter (mmHg^-1)
     "C1": 9,                # Max concentration of hemoglobin-bound oxygen (mmol/l)
-    "C2": 87,               # Max carbon dioxide concentration (mmol/l)
+    "C2": 40,               # Max carbon dioxide concentration (mmol/l) # changed
     "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359], # Initial CO2 dead space conditions (mmHg)
     "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579], # Initial O2 dead space conditions (mmHg)
     "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
     "Fi_O2": 21.0379,       # Inspired fraction of O2 (%)
     "K1": 13,               # Parameter for O2 dissociation equation (mmHg)
-    "K2": 194.4,            # Parameter for CO2 dissociation equation (mmHg)
+    "K2": 25,            # Parameter for CO2 dissociation equation (mmHg) # Changed
     "LCTV": 0.588,          # Lung to chemoreceptor vascular volume constant (l)
     "PACO2_Delay_IC": 40.4448,      # Initial CO2 convection delay (mmHg)
     "dPa_CO2_dt_IC": -0.2465,       # Initial CO2 rate of change (mmHg/s)

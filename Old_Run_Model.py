@@ -92,7 +92,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, time_history, Initi
     return d_combined
 
 
-t_span = (0,50) # Simulate for x seconds
+t_span = (0,150) # Simulate for x seconds
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -135,11 +135,11 @@ num_resp_mech = len(required_resp_mech_keys)
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
 
 
-
+t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
 def simulate():
 
     # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, max_step = 0.005, method="RK23", rtol=1e-3,
+    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Parameters, Next_Conditions["time_history"], Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech, Next_Conditions["all_time"]))
 
     return ODE_solution

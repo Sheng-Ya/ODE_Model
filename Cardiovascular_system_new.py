@@ -29,12 +29,12 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     # Determine the correct index based on t
     if t == 0:
-        # heart_control_index = i
-        heart_control_index = 0
+        heart_control_index = i
+        # heart_control_index = 0
         resp_control_index = 0
     else:
-        # heart_control_index = i - 1
-        heart_control_index = 0
+        heart_control_index = i - 1
+        # heart_control_index = 0
         resp_control_index = 0
     
     ## Muscle Pump
