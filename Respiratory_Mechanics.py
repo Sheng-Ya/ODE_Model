@@ -27,7 +27,7 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     k_aw1 = params["k_aw1"]
     k_aw2 = params["k_aw2"]
     P_ao = params["P_ao"]
-    R_rs = params["R_rs"]
+    R_rs = params["R_rs"] * 7
 
     ## Upper Airways
     A0_ua = params["A0_ua"]

@@ -30,7 +30,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
 
     MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
 
-    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][-6:]
+    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][:6]
     Pa_O2_history = exp_inputs["Pa_O2_history"]
     Pa_CO2_history = exp_inputs["Pa_CO2_history"]
     Pb_CO2_history = exp_inputs["Pb_CO2_history"]
@@ -45,9 +45,9 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
 
-            exp_inputs["Pa_O2_history"].clear()
-            exp_inputs["Pa_CO2_history"].clear()
-            exp_inputs["Pb_CO2_history"].clear()
+            updates["Pa_O2_history"].clear()
+            updates["Pa_CO2_history"].clear()
+            updates["Pb_CO2_history"].clear()
     else:
         PamO2 = updates["PamO2"][-1]
         PamCO2 = updates["PamCO2"][-1]
@@ -106,24 +106,25 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     else:
         d_VE_integral_dt = VE_flow
 
-    if t != 0:
-        if num_removed > 0:
-            for key in [
-                "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
-            ]:
-                del updates[key][-num_removed:]
+
+    if num_removed > 0:
+        for key in [
+            "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
+        ]:
+            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
+        i = i - num_removed
 
     # t_eval = updates["t_eval5"][0]
     # tolerance = 1e-3
     # if np.abs(t - t_eval) < tolerance:
     # updates["VE_integral"].append(VE_integral.item())
-    updates["VE_integral"].append(VE_integral)
-    updates["VD"].append(VD)
-    updates["BF"].append(BF)
-    updates["TI"].append(TI)
-    updates["VT"].append(VT)
-    updates["VAflow"].append(VAflow)
-    updates["VE_flow"].append(VE_flow)
+    updates["VE_integral"][i] = VE_integral
+    updates["VD"][i] = VD
+    updates["BF"][i] = BF
+    updates["TI"][i] = TI
+    updates["VT"][i] = VT
+    updates["VAflow"][i] = VAflow
+    updates["VE_flow"][i] = VE_flow
 
     # updates["t_eval5"] = updates["t_eval5"][1:]
 

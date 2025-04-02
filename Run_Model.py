@@ -210,27 +210,10 @@ if __name__ == "__main__":
     # plt.grid()
     # plt.tight_layout()
     # plt.show()
-
+    #
     # # Number of state variables
     # num_variables = state_variables.shape[0]
     # colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
-    #
-    # # Plot all state variables
-    # plt.figure(figsize=(14, 10))
-    #
-    # for i, label in enumerate(required_gas_keys):
-    #     # if label == "Pd_2_O2":  # Skip "VT_sv"
-    #     #     continue
-    #     color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-    #     plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label, color=color, linestyle='-', markersize=4)
-    #
-    # plt.xlabel("Time")
-    # plt.ylabel("State Variables")
-    # plt.title("Evolution of State Variables Over Time")
-    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-    # plt.grid()
-    # plt.tight_layout()
-    # plt.show()
 
 
     # Ts_change_index = state_variable_names.index("Ts_change")
@@ -249,6 +232,9 @@ if __name__ == "__main__":
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_O2"][:index], label="PA_O2", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Pa_CO2", color="r")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="PA_CO2", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
+
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
@@ -256,20 +242,29 @@ if __name__ == "__main__":
     ax1.grid(True)
     plt.show()
 
+    # # get max's plot with Pmax_la instead of P_la
+    # plt.plot(local_updates["time_history"][:index], local_updates["P_lv"][:index], label="LV")
+    # plt.xlabel("Time (s)")
+    # plt.ylabel("Pressure (mmHg)")
+    # plt.legend()
+    # plt.grid(True)
+    # plt.show()
+
+
     # last_beat_time = Next_Conditions["time_history"][index] - (1/Next_Conditions["HR"][index])
-    V_lv_smooth = np.convolve(Next_Conditions["V_lv"][:index], np.ones(20) / 20, mode='same')
+    P_sa_smooth = Next_Conditions["P_sa"][:index]
 
     # last_beat_index = bisect.bisect_left(Next_Conditions["time_history"][:index], last_beat_time)
     # no_of_points = index - last_beat_index
 
-    peaks, _ = find_peaks(V_lv_smooth, distance=int(500))  # Adjust distance based on heart rate
-    troughs, _ = find_peaks(-V_lv_smooth, distance=int(500))  # Find minima (inverted peaks)
+    peaks, _ = find_peaks(P_sa_smooth, distance=int(500))  # Adjust distance based on heart rate
+    troughs, _ = find_peaks(-P_sa_smooth, distance=int(500))  # Find minima (inverted peaks)
 
     last_5_troughs = troughs[-6:-1]  # Get indices of last 5 minima
-    last_5_min = V_lv_smooth[last_5_troughs]  # Get actual minimum values
+    last_5_min = P_sa_smooth[last_5_troughs]  # Get actual minimum values
 
     last_5_peaks = peaks[-6:-1]  # Get indices of last 5 max
-    last_5_max = V_lv_smooth[last_5_peaks]  # Get actual max values
+    last_5_max = P_sa_smooth[last_5_peaks]  # Get actual max values
 
     diff = last_5_max - last_5_min
     mean_diff = np.mean(diff)
@@ -281,28 +276,28 @@ if __name__ == "__main__":
     # print(last_5_HR)
     # print(np.mean(last_5_HR))
 
-    # fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa")
+    ax1.plot(Next_Conditions["time_history"][:index], P_sa_smooth, label="P_sa_smooth")
+    # ax1.plot(Next_Conditions["time_history"][:index], -V_lv_smooth, label="V_lv_smooth")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["T"][:index], label="T")
+
+
+    ax1.scatter(Next_Conditions["time_history"][troughs], P_sa_smooth[troughs], color='r', marker='o', label="Detected Minima")
+    ax1.scatter(Next_Conditions["time_history"][peaks], P_sa_smooth[peaks], color='g', marker='x', label="Detected Maxima")
+
+    # for i in range(0, len(Next_Conditions["V_lv"][:index]), int(500)):
+    #     plt.axvline(x=Next_Conditions["time_history"][i], color='r', alpha=0.5)  # Dashed red line
+
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_lv"][:index], label="V_lv")
-    # ax1.plot(Next_Conditions["time_history"][:index], V_lv_smooth, label="V_lv_smooth")
-    # # ax1.plot(Next_Conditions["time_history"][:index], -V_lv_smooth, label="V_lv_smooth")
-    #
-    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["T"][:index], label="T")
-    #
-    #
-    # ax1.scatter(Next_Conditions["time_history"][troughs], V_lv_smooth[troughs], color='r', marker='o', label="Detected Minima")
-    # ax1.scatter(Next_Conditions["time_history"][peaks], V_lv_smooth[peaks], color='g', marker='x', label="Detected Maxima")
-    #
-    # # for i in range(0, len(Next_Conditions["V_lv"][:index]), int(500)):
-    # #     plt.axvline(x=Next_Conditions["time_history"][i], color='r', alpha=0.5)  # Dashed red line
-    #
-    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_lv"][:index], label="V_lv")
-    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["cO2_diff"][:index], label="cO2_diff")
-    #
-    # ax1.set_xlabel("Time (s)")
-    # ax1.tick_params(axis='y', labelcolor="k")
-    # ax1.legend(loc="upper left")
-    # ax1.grid(True)
-    # plt.show()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["cO2_diff"][:index], label="cO2_diff")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
 
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_O2"][:index], label="Cv_O2", color="b")
@@ -348,9 +343,10 @@ if __name__ == "__main__":
         # "phi", "phi_atr"
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
-        "Q_pp", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
-        "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
-        "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
+        # "Pd_5_O2"
+        "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
+        # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
         # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
         # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
         # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
@@ -366,7 +362,7 @@ if __name__ == "__main__":
             plt.legend()
             plt.grid(True)
             plt.show()
-    #
+
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_CO2_dt"][:index], label="dPA_CO2_dt")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_O2_dt"][:index], label="dPA_O2_dt")
@@ -379,6 +375,29 @@ if __name__ == "__main__":
     ax1.tick_params(axis='y', labelcolor="k")
     ax1.legend(loc="upper left")
     ax1.grid(True)
+    plt.show()
+
+    # Number of state variables
+    num_variables = state_variables.shape[0]
+    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
+
+    # Plot all state variables
+    plt.figure(figsize=(14, 10))
+
+    for i, label in enumerate(required_gas_keys):
+        # if label == "Pd_2_O2":  # Skip "VT_sv"
+        #     continue
+        color = colors[
+            i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
+        plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
+                 color=color, linestyle='-', markersize=4)
+
+    plt.xlabel("Time")
+    plt.ylabel("State Variables")
+    plt.title("Evolution of State Variables Over Time")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
+    plt.grid()
+    plt.tight_layout()
     plt.show()
 
 
@@ -410,6 +429,8 @@ if __name__ == "__main__":
 
 
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv")
+
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ev"][:index], label="P_ev")
     # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_hv"][:index], label="P_hv")
@@ -709,33 +730,8 @@ if __name__ == "__main__":
     plt.show()
 
 
-    required_gas_keys = [
-        "Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2",
-        "Pd_4_O2", "Pd_4_CO2", "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2",
-        "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2", "PvbCO2", "PCSFCO2",
-        "MRTO2", "MRTCO2", "CvO2", "CvCO2", "MRV"
-    ]
 
-    # Number of state variables
-    num_variables = state_variables.shape[0]
-    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
 
-    # Plot all state variables
-    plt.figure(figsize=(14, 10))
-
-    for i, label in enumerate(required_gas_keys):
-        # if label == "Pd_2_O2":  # Skip "VT_sv"
-        #     continue
-        color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-        plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label, color=color, linestyle='-', markersize=4)
-
-    plt.xlabel("Time")
-    plt.ylabel("State Variables")
-    plt.title("Evolution of State Variables Over Time")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
 
 
     required_resp_mech_keys = ["V", "Vflow_ua"]

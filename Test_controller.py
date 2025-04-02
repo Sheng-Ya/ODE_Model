@@ -17,6 +17,10 @@ def source2(t, t_start=100., t_2=110., Pmax=-20):
     return LBNPgrad
 
 
+# def exercise(t, t_start = 100):
+#     return I
+
+
 # def source3(t, t_start=100., t_2=110., t_3=120., t_4=130., Pmax=20):
 #     if t_start <= t <= t_2:
 #         # Smooth ramp-up using sine function

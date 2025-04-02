@@ -10,12 +10,12 @@ import numpy as np
 from autoemulate.compare import AutoEmulate
 from autoemulate.logging_config import _configure_logging
 
-lower = 0.9
-upper = 1.1
+lower = 0.8
+upper = 1.2
 
 # Define the model inputs
 sp = ProblemSpec({
-    'outputs': ["CO"],
+    'outputs': ["P_sys"],
     # 'num_vars': 90,  # Number of parameters
     'names': [
         'C_sa', 'L_sa', 'R_sa', 'Vu_sa', 'C_amp', 'C_amv', 'C_bp', 'C_bv', 'C_ep', 'C_ev',
@@ -69,7 +69,7 @@ sp = ProblemSpec({
 
 ae = AutoEmulate()
 ae.logger = _configure_logging()
-best_emulator = ae.load("best_emulator")
+best_emulator = ae.load("best_emulator_p_sys")
 
 
 #
@@ -124,7 +124,7 @@ plt.show()
 
 # Plot sensitivity indices as a heatmap
 # Note that plotting methods return a matplotlib axes object
-ax = sp.heatmap("CO")
+ax = sp.heatmap("P_sys")
 ax.set_title("Basic heatmap")
 plt.show()
 
@@ -132,8 +132,8 @@ plt.show()
 # Another heatmap plot with more fine-grain control
 # Displays Total and First-Order sensitivities in separate subplots
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 6))
-sp.heatmap("CO", "ST", "Total Order Sensitivity", ax1)
-sp.heatmap("CO", "S1", "First Order Sensitivity", ax2)
+sp.heatmap("P_sys", "ST", "Total Order Sensitivity", ax1)
+sp.heatmap("P_sys", "S1", "First Order Sensitivity", ax2)
 plt.show()
 
 
@@ -141,8 +141,8 @@ plt.show()
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
     2, 2, figsize=(10, 6), sharex=True, constrained_layout=True
 )
-sp.heatmap("CO", "ST", "Total Order", ax=ax1)
-sp.heatmap("CO", "ST_conf", "Total Order Conf.", ax=ax2)
-sp.heatmap("CO", "S1", "First Order", ax=ax3)
-sp.heatmap("CO", "S1_conf", "First Order Conf.", ax=ax4)
+sp.heatmap("P_sys", "ST", "Total Order", ax=ax1)
+sp.heatmap("P_sys", "ST_conf", "Total Order Conf.", ax=ax2)
+sp.heatmap("P_sys", "S1", "First Order", ax=ax3)
+sp.heatmap("P_sys", "S1_conf", "First Order Conf.", ax=ax4)
 plt.show()

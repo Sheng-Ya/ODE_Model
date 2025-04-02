@@ -2,7 +2,7 @@
 Parameters = {
     # Table 1. Systemic arteries
 # systemic_arteries = {
-    "C_sa": 0.28,  # Systemic arterial compliance (decreasing C_sa allows Q_sa to match closer to Q_lv)
+    "C_sa": 0.28,  # Systemic arterial compliance (decreasing C_sa allows Q_sa to match closer to Q_lv) # want to change to 1.13 (harry thesis
     "L_sa": 0.00022,  # Systemic arterial inertance
     "R_sa": 0.06,  # Systemic arterial hydraulic resistance (want to increase from 0.06 to 0.2 to increase Psys). This is because P_sa decreases at a slower rater (first order)
     "Vu_sa": 0, # Systemic arterial unstressed volume
@@ -386,7 +386,7 @@ Parameters = {
     "dPa_O2_dt_IC": 0.3557,         # Initial O2 rate of change (mmHg/s)
     "PAO2_IC": 102.5153,            # Initial Condition for O2 convection (mmHg)
     "d2Pa_O2_dt2_IC": 103.1435,   # Second order O2 rate of change (mmHg/s^2)
-    "P_atm": 640,                    # Atmospheric pressure (mmHg)
+    "P_atm": 760,                    # Atmospheric pressure (mmHg) # CHANGED
     "P_ws": 47,                      # Water vapor pressure (mmHg)
     "T1": 1,                        # Time constant for cardiovascular mixing (s)
     "T2": 2,                        # Time constant for cardiovascular mixing (s)
@@ -398,13 +398,13 @@ Parameters = {
 # Table 24: Parameters of the Brain Compartment
 # parameters_brain_compartment = {
     "dc": 0.015,                    # Depth of central receptor below medulla surface (cm)
-    "h": 0.0183,                    # Cerebral blood flow constant (ml/(100g·s))
+    "h": 0.0183/1000,                    # Cerebral blood flow constant (ml/(100g·s))
     "KCCO2": 346000,                # CO2 central receptor constant (s·cm^-2·l^-1)
     "KCSFCO2": 320,                 # CO2 diffusion time constant in cerebrospinal fluid (s)
     "MRBCO2": 0.0009,               # Metabolic production rate of CO2 (1/s STPD)
     "MRBO2": 0.000925,              # Metabolic production rate of O2 (1/s STPD)
     "PbCO2IC": 48.5338,             # Initial condition for brain CO2 partial pressure (mmHg)
-    "SbCO2": 0.36,                  # Dissociation slope for CO2 in the brain (ml·(100g·y)/mmHg)
+    "SbCO2": 0.36/1000,                  # Dissociation slope for CO2 in the brain (ml·(100g·y)/mmHg) # convert to L
     "SCO2": 0.0043,                 # Dissociation slope for CO2 in blood (mmHg^-1)
 # }
 
