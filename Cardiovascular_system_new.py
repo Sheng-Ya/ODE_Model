@@ -31,13 +31,13 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     if t == 0:
         heart_control_index = i
         # heart_control_index = 0
-        resp_control_index = 0
-        # resp_control_index = i
+        # resp_control_index = 0
+        resp_control_index = i
     else:
         heart_control_index = i - 1
         # heart_control_index = 0
-        resp_control_index = 0
-        # resp_control_index = i - 1
+        # resp_control_index = 0
+        resp_control_index = i - 1
     
     ## Muscle Pump
     # A_im = params["A_im"]

@@ -320,23 +320,23 @@ Parameters = {
 # parameters_upper_airways = {
     "A0_ua": 1,               # Maximum area of opening in upper airway
     "b_ua": 1,                 # Upper airway mechanics constant
-    "C_ua": 0.001 / 0.73559,             # Upper airway compliance
-    "K_ua": 1 / 0.73559,                 # Proportionality coefficient
-    "Pcrit_min": -40 * 0.73559,         # Critical upper airway pressure
-    "R_AW": 0.82128 * 0.73559,           # Airway wall resistance
-    "R_CW": 0.8326 * 0.73559,            # Chest wall resistance
-    "R_L": 1.3661 * 0.73559,             # Lung transmural resistance
-    "R_trachea": 1000000 * 0.73559,      # Upper airway wall resistance
-    "R_rs": 3.02 * 0.73559,              # Overall resistance
+    "C_ua": 0.001 ,             # Upper airway compliance
+    "K_ua": 1 ,                 # Proportionality coefficient
+    "Pcrit_min": -40 ,         # Critical upper airway pressure
+    "R_AW": 0.82128 ,           # Airway wall resistance
+    "R_CW": 0.8326 ,            # Chest wall resistance
+    "R_L": 1.3661 ,             # Lung transmural resistance
+    "R_trachea": 1000000 ,      # Upper airway wall resistance
+    "R_rs": 3.02 ,              # Overall resistance
 # }
 
 # Table 20: Parameters of the Pulmonary Mechanics
 # parameters_pulmonary_mechanics = {
-    "E_CW": 10.545,           # Chest wall elastance (cmH2O/l)
-    "E_L": 10.545,            # Lung transmural elastance (cmH2O/l)
-    "E_rs": 21.9,             # Overall elastance (cmH2O/l)
-    "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
-    "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
+    "E_CW": 10.545 ,           # Chest wall elastance (cmH2O/l)
+    "E_L": 10.545 ,            # Lung transmural elastance (cmH2O/l)
+    "E_rs": 21.9 ,             # Overall elastance (cmH2O/l)
+    "k_aw1": 1.85 ,            # Constant for upper airway pressure (cmH2O·s/l)
+    "k_aw2": 0.43 ,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
     "P_ao": 0,                # Airway pressure (cmH2O)
 # }
 

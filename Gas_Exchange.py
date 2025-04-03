@@ -12,7 +12,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     """
 
     (Pd_1_O2, Pd_1_CO2, Pd_2_O2, Pd_2_CO2, Pd_3_O2, Pd_3_CO2, Pd_4_O2, Pd_4_CO2, Pd_5_O2, Pd_5_CO2, Pa_O2, Pa_CO2,
-     dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PvbCO2, PCSFCO2, MRTO2, MRTCO2, CvO2, CvCO2, MRV) = state
+     dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PvbCO2, PCSFCO2, MRTO2, MRTCO2, CvO2, CvCO2, MRV, CbCO2, CbO2) = state
 
     # Gas Exchange and Mixing
     a1 = params["a1"]
@@ -49,19 +49,19 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     if t == 0:
         heart_index = i
         resp_mech_index = i
-        resp_control_index = 0
-        # resp_control_index = i
+        # resp_control_index = 0
+        resp_control_index = i
     elif num_removed > 0:
         heart_index = i - num_removed - 1
         # resp_mech variables have not been removed yet
         resp_mech_index = i - 1
-        resp_control_index = 0
-        # resp_control_index = i - 1
+        # resp_control_index = 0
+        resp_control_index = i - 1
     else:
         heart_index = i - 1
         resp_mech_index = i - 1
-        resp_control_index = 0
-        # resp_control_index = i - 1
+        # resp_control_index = 0
+        resp_control_index = i - 1
 
     V_dead = resp_control_inputs["VD"][resp_control_index] # need to change once resp controller is added in
 
@@ -147,24 +147,29 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     # FO2 = 4.5 + np.cos(t)
     CaO2 = (C1 * Z) * (FO2 ** (1 / a1)) / (1 + (FO2 ** (1 / a1)))
 
+    MRBCO2 = params["MRBCO2"]
+    MRBO2 = params["MRBO2"]
+    VB = 0.2
+
+    dCbCO2_dt = (MRBCO2 + Q_bp * (CaCO2 - CbCO2)) / VB
+    dCbO2_dt = (-MRBO2 + Q_bp * (CaO2 - CbO2))/ VB
 
     V_O2 = V + VL_O2
     V_CO2 = V + VL_CO2
 
     QT = Q_pp - Q_bp
 
+    if t > 30 and dV_dt > 0.5:
+        A = 2
+
     if dV_dt >= 0: # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2 # 863 is unit conversion from btps to stpd
-        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
+        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2) + 863 * Q_bp * (CbO2 - CaO2)) / V_O2 # 863 is unit conversion from btps to stpd
+        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2) + 863 * Q_bp * (CbCO2 - CaCO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
     else: # deadspace PAO2 is decreasing towards PA_O2 during expiration
-        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2)) / V_O2
-        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
+        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + 863 * Q_bp * (CbO2 - CaO2)) / V_O2
+        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) + 863 * Q_bp * (CbCO2 - CaCO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
-
-
-    if Q_pp > 0.1:
-        A = 2
 
     # Gas transport
     # Brain
@@ -172,8 +177,6 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     h = params["h"]
     KCCO2 = params["KCCO2"]
     KCSFCO2 = params["KCSFCO2"]
-    MRBCO2 = params["MRBCO2"]
-    MRBO2 = params["MRBO2"]
     PbCO2IC = params["PbCO2IC"]
     SbCO2 = params["SbCO2"]
     SCO2 = params["SCO2"]
@@ -221,7 +224,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             "Pb_CO2", "Pa_O2", "Pa_CO2", "MRV", "MRTCO2",
             "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
             "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
-            "t_minus_Ta", "PA_O2_old", "PA_CO2_old"
+            "t_minus_Ta", "PA_O2_old", "PA_CO2_old", "CbO2"
         ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
@@ -278,8 +281,9 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     updates["t_minus_Ta"][i] = t_minus_Ta
     updates["PA_O2_old"][i] = PA_O2_old
     updates["PA_CO2_old"][i] = PA_CO2_old
+    updates["CbO2"][i] = CbO2
 
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
             dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
-            dPA_CO2_dt, dPvbCO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCvO2_dt, dCvCO2_dt, dMRV_dt]
+            dPA_CO2_dt, dPvbCO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCvO2_dt, dCvCO2_dt, dMRV_dt, dCbCO2_dt, dCbO2_dt]

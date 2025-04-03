@@ -37,22 +37,19 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     if t == 0:
         heart_index = i
         gas_index = i
-        resp_control_index = 0
-        # resp_control_index = i
-        # gas_index = 0
+        # resp_control_index = 0
+        resp_control_index = i
     elif num_removed > 0:
         heart_index = i - num_removed - 1
         # gas exchange variables have not been removed yet
         gas_index = i - 1
-        resp_control_index = 0
-        # resp_control_index = i - 1
-        # gas_index = 0
+        # resp_control_index = 0
+        resp_control_index = i - 1
     else:
         heart_index = i - 1
         gas_index = i - 1
-        resp_control_index = 0
-        # resp_control_index = i - 1
-        # gas_index = 0
+        # resp_control_index = 0
+        resp_control_index = i - 1
 
         # Other inputs
     MRTCO2 = gas_exchange_inputs["MRTCO2"][gas_index]

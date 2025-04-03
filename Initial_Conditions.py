@@ -166,6 +166,8 @@ Initial_Conditions = {
     "MRTCO2": 0.3/60,
     "Cv_O2": 0.1639,
     "Cv_CO2": 0.5247,
+    "CbO2": 0.14,
+    "CbCO2": 0.645,
     "MRV": 0,
     # other inputs from other systems
     # "dV_dt":

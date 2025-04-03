@@ -60,6 +60,7 @@ Next_Conditions = {
 
     # initial condition of inputs from other controllers
     "Cvb_O2": np.full(1400000, 1e6),
+    "CbO2": np.full(1400000, 1e6),
     "P_bv": np.full(1400000, 1e6),
     "U": np.pad(np.array([0.0]), (0, 1400000 - 1), mode="constant", constant_values=1e6),
     "U1": np.pad(np.array([0.0]), (0, 1400000 - 1), mode="constant", constant_values=1e6),
