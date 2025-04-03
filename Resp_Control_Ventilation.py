@@ -90,8 +90,8 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
 
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
 
-    if VAflow < 0:
-        VAflow = 0
+    # if VAflow < 0:
+    #     VAflow = 0
 
     VD = GV_dead * VAflow + V0_dead
     VD_flow = BF * VD

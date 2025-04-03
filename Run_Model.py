@@ -98,7 +98,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     return d_combined
 
 
-t_span = (0,200) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0,400) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -335,32 +335,43 @@ if __name__ == "__main__":
     ax1.grid(True)
     plt.show()
 
-    variables_to_plot = [
-        # "f_sp_history", "f_sh_history", "f_v_history",
-        # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
-        # "PamCO2", "VE_integral"
-        # "phi", "phi_atr"
-        # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
-        # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
-        # "Pd_5_O2"
-        "P_ua", "VAflow", "G_AW_guess", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
-        # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
-        # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
-        # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
-        # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
-        # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
-    ]
+    # variables_to_plot = [
+    #     # "f_sp_history", "f_sh_history", "f_v_history",
+    #     # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+    #     # "PamCO2", "VE_integral"
+    #     # "phi", "phi_atr"
+    #     # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
+    #     # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
+    #     # "Pd_5_O2"
+    #     "dV_dt", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+    #     # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
+    #     # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
+    #     # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
+    #     # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
+    #     # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
+    # ]
 
-    for key in variables_to_plot:
-        if key in Next_Conditions:  # Check if the key exists in updates
-            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
-            plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
-            plt.xlabel("Time (s)")
-            plt.ylabel(key)
-            plt.title(f"Plot of {key} over Time")
-            plt.legend()
-            plt.grid(True)
-            plt.show()
+    # for key in variables_to_plot:
+    #     if key in Next_Conditions:  # Check if the key exists in updates
+    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+    #         plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel(key)
+    #         plt.title(f"Plot of {key} over Time")
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VAflow"][:index], label="VAflow")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
 
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_CO2_dt"][:index], label="dPA_CO2_dt")
