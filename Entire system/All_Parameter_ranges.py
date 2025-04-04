@@ -1,5 +1,5 @@
-lower = 0.5
-upper = 1.5
+lower = 0.8
+upper = 1.2
 
 parameters = {
     "C_sa": (0.28 * lower, 0.28 * upper),
@@ -80,8 +80,8 @@ parameters = {
     "VT_n": (0.73 * lower, 0.73 * upper),
     "BF": (0.25 * lower, 0.25 * upper),
 
-    # "Emax_lv": (2.392 * lower, 2.392 * upper),
-    # "Emax_rv": (1.412 * lower, 1.412 * upper),
+    "Emax_lv": (2.392 * lower, 2.392 * upper),
+    "Emax_rv": (1.412 * lower, 1.412 * upper),
     "HR": (1.2 * lower, 1.2 * upper),
     "T_resp": (4 * lower, 4 * upper),
     "TI": (1.8 * lower, 1.8 * upper),
@@ -96,4 +96,84 @@ parameters = {
     "R_sp": (2.49 * lower, 2.49 * upper),
     "R_bp": (6.57 * lower, 6.57 * upper),
     "R_hp": (19.71 * lower, 19.71 * upper),
+
+
+    "LCTV": (0.588 * lower, 0.588 * upper),
+    "T1": (1 * lower, 1 * upper),
+    "T2": (2 * lower, 2 * upper),
+    "VL_CO2": (3 * lower, 3 * upper),
+    "VL_O2": (2.5 * lower, 2.5 * upper),
+    "Z": (0.0227 * lower, 0.0227 * upper),
+
+    "dc": (0.015 * lower, 0.015 * upper),
+    "h": ((0.0183 / 1000) * lower, (0.0183 / 1000) * upper),
+    "KCCO2": (346000 * lower, 346000 * upper),
+    "KCSFCO2": (320 * lower, 320 * upper),
+    "SbCO2": ((0.36 / 1000) * lower, (0.36 / 1000) * upper),
+    "SCO2": (0.0043 * lower, 0.0043 * upper),
+
+    "VTCO2": (0.25 * lower, 0.25 * upper),
+    "VTO2": (0.25 * lower, 0.25 * upper),
+
+    "E_CW": (10.545 * lower, 10.545 * upper),
+    "E_L": (10.545 * lower, 10.545 * upper),
+    "k_aw1": (1.85 * lower, 1.85 * upper),
+    "k_aw2": (0.43 * lower, 0.43 * upper),
+    "P_ao": (0.0 * lower, 1.0 * upper),
+    "R_rs": (3.02 * 0.73559 * lower, 3.02 * 0.73559 * upper),
+
+    "A0_ua": (1 * lower, 1 * upper),
+    "C_ua": ((0.001 / 0.73559) * lower, (0.001 / 0.73559) * upper),
+    "K_ua": ((1 / 0.73559) * lower, (1 / 0.73559) * upper),
+    "Pcrit_min": ((-40 * 0.73559) * upper, (-40 * 0.73559) * lower),
+    "R_CW": (0.8326 * 0.73559 * lower, 0.8326 * 0.73559 * upper),
+    "R_trachea": (1000000 * 0.73559 * lower, 1000000 * 0.73559 * upper),
+
+    "GV_dead": (0.1698 * lower, 0.1698 * upper),
+    "Kbg": (17.4 * lower, 17.4 * upper),
+    "KcCO2": (0.2332 * lower, 0.2332 * upper),
+    "KcMRV": (1 * lower, 1 * upper),
+    "KpCO2": (0.2025 * lower, 0.2025 * upper),
+    "KpO2": (4.72e-9 * lower, 4.72e-9 * upper),
+    "V0_dead": (0.1587 * lower, 0.1587 * upper),
+    "VA_rest": (0.0673 * lower, 0.0673 * upper)
 }
+
+    # # controller
+    # g_ccsh = params["gccsh"]
+    # g_ccsp = params["gccsp"]
+    # g_ccsv = params["gccsv"]
+    # kisc_sh = params["kisc_sh"]
+    # kisc_sp = params["kisc_sp"]
+    # kisc_sv = params["kisc_sv"]
+    # PO2_sh = params["PO2_sh"]
+    # PO2_sp = params["PO2_sp"]
+    # PO2_sv = params["PO2_sv"]
+    # tau_cc = params["tau_cc"]
+    # tau_isc = params["tau_isc"]
+    # theta_shn = params["theta_shn"]
+    # theta_spn = params["theta_spn"]
+    # theta_svn = params["theta_svn"]
+    # x_sh = params["x_sh"]
+    # x_sp = params["x_sp"]
+    # x_sv = params["x_sv"]
+    #
+    # f_ab_max = params["f_ab_max"]
+    # f_ab_min = params["f_ab_min"]
+    # k_ab = params["k_ab"]
+    # P_n = params["P_n"]
+    # tau_p = params["tau_p"]
+    # tau_z = params["tau_z"]
+    #
+    # f_acCO2_n = params["f_acCO2_n"]
+    # f_ac_max = params["f_ac_max"]
+    # f_ac_min = params["f_ac_min"]
+    # k_ac = params["k_ac"]
+    # K_H = params["K_H"]
+    # PaO2_ac_n = params["PaO2_ac_n"]
+    # PaCO2_n = params["PaCO2_n"]
+    # tau_ac = params["tau_ac"]
+    #
+    # G_ap = params["G_ap"]
+    # tau_ap = params["tau_ap"]
+

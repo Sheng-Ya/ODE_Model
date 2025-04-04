@@ -1,22 +1,25 @@
-import os
-
 import numpy as np
-import pandas as pd
 
-
-def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_removed):
+def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i):
     """
         Pulmonary Mechanics state variables: V
         Upper Airway state variables: alpha
 
     """
 
-    (V, alpha) = state
+    (V, Vflow_ua) = state
+
+    # exp_inputs is updated in resp_mech
+    if t == 0:
+        exp_index = i
+    elif num_removed > 0:
+        exp_index = i - num_removed - 1
+    else:
+        exp_index = i - 1
 
     ## Pulmonary Mechanics
     E_CW = params["E_CW"]
     E_L = params["E_L"]
-    E_rs = params["E_rs"]
     k_aw1 = params["k_aw1"]
     k_aw2 = params["k_aw2"]
     P_ao = params["P_ao"]
@@ -24,16 +27,13 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
 
     ## Upper Airways
     A0_ua = params["A0_ua"]
-    b_ua = params["b_ua"]
     C_ua = params["C_ua"]
     K_ua = params["K_ua"]
     Pcrit_min = params["Pcrit_min"]
-    R_AW = params["R_AW"]
     R_CW = params["R_CW"]
-    R_L = params["R_L"]
     R_trachea = params["R_trachea"]
 
-    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][-6:]
+    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][:6]
 
     E_rs = E_CW + E_L
 
@@ -47,9 +47,7 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
 
 
     # initial value for G_AW
-    G_AW = exp_inputs["G_AW_guess"][-1]
-    Vflow_ua = exp_inputs["Vflow_ua"][-1]
-    P_ua = exp_inputs["P_ua"][-1]
+    G_AW = exp_inputs["G_AW_guess"][exp_index]
     max_iterations = 20
 
     # Iterative calculation for G_AW
@@ -72,19 +70,17 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
 
         P_pl = P_CW + P_a - P_musc
 
-        tolerance = 1e-6
+        Vflow_LA = Vflow_ua + dV_dt
+        P_ua = P_pl + Vflow_LA * R_rs
 
-        for _ in range(max_iterations):
-            # Airway pressure and flow
-            Vflow_LA = Vflow_ua + dV_dt
-            new_P_ua = P_pl + Vflow_LA * R_rs
-            new_Vflow_ua = -(1 / R_trachea) * (new_P_ua + (1 / C_ua) * alpha)
-            if abs(new_Vflow_ua - Vflow_ua) < tolerance and abs(new_P_ua - P_ua) < tolerance:
-                Vflow_ua = new_Vflow_ua
-                P_ua = new_P_ua
-                break
-            Vflow_ua = new_Vflow_ua
-            P_ua = new_P_ua
+        if t == 0:
+            dP_ua_dt = 0
+        else:
+            A = updates["P_ua"][i - 1]
+            AA = updates["time_history"][i - 1]
+            dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
+
+        dVflow_ua_dt = -(1 / R_trachea) * (dP_ua_dt + (1 / C_ua) * Vflow_ua)
 
         # Set based on fixed parameters
         Pcrit = Pcrit_min
@@ -98,7 +94,7 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
             new_G_AW = A0_ua * K_ua
 
         # Convergence check
-        if abs(new_G_AW - G_AW) < tolerance:
+        if abs(new_G_AW - G_AW) < 1e-6:
             G_AW = new_G_AW
             break
         G_AW = new_G_AW
@@ -111,27 +107,27 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
     # Vflow_ua = Vflow_LA - dV_dt
     # P_ua = (-R_trachea) * Vflow_ua - alpha / C_ua
     # Vflow_ua = (1/(1+R_trachea/R_rs)) * ((- (1/(R_rs * C_ua)) * alpha) - P_pl/R_rs - dV_dt)
-
-    d_alpha_dt = Vflow_ua
     # R_rs = R_AW + R_L + R_CW
 
-    if t != 0:
-        if t < all_time[-1]:
-            for key in [
-                "G_AW_guess", "Vflow_ua", "P_ua", "G_AW",
-                "P_musc", "dV_dt", "V", "previous_dV_dt", "P_pl"
-            ]:
-                del updates[key][-num_removed:]
+
+    if num_removed > 0:
+        keys = [
+            "G_AW_guess", "Vflow_ua", "P_ua",
+            "P_musc", "dV_dt", "V", "previous_dV_dt", "P_pl"
+        ]
+        for key in keys:
+            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+
+        i = i - num_removed
 
     # data_to_append = {
     #     "P_ua": P_ua,
-    #     "G_AW": G_AW, "Vflow_ua": Vflow_ua,
+    #     "Vflow_ua": Vflow_ua,
     #     "P_musc": P_musc, "dV_dt": dV_dt, "V": V, "P_pl": P_pl
-    #
     # }
     #
     # # Define the CSV file path
-    # csv_file = "output_old.csv"
+    # csv_file = "output.csv"
     #
     # # Write headers only if the file doesn't exist
     # write_header = not os.path.exists(csv_file)
@@ -141,15 +137,14 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, all_time, num_r
     # write_header = False
 
 
-    exp_inputs["G_AW_guess"].append(G_AW)
+    exp_inputs["G_AW_guess"][i] = G_AW
 
-    updates["G_AW"].append(G_AW)
-    updates["Vflow_ua"].append(Vflow_ua)
-    updates["P_ua"].append(P_ua)
-    updates["P_musc"].append(P_musc)
-    updates["dV_dt"].append(dV_dt)
-    updates["V"].append(V)
-    updates["previous_dV_dt"].append(dV_dt)
-    updates["P_pl"].append(P_pl)
+    updates["Vflow_ua"][i] = Vflow_ua
+    updates["P_ua"][i] = P_ua
+    updates["P_musc"][i] = P_musc
+    updates["dV_dt"][i] = dV_dt
+    updates["V"][i] = V
+    updates["previous_dV_dt"][i] = dV_dt
+    updates["P_pl"][i] = P_pl
 
-    return [dV_dt, d_alpha_dt]
+    return [dV_dt, dVflow_ua_dt]

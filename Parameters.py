@@ -90,7 +90,7 @@ Parameters = {
     # "R_la": 0.0025,         # Left atrial flow resistance
     # "R_ra": 0.0025,         # Right atrial flow resistance
     # "Tsys_0": 0.4,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
-    "Vu_la": 4,           # Left atrial unstressed volume # adjusted to the shi paper
+    "Vu_la": 4,           # Left atrial unstressed volume # adjusted to the shi paper Increasing these heart unstressed volumes decreases the maximum flow and pressures
     "Vu_lv": 5,       # Left ventricular unstressed volume # adjusted to the shi paper
     "Vu_ra": 4,           # Right atrial unstressed volume # adjusted to the shi paper
     "Vu_rv": 10,       # Right ventricular unstressed volume # adjusted to the shi paper
@@ -211,7 +211,7 @@ Parameters = {
 
     # Table 15. Metabolic Regulation
 # metabolic_regulation = {
-    "AT": 1,                   # Anaerobic threshold
+    "AT": 1/60,                   # Anaerobic threshold
 # }
 
     # Table 16: Parameters of Efferent Pathways

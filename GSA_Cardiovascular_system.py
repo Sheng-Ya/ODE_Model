@@ -73,40 +73,45 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     VT = resp_control_inputs["VT"][resp_control_index]
 
     # if t == 0 or i == 0:
-    T = 1 / params["HR"] # heart period
-    Emax_lv = params["Emax_lv"]
-    Emax_rv = params["Emax_rv"]
-    I = heart_control_inputs["I"][heart_control_index]
+    # T = 1 / params["HR"] # heart period
+    # Emax_lv = params["Emax_lv"]
+    # Emax_rv = params["Emax_rv"]
+    # I = heart_control_inputs["I"][heart_control_index]
 
     # input from other systems
-    Vu_ev = params["Vu_ev"]
-    Vu_amv = params["Vu_amv"]
-    Vu_rmv = params["Vu_rmv"]
-    Vu_sv = params["Vu_sv"]
-    R_ep = params["R_ep"]
-    R_amp = params["R_amp"]
-    R_rmp = params["R_rmp"]
-    R_sp = params["R_sp"]
-    R_bp = params["R_bp"]
-    R_hp = params["R_hp"]
+    # Vu_ev = params["Vu_ev"]
+    # Vu_amv = params["Vu_amv"]
+    # Vu_rmv = params["Vu_rmv"]
+    # Vu_sv = params["Vu_sv"]
+    Vu_ev = 607.8
+    Vu_amv = 286.4
+    Vu_rmv = 190.95
+    Vu_sv = 1361.6
+
+    # R_ep = params["R_ep"]
+    # R_amp = params["R_amp"]
+    # R_rmp = params["R_rmp"]
+    # R_sp = params["R_sp"]
+    # R_bp = params["R_bp"]
+    # R_hp = params["R_hp"]
 
     # # inputs from the cardiovascular controller
-    # T = 1 / heart_control_inputs["HR"][heart_control_index]  # heart period
-    # Emax_lv = heart_control_inputs["Emax_lv"][heart_control_index]
-    # Emax_rv = heart_control_inputs["Emax_rv"][heart_control_index]
-    # I = heart_control_inputs["I"][heart_control_index]
+    T = 1 / heart_control_inputs["HR"][heart_control_index]  # heart period
+    Emax_lv = heart_control_inputs["Emax_lv"][heart_control_index]
+    Emax_rv = heart_control_inputs["Emax_rv"][heart_control_index]
+    I = heart_control_inputs["I"][heart_control_index]
     #
     # # input from other systems
     # Vu_ev = heart_control_inputs["Vu_ev"][heart_control_index]
     # Vu_amv = heart_control_inputs["Vu_amv"][heart_control_index]
     # Vu_rmv = heart_control_inputs["Vu_rmv"][heart_control_index]
     # Vu_sv = heart_control_inputs["Vu_sv"][heart_control_index]
-    # R_ep = heart_control_inputs["R_ep"][heart_control_index]
-    # R_amp = heart_control_inputs["R_amp"][heart_control_index]
-    # R_rmp = heart_control_inputs["R_rmp"][heart_control_index]
-    # R_sp = heart_control_inputs["R_sp"][heart_control_index]
-    # R_bp = heart_control_inputs["R_bp"][heart_control_index]
-    # R_hp = heart_control_inputs["R_hp"][heart_control_index]
+    R_ep = heart_control_inputs["R_ep"][heart_control_index]
+    R_amp = heart_control_inputs["R_amp"][heart_control_index]
+    R_rmp = heart_control_inputs["R_rmp"][heart_control_index]
+    R_sp = heart_control_inputs["R_sp"][heart_control_index]
+    R_bp = heart_control_inputs["R_bp"][heart_control_index]
+    R_hp = heart_control_inputs["R_hp"][heart_control_index]
 
     VT_change = VT - VT_n  # units of L
     TE = T_resp - TI
@@ -149,9 +154,12 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     R_pa = params["R_pa"]
     R_pp = params["R_pp"]
     R_pv = params["R_pv"]
-    Vu_pa = params["Vu_pa"]
-    Vu_pp = params["Vu_pp"]
-    Vu_pv = params["Vu_pv"]
+    # Vu_pa = params["Vu_pa"]
+    Vu_pa = 0
+    # Vu_pp = params["Vu_pp"]
+    Vu_pp = 116.6775
+    # Vu_pv = params["Vu_pv"]
+    Vu_pv = 114
 
     # added P_thor to only the pulmonary compartments
     if VT_pa > Vu_pa:
@@ -180,8 +188,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # constant parameters
     # C_la = params["C_la"]
     # C_ra = params["C_ra"]
-    KE_lv = params["KE_lv"]
-    KE_rv = params["KE_rv"]
+    # KE_lv = params["KE_lv"]
+    KE_lv = 0.014
+    # KE_rv = params["KE_rv"]
+    KE_rv = 0.011
     # KR_lv = params["KR_lv"]
     # KR_rv = params["KR_rv"]
     # ksys = params["ksys"]
@@ -190,18 +200,23 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # R_la = params["R_la"]
     # R_ra = params["R_ra"]
     # Tsys_0 = params["Tsys_0"]
-    Vu_la = params["Vu_la"]
-    Vu_lv = params["Vu_lv"]
-    Vu_ra = params["Vu_ra"]
-    Vu_rv = params["Vu_rv"]
+    # Vu_la = params["Vu_la"]
+    Vu_la = 4
+    # Vu_lv = params["Vu_lv"]
+    Vu_lv = 5
+    # Vu_ra = params["Vu_ra"]
+    Vu_ra = 4
+    # Vu_rv = params["Vu_rv"]
+    Vu_rv = 10
 
     Emax_la = params["Emax_la"]
     P0_la = params["P0_la"]
-    KE_la = params["KE_la"]
-
+    # KE_la = params["KE_la"]
+    KE_la = 0.05
     Emax_ra = params["Emax_ra"]
     P0_ra = params["P0_ra"]
-    KE_ra = params["KE_ra"]
+    # KE_ra = params["KE_ra"]
+    KE_ra = 0.05
 
     if VT_la > Vu_la:
         V_la = VT_la - Vu_la
@@ -354,7 +369,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     C_sa = params["C_sa"]
     L_sa = params["L_sa"]
     R_sa = params["R_sa"]
-    Vu_sa = params["Vu_sa"]
+    # Vu_sa = params["Vu_sa"]
+    Vu_sa = 0
 
     ## vena cava circulation
     D1 = params["D1"]
@@ -363,9 +379,12 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     K2_vc = params["K2_vc"]
     Kr_vc = params["Kr_vc"]
     Rvc_n = params["Rvc_n"]
-    Vu_vc = params["Vu_vc"]
-    Vvc_max = params["Vvc_max"]  # highest at end diastole
-    Vvc_min = params["Vvc_min"]
+    # Vu_vc = params["Vu_vc"]
+    Vu_vc = 123
+    # Vvc_max = params["Vvc_max"]  # highest at end diastole
+    Vvc_max = 350
+    # Vvc_min = params["Vvc_min"]
+    Vvc_min = 50
 
     if VT_vc > Vu_vc:
         V_vc = VT_vc - Vu_vc
@@ -422,7 +441,9 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     C_hp = params["C_hp"]
     C_rmp = params["C_rmp"]
     C_amp = params["C_amp"]
-    V_tot = params["V_tot"]
+    # V_tot = params["V_tot"]
+    V_tot = 5027.6
+
     R_ev_n = params["R_ev_n"]
     R_sv_n = params["R_sv_n"]
     R_bv_n = params["R_bv_n"]
@@ -435,16 +456,26 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     C_hv = params["C_hv"]
     C_rmv = params["C_rmv"]
     C_amv = params["C_amv"]
-    Vu_ep = params["Vu_ep"]
-    Vu_sp = params["Vu_sp"]
-    Vu_bp = params["Vu_bp"]
-    Vu_hp = params["Vu_hp"]
-    Vu_rmp = params["Vu_rmp"]
-    Vu_amp = params["Vu_amp"]
-    kr_am = params["kr_am"]
-    P_0 = params["P_0"]
-    Vu_bv = params["Vu_bv"]
-    Vu_hv = params["Vu_hv"]
+    # Vu_ep = params["Vu_ep"]
+    Vu_ep = 127.72
+    # Vu_sp = params["Vu_sp"]
+    Vu_sp = 260.3
+    # Vu_bp = params["Vu_bp"]
+    Vu_bp = 68.42
+    # Vu_hp = params["Vu_hp"]
+    Vu_hp = 23
+    # Vu_rmp = params["Vu_rmp"]
+    Vu_rmp = 40.1
+    # Vu_amp = params["Vu_amp"]
+    Vu_amp = 60.22
+    # kr_am = params["kr_am"]
+    kr_am = 24.17
+    # P_0 = params["P_0"]
+    P_0 = 3.93
+    # Vu_bv = params["Vu_bv"]
+    Vu_bv = 279.49
+    # Vu_hv = params["Vu_hv"]
+    Vu_hv = 93.16
 
     # splanchnic
     V_sp = C_sp * P_sp

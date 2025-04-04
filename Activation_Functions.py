@@ -1,9 +1,5 @@
 import math
-
 import numpy as np
-
-from Old_Next_Conditions import Next_Conditions
-from Parameters import Parameters
 
 
 def frac(x):

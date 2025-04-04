@@ -1,6 +1,6 @@
 import numpy as np
 
-def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates, num_removed):
+def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates, num_removed, i):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -21,9 +21,16 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     V0_dead = params["V0_dead"]
     VA_rest = params["VA_rest"]
 
-    MRV = gas_exchange_inputs["MRV"][-2]
+    if t == 0:
+        gas_exchange_index = i
+    elif num_removed > 0:
+        gas_exchange_index = i - num_removed - 1
+    else:
+        gas_exchange_index = i - 1
 
-    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][-6:]
+    MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
+
+    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][:6]
     Pa_O2_history = exp_inputs["Pa_O2_history"]
     Pa_CO2_history = exp_inputs["Pa_CO2_history"]
     Pb_CO2_history = exp_inputs["Pb_CO2_history"]
@@ -38,9 +45,9 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
 
-            exp_inputs["Pa_O2_history"].clear()
-            exp_inputs["Pa_CO2_history"].clear()
-            exp_inputs["Pb_CO2_history"].clear()
+            updates["Pa_O2_history"].clear()
+            updates["Pa_CO2_history"].clear()
+            updates["Pb_CO2_history"].clear()
     else:
         PamO2 = updates["PamO2"][-1]
         PamCO2 = updates["PamCO2"][-1]
@@ -58,9 +65,6 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             exp_inputs["Pa_O2_history"].clear()
             exp_inputs["Pa_CO2_history"].clear()
             exp_inputs["Pb_CO2_history"].clear()
-
-
-
 
 
     # num_steps_per_cycle = int((t1 + t2) / step_size)  # Steps in one cycle
@@ -83,14 +87,17 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
 
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
 
-    if VAflow < 0:
-        VAflow = 0
+    # if VAflow < 0:
+    #     VAflow = 0
 
     VD = GV_dead * VAflow + V0_dead
     VD_flow = BF * VD
     VE_flow = VAflow + VD_flow
 
     VT = VE_flow * (t1 + t2)
+
+    if VT < 0:
+        A = 2
 
     # from cardiovascular controller
     if 0 <= (t % (t1 + t2)) <= TI:
@@ -99,26 +106,22 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     else:
         d_VE_integral_dt = VE_flow
 
-    if t != 0:
-        if num_removed > 0:
-            for key in [
-                "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
-            ]:
-                del updates[key][-num_removed:]
 
-    # t_eval = updates["t_eval5"][0]
-    # tolerance = 1e-3
-    # if np.abs(t - t_eval) < tolerance:
-    # updates["VE_integral"].append(VE_integral.item())
-    updates["VE_integral"].append(VE_integral)
-    updates["VD"].append(VD)
-    updates["BF"].append(BF)
-    updates["TI"].append(TI)
-    updates["VT"].append(VT)
-    updates["VAflow"].append(VAflow)
-    updates["VE_flow"].append(VE_flow)
+    if num_removed > 0:
+        for key in [
+            "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
+        ]:
+            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
+        i = i - num_removed
 
-    # updates["t_eval5"] = updates["t_eval5"][1:]
+
+    updates["VE_integral"][i] = VE_integral
+    updates["VD"][i] = VD
+    updates["BF"][i] = BF
+    updates["TI"][i] = TI
+    updates["VT"][i] = VT
+    updates["VAflow"][i] = VAflow
+    updates["VE_flow"][i] = VE_flow
 
 
 

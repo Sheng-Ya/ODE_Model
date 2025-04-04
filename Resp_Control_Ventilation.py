@@ -67,9 +67,6 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             exp_inputs["Pb_CO2_history"].clear()
 
 
-
-
-
     # num_steps_per_cycle = int((t1 + t2) / step_size)  # Steps in one cycle
     # current_index = int(t / step_size)  # Index corresponding to time t
     # end = (current_index // num_steps_per_cycle) * num_steps_per_cycle  + 1 # End of the previous cycle
@@ -90,14 +87,17 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
 
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
 
-    if VAflow < 0:
-        VAflow = 0
+    # if VAflow < 0:
+    #     VAflow = 0
 
     VD = GV_dead * VAflow + V0_dead
     VD_flow = BF * VD
     VE_flow = VAflow + VD_flow
 
     VT = VE_flow * (t1 + t2)
+
+    if VT < 0:
+        A = 2
 
     # from cardiovascular controller
     if 0 <= (t % (t1 + t2)) <= TI:
@@ -114,10 +114,6 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
         i = i - num_removed
 
-    # t_eval = updates["t_eval5"][0]
-    # tolerance = 1e-3
-    # if np.abs(t - t_eval) < tolerance:
-    # updates["VE_integral"].append(VE_integral.item())
     updates["VE_integral"][i] = VE_integral
     updates["VD"][i] = VD
     updates["BF"][i] = BF
@@ -126,7 +122,6 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     updates["VAflow"][i] = VAflow
     updates["VE_flow"][i] = VE_flow
 
-    # updates["t_eval5"] = updates["t_eval5"][1:]
 
 
 

@@ -16,10 +16,6 @@ from GSA_Cardiovascular_system import cardiovascular_system
 from joblib import Parallel, delayed
 
 
-
-
-
-
 target_values = np.arange(0, 10000, 30)
 
 # First iteration
@@ -187,8 +183,8 @@ if __name__ == "__main__":
 
     print(Result)
 
-    np.save('X_samples_P_sys_1000.npy', X)
-    np.save('Result_P_sys_1000.npy', Result)
+    np.save('X_samples_P_sys_1000_fixed.npy', X)
+    np.save('Result_P_sys_1000_fixed.npy', Result)
 
     # # X = np.load('X_samples_900.npy')
     # # Result = np.load('Result_900.npy')

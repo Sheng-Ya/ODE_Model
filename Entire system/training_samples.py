@@ -1,30 +1,30 @@
 import numpy as np
 import bisect
-
-import pandas as pd
-from matplotlib import pyplot as plt
 from scipy.integrate import solve_ivp
-from autoemulate.compare import AutoEmulate
+
 from autoemulate.experimental_design import LatinHypercube
 from scipy.signal import find_peaks
 
 from Initial_Conditions import Initial_Conditions
 from Next_Conditions import Next_Conditions
 
-from Parameter_Ranges import parameters
-from GSA_Cardiovascular_system import cardiovascular_system
+from Parameters import Parameters as Parameters_constant
+
+from All_Parameter_ranges import parameters as parameters_change
+from All_Cardiovascular_system import cardiovascular_system
+from All_Cardiovascular_controller import cardiovascular_controller
+from All_Gas_exchange import gas_exchange
+from All_Respiratory_mechanic import respiratory_mechanics
+from All_Respiratory_controller import resp_control_vent
+
 from joblib import Parallel, delayed
-
-
-
-
 
 
 target_values = np.arange(0, 10000, 30)
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech):
+def combined_system(t, Initial_Conditions_numpy, Parameters_Ok, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech):
     """
 
     """
@@ -55,13 +55,13 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     resp_contr_state = Initial_Conditions_numpy[idx_resp_mech:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
-    # d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
-    # d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
-    # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
-    # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
+    d_cardio = cardiovascular_system(t, cardio_state, Parameters_Ok, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters_constant, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
+    d_gas = gas_exchange(t, gas_state, Parameters_Ok, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
+    d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters_Ok, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
+    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters_Ok, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
 
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech, d_resp_vent))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech, d_resp_vent))
     # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
 
     if num_removed == 0:
@@ -87,10 +87,10 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
             if np.any(diff < 0.001):
                 print(last_nonzero_value1)
 
-    return d_cardio
+    return d_combined
 
 
-t_span = (0,30) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0,60) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -133,35 +133,27 @@ num_resp_mech = len(required_resp_mech_keys)
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
 # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech))
 
-def simulate_cpu(Parameters, storage):
-    local_updates = {key: np.array(value, copy=True) for key, value in storage.items()}
+def simulate_cpu(Parameters_Ok, storage):
+    list_keys = {
+        'HR1', 'Vu_ev1', 'Vu_sv1', 'Vu_rmv1', 'Vu_amv1',
+        'Emax_lv1', 'Emax_rv1', 'PamO2', 'PamCO2', 'PmbCO2',
+        'Pa_O2_history', 'Pa_CO2_history', 'Pb_CO2_history'
+    }
+
+    local_updates = {
+        key: [] if key in list_keys else np.array(value, copy=True)
+        for key, value in storage.items()
+    }
+
     # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_cardio, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
-                             atol=1e-6, args=(Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech))
+    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
+                             atol=1e-6, args=(Parameters_Ok, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech))
 
     index = np.where(local_updates["time_history"] == 1e6)[0][0] - 1
-    V_lv_smooth = np.convolve(local_updates["V_lv"][:index], np.ones(20) / 20, mode='same')
+    Pa_O2 = local_updates["Pa_O2"][:index][-1]
+    Pa_CO2 = local_updates["Pa_CO2"][:index][-1]
 
-    peaks, _ = find_peaks(V_lv_smooth, distance=int(500))  # Adjust distance based on heart rate
-    troughs, _ = find_peaks(-V_lv_smooth, distance=int(500))  # Find minima (inverted peaks)
-
-    last_5_troughs = troughs[-6:-1]  # Get indices of last 5 minima
-    last_5_min = V_lv_smooth[last_5_troughs]  # Get actual minimum values
-
-    last_5_peaks = peaks[-6:-1]  # Get indices of last 5 max
-    last_5_max = V_lv_smooth[last_5_peaks]  # Get actual max values
-
-    diff = last_5_max - last_5_min
-    mean_diff = np.mean(diff)
-
-    # HR = local_updates["HR"][:index]
-    # last_5_HR = HR[-5:]
-    # mean_HR = np.mean(last_5_HR)
-    mean_HR = Parameters["HR"] # HR was kept constant from the initial conditions
-
-    CO = mean_diff * mean_HR
-
-    return CO
+    return Pa_O2, Pa_CO2
 
 
 def parallel_simulations(param_samples, storage, n_jobs):
@@ -173,8 +165,8 @@ def parallel_simulations(param_samples, storage, n_jobs):
 if __name__ == "__main__":
     t_eval = np.linspace(0, t_span[1], t_span[1] * 1000)
     # sample from a simulation (do this for initial training of emulator but use saltelli sampling for GSA)
-    param_keys = list(parameters.keys())
-    lhd = LatinHypercube(list(parameters.values()))
+    param_keys = list(parameters_change.keys())
+    lhd = LatinHypercube(list(parameters_change.values()))
     X = lhd.sample(1000)
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
@@ -184,32 +176,7 @@ if __name__ == "__main__":
 
     print(Result)
 
-    np.save('X_samples_CO_1000.npy', X)
-    np.save('Result_next_CO_1000.npy', Result)
+    np.save('X_samples_PACO2.npy', X)
+    np.save('Result_PO2.npy', Result)
 
-    # # X = np.load('X_samples_900.npy')
-    # # Result = np.load('Result_900.npy')
-    #
-    #
-    # # compare emulators
-    # ae = AutoEmulate()
-    # ae.setup(X, Result)
-    #
-    # best_emulator = ae.compare()
-    #
-    # # cross-validation results
-    # ae.summarise_cv()
-    # ae.plot_cv()
-    # #
-    # # test set results for the best emulator
-    # ae.evaluate(best_emulator)
-    # ae.plot_eval(best_emulator)
-    # #
-    # # refit on full data and emulate!
-    # emulator = ae.refit(best_emulator)
-    # emulator.predict(X)
-    #
-    # # global sensitivity analysis
-    # si = ae.sensitivity_analysis(emulator)
-    # print(si)
-    # ae.plot_sensitivity_analysis(si)
+    

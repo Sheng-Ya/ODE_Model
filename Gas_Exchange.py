@@ -49,19 +49,19 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     if t == 0:
         heart_index = i
         resp_mech_index = i
-        resp_control_index = 0
-        # resp_control_index = i
+        # resp_control_index = 0
+        resp_control_index = i
     elif num_removed > 0:
         heart_index = i - num_removed - 1
         # resp_mech variables have not been removed yet
         resp_mech_index = i - 1
-        resp_control_index = 0
-        # resp_control_index = i - 1
+        # resp_control_index = 0
+        resp_control_index = i - 1
     else:
         heart_index = i - 1
         resp_mech_index = i - 1
-        resp_control_index = 0
-        # resp_control_index = i - 1
+        # resp_control_index = 0
+        resp_control_index = i - 1
 
     V_dead = resp_control_inputs["VD"][resp_control_index] # need to change once resp controller is added in
 
@@ -152,6 +152,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     V_CO2 = V + VL_CO2
 
     QT = Q_pp - Q_bp
+
+    # VAflow = resp_control_inputs["VAflow"][resp_control_index]
 
     if dV_dt >= 0: # deadspace PAO2 is increasing towards 150
         dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2 # 863 is unit conversion from btps to stpd
