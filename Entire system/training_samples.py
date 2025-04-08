@@ -20,7 +20,7 @@ from All_Respiratory_controller import resp_control_vent
 from joblib import Parallel, delayed
 
 
-target_values = np.arange(0, 10000, 30)
+target_values = np.arange(0, 10000, 60)
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     print(Result)
 
-    np.save('X_samples_PACO2.npy', X)
-    np.save('Result_PO2.npy', Result)
+    np.save('X_samples_PA_gas_resp.npy', X)
+    np.save('Result_PA_gas_resp.npy', Result)
 
     

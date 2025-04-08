@@ -18,8 +18,8 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     KcMRV = params["KcMRV"]
     KpCO2 = params["KpCO2"]
     KpO2 = params["KpO2"]
-    V0_dead = params["V0_dead"]
-    VA_rest = params["VA_rest"]
+    # V0_dead = params["V0_dead"]
+    # VA_rest = params["VA_rest"]
 
     if t == 0:
         gas_exchange_index = i
@@ -40,7 +40,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
         PamO2 = np.mean(Pa_O2_history)
         PamCO2 = np.mean(Pa_CO2_history)
         PmbCO2 = np.mean(Pb_CO2_history)
-        if np.isclose(resp_cycle, 1, atol=3e-03, equal_nan=False):
+        if np.isclose(resp_cycle, 1, atol=3e-03, equal_nan=False) and updates["Pa_O2_history"]:
             updates["PamO2"].append(PamO2)
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
@@ -53,7 +53,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
         PamCO2 = updates["PamCO2"][-1]
         PmbCO2 = updates["PmbCO2"][-1]
 
-        if np.isclose(resp_cycle, 1, atol=3e-03, equal_nan=False): # restarts
+        if np.isclose(resp_cycle, 1, atol=3e-03, equal_nan=False) and updates["Pa_O2_history"]: # restarts
             PamO2 = np.mean(Pa_O2_history)
             PamCO2 = np.mean(Pa_CO2_history)
             PmbCO2 = np.mean(Pb_CO2_history)
@@ -85,11 +85,13 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
     else:
         G3 = 0
 
+    VA_rest = 0.0673 # know value
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
 
     # if VAflow < 0:
     #     VAflow = 0
 
+    V0_dead = 0.1587 # know value
     VD = GV_dead * VAflow + V0_dead
     VD_flow = BF * VD
     VE_flow = VAflow + VD_flow

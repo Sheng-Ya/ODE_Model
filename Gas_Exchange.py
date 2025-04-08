@@ -225,8 +225,13 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
             "t_minus_Ta", "PA_O2_old", "PA_CO2_old"
         ]
+        keys2 = [
+            "Pb_CO2_history", "Pa_O2_history", "Pa_CO2_history"
+        ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+        for key in keys2:
+            del updates[key][-num_removed:]
 
         i = i - num_removed
 

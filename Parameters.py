@@ -320,14 +320,14 @@ Parameters = {
 # parameters_upper_airways = {
     "A0_ua": 1,               # Maximum area of opening in upper airway
     "b_ua": 1,                 # Upper airway mechanics constant
-    "C_ua": 0.001 / 0.73559,             # Upper airway compliance
-    "K_ua": 1 / 0.73559,                 # Proportionality coefficient
-    "Pcrit_min": -40 * 0.73559,         # Critical upper airway pressure
-    "R_AW": 0.82128 * 0.73559,           # Airway wall resistance
-    "R_CW": 0.8326 * 0.73559,            # Chest wall resistance
-    "R_L": 1.3661 * 0.73559,             # Lung transmural resistance
-    "R_trachea": 1000000 * 0.73559,      # Upper airway wall resistance
-    "R_rs": 3.02 * 0.73559,              # Overall resistance
+    "C_ua": 0.001,             # Upper airway compliance
+    "K_ua": 1,                 # Proportionality coefficient
+    "Pcrit_min": -40,         # Critical upper airway pressure
+    "R_AW": 0.82128,           # Airway wall resistance
+    "R_CW": 0.8326,            # Chest wall resistance
+    "R_L": 1.3661,             # Lung transmural resistance
+    "R_trachea": 1000000,      # Upper airway wall resistance
+    "R_rs": 3.02,              # Overall resistance
 # }
 
 # Table 20: Parameters of the Pulmonary Mechanics

@@ -27,6 +27,84 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
      VT_la, VT_lv, VT_ra, VT_rv,
      VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc) = state
 
+    C_sa = 0.28
+    L_sa = 0.00022
+    R_sa = 0.06
+    Vu_sa = 0
+    C_amp = 0.315  # Active skeletal muscle peripheral compliance
+    C_amv = 9.4  # Active skeletal muscle venous compliance
+    C_bp = 0.358  # Brain peripheral compliance
+    C_bv = 10.71  # Brain venous compliance
+    C_ep = 0.668  # Extra-splanchnic peripheral compliance
+    C_ev = 20  # Extra-splanchnic venous compliance
+    C_hp = 0.119  # Coronary peripheral compliance
+    C_hv = 3.57  # Coronary venous compliance
+    C_rmp = 0.21  # Resting skeletal muscle peripheral compliance
+    C_rmv = 6.28  # Resting skeletal muscle venous compliance
+    C_sp = 2.05  # Splanchnic peripheral compliance
+    C_sv = 61.11  # Splanchnic venous compliance
+    kr_am = 24.17  # Constant parameter
+    P_0 = 3.93  # Constant parameter
+    R_amv_n = 0.0833  # Active skeletal muscle venous resistance
+    R_bv_n = 0.075  # Brain venous resistance
+    R_ev_n = 0.04  # Extra-splanchnic venous resistance
+    R_hv_n = 0.224  # Coronary venous resistance
+    R_rmv_n = 0.125  # Resting skeletal muscle venous resistance
+    R_sv_n = 0.038  # Splanchnic venous resistance
+    V_tot = 5027.6  # Total blood volume
+    Vu_amp = 60.22  # Active skeletal muscle peripheral unstressed volume
+    Vu_bp = 68.42  # Brain peripheral unstressed volume
+    Vu_bv = 279.49  # Brain venous unstressed volume
+    Vu_ep = 127.72  # Extra-splanchnic peripheral unstressed volume
+    Vu_hp = 23  # Coronary peripheral unstressed volume
+    Vu_hv = 93.16  # Coronary venous unstressed volume
+    Vu_rmp = 40.1  # Resting skeletal muscle peripheral unstressed volume
+    Vu_sp = 260.3  # Splanchnic peripheral unstressed volume
+    D1 = 0.3855  # Parameter for P-V curve of vena cava
+    D2 = -5  # Parameter for P-V curve of vena cava
+    K1_vc = 0.15  # Parameter for P-V curve of vena cava
+    K2_vc = 0.4  # Parameter for P-V curve of vena cava
+    Kr_vc = 0.001  # Gain for vena cava flow resistance
+    Rvc_n = 0.0025  # Nominal vena cava flow resistance
+    Vu_vc = 123  # Vena cava unstressed volume
+    Vvc_max = 350  # Maximum volume of vena cava
+    Vvc_min = 50  # Minimum volume of vena cava
+    C_pa = 8  # Pulmonary arterial compliances
+    C_pp = 10  # Pulmonary peripheral compliances
+    C_pv = 25.37  # Pulmonary venous compliances
+    L_pa = 0.00018  # Pulmonary arterial inertance
+    R_pa = 0.023  # Pulmonary arterial flow resistance
+    R_pp = 0.0894  # Pulmonary peripheral flow resistance
+    R_pv = 0.0056  # Pulmonary venous flow resistance
+    Vu_pa = 0  # Pulmonary arterial unstressed volume
+    Vu_pp = 116.6775  # Pulmonary peripheral unstressed volume
+    Vu_pv = 114  # Pulmonary venous unstressed volume
+    KE_lv = 0.014  # End-diastolic P-V relationship in left ventricle
+    KE_rv = 0.011  # End-diastolic P-V relationship in right ventricle
+    Emax_la = 0.45
+    P0_la = 0.45
+    KE_la = 0.05
+    Emax_ra = 0.45
+    P0_ra = 0.45
+    KE_ra = 0.05
+    P0_lv = 1.5  # End-diastolic P-V relationship in left ventricle
+    P0_rv = 1.5  # End-diastolic P-V relationship in right ventricle
+    Vu_la = 4  # Left atrial unstressed volume
+    Vu_lv = 5  # Left ventricular unstressed volume
+    Vu_ra = 4  # Right atrial unstressed volume
+    Vu_rv = 10  # Right ventricular unstressed volume
+    A_im = 50  # Peak value of intramuscular pressure
+    Tc = 0.75  # The overall duration of muscular contraction
+    T_im = 1  # Duration of the muscular contraction-relaxation cycle
+    g_abd = 3.39  # Constant gain factor linking tidal volume changes to abdominal pressure variations
+    g_thor = 6.8  # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
+    P_abdmax_n = 0  # Basal value of abdominal pressure at the end of expiration
+    P_abdmin_n = -2.5  # Basal value of abdominal pressure at the end of inspiration
+    P_thormax_n = 0  # Basal value of intrathoracic pressure at the end of expiration
+    P_thormin_n = 0  # Basal value of intrathoracic pressure at the end of inspiration
+    VT_n = 0.73  # Basal value of tidal volume
+
+
     # Determine the correct index based on t
     if t == 0:
         heart_control_index = i
@@ -60,13 +138,13 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     ## Respiratory Pump
 
     # constant parameters
-    g_abd = params["g_abd"]
-    g_thor = params["g_thor"]
-    P_abdmax_n = params["P_abdmax_n"]
-    P_abdmin_n = params["P_abdmin_n"]
-    P_thormax_n = params["P_thormax_n"]
-    P_thormin_n = params["P_thormin_n"]
-    VT_n = params["VT_n"]
+    # g_abd = params["g_abd"]
+    # g_thor = params["g_thor"]
+    # P_abdmax_n = params["P_abdmax_n"]
+    # P_abdmin_n = params["P_abdmin_n"]
+    # P_thormax_n = params["P_thormax_n"]
+    # P_thormin_n = params["P_thormin_n"]
+    # VT_n = params["VT_n"]
 
     # respiratory controller inputs
     T_resp = 1 / resp_control_inputs["BF"][resp_control_index]
@@ -144,19 +222,16 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     #     P_abd = P_abdmax
 
     ## Pulmonary Circulation
-    C_pa = params["C_pa"]
-    C_pp = params["C_pp"]
-    C_pv = params["C_pv"]
-    L_pa = params["L_pa"]
-    R_pa = params["R_pa"]
-    R_pp = params["R_pp"]
-    R_pv = params["R_pv"]
+    # C_pa = params["C_pa"]
+    # C_pp = params["C_pp"]
+    # C_pv = params["C_pv"]
+    # L_pa = params["L_pa"]
+    # R_pa = params["R_pa"]
+    # R_pp = params["R_pp"]
+    # R_pv = params["R_pv"]
     # Vu_pa = params["Vu_pa"]
-    Vu_pa = 0
     # Vu_pp = params["Vu_pp"]
-    Vu_pp = 116.6775
     # Vu_pv = params["Vu_pv"]
-    Vu_pv = 115
 
     # added P_thor to only the pulmonary compartments
     if VT_pa > Vu_pa:
@@ -186,34 +261,26 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # C_la = params["C_la"]
     # C_ra = params["C_ra"]
     # KE_lv = params["KE_lv"]
-    KE_lv = 0.014
     # KE_rv = params["KE_rv"]
-    KE_rv = 0.011
     # KR_lv = params["KR_lv"]
     # KR_rv = params["KR_rv"]
     # ksys = params["ksys"]
-    P0_lv = params["P0_lv"]
-    P0_rv = params["P0_rv"]
+    # P0_lv = params["P0_lv"]
+    # P0_rv = params["P0_rv"]
     # R_la = params["R_la"]
     # R_ra = params["R_ra"]
     # Tsys_0 = params["Tsys_0"]
     # Vu_la = params["Vu_la"]
-    Vu_la = 24
     # Vu_lv = params["Vu_lv"]
-    Vu_lv = 15.908
     # Vu_ra = params["Vu_ra"]
-    Vu_ra = 24
     # Vu_rv = params["Vu_rv"]
-    Vu_rv = 38.703
 
-    Emax_la = params["Emax_la"]
-    P0_la = params["P0_la"]
+    # Emax_la = params["Emax_la"]
+    # P0_la = params["P0_la"]
     # KE_la = params["KE_la"]
-    KE_la = 0.05
-    Emax_ra = params["Emax_ra"]
-    P0_ra = params["P0_ra"]
+    # Emax_ra = params["Emax_ra"]
+    # P0_ra = params["P0_ra"]
     # KE_ra = params["KE_ra"]
-    KE_ra = 0.05
 
     if VT_la > Vu_la:
         V_la = VT_la - Vu_la
@@ -363,25 +430,21 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Wh_lv = (P_thor - P_lv) * dV_lv_dt
 
     ## systemic arteries
-    C_sa = params["C_sa"]
-    L_sa = params["L_sa"]
-    R_sa = params["R_sa"]
+    # C_sa = params["C_sa"]
+    # L_sa = params["L_sa"]
+    # R_sa = params["R_sa"]
     # Vu_sa = params["Vu_sa"]
-    Vu_sa = 0
 
     ## vena cava circulation
-    D1 = params["D1"]
-    D2 = params["D2"]
-    K1_vc = params["K1_vc"]
-    K2_vc = params["K2_vc"]
-    Kr_vc = params["Kr_vc"]
-    Rvc_n = params["Rvc_n"]
+    # D1 = params["D1"]
+    # D2 = params["D2"]
+    # K1_vc = params["K1_vc"]
+    # K2_vc = params["K2_vc"]
+    # Kr_vc = params["Kr_vc"]
+    # Rvc_n = params["Rvc_n"]
     # Vu_vc = params["Vu_vc"]
-    Vu_vc = 123
     # Vvc_max = params["Vvc_max"]  # highest at end diastole
-    Vvc_max = 350
     # Vvc_min = params["Vvc_min"]
-    Vvc_min = 50
 
     if VT_vc > Vu_vc:
         V_vc = VT_vc - Vu_vc
@@ -432,47 +495,36 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Wh_rv = (P_thor - P_rv) * dV_rv_dt
 
     ## systemic peripheral and venous circulation
-    C_ep = params["C_ep"]
-    C_sp = params["C_sp"]
-    C_bp = params["C_bp"]
-    C_hp = params["C_hp"]
-    C_rmp = params["C_rmp"]
-    C_amp = params["C_amp"]
+    # C_ep = params["C_ep"]
+    # C_sp = params["C_sp"]
+    # C_bp = params["C_bp"]
+    # C_hp = params["C_hp"]
+    # C_rmp = params["C_rmp"]
+    # C_amp = params["C_amp"]
     # V_tot = params["V_tot"]
-    V_tot = 5027.6
 
-    R_ev_n = params["R_ev_n"]
-    R_sv_n = params["R_sv_n"]
-    R_bv_n = params["R_bv_n"]
-    R_hv_n = params["R_hv_n"]
-    R_rmv_n = params["R_rmv_n"]
-    R_amv_n = params["R_amv_n"]
-    C_ev = params["C_ev"]
-    C_sv = params["C_sv"]
-    C_bv = params["C_bv"]
-    C_hv = params["C_hv"]
-    C_rmv = params["C_rmv"]
-    C_amv = params["C_amv"]
+    # R_ev_n = params["R_ev_n"]
+    # R_sv_n = params["R_sv_n"]
+    # R_bv_n = params["R_bv_n"]
+    # R_hv_n = params["R_hv_n"]
+    # R_rmv_n = params["R_rmv_n"]
+    # R_amv_n = params["R_amv_n"]
+    # C_ev = params["C_ev"]
+    # C_sv = params["C_sv"]
+    # C_bv = params["C_bv"]
+    # C_hv = params["C_hv"]
+    # C_rmv = params["C_rmv"]
+    # C_amv = params["C_amv"]
     # Vu_ep = params["Vu_ep"]
-    Vu_ep = 127.72
     # Vu_sp = params["Vu_sp"]
-    Vu_sp = 260.3
     # Vu_bp = params["Vu_bp"]
-    Vu_bp = 68.42
     # Vu_hp = params["Vu_hp"]
-    Vu_hp = 23
     # Vu_rmp = params["Vu_rmp"]
-    Vu_rmp = 40.1
     # Vu_amp = params["Vu_amp"]
-    Vu_amp = 60.22
     # kr_am = params["kr_am"]
-    kr_am = 24.17
     # P_0 = params["P_0"]
-    P_0 = 3.93
     # Vu_bv = params["Vu_bv"]
-    Vu_bv = 279.49
     # Vu_hv = params["Vu_hv"]
-    Vu_hv = 93.16
 
     # splanchnic
     V_sp = C_sp * P_sp

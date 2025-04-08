@@ -55,7 +55,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     T2 = params["T2"]
     VL_CO2 = params["VL_CO2"]
     VL_O2 = params["VL_O2"]
-    Z = params["Z"]
+    # Z = params["Z"]
+    Z = 0.0227
 
     if t == 0:
         heart_index = i
@@ -155,8 +156,19 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     CaCO2 = (C2 * Z) * (FCO2 ** (1 / a2)) / (1 + (FCO2 ** (1 / a2)))
 
     FO2 = (PA_O2 * (1 + beta1 * PA_CO2)) / (K1 * (1 + alpha1 * PA_CO2))
-    # FO2 = 4.5 + np.cos(t)
+    # # FO2 = 4.5 + np.cos(t)
     CaO2 = (C1 * Z) * (FO2 ** (1 / a1)) / (1 + (FO2 ** (1 / a1)))
+
+    # try:
+    #     exponent = 1 / a1
+    #     if FO2 > 0 and np.isfinite(exponent):
+    #         CaO2 = (C1 * Z) * (FO2 ** exponent) / (1 + (FO2 ** exponent))
+    #     else:
+    #         raise ValueError("Invalid FO2 or a1 for power operation.")
+    # except Exception as e:
+    #     print(f"Error: {e}")
+    #     print(f"FO2 = {FO2}, a1 = {a1}, PA_O2 = {PA_O2}")
+    #     CaO2 = np.nan
 
 
     V_O2 = V + VL_O2
@@ -241,8 +253,13 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
             "t_minus_Ta", "PA_O2_old", "PA_CO2_old"
         ]
+        keys2 = [
+            "Pb_CO2_history", "Pa_O2_history", "Pa_CO2_history"
+        ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+        for key in keys2:
+            del updates[key][-num_removed:]
 
         i = i - num_removed
 
