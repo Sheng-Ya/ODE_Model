@@ -45,6 +45,9 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     E_rs = E_CW + E_L
 
     breath = t % (t1 + t2)
+    #
+    # a1 = 0.7 * a1
+    # a2 = 0.7 * a2
 
     if 0 <= breath <= t1:
         P_musc = a0 + a1 * breath + a2 * (breath ** 2)
@@ -53,58 +56,59 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
         P_musc = P_musc_t1 * np.exp(-(breath - t1) / tau)
 
 
+    # P_musc = P_musc * 0.7
     # initial value for G_AW
-    G_AW = exp_inputs["G_AW_guess"][exp_index]
-    max_iterations = 20
+    # G_AW = exp_inputs["G_AW_guess"][exp_index]
+    # max_iterations = 20
+    G_AW = 1 # Equations from past papers show P = V_flow * R_rs + V * E_rs
+    # # Iterative calculation for G_AW
+    # for _ in range(max_iterations):
 
-    # Iterative calculation for G_AW
-    for _ in range(max_iterations):
+    # Calculate dV/dt using the current G_AW, minute ventilation = dV/dt
+    dV_dt = (G_AW / R_rs) * ((P_musc - P_ao) - E_rs * V)
 
-        # Calculate dV/dt using the current G_AW, minute ventilation = dV/dt
-        dV_dt = (G_AW / R_rs) * ((P_musc - P_ao) - E_rs * V)
+    if dV_dt < 0:
+        P_CW = E_CW * V - 1
+        P_a_dash = P_ao
+    else:
+        P_CW = E_CW * V - 1 + R_CW * dV_dt
+        P_a_dash = P_ao - k_aw1 * dV_dt - k_aw2 * (np.abs(dV_dt)) ** 2
 
-        if dV_dt < 0:
-            P_CW = E_CW * V - 1
-            P_a_dash = P_ao
-        else:
-            P_CW = E_CW * V - 1 + R_CW * dV_dt
-            P_a_dash = P_ao - k_aw1 * dV_dt - k_aw2 * (np.abs(dV_dt)) ** 2
+    if P_a_dash < 0:
+        P_a = 0
+    else:
+        P_a = P_a_dash
 
-        if P_a_dash < 0:
-            P_a = 0
-        else:
-            P_a = P_a_dash
+    P_pl = P_CW + P_a - P_musc
 
-        P_pl = P_CW + P_a - P_musc
+    Vflow_LA = Vflow_ua + dV_dt
+    P_ua = P_pl + Vflow_LA * R_rs
 
-        Vflow_LA = Vflow_ua + dV_dt
-        P_ua = P_pl + Vflow_LA * R_rs
+    if t == 0:
+        dP_ua_dt = 0
+    else:
+        A = updates["P_ua"][i - 1]
+        AA = updates["time_history"][i - 1]
+        dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
 
-        if t == 0:
-            dP_ua_dt = 0
-        else:
-            A = updates["P_ua"][i - 1]
-            AA = updates["time_history"][i - 1]
-            dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
+    dVflow_ua_dt = -(1 / R_trachea) * (dP_ua_dt + (1 / C_ua) * Vflow_ua)
 
-        dVflow_ua_dt = -(1 / R_trachea) * (dP_ua_dt + (1 / C_ua) * Vflow_ua)
+    # # Set based on fixed parameters
+    # Pcrit = Pcrit_min
 
-        # Set based on fixed parameters
-        Pcrit = Pcrit_min
-
-        # Update G_AW
-        if P_ua <= Pcrit:
-            new_G_AW = 0
-        elif (Pcrit < P_ua <= 0) and (1 - (P_ua / Pcrit)) >= 0:
-            new_G_AW = A0_ua * (1 - (P_ua / Pcrit)) * K_ua
-        elif P_ua > 0:
-            new_G_AW = A0_ua * K_ua
-
-        # Convergence check
-        if abs(new_G_AW - G_AW) < 1e-6:
-            G_AW = new_G_AW
-            break
-        G_AW = new_G_AW
+    # # Update G_AW
+    # if P_ua <= Pcrit:
+    #     new_G_AW = 0
+    # elif (Pcrit < P_ua <= 0) and (1 - (P_ua / Pcrit)) >= 0:
+    #     new_G_AW = A0_ua * (1 - (P_ua / Pcrit)) * K_ua
+    # elif P_ua > 0:
+    #     new_G_AW = A0_ua * K_ua
+    #
+    # # Convergence check
+    # if abs(new_G_AW - G_AW) < 1e-6:
+    #     G_AW = new_G_AW
+    #     break
+    # G_AW = new_G_AW
 
 
     # known: P_pl, R_rs, C_ua, R_trachea

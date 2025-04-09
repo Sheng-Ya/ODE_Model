@@ -98,7 +98,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     return d_combined
 
 
-t_span = (0,210) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0,150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -344,7 +344,7 @@ if __name__ == "__main__":
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
         # "Pd_5_O2"
-        "V", "dV_dt", "P_musc"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        "P_musc", "VAflow", "Nt", "VE_flow", "V_dead", "VE_integral", "VT", "T_resp", "V", "dV_dt"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
         # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
         # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
         # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
