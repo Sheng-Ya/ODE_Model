@@ -1,7 +1,6 @@
 import numpy as np
 import bisect
 from scipy.integrate import solve_ivp
-from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
@@ -14,20 +13,11 @@ from Gas_Exchange import gas_exchange
 from Initial_Conditions import Initial_Conditions
 from Next_Conditions import Next_Conditions
 from Parameters import Parameters
-from Resp_Control_Breath_Optimiser import breath_optimiser
 from Resp_Control_Ventilation import resp_control_vent
 from Respiratory_Mechanics import respiratory_mechanics
 
 
-# Resp control breath optimiser
-t = 0.1
-initial_Nd_guess = np.array([0, 0, 0, 0.4, 1, 2])  # Example initial values for a0, a1, a2, tau, t1, t2
 
-# bounds = [(0, None), (0, None), (0, None), (0, None), (0.1, None), (0.1, None)]
-#
-# # Optimize
-# result = minimize(breath_optimiser, initial_Nd_guess, args=(t, Next_Conditions["time_history"][:index], Parameters, Next_Conditions, Next_Conditions, Next_Conditions, Next_Conditions["all_time"]), method='SLSQP', bounds=bounds)
-# print(result.x)
 target_values = np.arange(0, 10000, 10)
 
 # First iteration
@@ -67,7 +57,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
     d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
     d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
+    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech, d_resp_vent))
     # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))

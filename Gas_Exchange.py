@@ -153,8 +153,6 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     QT = Q_pp - Q_bp
 
-    # VAflow = resp_control_inputs["VAflow"][resp_control_index]
-
     if dV_dt >= 0: # deadspace PAO2 is increasing towards 150
         dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2 # 863 is unit conversion from btps to stpd
         dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2

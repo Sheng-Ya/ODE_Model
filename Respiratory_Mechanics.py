@@ -1,7 +1,4 @@
-import os
-
 import numpy as np
-import pandas as pd
 
 def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i):
     """
@@ -40,7 +37,8 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     R_L = params["R_L"]
     R_trachea = params["R_trachea"]
 
-    a0, a1, a2, tau, t1, t2 = exp_inputs["Nd"][:6]
+    a0 = 0
+    a1, a2, tau, t1, t2 = exp_inputs["Nd"][-5:]
 
     E_rs = E_CW + E_L
 
@@ -123,8 +121,8 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
 
     if num_removed > 0:
         keys = [
-            "G_AW_guess", "Vflow_ua", "P_ua",
-            "P_musc", "dV_dt", "V", "previous_dV_dt", "P_pl"
+            "Vflow_ua", "P_ua",
+            "P_musc", "dV_dt", "V", "P_pl"
         ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
@@ -147,15 +145,11 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     # # Ensure headers are written only once
     # write_header = False
 
-
-    exp_inputs["G_AW_guess"][i] = G_AW
-
     updates["Vflow_ua"][i] = Vflow_ua
     updates["P_ua"][i] = P_ua
     updates["P_musc"][i] = P_musc
     updates["dV_dt"][i] = dV_dt
     updates["V"][i] = V
-    updates["previous_dV_dt"][i] = dV_dt
     updates["P_pl"][i] = P_pl
 
     return [dV_dt, dVflow_ua_dt]
