@@ -76,7 +76,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     a1, a2, tau, t1, t2 = exp_inputs["Nd"][-5:]
     prev_flat_bit = updates["prev_flat_bit"][gas_index]
 
-    if t % (t1 + t2) < t1:
+    if updates["difference"][resp_control_index] % (t1 + t2) < t1:
         Nt = VE_integral - prev_flat_bit  # Take value minus previous flat bit
     else:
         Nt = 0  # Reset to zero

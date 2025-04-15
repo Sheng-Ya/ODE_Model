@@ -327,14 +327,14 @@ Parameters = {
     "R_CW": 0.8326,            # Chest wall resistance
     "R_L": 1.3661,             # Lung transmural resistance
     "R_trachea": 1000000,      # Upper airway wall resistance
-    "R_rs": 3.02 * 2,              # Overall resistance # changed
+    "R_rs": 3.02,              # Overall resistance # changed
 # }
 
 # Table 20: Parameters of the Pulmonary Mechanics
 # parameters_pulmonary_mechanics = {
-    "E_CW": 8.5,           # Chest wall elastance (cmH2O/l) # changed
-    "E_L": 8.5,            # Lung transmural elastance (cmH2O/l) # changed
-    "E_rs": 17, # 21.9,             # Overall elastance (cmH2O/l) # changed
+    "E_CW": 10.5,           # Chest wall elastance (cmH2O/l) # changed
+    "E_L": 10.5,            # Lung transmural elastance (cmH2O/l) # changed
+    "E_rs": 21.9, # 21.9,             # Overall elastance (cmH2O/l) # changed
     "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
     "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
     "P_ao": 0,                # Airway pressure (cmH2O)
@@ -354,8 +354,8 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 0.86,         # Weighting factor (Dimensionless)
-    "lambda2": 0.489,        # Weighting factor (Dimensionless)
+    "lambda1": 1.4,         # Weighting factor (Dimensionless)
+    "lambda2": 0.565,        # Weighting factor (Dimensionless)
     "n": 1.101,              # Power index of efficiency factor (Dimensionless)
     "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)

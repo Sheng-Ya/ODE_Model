@@ -40,7 +40,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
         PamO2 = np.mean(Pa_O2_history)
         PamCO2 = np.mean(Pa_CO2_history)
         PmbCO2 = np.mean(Pb_CO2_history)
-        if np.isclose(resp_cycle, 1, atol=3e-03, equal_nan=False) and updates["Pa_O2_history"]:
+        if np.isclose(resp_cycle, (t1 + t2), atol=3e-03, equal_nan=False) and updates["Pa_O2_history"]:
             updates["PamO2"].append(PamO2)
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
@@ -53,7 +53,7 @@ def resp_control_vent(t, state, params, exp_inputs, gas_exchange_inputs, updates
         PamCO2 = updates["PamCO2"][-1]
         PmbCO2 = updates["PmbCO2"][-1]
 
-        if np.isclose(resp_cycle, 1, atol=3e-03, equal_nan=False) and updates["Pa_O2_history"]: # restarts
+        if np.isclose(resp_cycle, (t1 + t2), atol=3e-03, equal_nan=False) and updates["Pa_O2_history"]: # restarts
             PamO2 = np.mean(Pa_O2_history)
             PamCO2 = np.mean(Pa_CO2_history)
             PmbCO2 = np.mean(Pb_CO2_history)

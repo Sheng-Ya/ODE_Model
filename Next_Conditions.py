@@ -235,7 +235,8 @@ Next_Conditions = {
     "phi_met_history": np.pad(np.array([0.0]), (0, 400000 - 1), mode="constant", constant_values=1e6),
     "phi_met": np.pad(np.array([0.0]), (0, 400000 - 1), mode="constant", constant_values=1e6),
     "previous_VE": np.pad(np.array([0.0]), (0, 400000 - 1), mode="constant", constant_values=1e6),
-    "Nd": [0, 20, -5, 0.4, 1.8, 2.2],
+    # "Nd": [0, 20, -5, 0.4, 1.8, 2.2],
+    "Nd": [21.6, -3.64, 0.4, 1.8, 2.2], # [a1, a2, tau, t1, t2]
     "previous_WI": np.pad(np.array([0.0]), (0, 400000 - 1), mode="constant", constant_values=1e6),
     "previous_WE": np.pad(np.array([0.0]), (0, 400000 - 1), mode="constant", constant_values=1e6),
     "previous_dV_dt": np.pad(np.array([0.0]), (0, 400000 - 1), mode="constant", constant_values=1e6),
@@ -257,4 +258,8 @@ Next_Conditions = {
     "PmbCO2": [],
     "time_history": np.full(400000, 1e6),
     "all_time": np.full(400000, 1e6),
+    "difference": np.full(400000, 1e6),
+    "breath": np.full(400000, 1e6),
+    "resp_cycle": np.full(400000, 1e6),
+
 }

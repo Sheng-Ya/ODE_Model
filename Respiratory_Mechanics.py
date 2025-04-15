@@ -1,6 +1,6 @@
 import numpy as np
 
-def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i):
+def respiratory_mechanics(t, state, params, updates, num_removed, i):
     """
         Pulmonary Mechanics state variables: V
         Upper Airway state variables: alpha
@@ -8,14 +8,6 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     """
 
     (V, Vflow_ua) = state
-
-    # exp_inputs is updated in resp_mech
-    if t == 0:
-        exp_index = i
-    elif num_removed > 0:
-        exp_index = i - num_removed - 1
-    else:
-        exp_index = i - 1
 
     ## Pulmonary Mechanics
     E_CW = params["E_CW"]
@@ -38,11 +30,11 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     R_trachea = params["R_trachea"]
 
     a0 = 0
-    a1, a2, tau, t1, t2 = exp_inputs["Nd"][-5:]
+    a1, a2, tau, t1, t2 = updates["Nd"][-5:]
 
     E_rs = E_CW + E_L
 
-    breath = t % (t1 + t2)
+    breath = updates["difference"][i - 1] % (t1 + t2)
     #
     # a1 = 0.7 * a1
     # a2 = 0.7 * a2
@@ -151,5 +143,6 @@ def respiratory_mechanics(t, state, params, exp_inputs, updates, num_removed, i)
     updates["dV_dt"][i] = dV_dt
     updates["V"][i] = V
     updates["P_pl"][i] = P_pl
+    updates["breath"][i] = breath
 
     return [dV_dt, dVflow_ua_dt]
