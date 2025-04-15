@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import interp1d
 
 def respiratory_mechanics(t, state, params, updates, num_removed, i):
     """
@@ -7,7 +8,7 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
 
     """
 
-    (V, Vflow_ua) = state
+    (Vflow_ua) = state[0].item()
 
     ## Pulmonary Mechanics
     E_CW = params["E_CW"]
@@ -29,33 +30,24 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
     R_L = params["R_L"]
     R_trachea = params["R_trachea"]
 
-    a0 = 0
     a1, a2, tau, t1, t2 = updates["Nd"][-5:]
 
-    E_rs = E_CW + E_L
+    dt = 0.001
+    n_steps = int(np.round((t1 + t2) / dt)) + 1
+    times = np.linspace(0, (t1 + t2), n_steps)
 
-    breath = updates["difference"][i - 1] % (t1 + t2)
-    #
-    # a1 = 0.7 * a1
-    # a2 = 0.7 * a2
+    V_interp = interp1d(times, updates["V_current"], kind="linear", fill_value="extrapolate")
+    dVdt_interp = interp1d(times, updates["dV_dt_current"], kind="linear", fill_value="extrapolate")
+    P_musc_interp = interp1d(times, updates["P_musc_current"], kind="linear", fill_value="extrapolate")
 
-    if 0 <= breath <= t1:
-        P_musc = a0 + a1 * breath + a2 * (breath ** 2)
-    elif t1 < breath <= (t1 + t2):
-        P_musc_t1 = a0 + a1 * t1 + a2 * (t1 ** 2)
-        P_musc = P_musc_t1 * np.exp(-(breath - t1) / tau)
+    last_breath_time = t - updates["finish_breath_time"][-1]
 
+    # Later, for any time t:
+    breath = last_breath_time % (t1 + t2)
 
-    # P_musc = P_musc * 0.7
-    # initial value for G_AW
-    # G_AW = exp_inputs["G_AW_guess"][exp_index]
-    # max_iterations = 20
-    G_AW = 1 # Equations from past papers show P = V_flow * R_rs + V * E_rs
-    # # Iterative calculation for G_AW
-    # for _ in range(max_iterations):
-
-    # Calculate dV/dt using the current G_AW, minute ventilation = dV/dt
-    dV_dt = (G_AW / R_rs) * ((P_musc - P_ao) - E_rs * V)
+    V = V_interp(breath)
+    dV_dt = dVdt_interp(breath)
+    P_musc = P_musc_interp(breath)
 
     if dV_dt < 0:
         P_CW = E_CW * V - 1
@@ -77,65 +69,20 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
     if t == 0:
         dP_ua_dt = 0
     else:
-        A = updates["P_ua"][i - 1]
-        AA = updates["time_history"][i - 1]
         dP_ua_dt = (P_ua - updates["P_ua"][i - 1]) / (t - updates["time_history"][i - 1])
 
     dVflow_ua_dt = -(1 / R_trachea) * (dP_ua_dt + (1 / C_ua) * Vflow_ua)
 
-    # # Set based on fixed parameters
-    # Pcrit = Pcrit_min
-
-    # # Update G_AW
-    # if P_ua <= Pcrit:
-    #     new_G_AW = 0
-    # elif (Pcrit < P_ua <= 0) and (1 - (P_ua / Pcrit)) >= 0:
-    #     new_G_AW = A0_ua * (1 - (P_ua / Pcrit)) * K_ua
-    # elif P_ua > 0:
-    #     new_G_AW = A0_ua * K_ua
-    #
-    # # Convergence check
-    # if abs(new_G_AW - G_AW) < 1e-6:
-    #     G_AW = new_G_AW
-    #     break
-    # G_AW = new_G_AW
-
-
-    # known: P_pl, R_rs, C_ua, R_trachea
-    # solving for V_flow_LA, Vflow_ua, P_ua
-
-    # Vflow_LA = (P_ua - P_pl) / R_rs
-    # Vflow_ua = Vflow_LA - dV_dt
-    # P_ua = (-R_trachea) * Vflow_ua - alpha / C_ua
-    # Vflow_ua = (1/(1+R_trachea/R_rs)) * ((- (1/(R_rs * C_ua)) * alpha) - P_pl/R_rs - dV_dt)
-    # R_rs = R_AW + R_L + R_CW
-
 
     if num_removed > 0:
         keys = [
-            "Vflow_ua", "P_ua",
-            "P_musc", "dV_dt", "V", "P_pl"
+            "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V", "P_pl"
         ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
 
         i = i - num_removed
 
-    # data_to_append = {
-    #     "P_ua": P_ua,
-    #     "Vflow_ua": Vflow_ua,
-    #     "P_musc": P_musc, "dV_dt": dV_dt, "V": V, "P_pl": P_pl
-    # }
-    #
-    # # Define the CSV file path
-    # csv_file = "output.csv"
-    #
-    # # Write headers only if the file doesn't exist
-    # write_header = not os.path.exists(csv_file)
-    # df = pd.DataFrame([data_to_append])
-    # df.to_csv(csv_file, mode='a', index=False, header=write_header)
-    # # Ensure headers are written only once
-    # write_header = False
 
     updates["Vflow_ua"][i] = Vflow_ua
     updates["P_ua"][i] = P_ua
@@ -145,4 +92,4 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
     updates["P_pl"][i] = P_pl
     updates["breath"][i] = breath
 
-    return [dV_dt, dVflow_ua_dt]
+    return [dVflow_ua_dt]

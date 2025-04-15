@@ -43,15 +43,15 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     idx_cardio = num_cardio
     idx_cardio_contr = idx_cardio + num_cardio_control
     idx_gas = idx_cardio_contr + num_gas
-    idx_resp_mech = idx_gas + num_resp_mech
-    idx_resp_contr = idx_resp_mech + num_resp_control
+    idx_resp_contr = idx_gas + num_resp_control
+    idx_resp_mech = idx_resp_contr + num_resp_mech
 
     # Extract each subsystem's state variables
     cardio_state = Initial_Conditions_numpy[:idx_cardio]
     cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
     gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
-    resp_mech_state = Initial_Conditions_numpy[idx_gas:idx_resp_mech]
-    resp_contr_state = Initial_Conditions_numpy[idx_resp_mech:idx_resp_contr]
+    resp_contr_state = Initial_Conditions_numpy[idx_gas:idx_resp_contr]
+    resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
@@ -60,7 +60,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i)
     d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
-    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech, d_resp_vent))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent, d_resp_mech))
     # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
 
     if num_removed == 0:
@@ -89,7 +89,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     return d_combined
 
 
-t_span = (0, 12) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 400) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -124,12 +124,12 @@ num_resp_control = len(required_resp_control_keys)
 
 
 # resp mechanics
-required_resp_mech_keys = ["V", "Vflow_ua"]
+required_resp_mech_keys = ["Vflow_ua"]
 IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
 num_resp_mech = len(required_resp_mech_keys)
 
 # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
-IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech, IC_resp_contr))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr, IC_resp_mech))
 # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech))
 
 t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
                          "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
                          "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "Cv_O2", "Cv_CO2", "MRV"]
-    required_resp_mech_keys = ["V", "Vflow_ua"]
+    required_resp_mech_keys = ["Vflow_ua"]
     required_resp_control_keys = ["VE_integral"]
 
     state_variable_names = (
@@ -295,7 +295,6 @@ if __name__ == "__main__":
     fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_musc"][:index], label="P_musc", color="b")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["difference"][:index], label="difference", color="b")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["breath"][:index], label="breath", color="k")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Nt", color="r")
 
@@ -353,7 +352,7 @@ if __name__ == "__main__":
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
         # "Pd_5_O2"
-        "difference", "V", "P_musc", "VAflow", "Nt", "VE_flow", "V_dead", "VE_integral", "VT", "T_resp", "V", "dV_dt"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        "dV_dt", "V", "P_musc", "VAflow", "VT"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
         # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
         # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
         # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
@@ -743,7 +742,7 @@ if __name__ == "__main__":
 
 
 
-    required_resp_mech_keys = ["V", "Vflow_ua"]
+    required_resp_mech_keys = ["Vflow_ua"]
 
     # Number of state variables
     num_variables = state_variables.shape[0]
