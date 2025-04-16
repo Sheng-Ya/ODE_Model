@@ -32,7 +32,7 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
 
     a1, a2, tau, t1, t2 = updates["Nd"][-5:]
 
-    dt = 0.001
+    dt = updates["dt"]
     n_steps = int(np.round((t1 + t2) / dt)) + 1
     times = np.linspace(0, (t1 + t2), n_steps)
 

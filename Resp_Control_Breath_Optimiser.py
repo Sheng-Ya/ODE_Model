@@ -5,10 +5,11 @@ from scipy.interpolate import interp1d
 
 
 class BreathOptimiser:
-    def __init__(self, params, VAflow, VD):
+    def __init__(self, params, VAflow, VD, dt):
         self.params = params
         self.VA = VAflow
         self.VD = VD
+        self.dt = dt
 
     # def constraint_function(self, initial_Nd_guess, VD, VA):
     #     [a2, tau, t1] = initial_Nd_guess
@@ -159,8 +160,7 @@ class BreathOptimiser:
         #     print(t1)
         #     raise ValueError(f"Error: t2 cannot be less than 0. Received t2 = {t2}.")
 
-        dt = 0.001
-        n_steps = int(np.round((t1 + t2) / dt)) + 1
+        n_steps = int(np.round((t1 + t2) / self.dt)) + 1
         times = np.linspace(0, (t1 + t2), n_steps)
 
         # Breathing Pattern Optimiser
@@ -182,7 +182,7 @@ class BreathOptimiser:
 
         # print(f"guess: {initial_Nd_guess}")
 
-        inspire_index = int(round(t1 / 0.001))
+        inspire_index = int(round(t1 / self.dt))
         dV2_dt2_values_squared = ((1 / params["R_rs"]) * ((dP_musc_dt - params["P_ao"]) - params["E_rs"] * dV_dt_values)) ** 2
 
         E1_n = (1 - P_musc / Pmax) ** n
