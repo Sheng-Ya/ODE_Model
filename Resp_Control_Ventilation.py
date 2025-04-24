@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
 
-from Resp_Control_Breath_Optimiser import BreathOptimiser
+from Resp_Control_Breath_Optimiser import BreathOptimiser, simulate_euler
 
 
 def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i):
@@ -83,14 +83,19 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         G3 = 0
 
     # VA_rest = 0.03
+    AA = PmbCO2
+    AAA = params["PbCO2IC"]
+    A = KpCO2 * (PamCO2 - params["PACO2_IC"]) + KcCO2 * (PmbCO2 - params["PbCO2IC"]) + G3 + KcMRV * MRV
 
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
+    # VAflow = VA_rest
+    # VAflow = VA_rest * (KpCO2 * (PamCO2 - params["PACO2_IC"]) + KcCO2 * (PmbCO2 - params["PbCO2IC"]) + G3 + KcMRV * MRV + 1)
     VD = GV_dead * VAflow + V0_dead
 
     # comment out to uncouple breath optimiser
 
     if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
-        bounds = [(-20, 0), (0.1, 2), (0.1, 5)]  # [a2, tau, t1] bounds = [(-30, 10), (0.1, 2), (0.4, 5)]
+        bounds = [(-10, 0), (0.1, 1), (0.1, 5)]  # [a2, tau, t1] bounds = [(-30, 10), (0.1, 2), (0.4, 5)]
         dt = 0.001
         updates["dt"] = dt
         opt = BreathOptimiser(params, VAflow, VD, dt)
@@ -117,7 +122,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         n_steps = int(np.round((t1 + t2) / dt)) + 1
         current_times = np.linspace(0, (t1 + t2), n_steps)
         P_for_current_breath, _ = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-4:-1], t2)
-        V_for_current_breath, dV_dt_for_current_breath = opt.simulate_euler(current_times, P_for_current_breath)
+        V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
         updates["P_musc_current"] = P_for_current_breath
         updates["V_current"] = V_for_current_breath
         updates["dV_dt_current"] = dV_dt_for_current_breath

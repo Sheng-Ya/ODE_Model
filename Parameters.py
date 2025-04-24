@@ -354,8 +354,8 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 1.4,         # Weighting factor (Dimensionless) changed
-    "lambda2": 0.565,        # Weighting factor (Dimensionless) changed
+    "lambda1": 0.86,         # Weighting factor (Dimensionless) changed
+    "lambda2": 0.454,        # Weighting factor (Dimensionless) changed
     "n": 1.101,              # Power index of efficiency factor (Dimensionless)
     "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
@@ -417,8 +417,8 @@ Parameters = {
     "MRTCO2_basal": 0.3/60,            # Basal metabolic production rate for CO2 (l/min STPD)
     "MRTO2_basal": 0.33/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
-    "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l)
-    "VTO2": 0.25,                      # Body tissue storage volume for O2 (l)
+    "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l) # changed from 15
+    "VTO2": 0.25,                      # Body tissue storage volume for O2 (l) # changed from 6
 # }
 
 # Table 26: Gas Transport: Metabolism Dynamic

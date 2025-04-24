@@ -2,6 +2,24 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.integrate import simpson, solve_ivp
 from scipy.interpolate import interp1d
+from numba import njit
+
+
+@njit
+def simulate_euler(times, P_musc, R_rs, P_ao, E_rs):
+    V = np.zeros(len(times))
+    dV_dt = np.zeros(len(times))
+    dt = np.diff(times)
+
+    for i in range(1, len(times)):
+        dV_dt[i-1] = (1 / R_rs) * ((P_musc[i-1] - P_ao) - E_rs * V[i - 1])
+        V[i] = V[i - 1] + dV_dt[i-1] * dt[i - 1]
+
+    dV_dt[i] = (1 / R_rs) * ((P_musc[i] - P_ao) - E_rs * V[i]) # no need to calculate as dV_dt should be 0 at the end
+    # plt.plot(times, dt, marker='o')
+    # plt.show()
+
+    return V, dV_dt
 
 
 class BreathOptimiser:
@@ -32,22 +50,6 @@ class BreathOptimiser:
         Pt1 = a1 * t1 + a2 * (t1 ** 2)
         constraint = Pt1 * np.exp(-t2 / tau)
         return constraint
-
-    def simulate_euler(self, times, P_musc):
-        params = self.params
-        V = np.zeros(len(times))
-        dV_dt = np.zeros(len(times))
-        dt = np.diff(times)
-
-        for i in range(1, len(times)):
-            dV_dt[i-1] = (1 / params["R_rs"]) * ((P_musc[i-1] - params["P_ao"]) - params["E_rs"] * V[i - 1])
-            V[i] = V[i - 1] + dV_dt[i-1] * dt[i - 1]
-
-        dV_dt[i] = (1 / params["R_rs"]) * ((P_musc[i] - params["P_ao"]) - params["E_rs"] * V[i]) # no need to calculate as dV_dt should be 0 at the end
-        # plt.plot(times, dt, marker='o')
-        # plt.show()
-
-        return V, dV_dt
 
 
     def simulate_euler_interpolated(self, times, P_musc):
@@ -146,19 +148,11 @@ class BreathOptimiser:
         [a2, tau, t1] = initial_Nd_guess
         params = self.params
 
-        t2 = ((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * self.VA * t1 - params["E_rs"] * self.VD) /
+        t2 = ((-a2 * (t1 ** 2) - params["P_ao"] - params["E_rs"] * self.VA * t1 - params["E_rs"] * self.VD) /
               (params["E_rs"] * self.VA))
 
         if t2 < 0:
             return np.inf
-
-        # if t2 < 0:
-        #     print(f"constraint: {(-a2 * (t1 ** 2) - params["P_ao"] - params["E_rs"] * self.VA * t1 - params["E_rs"] * self.VD)/ (params["E_rs"] * self.VA)}")
-        #     print(self.VA)
-        #     print(self.VD)
-        #     print(a2)
-        #     print(t1)
-        #     raise ValueError(f"Error: t2 cannot be less than 0. Received t2 = {t2}.")
 
         n_steps = int(np.round((t1 + t2) / self.dt)) + 1
         times = np.linspace(0, (t1 + t2), n_steps)
@@ -172,15 +166,7 @@ class BreathOptimiser:
 
         P_musc, dP_musc_dt = self.calculate_P_musc_dP_dt(times, initial_Nd_guess, t2)
 
-        # # Interpolate P_musc for intermediate time evaluations
-        # P_interp = interp1d(times, P_musc, kind="linear", fill_value="extrapolate")
-        # volume_signal, dV_dt_values = self.simulate_rk4(times, P_interp)
-        # volume_signal, dV_dt_values  = self.simulate_euler_interpolated(times, P_interp)
-
-        volume_signal, dV_dt_values  = self.simulate_euler(times, P_musc)
-
-
-        # print(f"guess: {initial_Nd_guess}")
+        volume_signal, dV_dt_values  = simulate_euler(times, P_musc, params["R_rs"], params["P_ao"], params["E_rs"])
 
         inspire_index = int(round(t1 / self.dt))
         dV2_dt2_values_squared = ((1 / params["R_rs"]) * ((dP_musc_dt - params["P_ao"]) - params["E_rs"] * dV_dt_values)) ** 2
@@ -191,10 +177,6 @@ class BreathOptimiser:
         integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / (E1_n[:inspire_index] * E2_n[:inspire_index]) + lambda1 * dV2_dt2_values_squared[:inspire_index]
         integrand_expire = dV2_dt2_values_squared[inspire_index:]
 
-        # print(f"integrand_inspire.shape: {integrand_inspire.shape}")
-        # print(f"times[:inspire_index].shape: {times[:inspire_index].shape}")
-        # print(f"integrand_expire.shape: {integrand_expire.shape}")
-        # print(f"times[inspire_index:].shape: {times[inspire_index:].shape}")
 
         # Integrate over time using Simpson’s rule
         integral_inspire = simpson(integrand_inspire, x=times[:inspire_index])

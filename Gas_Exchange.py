@@ -107,6 +107,9 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
 
 
+    if t > 40:
+        A = 2
+
     Ta = LCTV / Q_la
 
     if t > 0:
@@ -202,8 +205,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     dCvO2_dt = (-MRTO2 + QT * (CaO2 - CvO2)) / VTO2
     dCvCO2_dt = (MRTCO2 + QT * (CaCO2 - CvCO2)) / VTCO2
 
-    cO2_diff = QT * (CaO2 - CvO2)
-    cCO2_diff = QT * (CaCO2 - CvCO2)
+    cCO2_diff = dV_dt * (Pd_5_O2 - PA_O2)
+    cO2_diff = dV_dt * (Pd_5_O2 - 100)
 
     # Metabolism Dynamic
     MRR = (MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal)
