@@ -5,6 +5,7 @@ from scipy.interpolate import interp1d
 from numba import njit
 
 
+
 @njit
 def simulate_euler(times, P_musc, R_rs, P_ao, E_rs):
     V = np.zeros(len(times))
@@ -27,15 +28,94 @@ class BreathOptimiser:
         self.VD = VD
         self.dt = dt
 
-    # def constraint_function(self, initial_Nd_guess, VD, VA):
-    #     [a2, tau, t1] = initial_Nd_guess
+    def calculate_V_dV_dt(self, times, initial_Nd_guess):
+        [tau, t1, t2] = initial_Nd_guess
+        params = self.params
+        E_rs = params["E_rs"]
+        R_rs = params["R_rs"]
+        a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2) - E_rs * self.VD) / (t1 ** 2)
+        a1 = -2 * a2 * t1
+
+        V = np.zeros(len(times))
+        dV_dt = np.zeros(len(times))
+
+        # calculate P_musc at each t
+        breath = times % (t1 + t2)
+        mask_0_t1 = (0 <= breath) & (breath <= t1)
+        mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
+        # mask_0_t1[-1] = False
+        # mask_t1_t2[-1] = True
+
+        x = breath[mask_0_t1]
+        z = breath[mask_t1_t2]
+        Pt1 = a1 * t1 + a2 * (t1 ** 2)
+        Vt1 = self.VA * (t1 + t2) + self.VD
+
+        c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
+                        + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
+        d1 = (a1 * R_rs / (E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)) - c1
+        c2 = (Vt1 - (Pt1 / R_rs) * (1/(E_rs/R_rs - 1/tau))) / np.exp(-(E_rs/R_rs)*t1)
+        B = E_rs / R_rs
+
+        # Calculate V for breath in the range 0 to t1
+        V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (x**2) - (2 * a2 * R_rs / (E_rs ** 2)) * x
+                        + (2 * a2 * (R_rs**2) / (E_rs**3)) + c1 * np.exp((-E_rs/R_rs) * x) + d1)
+
+        dV_dt[mask_0_t1] = (1/R_rs) * (a1 * x  + a2 * (x**2) - E_rs * V[mask_0_t1])
+
+        # Calculate V for breath in the range t1 to t1 + t2
+        V[mask_t1_t2] = np.exp(-B*z) * (Pt1 / R_rs) * (1/(B - 1/tau)) * np.exp(((B - 1/tau) * z) + t1/tau) + np.exp(-B*z) * c2
+        dV_dt[mask_t1_t2] = (1/R_rs) * (Pt1 * np.exp(-(z-t1)/tau) - E_rs * V[mask_t1_t2])
+
+        return V, dV_dt
+
+    # def calculate(self, times, initial_Nd_guess):
+    #     [tau, t1, t2] = initial_Nd_guess
     #     params = self.params
-    #
+    #     E_rs = params["E_rs"]
+    #     R_rs = params["R_rs"]
+    #     a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2) - E_rs * self.VD) / (t1 ** 2)
     #     a1 = -2 * a2 * t1
-    #     t2 = (-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * self.VA * t1 - params["E_rs"] * self.VD) / (params["E_rs"] * self.VA)
     #
-    #     constraint = (a1 * t1 + a2 * (t1 **2) - params["P_ao"]) - params["E_rs"] * (VA * (t1 + t2) + VD)
-    #     return constraint
+    #     V = np.zeros(len(times))
+    #     dV_dt = np.zeros(len(times))
+    #
+    #     # calculate P_musc at each t
+    #     breath = times % (t1 + t2)
+    #     mask_0_t1 = (0 <= breath) & (breath <= t1)
+    #     mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
+    #     mask_0_t1[-1] = True
+    #     mask_t1_t2[-1] = False
+    #
+    #     x = breath[mask_0_t1]
+    #     z = breath[mask_t1_t2]
+    #     Pt1 = a1 * t1 + a2 * (t1 ** 2)
+    #     Vt1 = self.VA * (t1 + t2) + self.VD
+    #
+    #     d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3))
+    #     c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs / (E_rs ** 2)) + (a2 / E_rs) * (t1 ** 2) - (
+    #                 2 * a2 * R_rs / (E_rs ** 2)) * t1
+    #                  + (2 * a2 * (R_rs ** 2) / (E_rs ** 3)))) / np.exp(-(E_rs / R_rs) * t1)
+    #     c2 = (Vt1 - (Pt1 / R_rs) * (1 / (E_rs / R_rs - 1 / tau))) / np.exp(-(E_rs / R_rs) * t1)
+    #     B = E_rs / R_rs
+    #
+    #     # Calculate V for breath in the range 0 to t1
+    #     V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) + (a2 / E_rs) * (x ** 2) - (
+    #                 2 * a2 * R_rs / (E_rs ** 2)) * x
+    #                     + (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) + c1 * np.exp((-E_rs / R_rs) * x))
+    #
+    #     check_3 = ((a1 / E_rs) * t1 - (a1 * R_rs / (E_rs ** 2)) + (a2 / E_rs) * (t1 ** 2) - (
+    #                 2 * a2 * R_rs / (E_rs ** 2)) * t1
+    #                + (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) + d1 * np.exp((-E_rs / R_rs) * t1))
+    #
+    #     dV_dt[mask_0_t1] = (1 / R_rs) * (a1 * x + a2 * (x ** 2) - E_rs * V[mask_0_t1])
+    #
+    #     # Calculate V for breath in the range t1 to t1 + t2
+    #     V[mask_t1_t2] = np.exp(-B * z) * (Pt1 / R_rs) * (1 / (B - 1 / tau)) * np.exp(
+    #         ((B - 1 / tau) * z) + t1 / tau) + np.exp(-B * z) * c2
+    #     dV_dt[mask_t1_t2] = (1 / R_rs) * (Pt1 * np.exp(-(z - t1) / tau) - E_rs * V[mask_t1_t2])
+    #
+    #     return V, dV_dt
 
     def tau_constraint(self, initial_Nd_guess):
         [tau, t1, t2] = initial_Nd_guess
@@ -47,70 +127,6 @@ class BreathOptimiser:
         Pt1 = a1 * t1 + a2 * (t1 ** 2)
         constraint = Pt1 * np.exp(-t2 / tau)
         return constraint
-
-
-    # def simulate_euler_interpolated(self, times, P_musc):
-    #     params = self.params
-    #     V = np.zeros(len(times))
-    #     dV_dt = np.zeros(len(times))
-    #     dt = np.diff(times)
-    #
-    #     for i in range(1, len(times)):
-    #         t_prev = times[i - 1]
-    #         dV_dt[i-1] = (1 / params["R_rs"]) * ((P_musc(t_prev) - params["P_ao"]) - params["E_rs"] * V[i - 1])
-    #         V[i] = V[i - 1] + dV_dt[i-1] * dt[i - 1]
-    #
-    #     dV_dt[i] = (1 / params["R_rs"]) * ((P_musc(times[i]) - params["P_ao"]) - params["E_rs"] * V[i])
-    #
-    #     # plt.plot(times, dt, marker='o')
-    #     # plt.show()
-    #
-    #     return V, dV_dt
-
-
-    # def simulate_rk4(self, times, P_musc, R_rs, P_ao, E_rs):
-    #     V = np.zeros(len(times))
-    #     dV_dt = np.zeros(len(times))
-    #     dt = np.diff(times)
-    #
-    #     def dV(V_local, t_local):
-    #         return (1 / R_rs) * ((P_musc(t_local) - P_ao) - E_rs * V_local)
-    #
-    #     for i in range(1, len(times)):
-    #         dt_prev = dt[i-1] # sensitive to whether it is dt or 0.001
-    #         t_prev = times[i - 1]
-    #         V_prev = V[i - 1]
-    #
-    #         k1 = dV(V_prev, t_prev)
-    #         k2 = dV(V_prev + 0.5 * dt_prev * k1, t_prev + 0.5 * dt_prev)
-    #         k3 = dV(V_prev + 0.5 * dt_prev * k2, t_prev + 0.5 * dt_prev)
-    #         k4 = dV(V_prev + dt_prev * k3, t_prev + dt_prev)
-    #
-    #         V[i] = V_prev + (dt_prev / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
-    #         dV_dt[i] = (k1 + 2 * k2 + 2 * k3 + k4) / 6
-    #
-    #     return V, dV_dt
-
-    # def simulate_rk_scipy(self, times, P_musc):
-    #     params = self.params
-    #     P_interp = interp1d(times, P_musc, kind='linear', fill_value='extrapolate')
-    #
-    #     def dVdt(t, V):
-    #         return (1 / params["R_rs"]) * ((P_interp(t) - params["P_ao"]) - params["E_rs"] * V)
-    #
-    #     # Use solve_ivp with RK45 (adaptive Runge-Kutta)
-    #     sol = solve_ivp(
-    #         dVdt,
-    #         t_span=(times[0], times[-1]),
-    #         y0=[0],  # assuming V(0) = 0
-    #         t_eval=times,  # force solver to return values at these times
-    #         method='RK45'
-    #     )
-    #
-    #     V = sol.y[0]
-    #     dV_dt = np.array([dVdt(t, v) for t, v in zip(times, V)])
-    #
-    #     return V, dV_dt
 
 
     def calculate_P_musc_dP_dt(self, times, initial_Nd_guess):
@@ -128,8 +144,8 @@ class BreathOptimiser:
         breath = times % (t1 + t2)
         mask_0_t1 = (0 <= breath) & (breath <= t1)
         mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-        mask_0_t1[-1] = True
-        mask_t1_t2[-1] = False
+        # mask_0_t1[-1] = False
+        # mask_t1_t2[-1] = True
 
         # Calculate P_musc for breath in the range 0 to t1
         P_musc[mask_0_t1] = a1 * breath[mask_0_t1] + a2 * (breath[mask_0_t1] ** 2)
@@ -151,8 +167,8 @@ class BreathOptimiser:
 
         a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
 
-        if t2 < 0:
-            return np.inf
+        # if t2 < 0:
+        #     return np.inf
 
         n_steps = int(np.round((t1 + t2) / self.dt)) + 1
         times = np.linspace(0, (t1 + t2), n_steps)
@@ -166,9 +182,14 @@ class BreathOptimiser:
 
         P_musc, dP_musc_dt = self.calculate_P_musc_dP_dt(times, initial_Nd_guess)
 
-        volume_signal, dV_dt_values  = simulate_euler(times, P_musc, params["R_rs"], params["P_ao"], params["E_rs"])
+        # volume_signal, dV_dt_values  = simulate_euler(times, P_musc, params["R_rs"], params["P_ao"], params["E_rs"])
 
-        # print(f"guess: {initial_Nd_guess}")
+        volume_signal, dV_dt_values = self.calculate_V_dV_dt(times, initial_Nd_guess)
+
+        # print((-2 * a2 * t1), a2, tau, t1, t2)
+        # plt.plot(volume_signal)
+        # plt.plot(check_V)
+        # plt.show()
 
         inspire_index = int(round(t1 / self.dt))
         dV2_dt2_values_squared = ((1 / params["R_rs"]) * ((dP_musc_dt - params["P_ao"]) - params["E_rs"] * dV_dt_values)) ** 2
@@ -189,3 +210,5 @@ class BreathOptimiser:
         J = WI + lambda2 * WE
 
         return J
+
+    # didn't do ln. Original paper has ln, but the Carlos paper does not

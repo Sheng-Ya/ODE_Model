@@ -89,9 +89,12 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     # VAflow = VA_rest * (KcCO2 * (PmbCO2 - params["PbCO2IC"])) + KpCO2 * PamCO2 + G3 + KcMRV * MRV + VA_rest - 8.29
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
     # VAflow = VA_rest + VA_rest * (KcCO2 * (PmbCO2 - 44.87)) + G3 + KcMRV * MRV
-    VAflow = 0.075
+    VAflow = 0.0867
+    V0_dead = 0.13
 
     VD = GV_dead * VAflow + V0_dead
+
+    Vt1 = VAflow * (t1 + t2) + VD
 
     if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
         bounds = [(0.1, 1), (0.5, 3), (0.5, 3)]  # [tau, t1, t2] bounds
@@ -121,7 +124,9 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
 
         P_for_current_breath, dP_dt_for_current_breath = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-3:])
-        V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
+        # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
+        V_for_current_breath, dV_dt_for_current_breath = opt.calculate_V_dV_dt(current_times, updates["Nd"][-3:])
+
         updates["P_musc_current"] = P_for_current_breath
         updates["V_current"] = V_for_current_breath
         updates["dV_dt_current"] = dV_dt_for_current_breath

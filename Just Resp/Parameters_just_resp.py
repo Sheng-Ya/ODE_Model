@@ -354,9 +354,9 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 1.4,         # Weighting factor (Dimensionless) changed
-    "lambda2": 0.565,        # Weighting factor (Dimensionless) changed
-    "n": 1.101,              # Power index of efficiency factor (Dimensionless)
+    "lambda1": 1.397,         # Weighting factor (Dimensionless) changed
+    "lambda2": 0.568,        # Weighting factor (Dimensionless) changed
+    "n": 1.01,              # Power index of efficiency factor (Dimensionless) changed
     "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }

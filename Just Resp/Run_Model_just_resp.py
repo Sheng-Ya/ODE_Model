@@ -79,7 +79,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     return d_combined
 
 
-t_span = (0, 200) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
@@ -143,12 +143,18 @@ if __name__ == "__main__":
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="PA_CO2", color="k")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
 
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
     ax1.legend(loc="upper left")
     ax1.grid(True)
+
+    ax2 = ax1.twinx()
+
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="g")
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
     plt.show()
 
 
