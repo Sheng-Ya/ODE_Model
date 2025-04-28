@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
 
+from Gas_Exchange import gas_exchange
 from Resp_Control_Breath_Optimiser import BreathOptimiser, simulate_euler
 
 
@@ -92,18 +93,38 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     # VAflow = 0.0867
     # V0_dead = 0.13
 
+    # central chemoreceptor
+    # if PmbCO2 < 48.62:
+    #     phi_Pmb = 0.2332 * (PmbCO2 - 43.613) * VA_rest
+    # else:
+    #     phi_Pmb = 0.3803 * (PmbCO2 - 43.613 - 0.551) * VA_rest
+    #
+    # dVc_dt  = (phi_Pmb - Vc) * (1/100) # tau_c = 100
+    #
+    # # peripheral chemoreceptor
+    # CaO2 = gas_exchange_inputs["Ca_O2"][gas_exchange_index]
+    # G_PamCO2 = -(5/60) * CaO2 * PamCO2 - (147/60) * CaO2 + (1.9/60) * PamCO2
+    #
+    # dVp_dt = (G_PamCO2 - Vp) * (1 / 10)  # tau_c = 100
+
+    # VAflow = VA_rest + Vc
+    # VAflow = VA_rest
+
     VD = GV_dead * VAflow + V0_dead
 
     # Vt1 = VAflow * (t1 + t2) + VD
 
     if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
-        bounds = [(0.1, 1), (0.5, 3), (0.5, 3)]  # [tau, t1, t2] bounds
+        bounds = [(0.1, 2), (0.5, 3), (0.5, 3)]  # [tau, t1, t2] bounds
         dt = 0.001
         updates["dt"] = dt
         opt = BreathOptimiser(params, VAflow, VD, dt)
 
-        nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0.01, ub=0.01) # tau constraint: at time (t1 + t2), P_musc is 0
-
+        # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
+        nlc_tau = {
+            'type': 'ineq',
+            'fun': opt.tau_constraint
+        }
         # Optimize
         # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
         # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))

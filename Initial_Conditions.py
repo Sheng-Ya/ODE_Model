@@ -130,6 +130,8 @@ Initial_Conditions = {
 
 # Respiratory controller
     "VE_integral": 0,
+    "Vc": 0,
+    "Vp": 0,
 # other inputs
     "dV_dt": 0,
     # "previous_dV_dt": [0],

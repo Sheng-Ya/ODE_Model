@@ -82,8 +82,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_4_O2)
             dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_4_CO2)
 
-            dPd_5_O2_dt = (abs(dV_dt) / (V_dead)) * (PiO2 - Pd_5_O2) # edited to just have one deadspace
-            dPd_5_CO2_dt = (abs(dV_dt) / (V_dead)) * (PiCO2 - Pd_5_CO2)
+            dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_5_O2) # edited to just have one deadspace
+            dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_5_CO2)
         if w < 5 and dV_dt < 0:
             dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_1_O2)
             dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_1_CO2)
@@ -97,8 +97,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_O2 - Pd_4_O2)
             dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_CO2 - Pd_4_CO2)
         if w == 5 and dV_dt < 0:
-            dPd_5_O2_dt = (abs(dV_dt) / (V_dead)) * (PA_O2 - Pd_5_O2)
-            dPd_5_CO2_dt = (abs(dV_dt) / (V_dead)) * (PA_CO2 - Pd_5_CO2)
+            dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_O2 - Pd_5_O2)
+            dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
 
     Ta = LCTV / Q_la
 
@@ -205,12 +205,12 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     V_CO2 = V + VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion from btps to stpd
-        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
+        dPA_O2_dt = (826 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion from btps to stpd
+        dPA_CO2_dt = (826 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
-        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2)) / V_O2
-        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
+        dPA_O2_dt = (826 * Q_pp * (CvO2 - CaO2)) / V_O2
+        dPA_CO2_dt = (826 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
 
     # Metabolism Dynamic

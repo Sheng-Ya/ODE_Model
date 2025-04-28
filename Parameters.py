@@ -349,14 +349,14 @@ Parameters = {
     "KpCO2": 0.2025,         # Constant gain of CO2 peripheral chemoreceptors
     "KpO2": 4.72e-9,         # Constant gain of O2 peripheral chemoreceptors
     "V0_dead": 0.1587,        # Offset value of dead space volume
-    "VA_rest": 0.0673,        # Basal value of alveolar ventilation
+    "VA_rest": 0.0867,        # Basal value of alveolar ventilation
 # }
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
     "lambda1": 1.397,         # Weighting factor (Dimensionless) changed
     "lambda2": 0.568,        # Weighting factor (Dimensionless) changed
-    "n": 0.787,              # Power index of efficiency factor (Dimensionless)
+    "n": 0.795,              # Power index of efficiency factor (Dimensionless)
     "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }

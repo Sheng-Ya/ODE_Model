@@ -89,7 +89,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     return d_combined
 
 
-t_span = (0, 250) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -159,27 +159,12 @@ if __name__ == "__main__":
     time = solution.t
     state_variables = solution.y
 
-
-    required_cardio_keys = ["VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
-                            "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", "VT_vc"]
-    required_cardio_control_keys = ["theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv",
-                                    "theta_change_O2_sh", "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", "R_ep_change",
-                                    "R_sp_change", "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change",
-                                    "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change", "Emax_rv_change", "Ts_change",
-                                    "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2",
-                                    "xam_O2", "xM", "x_met"]
-    required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
-                         "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
-                         "PvbCO2", "PCSFCO2", "MRTO2", "MRTCO2", "Cv_O2", "Cv_CO2", "MRV"]
-    required_resp_mech_keys = ["Vflow_ua"]
-    required_resp_control_keys = ["VE_integral"]
-
     state_variable_names = (
             required_cardio_keys +
             required_cardio_control_keys +
             required_gas_keys +
-            required_resp_mech_keys +
-            required_resp_control_keys
+            required_resp_control_keys +
+            required_resp_mech_keys
     )
 
     # # Number of state variables
@@ -336,8 +321,8 @@ if __name__ == "__main__":
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_CO2"][:index], label="Pd_5_CO2")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt")
-    # ax1.axhline(y=0.33/60, color="r", label="MRO2")
-    # ax1.axhline(y=-0.3/60, color="k", label="MRCO2")
+    ax1.axhline(y=0.25/60, color="r", label="MRO2")
+    ax1.axhline(y=-0.2/60, color="k", label="MRCO2")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
@@ -353,7 +338,7 @@ if __name__ == "__main__":
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
         # "Pd_5_O2"
-        "f_ac_history", "Q_pp", "PvtCO2", "V", "Q_bp", "Q_pp", "VAflow", "dV_dt"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        "f_ac_history", "Q_pp", "PvtCO2", "V", "VAflow", "dV_dt"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
         # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
         # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
         # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
@@ -734,38 +719,6 @@ if __name__ == "__main__":
     plt.ylabel("Cardio Control Variables")
     plt.title("Evolution of Cardio Control Variables Over Time")
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
-
-
-
-
-
-
-    required_resp_mech_keys = ["Vflow_ua"]
-
-    # Number of state variables
-    num_variables = state_variables.shape[0]
-
-
-    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
-
-    # Plot all state variables
-    plt.figure(figsize=(14, 10))
-
-    for i, label in enumerate(required_resp_mech_keys):
-        if label == "V":  # Skip "VT_sv"
-            continue
-        color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables
- # Cycle through markers
-        plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys + required_gas_keys) + i], label=label,
-                 color=color, linestyle='-')
-
-    plt.xlabel("Time")
-    plt.ylabel("State Variables")
-    plt.title("Evolution of State Variables Over Time")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
     plt.grid()
     plt.tight_layout()
     plt.show()

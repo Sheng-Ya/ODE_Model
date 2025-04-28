@@ -165,11 +165,6 @@ class BreathOptimiser:
         [tau, t1, t2] = initial_Nd_guess
         params = self.params
 
-        a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
-
-        # if t2 < 0:
-        #     return np.inf
-
         n_steps = int(np.round((t1 + t2) / self.dt)) + 1
         times = np.linspace(0, (t1 + t2), n_steps)
 

@@ -43,8 +43,8 @@ class BreathOptimiser:
         breath = times % (t1 + t2)
         mask_0_t1 = (0 <= breath) & (breath <= t1)
         mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-        # mask_0_t1[-1] = False
-        # mask_t1_t2[-1] = True
+        mask_0_t1[-1] = False
+        mask_t1_t2[-1] = False
 
         x = breath[mask_0_t1]
         z = breath[mask_t1_t2]
@@ -119,13 +119,14 @@ class BreathOptimiser:
 
     def tau_constraint(self, initial_Nd_guess):
         [tau, t1, t2] = initial_Nd_guess
-        params = self.params
+        # params = self.params
 
-        a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
-        a1 = -2 * a2 * t1
+        # a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
+        # a1 = -2 * a2 * t1
 
-        Pt1 = a1 * t1 + a2 * (t1 ** 2)
-        constraint = Pt1 * np.exp(-t2 / tau)
+        # Pt1 = a1 * t1 + a2 * (t1 ** 2)
+        # constraint = Pt1 * np.exp(-t2 / tau)
+        constraint = (-t2 / (np.log(0.001))) - tau
         return constraint
 
 
@@ -144,8 +145,8 @@ class BreathOptimiser:
         breath = times % (t1 + t2)
         mask_0_t1 = (0 <= breath) & (breath <= t1)
         mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-        # mask_0_t1[-1] = False
-        # mask_t1_t2[-1] = True
+        mask_0_t1[-1] = False
+        mask_t1_t2[-1] = False
 
         # Calculate P_musc for breath in the range 0 to t1
         P_musc[mask_0_t1] = a1 * breath[mask_0_t1] + a2 * (breath[mask_0_t1] ** 2)
@@ -164,8 +165,6 @@ class BreathOptimiser:
         """
         [tau, t1, t2] = initial_Nd_guess
         params = self.params
-
-        a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
 
         # if t2 < 0:
         #     return np.inf
