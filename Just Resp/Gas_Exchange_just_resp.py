@@ -62,7 +62,14 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     # other inputs
     dV_dt = resp_mech_inputs["dV_dt"][resp_mech_index]
     V = resp_mech_inputs["V"][resp_mech_index]
-    Q_pp = 80/1000
+
+    Q_pp = 80 / 1000
+
+    # if t>250:
+    #     Q_pp = 80/1000
+    # else:
+    #     Q_pp = 400/1000
+
     Q_bp = 12/1000
     Q_la = 500/1000
 
@@ -184,7 +191,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     dCTO2_dt = (-MRTO2 + QT * (CaO2 - CvtO2)) / VTO2
     dCvtCO2_dt = (MRTCO2 + QT * (CaCO2 - CvtCO2)) / VTCO2
 
-    if t>50:
+    if t>53:
         A = 2
 
     Pb_CO2 = PvbCO2 + (PCSFCO2 - PvbCO2) * np.exp(-dc * ((Q_bp * KCCO2) ** 0.5))
@@ -202,8 +209,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 
 
-    cO2_diff = QT * (CaO2 - CvtO2)
-    cCO2_diff = QT * (CaCO2 - CvtCO2)
+    cO2_diff = Q_pp * (CvO2 - CaO2)
+    cCO2_diff = Q_pp * (CvCO2 - CaCO2)
 
     V_O2 = V + VL_O2
     V_CO2 = V + VL_CO2
@@ -216,6 +223,9 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
         dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2)) / V_O2
         dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
+
+        if t > 53:
+            A = 2
 
     # Metabolism Dynamic
     MRR = (MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal)

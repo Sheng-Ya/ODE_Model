@@ -4,7 +4,7 @@ Initial_Conditions = {
 # cardiovascular system = {
 # state
     "VT_pa": 70, # 9.264, # trenhago
-    "VT_pp": 200, # 193.1305 would be trenhago
+    "VT_pp": 250, # 193.1305 would be trenhago
     "VT_pv": 344.59, # 344.590143
     "Q_pa": 0,
     "VT_la": 20, # (Vu_la + (P_la-P_thor) * C_la) where P_la = 0 at end diastole, P_thor = -4
@@ -155,17 +155,21 @@ Initial_Conditions = {
     "Pd_5_O2": 103.3579,
     "Pd_5_CO2": 40.3359,
     "Pa_O2": 102.5153, # ignore: set 0 here, but it is another value initially from Gas_Exchange.py
-    "Pa_CO2": 40, # ignore: set 0 here, but it is another value initially from Gas_Exchange.py
+    "Pa_CO2": 40.9432, # ignore: set 0 here, but it is another value initially from Gas_Exchange.py
     "dPa_O2_dt": 0.3557,
     "dPa_CO2_dt": -0.2465,
     "PA_O2": 102.5153,
     "PA_CO2": 40.9432,
     "PvbCO2": 43.7, # # can't be 0 here. set 0 here, but it is another value initially from Gas_Exchange.py
-    "PCSFCO2": 43.6,
+    "PCSFCO2": 43.7,
     "MRTO2": 0.33/60,
     "MRTCO2": 0.3/60,
     "Cv_O2": 0.1639,
     "Cv_CO2": 0.5247,
+    "CTO2": 0.0013,
+    "CvtCO2": 0.5,
+    "CBO2": 0.000978,
+    "CvbCO2": 0.5,
     "MRV": 0,
     # other inputs from other systems
     # "dV_dt":

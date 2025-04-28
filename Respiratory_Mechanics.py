@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy.interpolate import interp1d
 
 def respiratory_mechanics(t, state, params, updates, num_removed, i):
@@ -39,6 +40,7 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
     V_interp = interp1d(times, updates["V_current"], kind="linear", fill_value="extrapolate")
     dVdt_interp = interp1d(times, updates["dV_dt_current"], kind="linear", fill_value="extrapolate")
     P_musc_interp = interp1d(times, updates["P_musc_current"], kind="linear", fill_value="extrapolate")
+    dP_musc_dt_interp = interp1d(times, updates["dP_dt_current"], kind="linear", fill_value="extrapolate")
 
     last_breath_time = t - updates["finish_breath_time"][-1]
 
@@ -48,6 +50,7 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
     V = V_interp(breath)
     dV_dt = dVdt_interp(breath)
     P_musc = P_musc_interp(breath)
+    dP_musc_dt = dP_musc_dt_interp(breath)
 
     if dV_dt < 0:
         P_CW = E_CW * V - 1
@@ -87,6 +90,7 @@ def respiratory_mechanics(t, state, params, updates, num_removed, i):
     updates["Vflow_ua"][i] = Vflow_ua
     updates["P_ua"][i] = P_ua
     updates["P_musc"][i] = P_musc
+    updates["dP_musc_dt"][i] = dP_musc_dt
     updates["dV_dt"][i] = dV_dt
     updates["V"][i] = V
     updates["P_pl"][i] = P_pl

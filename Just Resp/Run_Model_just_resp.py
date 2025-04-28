@@ -14,7 +14,7 @@ from Resp_Control_Ventilation_just_resp import resp_control_vent
 from Respiratory_Mechanics_just_resp import respiratory_mechanics
 
 
-
+t_span = (0, 150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 target_values = np.arange(0, 10000, 10)
 
 # First iteration
@@ -77,9 +77,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
                 print(last_nonzero_value1)
 
     return d_combined
-
-
-t_span = (0, 150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
@@ -150,11 +147,11 @@ if __name__ == "__main__":
     ax1.legend(loc="upper left")
     ax1.grid(True)
 
-    ax2 = ax1.twinx()
+    # ax2 = ax1.twinx()
 
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="g")
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="g")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
     plt.show()
 
 

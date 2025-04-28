@@ -174,6 +174,7 @@ Next_Conditions = {
 
     # Other inputs
     "dV_dt": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
+    "dP_musc_dt": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "P_musc": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "WI": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "WE": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
@@ -229,6 +230,7 @@ Next_Conditions = {
 
     # exp inputs/time history
     "f_sp_history": np.full(1200000, 1e6),
+    "f_ac_history": np.full(1200000, 1e6),
     "f_sh_history": np.full(1200000, 1e6),
     "f_v_history": np.full(1200000, 1e6),
     "f_sv_history": np.full(1200000, 1e6),
@@ -236,13 +238,13 @@ Next_Conditions = {
     "phi_met": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "previous_VE": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     # "Nd": [0, 20, -5, 0.4, 1.8, 2.2],
-    "Nd": [10.8, -3, 0.4, 1.8, 2.84], # [10.8, -3, 0.4, 1.8, 2.2], # [a1, a2, tau, t1, t2]
+    "Nd": [10.8, -3, 0.3, 1.8, 2.2], # [10.8, -3, 0.4, 1.8, 2.2], # [a1, a2, tau, t1, t2]
     "previous_WI": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "previous_WE": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "previous_dV_dt": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "Pa_O2_history": [],
     "Pa_CO2_history": [],
-    "Pb_CO2_history": [48.5338],
+    "Pb_CO2_history": [],
     "Pb_CO2": np.pad(np.array([48.5383]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "G_AW": np.pad(np.array([1.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "G_AW_guess": np.pad(np.array([1.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
@@ -266,5 +268,7 @@ Next_Conditions = {
     "V_current": [],
     "P_musc_current": [],
     "dV_dt_current": [],
+    "dP_dt_current": [],
+    "PvtCO2": np.full(1200000, 1e6),
 
 }

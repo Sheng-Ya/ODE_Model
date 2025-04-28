@@ -83,49 +83,54 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         G3 = 0
 
     # VA_rest = 0.03
-    AA = PmbCO2
     AAA = params["PbCO2IC"]
-    A = KpCO2 * (PamCO2 - params["PACO2_IC"]) + KcCO2 * (PmbCO2 - params["PbCO2IC"]) + G3 + KcMRV * MRV
+    A = VA_rest * (KcCO2 * (PmbCO2 - params["PbCO2IC"])) #+ KpCO2 * PamCO2
 
+    # VAflow = VA_rest * (KcCO2 * (PmbCO2 - params["PbCO2IC"])) + KpCO2 * PamCO2 + G3 + KcMRV * MRV + VA_rest - 8.29
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
-    # VAflow = VA_rest
-    # VAflow = VA_rest * (KpCO2 * (PamCO2 - params["PACO2_IC"]) + KcCO2 * (PmbCO2 - params["PbCO2IC"]) + G3 + KcMRV * MRV + 1)
+    # VAflow = VA_rest + VA_rest * (KcCO2 * (PmbCO2 - 44.87)) + G3 + KcMRV * MRV
+    # VAflow = 0.0867
+    # V0_dead = 0.13
+
     VD = GV_dead * VAflow + V0_dead
 
-    # comment out to uncouple breath optimiser
+    # Vt1 = VAflow * (t1 + t2) + VD
 
     if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
-        bounds = [(-10, 0), (0.1, 1), (0.1, 5)]  # [a2, tau, t1] bounds = [(-30, 10), (0.1, 2), (0.4, 5)]
+        bounds = [(0.1, 1), (0.5, 3), (0.5, 3)]  # [tau, t1, t2] bounds
         dt = 0.001
         updates["dt"] = dt
         opt = BreathOptimiser(params, VAflow, VD, dt)
 
         nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0.01, ub=0.01) # tau constraint: at time (t1 + t2), P_musc is 0
-        nlc_a2_t1 = NonlinearConstraint(lambda x: (-x[0] * (x[2] ** 2) - params["P_ao"] - params["E_rs"] * VAflow * x[2] - params["E_rs"] * VD)/(params["E_rs"] * VAflow), lb=0, ub=6)  # a2 must be greater than the expression given
-
-        constraints = [nlc_tau, nlc_a2_t1]
 
         # Optimize
         # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
         # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
-        result = minimize(opt.objective, updates["Nd"][-4:-1], method='SLSQP', constraints=constraints, bounds=bounds)
+        result = minimize(opt.objective, updates["Nd"][-3:], method='SLSQP', constraints=[nlc_tau], bounds=bounds)
         # result = minimize(opt.objective, np.array([-3, 0.4, 1.8]), method='SLSQP', constraints=constraints, bounds=bounds)
 
-        a1 = -2 * result.x[0] * result.x[2] # dP_dt = 0 at t1
-        t2 = (-result.x[0] * (result.x[2]) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * result.x[2] - params["E_rs"] * VD) / (params["E_rs"] * VAflow)
+        a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[1] + result.x[2]) - params["E_rs"] * VD) / (result.x[1] ** 2)
+        a1 = -2 * a2 * result.x[1] # dP_dt = 0 at t1
         updates["Nd"].append(a1)
+        updates["Nd"].append(a2)
         updates["Nd"].extend(result.x)
-        updates["Nd"].append(t2)
         updates["J"].append(result.fun)
 
         a1, a2, tau, t1, t2 = updates["Nd"][-5:]
         n_steps = int(np.round((t1 + t2) / dt)) + 1
         current_times = np.linspace(0, (t1 + t2), n_steps)
-        P_for_current_breath, _ = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-4:-1], t2)
-        V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
+        # print(VAflow, VD)
+        # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+
+        P_for_current_breath, dP_dt_for_current_breath = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-3:])
+        # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
+        V_for_current_breath, dV_dt_for_current_breath = opt.calculate_V_dV_dt(current_times, updates["Nd"][-3:])
+
         updates["P_musc_current"] = P_for_current_breath
         updates["V_current"] = V_for_current_breath
         updates["dV_dt_current"] = dV_dt_for_current_breath
+        updates["dP_dt_current"] = dP_dt_for_current_breath
         updates["finish_breath_time"].append(t)
 
         # check optimisation results
@@ -143,7 +148,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     BF = 1 / (t1 + t2)
     TI = t1
     VD_flow = BF * VD
-    VE_flow = VAflow + VD_flow
+    VE_flow = VAflow + VD_flow # in a second
     VT = VE_flow * (t1 + t2)
 
     # from cardiovascular controller
@@ -155,7 +160,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     if num_removed > 0:
         for key in [
-            "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow"
+            "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow", "resp_cycle"
         ]:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
         i = i - num_removed

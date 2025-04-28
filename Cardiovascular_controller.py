@@ -506,7 +506,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
             "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
             "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "Vu_sv_change", "prev_flat_bit", "Pa_O2", "T", "xb_O2",
-            "Cvb_O2", "xb_CO2", "f_ab_history"
+            "Cvb_O2", "xb_CO2", "f_ab_history", "f_ac_history"
         ]
         keys2 = [
             "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
@@ -599,6 +599,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["phi_met_history"][i] = phi_met
     updates["f_sv_history"][i] = f_sv
     updates["f_ab_history"][i] = f_ab
+    updates["f_ac_history"][i] = f_ac
 
     updates["R_ep"][i] = R_ep
     updates["R_amp"][i] = R_amp

@@ -152,7 +152,7 @@ Parameters = {
     "D": -5.251,      # Constant parameter for cerebral blood flow regulation, dimensionless
     "Cvb_O2_n": 0.14, # O2 concentration in venous blood leaving the brain under normal conditions
     "gb_O2": 10,      # Constant gain factor
-    "MO2_bp": 0.7917, # Oxygen consumption rate in the brain compartment
+    "MO2_bp": 0.925, # Oxygen consumption rate in the brain compartment # changed
     "R_bpn": 6.57,    # Constant parameter denoting the basal value of peripheral cerebrovascular conductance
     "tau_CO2": 20,    # Time constant of the effect of CO2 on cerebral circulation, seconds
     "tau_O2": 10,     # Time constant of the effect of O2 on cerebral circulation, seconds
@@ -354,9 +354,9 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 0.86,         # Weighting factor (Dimensionless) changed
-    "lambda2": 0.454,        # Weighting factor (Dimensionless) changed
-    "n": 1.101,              # Power index of efficiency factor (Dimensionless)
+    "lambda1": 1.397,         # Weighting factor (Dimensionless) changed
+    "lambda2": 0.568,        # Weighting factor (Dimensionless) changed
+    "n": 0.787,              # Power index of efficiency factor (Dimensionless)
     "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }
@@ -412,10 +412,10 @@ Parameters = {
 # parameters_body_tissues_compartment = {
     "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
     "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
-    "MRCO2": 0.3/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
-    "MRO2": 0.33/60,               # Minimum metabolic consumption rate for O2 (l/min STPD)
-    "MRTCO2_basal": 0.3/60,            # Basal metabolic production rate for CO2 (l/min STPD)
-    "MRTO2_basal": 0.33/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
+    "MRCO2": 0.2/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
+    "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD)
+    "MRTCO2_basal": 0.2/60,            # Basal metabolic production rate for CO2 (l/min STPD)
+    "MRTO2_basal": 0.25/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
     "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l) # changed from 15
     "VTO2": 0.25,                      # Body tissue storage volume for O2 (l) # changed from 6
