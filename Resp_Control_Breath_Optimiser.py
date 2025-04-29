@@ -22,14 +22,15 @@ def simulate_euler(times, P_musc, R_rs, P_ao, E_rs):
 
 
 class BreathOptimiser:
-    def __init__(self, params, VAflow, VD, dt):
+    def __init__(self, params, VAflow, VD, dt, tolerance):
         self.params = params
         self.VA = VAflow
         self.VD = VD
         self.dt = dt
+        self.tolerance = tolerance
 
     def calculate_V_dV_dt(self, times, initial_Nd_guess):
-        [tau, t1, t2] = initial_Nd_guess
+        [t1, t2] = initial_Nd_guess
         params = self.params
         E_rs = params["E_rs"]
         R_rs = params["R_rs"]
@@ -50,6 +51,8 @@ class BreathOptimiser:
         z = breath[mask_t1_t2]
         Pt1 = a1 * t1 + a2 * (t1 ** 2)
         Vt1 = self.VA * (t1 + t2) + self.VD
+
+        tau = t2 / (-np.log(self.tolerance / Pt1))
 
         c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
                         + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
@@ -117,29 +120,31 @@ class BreathOptimiser:
     #
     #     return V, dV_dt
 
-    def tau_constraint(self, initial_Nd_guess):
-        [tau, t1, t2] = initial_Nd_guess
-        # params = self.params
-
-        # a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
-        # a1 = -2 * a2 * t1
-
-        # Pt1 = a1 * t1 + a2 * (t1 ** 2)
-        # constraint = Pt1 * np.exp(-t2 / tau)
-        constraint = (-t2 / (np.log(0.001))) - tau
-        return constraint
+    # def tau_constraint(self, initial_Nd_guess):
+    #     [tau, t1, t2] = initial_Nd_guess
+    #     # params = self.params
+    #
+    #     # a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
+    #     # a1 = -2 * a2 * t1
+    #
+    #     # Pt1 = a1 * t1 + a2 * (t1 ** 2)
+    #     # constraint = Pt1 * np.exp(-t2 / tau)
+    #     constraint = (-t2 / (np.log(0.001))) - tau
+    #     return constraint
 
 
     def calculate_P_musc_dP_dt(self, times, initial_Nd_guess):
-        [tau, t1, t2] = initial_Nd_guess
+        [t1, t2] = initial_Nd_guess
         params = self.params
 
         a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
         a1 = -2 * a2 * t1
 
+        P_musc_t1 = a1 * t1 + a2 * (t1 ** 2)
+        tau = t2 / (-np.log(self.tolerance/P_musc_t1)) # tau should be less than that but for optimisation, higher the better
+
         P_musc = np.zeros(len(times))
         dP_musc_dt = np.zeros(len(times))
-        P_musc_t1 = a1 * t1 + a2 * (t1 ** 2)
 
         # calculate P_musc at each t
         breath = times % (t1 + t2)
@@ -163,7 +168,7 @@ class BreathOptimiser:
         """
          Function to obtain a0, a1, a2, tau, t1, t2 Edit: removed a0 and a1
         """
-        [tau, t1, t2] = initial_Nd_guess
+        [t1, t2] = initial_Nd_guess
         params = self.params
 
         # if t2 < 0:
@@ -188,7 +193,7 @@ class BreathOptimiser:
         # print((-2 * a2 * t1), a2, tau, t1, t2)
         # plt.plot(volume_signal)
         # plt.plot(check_V)
-        # plt.show()
+        # plt.show() # compare euler to analytical solution
 
         inspire_index = int(round(t1 / self.dt))
         dV2_dt2_values_squared = ((1 / params["R_rs"]) * ((dP_musc_dt - params["P_ao"]) - params["E_rs"] * dV_dt_values)) ** 2
@@ -206,7 +211,7 @@ class BreathOptimiser:
         WI = (1 / (t1 + t2)) * integral_inspire
         WE = (1 / (t1 + t2)) * integral_expire
 
-        J = WI + lambda2 * WE
+        J = np.log(WI + lambda2 * WE)
 
         return J
 

@@ -238,7 +238,7 @@ Next_Conditions = {
     "phi_met": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "previous_VE": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     # "Nd": [0, 20, -5, 0.4, 1.8, 2.2],
-    "Nd": [10.8, -3, 0.2, 1.8, 2.2], # [10.8, -3, 0.4, 1.8, 2.2], # [a1, a2, tau, t1, t2]
+    "Nd": [13.2818159, -3.7235, 0.25442073, 1.7835, 2.19834], # [10.8, -3, 0.4, 1.8, 2.2], # [a1, a2, tau, t1, t2]
     "previous_WI": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "previous_WE": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
     "previous_dV_dt": np.pad(np.array([0.0]), (0, 1200000 - 1), mode="constant", constant_values=1e6),
