@@ -120,33 +120,29 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         tolerance = 0.001
         updates["dt"] = dt
         opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
+        #
+        # # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
+        # # nlc_tau = {
+        # #     'type': 'ineq',
+        # #     'fun': opt.tau_constraint
+        # # }
+        # # Optimize
+        # # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+        # # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
+        # result = minimize(opt.objective, updates["Nd"][-2:], method='COBYQA', bounds=bounds)
+        #
+        # a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
+        # a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
+        # Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
+        # tau = t2 / (-np.log(tolerance/Pt1))
 
-        if t > 130:
-            A = 2
+        # updates["Nd"].append(a1)
+        # updates["Nd"].append(a2)
+        # updates["Nd"].append(tau)
+        # updates["Nd"].extend(result.x)
+        # updates["J"].append(result.fun)
 
-        # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
-        # nlc_tau = {
-        #     'type': 'ineq',
-        #     'fun': opt.tau_constraint
-        # }
-        # Optimize
-        # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
-        # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
-        result = minimize(opt.objective, updates["Nd"][-2:], method='SLSQP', bounds=bounds)
-        # result = minimize(opt.objective, np.array([-3, 0.4, 1.8]), method='SLSQP', constraints=constraints, bounds=bounds)
-
-        a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
-        a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
-        Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
-        tau = t2 / (-np.log(tolerance/Pt1))
-
-        updates["Nd"].append(a1)
-        updates["Nd"].append(a2)
-        updates["Nd"].append(tau)
-        updates["Nd"].extend(result.x)
-        updates["J"].append(result.fun)
-
-        a1, a2, tau, t1, t2 = updates["Nd"][-5:]
+        t1, t2 = updates["Nd"][-2:]
         n_steps = int(np.round((t1 + t2) / dt)) + 1
         current_times = np.linspace(0, (t1 + t2), n_steps)
         # print(VAflow, VD)

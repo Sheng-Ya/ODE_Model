@@ -412,10 +412,10 @@ Parameters = {
 # parameters_body_tissues_compartment = {
     "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
     "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
-    "MRCO2": 0.2/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
-    "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD)
-    "MRTCO2_basal": 0.2/60,            # Basal metabolic production rate for CO2 (l/min STPD)
-    "MRTO2_basal": 0.25/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
+    "MRCO2": 0.2/60 - 0.0009,               # Minimum metabolic production rate for CO2 (l/min STPD)
+    "MRO2": 0.25/60 - 0.000925,               # Minimum metabolic consumption rate for O2 (l/min STPD)
+    "MRTCO2_basal": 0.2/60 - 0.0009,            # Basal metabolic production rate for CO2 (l/min STPD)
+    "MRTO2_basal": 0.25/60 - 0.000925,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
     "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l) # changed from 15
     "VTO2": 0.25,                      # Body tissue storage volume for O2 (l) # changed from 6

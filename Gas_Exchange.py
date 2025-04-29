@@ -42,7 +42,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     VL_CO2 = params["VL_CO2"]
     VL_O2 = params["VL_O2"]
     Z = params["Z"]
-    s = 0.027
+    s = 0.04 # no shunt
 
     if t == 0:
         heart_index = i
@@ -225,8 +225,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     cO2_diff = QT * (CaO2 - CvtO2)
     cCO2_diff = QT * (CaCO2 - CvtCO2)
 
-    V_O2 = V + VL_O2
-    V_CO2 = V + VL_CO2
+    V_O2 = VL_O2 # removed + V as this helps decrease VAflow (decreased time constant for ventilation)
+    V_CO2 = VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
         dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) * (1 - s) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2 # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
