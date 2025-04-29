@@ -155,11 +155,14 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         P_for_current_breath, dP_dt_for_current_breath = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:])
         # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
         V_for_current_breath, dV_dt_for_current_breath = opt.calculate_V_dV_dt(current_times, updates["Nd"][-2:])
+        # VA_for_current_breath, dVA_dt_for_current_breath = opt.calculate_VA_dVA_dt(current_times, updates["Nd"][-2:])
 
         updates["P_musc_current"] = P_for_current_breath
         updates["V_current"] = V_for_current_breath
         updates["dV_dt_current"] = dV_dt_for_current_breath
         updates["dP_dt_current"] = dP_dt_for_current_breath
+        # updates["VA_current"] = VA_for_current_breath
+        # updates["dVA_dt_current"] = dVA_dt_for_current_breath
         updates["finish_breath_time"].append(t)
 
         # check optimisation results
@@ -169,8 +172,10 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         # check whether dV_dt = 0 at t1
         # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
         # print(VAflow * (t1 + t2) + VD)
-        # plt.plot(current_times, V_for_current_breath, marker='o', label="V")
-        # plt.plot(current_times, dV_dt_for_current_breath, marker='o', label="dV_dt")
+        # plt.plot(current_times, V_for_current_breath, label="V")
+        # plt.plot(current_times, dV_dt_for_current_breath, label="dV_dt")
+        # plt.plot(current_times, VA_for_current_breath, label="VA")
+
         # plt.legend()
         # plt.show()
 

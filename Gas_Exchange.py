@@ -42,6 +42,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     VL_CO2 = params["VL_CO2"]
     VL_O2 = params["VL_O2"]
     Z = params["Z"]
+    s = 0.027
 
     if t == 0:
         heart_index = i
@@ -125,7 +126,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     d2Pa_CO2_dt2 = (PA_CO2_old - (T1 + T2) * dx2_dt - x2) / (T1 * T2)
 
     FCO2 = (PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2))
-    CaCO2 = (C2 * Z) * (FCO2 ** (1 / a2)) / (1 + (FCO2 ** (1 / a2)))
+    CeCO2 = (C2 * Z) * (FCO2 ** (1 / a2)) / (1 + (FCO2 ** (1 / a2)))
 
     alpha_O2 = 0.0000317
     alpha_CO2 = 0.000667
@@ -134,7 +135,8 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     # CaO2_1 = (C1 * Z) * (FO2 ** (1 / a1)) / (1 + (FO2 ** (1 / a1)))
     PAO2_virt = PA_O2 * (40/PA_CO2) ** 0.3
     SaO2 = (PAO2_virt**2.6)/(PAO2_virt**2.6 + 26.6**2.6)
-    CaO2 = (0.00134 * 150 * SaO2)  + 3.03e-5 * PA_O2
+    CeO2 = (0.00134 * 150 * SaO2)  + 3.03e-5 * PA_O2
+    # CaO2 = CaO2 * 0.8
 
     # BB = 46.2  + 0.31 * 0.6206 * 150 * (1 - SaO2)# mmol/L
     # Pr_tot = 38.9 # mmol/L
@@ -198,6 +200,13 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     QT = Q_pp - Q_bp
 
+    # overall CvO2 and CvCO2
+    CvO2 = (Q_bp / Q_pp) * CvbO2 + (QT / Q_pp) * CvtO2
+    CvCO2 = (Q_bp / Q_pp) * CvbCO2 + (QT / Q_pp) * CvtCO2
+
+    CaO2 = (1 - s) * CeO2 + s * CvO2
+    CaCO2 = (1 - s) * CeCO2 + s * CvCO2
+
     dCBO2_dt = (-MRBO2 + Q_bp * (CaO2 - CvbO2)) / VB  # brain volume for conc is 0.9
     dCvbCO2_dt = (MRBCO2 + Q_bp * (CaCO2 - CvbCO2)) / VB  # brain volume for conc is 0.9
 
@@ -208,10 +217,6 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     # Pb_CO2 = 43
     # dPvbCO2_dt = (MRBCO2 + Q_bp * SCO2 * (Pa_CO2 - PvbCO2) - h) / SbCO2
     dPCSFCO2_dt = (PvbCO2 - PCSFCO2) / KCSFCO2
-
-    # overall CvO2 and CvCO2
-    CvO2 = (Q_bp / Q_pp) * CvbO2 + (QT / Q_pp) * CvtO2
-    CvCO2 = (Q_bp / Q_pp) * CvbCO2 + (QT / Q_pp) * CvtCO2
 
     tau_MRV = params["tau_MRV"]
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
@@ -224,12 +229,12 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     V_CO2 = V + VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion from stpd to btps for Q_pp
-        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
+        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) * (1 - s) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2 # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
+        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
-        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2)) / V_O2
-        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
+        dPA_O2_dt = (863 * Q_pp * (CvO2 - CaO2) * (1 - s)) / V_O2
+        dPA_CO2_dt = (863 * Q_pp * (CvCO2 - CaCO2) * (1 - s)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
 
     # Metabolism Dynamic

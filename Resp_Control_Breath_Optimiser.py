@@ -29,6 +29,93 @@ class BreathOptimiser:
         self.dt = dt
         self.tolerance = tolerance
 
+    # def calculate_VA_dVA_dt(self, times, initial_Nd_guess):
+    #     [t1, t2] = initial_Nd_guess
+    #     params = self.params
+    #     E_rs = params["E_rs"]
+    #     R_rs = params["R_rs"]
+    #     a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2) - E_rs * self.VD) / (t1 ** 2)
+    #     a1 = -2 * a2 * t1
+    #
+    #     VAflow = np.zeros(len(times))
+    #     dVA_dt = np.zeros(len(times))
+    #
+    #     # calculate P_musc at each t
+    #     breath = times % (t1 + t2)
+    #     mask_0_t1 = (0 <= breath) & (breath <= t1)
+    #     mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
+    #     mask_0_t1[-1] = False
+    #     mask_t1_t2[-1] = False
+    #
+    #     x = breath[mask_0_t1]
+    #     z = breath[mask_t1_t2]
+    #     Pt1 = a1 * t1 + a2 * (t1 ** 2)
+    #     VAt1 = self.VA * (t1 + t2)
+    #
+    #     tau = t2 / (-np.log(self.tolerance / Pt1))
+    #
+    #     c1 = (VAt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
+    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
+    #     d1 = (a1 * R_rs / (E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)) - c1 + self.VD
+    #     d2 = self.VD
+    #     c2 = (VAt1 - (Pt1 / R_rs) * (1/(E_rs/R_rs - 1/tau))) / np.exp(-(E_rs/R_rs)*t1)
+    #     B = E_rs / R_rs
+    #
+    #     # Calculate V for breath in the range 0 to t1
+    #     VAflow[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (x**2) - (2 * a2 * R_rs / (E_rs ** 2)) * x
+    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + c1 * np.exp((-E_rs/R_rs) * x) - self.VD + d1)
+    #
+    #     dVA_dt[mask_0_t1] = (1/R_rs) * (a1 * x  + a2 * (x**2) - E_rs * VAflow[mask_0_t1])
+    #
+    #     # Calculate V for breath in the range t1 to t1 + t2
+    #     VAflow[mask_t1_t2] = np.exp(-B*z) * (Pt1 / R_rs) * (1/(B - 1/tau)) * np.exp(((B - 1/tau) * z) + t1/tau) + np.exp(-B*z) * c2 - self.VD + d2
+    #     dVA_dt[mask_t1_t2] = (1/R_rs) * (Pt1 * np.exp(-(z-t1)/tau) - E_rs * VAflow[mask_t1_t2])
+    #
+    #     return VAflow, dVA_dt
+
+    # def calculate_VA_dVA_dt(self, times, initial_Nd_guess):
+    #     [t1, t2] = initial_Nd_guess
+    #     params = self.params
+    #     E_rs = params["E_rs"]
+    #     R_rs = params["R_rs"]
+    #     a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2)) / (t1 ** 2) # changed so a2 is VA(t1 + t2) at t1 for VA
+    #     a1 = -2 * a2 * t1
+    #
+    #     VAflow = np.zeros(len(times))
+    #     dVA_dt = np.zeros(len(times))
+    #
+    #     # calculate P_musc at each t
+    #     breath = times % (t1 + t2)
+    #     mask_0_t1 = (0 <= breath) & (breath <= t1)
+    #     mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
+    #     mask_0_t1[-1] = False
+    #     mask_t1_t2[-1] = False
+    #
+    #     x = breath[mask_0_t1]
+    #     z = breath[mask_t1_t2]
+    #     Pt1 = a1 * t1 + a2 * (t1 ** 2)
+    #     Vt1 = self.VA * (t1 + t2)
+    #
+    #     tau = t2 / (-np.log(self.tolerance / Pt1))
+    #
+    #     c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
+    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
+    #     d1 = (a1 * R_rs / (E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)) - c1
+    #     c2 = (Vt1 - (Pt1 / R_rs) * (1/(E_rs/R_rs - 1/tau))) / np.exp(-(E_rs/R_rs)*t1)
+    #     B = E_rs / R_rs
+    #
+    #     # Calculate V for breath in the range 0 to t1
+    #     VAflow[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (x**2) - (2 * a2 * R_rs / (E_rs ** 2)) * x
+    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + c1 * np.exp((-E_rs/R_rs) * x) + d1)
+    #
+    #     dVA_dt[mask_0_t1] = (1/R_rs) * (a1 * x  + a2 * (x**2) - E_rs * VAflow[mask_0_t1])
+    #
+    #     # Calculate V for breath in the range t1 to t1 + t2
+    #     VAflow[mask_t1_t2] = np.exp(-B*z) * (Pt1 / R_rs) * (1/(B - 1/tau)) * np.exp(((B - 1/tau) * z) + t1/tau) + np.exp(-B*z) * c2
+    #     dVA_dt[mask_t1_t2] = (1/R_rs) * (Pt1 * np.exp(-(z-t1)/tau) - E_rs * VAflow[mask_t1_t2])
+    #
+    #     return VAflow, dVA_dt
+
     def calculate_V_dV_dt(self, times, initial_Nd_guess):
         [t1, t2] = initial_Nd_guess
         params = self.params

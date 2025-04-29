@@ -89,7 +89,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     return d_combined
 
 
-t_span = (0, 200) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 350) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
@@ -212,6 +212,7 @@ if __name__ == "__main__":
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
 
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VE_flow"][:index], label="VE_flow", color="b")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
@@ -219,22 +220,22 @@ if __name__ == "__main__":
     ax1.grid(True)
     plt.show()
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt", color="c")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-
-    ax2 = ax1.twinx()
-
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2", color="g")
-    # ax2.set_ylabel("Flow (mL/s)", color="k")
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    #
+    # ax2 = ax1.twinx()
+    #
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2", color="g")
+    # # ax2.set_ylabel("Flow (mL/s)", color="k")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    # plt.show()
 
     # # get max's plot with Pmax_la instead of P_la
     # plt.plot(local_updates["time_history"][:index], local_updates["P_lv"][:index], label="LV")
@@ -312,23 +313,23 @@ if __name__ == "__main__":
 
 
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["cCO2_diff"][:index], label="cCO2_diff")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["cO2_diff"][:index], label="cO2_diff")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa")
-
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_CO2"][:index], label="Pd_5_CO2")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt")
-    ax1.axhline(y=0.25/60, color="r", label="MRO2")
-    ax1.axhline(y=-0.2/60, color="k", label="MRCO2")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["cCO2_diff"][:index], label="cCO2_diff")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["cO2_diff"][:index], label="cO2_diff")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa")
+    #
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_CO2"][:index], label="Pd_5_CO2")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt")
+    # ax1.axhline(y=0.25/60, color="r", label="MRO2")
+    # ax1.axhline(y=-0.2/60, color="k", label="MRCO2")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
 
     variables_to_plot = [
         # "f_sp_history", "f_sh_history", "f_v_history",
@@ -338,7 +339,7 @@ if __name__ == "__main__":
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
         # "Pd_5_O2"
-        "f_ac_history", "Q_pp", "PvtCO2", "V", "VAflow", "dV_dt"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "V", "dV_dt"# , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
         # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
         # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
         # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
