@@ -128,7 +128,10 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     CaCO2 = (C2 * Z) * (FCO2 ** (1 / a2)) / (1 + (FCO2 ** (1 / a2)))
 
     FO2 = (PA_O2 * (1 + beta1 * PA_CO2)) / (K1 * (1 + alpha1 * PA_CO2))
-    CaO2 = (C1 * Z) * (FO2 ** (1 / a1)) / (1 + (FO2 ** (1 / a1)))
+    CaO2_1 = (C1 * Z) * (FO2 ** (1 / a1)) / (1 + (FO2 ** (1 / a1)))
+    PAO2_virt = PA_O2 * (40/PA_CO2) ** 0.3
+    SaO2 = (PAO2_virt**2.6)/(PAO2_virt**2.6 + 26.6**2.6)
+    CaO2 = (0.00134 * 150 * SaO2)  + 3.03e-5 * PA_O2
 
     # Gas transport
     # Brain
@@ -167,15 +170,24 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
                 1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
 
     FbO2 = (PvbO2 * (1 + beta1 * PvbCO2)) / (K1 * (1 + alpha1 * PvbCO2))  # bohr curve
-    CvbO2 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
+    CvbO2_1 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
+
+    PvbO2_virt = PvbO2 * (40/PvbCO2) ** 0.3
+    SvbO2 = (PvbO2_virt ** 2.6) / (PvbO2_virt ** 2.6 + 26.6 ** 2.6)
+    CvbO2 = 0.00134 * 150 * SvbO2 + 3.03e-5 * PvbO2
 
     # tissue
     PvtO2 = CTO2 / alpha_O2  # henry
     PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2) * (K2 * (1 + alpha2 * PvtO2)) / (
                 1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
 
+    # serna and carlos
     FtO2 = (PvtO2 * (1 + beta1 * PvtCO2)) / (K1 * (1 + alpha1 * PvtCO2))  # bohr curve
-    CvtO2 = (C1 * Z) * (FtO2 ** (1 / a1)) / (1 + (FtO2 ** (1 / a1)))  # bohr curve
+    CvtO2_1 = (C1 * Z) * (FtO2 ** (1 / a1)) / (1 + (FtO2 ** (1 / a1)))  # bohr curve
+    # ursino model 1997
+    PvtO2_virt = PvtO2 * (40/PvtCO2) ** 0.3
+    SvtO2 = (PvtO2_virt ** 2.6) / (PvtO2_virt ** 2.6 + 26.6 ** 2.6)
+    CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
 
     QT = Q_pp - Q_bp
 
@@ -205,12 +217,12 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     V_CO2 = V + VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (826 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion from btps to stpd
-        dPA_CO2_dt = (826 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
+        dPA_O2_dt = (0.863 * 713 * Q_pp * (CvO2 - CaO2) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion from stpd to btps for Q_pp
+        dPA_CO2_dt = (0.863 * 713 * Q_pp * (CvCO2 - CaCO2) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
-        dPA_O2_dt = (826 * Q_pp * (CvO2 - CaO2)) / V_O2
-        dPA_CO2_dt = (826 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
+        dPA_O2_dt = (0.863 * 713 * Q_pp * (CvO2 - CaO2)) / V_O2
+        dPA_CO2_dt = (0.863 * 713 * Q_pp * (CvCO2 - CaCO2)) / V_CO2
         # dPA_O2_dt = -dPA_CO2_dt
 
     # Metabolism Dynamic
