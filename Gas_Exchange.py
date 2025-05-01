@@ -1,8 +1,9 @@
 import bisect
 import numpy as np
+from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 
-def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_inputs, heart_system_inputs, updates, num_removed, i):
+def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_inputs, heart_system_inputs, updates, num_removed, i, t_start):
     """
         # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, time_history, V, dV_dt
 
@@ -44,7 +45,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     Z = params["Z"]
     s = 0.04 # no shunt
 
-    if t == 0:
+    if t == t_start:
         heart_index = i
         resp_mech_index = i
         resp_control_index = i
@@ -105,7 +106,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
 
     t_minus_Ta = t - Ta
 
-    if t_minus_Ta >= 0 and t > abs(Ta):
+    if t_minus_Ta >= t_start and t > abs(Ta):
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, t_minus_Ta) - 1
         PA_O2_old = updates["PA_O2"][delay_index]
@@ -115,8 +116,21 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
             PA_O2_old = PAO2_Delay_IC
             PA_CO2_old = PACO2_Delay_IC
         else:
-            PA_O2_old = updates["PA_O2_old"][i - 1]
-            PA_CO2_old = updates["PA_CO2_old"][i - 1]
+            if t_start != 0 and t > abs(Ta):
+                if t == t_start:
+                    PA_O2_old = previous_Selected_Conditions["PA_O2"][-1]
+                    PA_CO2_old = previous_Selected_Conditions["PA_CO2"][-1]
+                else:
+                    delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], t_minus_Ta) - 1
+                    PA_O2_old = previous_Selected_Conditions["PA_O2"][delay_index]
+                    PA_CO2_old = previous_Selected_Conditions["PA_CO2"][delay_index]
+            else:
+                if t == t_start:
+                    PA_O2_old = previous_Selected_Conditions["PA_O2"][-1]
+                    PA_CO2_old = previous_Selected_Conditions["PA_CO2"][-1]
+                else:
+                    PA_O2_old = updates["PA_O2_old"][i - 1]
+                    PA_CO2_old = updates["PA_CO2_old"][i - 1]
 
     x1 = Pa_O2
     x2 = Pa_CO2
@@ -161,13 +175,27 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     # Body Tissues Compartment
     Cv_CO2_IC = params["Cv_CO2_IC"]
     Cv_O2_IC = params["Cv_O2_IC"]
-    MRCO2 = params["MRCO2"]
-    MRO2 = params["MRO2"]
     MRTCO2_basal = params["MRTCO2_basal"]
     MRTO2_basal = params["MRTO2_basal"]
     tauMR = params["tauMR"]
     VTCO2 = params["VTCO2"]
     VTO2 = params["VTO2"]
+
+    # exercise
+    MRCO2 = params["MRCO2"]
+    MRO2 = params["MRO2"]
+
+    # if 250 < t:
+    #     MRCO2 = 0.8/60 - 0.0009
+    #     MRO2 = 0.85 / 60 - 0.000925
+
+    # if 400 < t < 550:
+    #     MRCO2 = 0.6/60 - 0.0009
+    #     MRO2 = 0.65 / 60 - 0.000925
+    #
+    # if 550 < t < 700:
+    #     MRCO2 = 0.6/60 - 0.0009
+    #     MRO2 = 0.65 / 60 - 0.000925
 
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure
@@ -252,7 +280,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
         keys = [
             "Pb_CO2", "Pa_O2", "Pa_CO2", "MRV", "MRTCO2",
             "Ca_O2", "PA_O2", "PA_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
-            "cCO2_diff", "cO2_diff", "dCvCO2_dt", "dCvO2_dt", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
+            "cCO2_diff", "cO2_diff", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
             "t_minus_Ta", "PA_O2_old", "PA_CO2_old", "PvtCO2"
         ]
         keys2 = [

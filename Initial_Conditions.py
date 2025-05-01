@@ -164,8 +164,8 @@ Initial_Conditions = {
     "PA_CO2": 40.9432,
     "PvbCO2": 43.7, # # can't be 0 here. set 0 here, but it is another value initially from Gas_Exchange.py
     "PCSFCO2": 43.7,
-    "MRTO2": 0.33/60,
-    "MRTCO2": 0.3/60,
+    "MRTO2": 0.25/60 - 0.000925,
+    "MRTCO2": 0.2/60 - 0.0009,
     "Cv_O2": 0.1639,
     "Cv_CO2": 0.5247,
     "CTO2": 0.0013,

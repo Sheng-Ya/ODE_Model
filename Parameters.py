@@ -111,7 +111,7 @@ Parameters = {
     "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
     "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
     "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
-    "VT_n": 0.73, # had it as 0.4, changed back to its original parameter          # Basal value of tidal volume
+    "VT_n": 0.45,           # Basal value of tidal volume changed
 # }
 
     # Table 8. Afferent Baroreflex Pathway

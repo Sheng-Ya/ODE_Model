@@ -7,18 +7,18 @@ from numba import njit
 
 
 # @njit
-# def simulate_euler(times, P_musc, R_rs, P_ao, E_rs):
-#     V = np.zeros(len(times))
-#     dV_dt = np.zeros(len(times))
-#     dt = np.diff(times)
-#
-#     for i in range(1, len(times)):
-#         dV_dt[i-1] = (1 / R_rs) * ((P_musc[i-1] - P_ao) - E_rs * V[i - 1])
-#         V[i] = V[i - 1] + dV_dt[i-1] * dt[i - 1]
-#
-#     dV_dt[-1] = (1 / R_rs) * ((P_musc[-1] - P_ao) - E_rs * V[-1])
-#
-#     return V, dV_dt
+def simulate_euler(times, P_musc, R_rs, P_ao, E_rs):
+    V = np.zeros(len(times))
+    dV_dt = np.zeros(len(times))
+    dt = np.diff(times)
+
+    for i in range(1, len(times)):
+        dV_dt[i-1] = (1 / R_rs) * ((P_musc[i-1] - P_ao) - E_rs * V[i - 1])
+        V[i] = V[i - 1] + dV_dt[i-1] * dt[i - 1]
+
+    dV_dt[-1] = (1 / R_rs) * ((P_musc[-1] - P_ao) - E_rs * V[-1])
+
+    return V, dV_dt
 
 
 class BreathOptimiser:

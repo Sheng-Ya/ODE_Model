@@ -13,8 +13,8 @@ from Resp_Control_Breath_Optimiser import BreathOptimiser
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
-from Initial_Conditions import Initial_Conditions
-from Next_Conditions import Next_Conditions
+from Initial_Conditions_new import Initial_Conditions
+from Next_Conditions_new import Next_Conditions
 from Parameters import Parameters
 from Resp_Control_Ventilation import resp_control_vent
 from Respiratory_Mechanics import respiratory_mechanics
@@ -22,7 +22,7 @@ from Respiratory_Mechanics import respiratory_mechanics
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 350) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (10, 50)
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -94,8 +94,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     return d_combined
 
-# t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
-
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
                      "Pd_5_O2", "Pd_5_CO2", "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2",
@@ -133,9 +131,8 @@ num_resp_mech = len(required_resp_mech_keys)
 
 # IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr, IC_resp_mech))
-# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech))
 
-t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
+t_eval = np.linspace(t_span[0], t_span[1], (t_span[1] - t_span[0]) * 1000)
 def simulate():
     # Solve ODE
     ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
@@ -172,92 +169,61 @@ if __name__ == "__main__":
             required_resp_mech_keys
     )
 
+
+    # Create a new dictionary for the delays
+    selected_conditions = {key: Next_Conditions[key] for key in ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
+
+    # Save to a new Python file
+    with open('Selected_Conditions_after_running_again.py', 'w') as f:
+        f.write('Selected_Conditions = ')
+        f.write(repr(selected_conditions))
+
+
+    # new initial state variables
+    final_values = state_variables[:, -1]  # last time point
+
+    # Open the new file for writing
+    with open("Initial_Conditions_after_running_again.py", "w") as f:
+        f.write("Initial_Conditions = {\n")
+
+        for name, value in zip(state_variable_names, final_values):
+            f.write(f'    "{name}": {value:.6g},\n')  # adjust format as needed
+
+        f.write("}\n")
+
+
+
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
-    start_index = index - 10000
 
-    # # Create a new dictionary for the delays
-    # selected_conditions = {key: Next_Conditions[key] for key in ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
-    #
-    # # Save to a new Python file
-    # with open('Selected_Conditions.py', 'w') as f:
-    #     f.write('import numpy as np\n\n')
-    #     f.write('Selected_Conditions = {\n')
-    #     for key, value in selected_conditions.items():
-    #         f.write(f"    '{key}': np.array({value[start_index:index].tolist()}),\n")
-    #     f.write('}\n')
-    #
-    #
-    # # new initial state variables
-    # final_values = state_variables[:, -1]  # last time point
-    #
-    # # Open the new file for writing
-    # with open("Initial_Conditions_new.py", "w") as f:
-    #     f.write("Initial_Conditions = {\n")
-    #
-    #     for name, value in zip(state_variable_names, final_values):
-    #         f.write(f'    "{name}": {value},\n')  # adjust format as needed
-    #
-    #     f.write("}\n")
-    #
-    # # Output file path
-    # output_file = "Next_Conditions_new.py"
-    #
-    # with open(output_file, "w") as f:
-    #     f.write("import numpy as np\n\n")
-    #     f.write("Next_Conditions = {\n")
-    #
-    #     # Ensure 'i' and all other non populated arrays are set correctly
-    #     # f.write(f'    "i": np.array([{index}]),\n\n')
-    #     f.write(f'    "i": np.array([{0}]),\n')
-    #     f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
-    #     f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
-    #
-    #     for key, array in Next_Conditions.items():
-    #         if key in ["i", "time_since_beat", "Nd"]:
-    #             continue  # Already handled
-    #         if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
-    #             last_value = array[index]
-    #             f.write(
-    #                 f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
-    #         else:
-    #             if isinstance(array, (list, np.ndarray)):
-    #                 values = list(array)
-    #             else:
-    #                 values = [array]
-    #
-    #             f.write(f'    "{key}": {values},\n')
-    #
-    #     f.write("}\n")
+    # Output file path
+    output_file = "Next_Conditions_after_running_again.py"
 
+    with open(output_file, "w") as f:
+        f.write("import numpy as np\n\n")
+        f.write("Next_Conditions = {\n")
 
+        # Ensure 'i' and all other non populated arrays are set correctly
+        # f.write(f'    "i": np.array([{index}]),\n\n')
+        f.write(f'    "i": np.array([{0}]),\n')
+        f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
+        f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
 
+        for key, array in Next_Conditions.items():
+            if key in ["i", "time_since_beat", "Nd"]:
+                continue  # Already handled
+            if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
+                last_value = array[index]
+                f.write(
+                    f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
+            else:
+                if isinstance(array, (list, np.ndarray)):
+                    values = list(array)
+                else:
+                    values = [array]
 
+                f.write(f'    "{key}": {values},\n')
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        f.write("}\n")
 
 
     # # state variables excel

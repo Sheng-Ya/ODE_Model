@@ -6,7 +6,7 @@ from Gas_Exchange import gas_exchange
 from Resp_Control_Breath_Optimiser import BreathOptimiser, simulate_euler
 
 
-def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i):
+def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i, t_start):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -27,8 +27,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     V0_dead = params["V0_dead"]
     VA_rest = params["VA_rest"]
 
-    if t == 0:
-        updates["time_breath_history"].append(0)
+    if t == t_start:
         gas_exchange_index = i
     elif num_removed > 0:
         gas_exchange_index = i - num_removed - 1
@@ -45,6 +44,9 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     A = updates["finish_breath_time"][-1]
     last_breath_time = max(0, t - updates["finish_breath_time"][-1])
     AA = updates["resp_cycle"][i-1]
+
+    if t>10:
+        A = 2
 
     resp_cycle = last_breath_time % (t1 + t2)
     if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
@@ -64,18 +66,19 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PamCO2 = updates["PamCO2"][-1]
         PmbCO2 = updates["PmbCO2"][-1]
 
-        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1: # restarts
-            PamO2 = np.mean(Pa_O2_history)
-            PamCO2 = np.mean(Pa_CO2_history)
-            PmbCO2 = np.mean(Pb_CO2_history)
+        if t != t_start:
+            if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1: # restarts
+                PamO2 = np.mean(Pa_O2_history)
+                PamCO2 = np.mean(Pa_CO2_history)
+                PmbCO2 = np.mean(Pb_CO2_history)
 
-            updates["PamO2"].append(PamO2)
-            updates["PamCO2"].append(PamCO2)
-            updates["PmbCO2"].append(PmbCO2)
+                updates["PamO2"].append(PamO2)
+                updates["PamCO2"].append(PamCO2)
+                updates["PmbCO2"].append(PmbCO2)
 
-            updates["Pa_O2_history"].clear()
-            updates["Pa_CO2_history"].clear()
-            updates["Pb_CO2_history"].clear()
+                updates["Pa_O2_history"].clear()
+                updates["Pa_CO2_history"].clear()
+                updates["Pb_CO2_history"].clear()
 
 
     if PamO2 < 104:
@@ -113,67 +116,69 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     VD = GV_dead * VAflow + V0_dead
 
     # Vt1 = VAflow * (t1 + t2) + VD
+    A = updates["resp_cycle"][i-1]
+    dt = 0.001
+    updates["dt"] = dt
 
-    if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
-        bounds = [(0.5, 3), (0.5, 3)]  # [t1, t2] bounds
-        dt = 0.001
-        tolerance = 0.001
-        updates["dt"] = dt
-        opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
-        #
-        # # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
-        # # nlc_tau = {
-        # #     'type': 'ineq',
-        # #     'fun': opt.tau_constraint
-        # # }
-        # # Optimize
-        # # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
-        # # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
-        # result = minimize(opt.objective, updates["Nd"][-2:], method='COBYQA', bounds=bounds)
-        #
-        # a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
-        # a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
-        # Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
-        # tau = t2 / (-np.log(tolerance/Pt1))
+    if t != t_start or t == 0:
+        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
+            bounds = [(1, 1.5), (1.5, 2.5)]  # [t1, t2] bounds
+            tolerance = 0.001
+            opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
 
-        # updates["Nd"].append(a1)
-        # updates["Nd"].append(a2)
-        # updates["Nd"].append(tau)
-        # updates["Nd"].extend(result.x)
-        # updates["J"].append(result.fun)
+            # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
+            # nlc_tau = {
+            #     'type': 'ineq',
+            #     'fun': opt.tau_constraint
+            # }
+            # Optimize
+            # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+            # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
+            result = minimize(opt.objective, updates["Nd"][-2:], method='SLSQP', bounds=bounds)
 
-        t1, t2 = updates["Nd"][-2:]
-        n_steps = int(np.round((t1 + t2) / dt)) + 1
-        current_times = np.linspace(0, (t1 + t2), n_steps)
-        # print(VAflow, VD)
-        # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+            a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
+            a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
+            Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
+            tau = t2 / (-np.log(tolerance/Pt1))
 
-        P_for_current_breath, dP_dt_for_current_breath = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:])
-        # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
-        V_for_current_breath, dV_dt_for_current_breath = opt.calculate_V_dV_dt(current_times, updates["Nd"][-2:])
-        # VA_for_current_breath, dVA_dt_for_current_breath = opt.calculate_VA_dVA_dt(current_times, updates["Nd"][-2:])
+            updates["Nd"].append(a1)
+            updates["Nd"].append(a2)
+            updates["Nd"].append(tau)
+            updates["Nd"].extend(result.x)
+            updates["J"].append(result.fun)
 
-        updates["P_musc_current"] = P_for_current_breath
-        updates["V_current"] = V_for_current_breath
-        updates["dV_dt_current"] = dV_dt_for_current_breath
-        updates["dP_dt_current"] = dP_dt_for_current_breath
-        # updates["VA_current"] = VA_for_current_breath
-        # updates["dVA_dt_current"] = dVA_dt_for_current_breath
-        updates["finish_breath_time"].append(t)
+            t1, t2 = updates["Nd"][-2:]
+            n_steps = int(np.round((t1 + t2) / dt)) + 1
+            current_times = np.linspace(0, (t1 + t2), n_steps)
+            # print(VAflow, VD)
+            # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
 
-        # check optimisation results
-        print(f"guess: {updates["Nd"][-5:]}")
-        # check whether pressure at time t1+t2 is 0
-        # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
-        # check whether dV_dt = 0 at t1
-        # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
-        # print(VAflow * (t1 + t2) + VD)
-        # plt.plot(current_times, V_for_current_breath, label="V")
-        # plt.plot(current_times, dV_dt_for_current_breath, label="dV_dt")
-        # plt.plot(current_times, VA_for_current_breath, label="VA")
+            P_for_current_breath, dP_dt_for_current_breath = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:])
+            # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
+            V_for_current_breath, dV_dt_for_current_breath = opt.calculate_V_dV_dt(current_times, updates["Nd"][-2:])
+            # VA_for_current_breath, dVA_dt_for_current_breath = opt.calculate_VA_dVA_dt(current_times, updates["Nd"][-2:])
 
-        # plt.legend()
-        # plt.show()
+            updates["P_musc_current"] = P_for_current_breath
+            updates["V_current"] = V_for_current_breath
+            updates["dV_dt_current"] = dV_dt_for_current_breath
+            updates["dP_dt_current"] = dP_dt_for_current_breath
+            # updates["VA_current"] = VA_for_current_breath
+            # updates["dVA_dt_current"] = dVA_dt_for_current_breath
+            updates["finish_breath_time"].append(t)
+
+            # check optimisation results
+            print(f"guess: {updates["Nd"][-5:]}")
+            # check whether pressure at time t1+t2 is 0
+            # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
+            # check whether dV_dt = 0 at t1
+            # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+            # print(VAflow * (t1 + t2) + VD)
+            # plt.plot(current_times, V_for_current_breath, label="V")
+            # plt.plot(current_times, dV_dt_for_current_breath, label="dV_dt")
+            # plt.plot(current_times, VA_for_current_breath, label="VA")
+
+            # plt.legend()
+            # plt.show()
 
     BF = 1 / (t1 + t2)
     TI = t1

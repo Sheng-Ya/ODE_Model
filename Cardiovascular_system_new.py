@@ -10,7 +10,7 @@ from Activation_Functions import activation_U, activation_H, activation_Naghavi,
 def frac(x):
     return x - math.floor(x)
 
-def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, i):
+def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, i, t_start):
     """
     Pulmonary circulation state variables: VT_pa, VT_pp, VT_pv, Q_pa
     Cardiovascular system state variables: VT_la, VT_lv, VT_ra, VT_rv
@@ -28,8 +28,9 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
      VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc) = state
 
     # Determine the correct index based on t
-    if t == 0:
+    if t == t_start:
         heart_control_index = i
+        time_since_beat = updates["time_since_beat"][i]
         # heart_control_index = 0
         # resp_control_index = 0
         resp_control_index = i
@@ -38,24 +39,25 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         # heart_control_index = 0
         # resp_control_index = 0
         resp_control_index = i - 1
+        time_since_beat = updates["time_since_beat"][i - 1]
 
-    ## Muscle Pump
-    # A_im = params["A_im"]
-    # Tc = params["Tc"]
-    # T_im = params["T_im"]
+    # Muscle Pump
+    A_im = params["A_im"]
+    Tc = params["Tc"]
+    T_im = params["T_im"]
 
-    # # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1
-    # alp = (t % Tc) / Tc
-    #
-    # if (Tc / T_im) >= alp >= 0:
-    #     psi = np.sin(np.pi * (T_im / Tc) * alp)
-    # elif (Tc / T_im) <= alp <= 1:
-    #     psi = 0
+    # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1
+    alp = (t % Tc) / Tc
 
-    # P_im = A_im * psi
+    if (Tc / T_im) >= alp >= 0:
+        psi = np.sin(np.pi * (T_im / Tc) * alp)
+    elif (Tc / T_im) <= alp <= 1:
+        psi = 0
+
+    P_im = A_im * psi
 
     # p_im is 0 in resting conditions
-    P_im = 0
+    # P_im = 0
 
 
 
@@ -105,6 +107,9 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     second = (TI + TE) / T_resp
     third = (TI / 2) / T_resp
     S = (t % T_resp) / T_resp
+
+    if t >= 9.9999:
+        A = 2
 
     if 0 <= S < first:
         P_thor = P_thormax - (P_thormax - P_thormin) * (T_resp / TI) * S
@@ -196,12 +201,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_la = VT_la - Vu_la
     else:
         V_la = 0
-
-
-    if t == 0:
-        time_since_beat = updates["time_since_beat"][i]
-    else:
-        time_since_beat = updates["time_since_beat"][i - 1]
 
     # phi_atr = activation_U(beta, 1)
     phi_atr = activation_H(t - time_since_beat, 1, T)
@@ -672,45 +671,19 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     if num_removed > 0:
         keys = [
             "Q_pp", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Q_la", "Q_lv", "Q_ra", "Q_rv",
-            "Wh_lv", "Wh_rv", "U", "dP_sa_dt", "P_sa", "P_ra", "P_la", "P_lv", "P_rv",
-            "Pmax_lv", "Pmax_rv", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
-            "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc",
-            "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa", "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv",
-            "V_bv",
-            "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa", "phi_atr", "P_abd",
-            "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "U2", "P_bv", "R_bv",
-            "VT_ev", "psi", "Q_ev", "time_since_beat"
+            "Wh_lv", "Wh_rv", "dP_sa_dt", "P_sa", "P_ra", "P_la", "P_lv", "P_rv",
+            "Pmax_lv", "Pmax_rv", "Pmax_la", "Pmax_ra", "V_rv", "V_ra", "V_lv", "V_la",
+            "VT_rv", "VT_ra", "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor",
+            "V_vc", "P_vc", "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",
+            "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv", "V_hv", "P_sp",
+            "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa",
+            "phi_atr", "P_abd", "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "P_bv", "R_bv",
+            "VT_ev", "Q_ev", "time_since_beat", "VT_pa", "VT_pp", "VT_pv",
+            "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_vc", "Q_bv"
         ]
         for key in keys:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6) # Replace values with 1e6
-
         i = i - num_removed
-
-    # data_to_append = {
-    #     "Q_pp": Q_pp, "Q_bp": Q_bp, "Q_hp": Q_hp, "Q_rmp": Q_rmp, "Q_amp": Q_amp,
-    #     "Q_la": Q_la, "Q_lv": Q_lv, "Q_ra": Q_ra, "Q_rv": Q_rv, "Wh_lv": Wh_lv, "Wh_rv": Wh_rv,
-    #     "dP_sa_dt": dP_sa_dt, "P_sa": P_sa, "P_ra": P_ra, "P_la": P_la, "P_lv": P_lv,
-    #     "P_rv": P_rv, "Pmax_lv": Pmax_lv, "Pmax_rv": Pmax_rv, "Pmax_la": Pmax_la, "Pmax_ra": Pmax_ra,
-    #     "V_rv": V_rv, "V_ra": V_ra, "V_lv": V_lv, "V_la": V_la, "VT_rv": VT_rv, "VT_ra": VT_ra,
-    #     "VT_lv": VT_lv, "VT_la": VT_la, "P_pa": P_pa, "P_pp": P_pp, "P_pv": P_pv, "P_thor": P_thor,
-    #     "V_vc": V_vc, "P_vc": P_vc, "Qi_lv": Qi_lv, "Qi_rv": Qi_rv, "V_pa": V_pa, "phi": phi,
-    #     "phi_atr": phi_atr, "S": S, "V_pv": V_pv, "V_pp": V_pp, "P_amv": P_amv, "P_ev": P_ev,
-    #     "V_u": V_u, "V_sv": V_sv, "V_rmv": V_rmv, "V_amv": V_amv, "V_bv": V_bv, "V_hv": V_hv,
-    #     "P_sp": P_sp, "Q_sa": Q_sa, "Q_jp": Q_jp, "Q_vc": Q_vc, "VT_amv": VT_amv, "P_im": P_im,
-    #     "Q_amv": Q_amv, "Q_sp": Q_sp, "Q_ep": Q_ep, "Q_pa": Q_pa, "P_abd": P_abd, "V_sa": V_sa,
-    #     "P_bv": P_bv, "Q_bv": Q_bv, "R_bv": R_bv, "theta_ao": theta_ao, "AR_ao": AR_ao,
-    #     "d2theta_ao_dt2": d2theta_ao_dt2, "phi_cond": phi_cond, "VT_ev": VT_ev
-    # }
-
-    # # Define the CSV file path
-    # csv_file = "output.csv"
-    #
-    # # Write headers only if the file doesn't exist
-    # write_header = not os.path.exists(csv_file)
-    # df = pd.DataFrame([data_to_append])
-    # df.to_csv(csv_file, mode='a', index=False, header=write_header)
-    # # Ensure headers are written only once
-    # write_header = False
 
     # update after every heartbeat
     if t - time_since_beat > T:
@@ -793,6 +766,14 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["VT_ev"][i] = VT_ev
     updates["Q_ev"][i] = Q_ev
     updates["time_since_beat"][i] = time_since_beat
+    updates["VT_pa"][i] = VT_pa
+    updates["VT_pp"][i] = VT_pp
+    updates["VT_pv"][i] = VT_pv
+    updates["VT_sv"][i] = VT_sv
+    updates["VT_bv"][i] = VT_bv
+    updates["VT_hv"][i] = VT_hv
+    updates["VT_rmv"][i] = VT_rmv
+    updates["VT_vc"][i] = VT_vc
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
             dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt]
