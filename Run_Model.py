@@ -13,16 +13,22 @@ from Resp_Control_Breath_Optimiser import BreathOptimiser
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
-from Initial_Conditions import Initial_Conditions
-from Next_Conditions import Next_Conditions
 from Parameters import Parameters
 from Resp_Control_Ventilation import resp_control_vent
 from Respiratory_Mechanics import respiratory_mechanics
 
 
+from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
+from Initial_Conditions import Initial_Conditions
+from Next_Conditions import Next_Conditions
+
+output_file1 = "Selected_Conditions_new.py"
+output_file2 = "Initial_Conditions_new.py"
+output_file3 = "Next_Conditions_new.py"
+
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 350) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -58,8 +64,8 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
-    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
+    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
     d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
     d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
@@ -173,13 +179,17 @@ if __name__ == "__main__":
     )
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
-    start_index = index - 10000
 
+
+
+
+    # start_index = index - 10000
+    #
     # # Create a new dictionary for the delays
     # selected_conditions = {key: Next_Conditions[key] for key in ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
     #
     # # Save to a new Python file
-    # with open('Selected_Conditions.py', 'w') as f:
+    # with open(output_file1, 'w') as f:
     #     f.write('import numpy as np\n\n')
     #     f.write('Selected_Conditions = {\n')
     #     for key, value in selected_conditions.items():
@@ -191,7 +201,7 @@ if __name__ == "__main__":
     # final_values = state_variables[:, -1]  # last time point
     #
     # # Open the new file for writing
-    # with open("Initial_Conditions_new.py", "w") as f:
+    # with open(output_file2, "w") as f:
     #     f.write("Initial_Conditions = {\n")
     #
     #     for name, value in zip(state_variable_names, final_values):
@@ -202,7 +212,7 @@ if __name__ == "__main__":
     # # Output file path
     # output_file = "Next_Conditions_new.py"
     #
-    # with open(output_file, "w") as f:
+    # with open(output_file3, "w") as f:
     #     f.write("import numpy as np\n\n")
     #     f.write("Next_Conditions = {\n")
     #

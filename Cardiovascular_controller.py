@@ -1,7 +1,6 @@
 import bisect
 import math
 import os
-from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 import numpy as np
 import pandas as pd
@@ -11,7 +10,7 @@ def frac(x):
     return x - math.floor(x)
 
 
-def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, i, t_start):
+def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, i, t_start, previous_Selected_Conditions):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,
@@ -218,23 +217,12 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     if f_sv > fes_max:
         f_sv = fes_max
 
+
     Y_v = (Yv_min + Yv_max * np.exp((I - Io_v) / kcc_v)) / (1 + np.exp((I - Io_v) / kcc_v))
     first_term = (fev_o + fev_inf * np.exp((f_ab - fab_o)/kev)) / (1 + np.exp((f_ab - fab_o)/kev))
     # f_v = first_term - Wt_v * Nt - Wc_v * f_ac - Wp_v * f_ap - theta_v + Y_v
     f_v = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
-    #
-    ## Effectors for reflex control
-    # resistances, unstressed volumes, and cardiac elastances.
-    # DEmax_lv = params["DEmax_lv"]
-    # DEmax_rv = params["DEmax_rv"]
-    # DR_amp = params["DR_amp"]
-    # DR_ep = params["DR_ep"]
-    # DR_rmp = params["DR_rmp"]
-    # DR_sp = params["DR_sp"]
-    # DV_amv = params["DV_amv"]
-    # DV_ev = params["DV_ev"]
-    # DV_rmv = params["DV_rmv"]
-    # DV_sv = params["DV_sv"]
+
 
     (Emax_lv0, Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0,
      R_ep0, R_rmp0, R_sp0, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv,
@@ -261,7 +249,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             f_sp_delay2 = f_sp
             f_sh_delay2 = f_sh
         else:
-            if t_start != 0:
+            if t_start != 0: # this is for the previous run with delays recorded to be used for the current run
                 delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time2) - 1
                 f_sp_delay2 = previous_Selected_Conditions["f_sp"][delay_index]
                 f_sh_delay2 = previous_Selected_Conditions["f_sh"][delay_index]
@@ -340,10 +328,10 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     R_rmp_n = R_rmp_n_change + R_rmp0
     R_amp_n = R_amp_n_change + R_amp0
 
-    Vu_ev1 = Vu_ev_change + Vu_ev0
-    Vu_sv1 = Vu_sv_change + Vu_sv0
-    Vu_rmv1 = Vu_rmv_change + Vu_rmv0
-    Vu_amv1 = Vu_amv_change + Vu_amv0
+    Vu_ev1 = max(Vu_ev_change + Vu_ev0, 0)
+    Vu_sv1 = max(Vu_sv_change + Vu_sv0, 0)
+    Vu_rmv1 = max(Vu_rmv_change + Vu_rmv0, 0)
+    Vu_amv1 = max(Vu_amv_change + Vu_amv0, 0)
 
     Emax_lv1 = Emax_lv_change + Emax_lv0
     Emax_rv1 = Emax_rv_change + Emax_rv0
@@ -520,7 +508,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             "f_sp", "f_sh", "f_v", "f_sv",
             "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
             "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "prev_flat_bit", "Pa_O2", "T",
-            "Cvb_O2", "f_ab", "f_ac", "Wh"
+            "Cvb_O2", "f_ab", "f_ac", "Wh", "xamO2", "Cvam_O2", "MO2_amp", "xM", "f_asv", "f_asp", "f_ash", "theta_change_O2_sp",
+            "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh", "theta_change_CO2_sh"
         ]
         keys2 = [
             "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
@@ -613,12 +602,20 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     updates["Wh"][i]= Wh
 
-    # updates["theta_change_O2_sp"][i] = theta_change_O2_sp
-    # updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
-    # updates["theta_change_O2_sv"][i] = theta_change_O2_sv
-    # updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
-    # updates["theta_change_O2_sh"][i] = theta_change_O2_sh
-    # updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
+    updates["xamO2"][i] = xam_O2
+    updates["Cvam_O2"][i] = Cvam_O2
+    updates["MO2_amp"][i] = MO2_amp
+    updates["xM"][i] = xM
+    updates["f_asv"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv)
+    updates["f_asp"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp)
+    updates["f_ash"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash)
+
+    updates["theta_change_O2_sp"][i] = theta_change_O2_sp
+    updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
+    updates["theta_change_O2_sv"][i] = theta_change_O2_sv
+    updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
+    updates["theta_change_O2_sh"][i] = theta_change_O2_sh
+    updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
 
     # updates["R_ep_change"][i] = R_ep_change
     # updates["R_sp_change"][i] = R_sp_change

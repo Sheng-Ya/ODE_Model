@@ -72,6 +72,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P_thormin_n = params["P_thormin_n"]
     VT_n = params["VT_n"]
 
+    # if t > 1000:
+    #     P_thormax_n = -4
+    #     P_thormin_n = -9
+
     # respiratory controller inputs
     T_resp = 1 / resp_control_inputs["BF"][resp_control_index]
     TI = resp_control_inputs["TI"][resp_control_index]
@@ -212,7 +216,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
     ##############################################################
 
-
+    if t > 1062.2:
+        A = 2
     # V_lv can be growing but there should not be any flow (Q) into the ventricles?
     if VT_lv > Vu_lv:
         V_lv = VT_lv - Vu_lv
@@ -394,12 +399,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # source_values = source(t)
 
 
-    # if V_vc < Vu_vc:
-    #     P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor + source_values
-    # else:
-    #     P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor + source_values
-
-
     if V_vc < Vu_vc:
         if t != 0:
             P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor # + source_values
@@ -460,6 +459,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Vu_amp = params["Vu_amp"]
     kr_am = params["kr_am"]
     P_0 = params["P_0"]
+    P_0 = Vu_amv/ (C_amv * 10)
     Vu_bv = params["Vu_bv"]
     Vu_hv = params["Vu_hv"]
 
@@ -662,9 +662,9 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     dVT_ev_dt = Q_ep - Q_ev
     dVT_vc_dt = Q_vc - Q_ra
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
+    dQ_sa_dt = (P_sa - P_thor - R_sa * Q_sa - P_sp) / L_sa
     # VT_sa = V_sa + Vu_sa
-    # should be + ?, edit: removed P_thor from here
-    dQ_sa_dt = (P_sa + P_thor - R_sa * Q_sa - P_sp) / L_sa
+    # should be + ?, edit: removed P_thor from here. Ignore
 
 
 
@@ -774,6 +774,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     updates["VT_hv"][i] = VT_hv
     updates["VT_rmv"][i] = VT_rmv
     updates["VT_vc"][i] = VT_vc
+    updates["P_0"][i] = P_0
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
             dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt]

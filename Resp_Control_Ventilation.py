@@ -122,7 +122,8 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     if t != t_start or t == 0:
         if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
-            bounds = [(1, 1.5), (1.5, 2.5)]  # [t1, t2] bounds
+
+            bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
             tolerance = 0.001
             opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
 
@@ -134,7 +135,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             # Optimize
             # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
             # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
-            result = minimize(opt.objective, updates["Nd"][-2:], method='SLSQP', bounds=bounds)
+            result = minimize(opt.objective, updates["Nd"][-2:], method='COBYLA', bounds=bounds)
 
             a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
             a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
@@ -146,6 +147,17 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["Nd"].append(tau)
             updates["Nd"].extend(result.x)
             updates["J"].append(result.fun)
+
+            # if 910.5 > t > 910:
+            #     a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (0.5 + 0.8) - params["E_rs"] * VD) / (0.5 ** 2) # VAflow constraint
+            #     a1 = -2 * a2 * 0.5  # dP_dt = 0 at t1
+            #     Pt1 = a1 * 0.5 + a2 * (0.5 ** 2)
+            #     tau = 0.8 / (-np.log(tolerance/Pt1))
+            #     updates["Nd"].append(a1)
+            #     updates["Nd"].append(a2)
+            #     updates["Nd"].append(tau)
+            #     updates["Nd"].append(0.5)
+            #     updates["Nd"].append(0.8)
 
             t1, t2 = updates["Nd"][-2:]
             n_steps = int(np.round((t1 + t2) / dt)) + 1

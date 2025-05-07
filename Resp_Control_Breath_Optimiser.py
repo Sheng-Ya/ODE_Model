@@ -303,3 +303,26 @@ class BreathOptimiser:
         return J
 
     # didn't do ln. Original paper has ln, but the Carlos paper does not
+
+    def compute_integral_inspire(self, t1, t2):
+        times = np.linspace(0, t1 + t2, int(np.round((t1 + t2) / self.dt)) + 1)
+        P_musc, dP_musc_dt = self.calculate_P_musc_dP_dt(times, [t1, t2])
+        volume_signal, dV_dt_values = self.calculate_V_dV_dt(times, [t1, t2])
+        inspire_index = int(round(t1 / self.dt))
+
+        dV2_dt2_values_squared = ((1 / self.params["R_rs"]) *
+                                  ((dP_musc_dt - self.params["P_ao"]) - self.params["E_rs"] * dV_dt_values)) ** 2
+
+        E1_n = (1 - P_musc / self.params["Pmax"]) ** self.params["n"]
+        E2_n = (1 - dP_musc_dt / self.params["Pmax_dot"]) ** self.params["n"]
+
+        integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / \
+                            (E1_n[:inspire_index] * E2_n[:inspire_index]) + \
+                            self.params["lambda1"] * dV2_dt2_values_squared[:inspire_index]
+        integrand_expire = dV2_dt2_values_squared[inspire_index:]
+
+        # Integrate over time using Simpson’s rule
+        integral_inspire = simpson(integrand_inspire, x=times[:inspire_index])
+        integral_expire = simpson(integrand_expire, x=times[inspire_index:])
+
+        return integral_inspire, integral_expire

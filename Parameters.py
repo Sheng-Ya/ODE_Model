@@ -11,17 +11,17 @@ Parameters = {
 #     # Systemic peripheral and venous circulation
 #     # Table 2. Compliance values
 # systemic_peripheral_and_venous = {
-    "C_amp": 0.315,  # Active skeletal muscle peripheral compliance
+    "C_amp": 0.615,  # Active skeletal muscle peripheral compliance
     "C_amv": 9.4,    # Active skeletal muscle venous compliance
-    "C_bp": 0.358,   # Brain peripheral compliance
+    "C_bp": 0.658,   # Brain peripheral compliance
     "C_bv": 10.71,   # Brain venous compliance
-    "C_ep": 0.668,   # Extra-splanchnic peripheral compliance
+    "C_ep": 0.968,   # Extra-splanchnic peripheral compliance
     "C_ev": 20,      # Extra-splanchnic venous compliance
-    "C_hp": 0.119,   # Coronary peripheral compliance
+    "C_hp": 0.419,   # Coronary peripheral compliance
     "C_hv": 3.57,    # Coronary venous compliance
-    "C_rmp": 0.21,   # Resting skeletal muscle peripheral compliance
+    "C_rmp": 0.51,   # Resting skeletal muscle peripheral compliance
     "C_rmv": 6.28,   # Resting skeletal muscle venous compliance
-    "C_sp": 2.05,    # Splanchnic peripheral compliance
+    "C_sp": 3.35,    # Splanchnic peripheral compliance
     "C_sv": 61.11,   # Splanchnic venous compliance
     "kr_am": 24.17,  # Constant parameter
     "P_0": 3.93,     # Constant parameter
@@ -109,8 +109,8 @@ Parameters = {
     "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
     "P_abdmax_n": 0,        # Basal value of abdominal pressure at the end of expiration
     "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
-    "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
-    "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
+    "P_thormax_n": -4,      # Basal value of intrathoracic pressure at the end of expiration
+    "P_thormin_n": -9,      # Basal value of intrathoracic pressure at the end of inspiration
     "VT_n": 0.45,           # Basal value of tidal volume changed
 # }
 
@@ -354,9 +354,9 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 1.397,         # Weighting factor (Dimensionless) changed
-    "lambda2": 0.568,        # Weighting factor (Dimensionless) changed
-    "n": 0.795,              # Power index of efficiency factor (Dimensionless)
+    "lambda1": 0.4,         # Weighting factor (Dimensionless) changed
+    "lambda2": 0.05,        # Weighting factor (Dimensionless) changed
+    "n": 1.101,              # Power index of efficiency factor (Dimensionless)
     "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }

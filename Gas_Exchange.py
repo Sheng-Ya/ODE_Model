@@ -1,9 +1,9 @@
 import bisect
 import numpy as np
-from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
+# from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 
-def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_inputs, heart_system_inputs, updates, num_removed, i, t_start):
+def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_inputs, heart_system_inputs, updates, num_removed, i, t_start, previous_Selected_Conditions):
     """
         # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, time_history, V, dV_dt
 
@@ -43,7 +43,7 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     VL_CO2 = params["VL_CO2"]
     VL_O2 = params["VL_O2"]
     Z = params["Z"]
-    s = 0.04 # no shunt
+    s = 0.04
 
     if t == t_start:
         heart_index = i
@@ -185,17 +185,21 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     MRCO2 = params["MRCO2"]
     MRO2 = params["MRO2"]
 
-    # if 250 < t:
-    #     MRCO2 = 0.8/60 - 0.0009
-    #     MRO2 = 0.85 / 60 - 0.000925
+    if 1050 < t <= 1200:
+        MRCO2 = 0.4/60 - 0.0009
+        MRO2 = 0.45 / 60 - 0.000925
 
-    # if 400 < t < 550:
-    #     MRCO2 = 0.6/60 - 0.0009
-    #     MRO2 = 0.65 / 60 - 0.000925
-    #
-    # if 550 < t < 700:
-    #     MRCO2 = 0.6/60 - 0.0009
-    #     MRO2 = 0.65 / 60 - 0.000925
+    if 1200 < t <= 1350:
+        MRCO2 = 0.6/60 - 0.0009
+        MRO2 = 0.65 / 60 - 0.000925
+
+    if 1350 < t <= 1500:
+        MRCO2 = 0.8/60 - 0.0009
+        MRO2 = 0.85 / 60 - 0.000925
+
+    if 1500 < t:
+        MRCO2 = 1/60 - 0.0009
+        MRO2 = 1.05 / 60 - 0.000925
 
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure

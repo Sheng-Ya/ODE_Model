@@ -13,16 +13,24 @@ from Resp_Control_Breath_Optimiser import BreathOptimiser
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
-from Initial_Conditions_new import Initial_Conditions
-from Next_Conditions_new import Next_Conditions
 from Parameters import Parameters
 from Resp_Control_Ventilation import resp_control_vent
 from Respiratory_Mechanics import respiratory_mechanics
 
 
+# need to change for every run
+# input files
+from Selected_Conditions_after_running_again import Selected_Conditions as previous_Selected_Conditions
+from Initial_Conditions_after_running_again import Initial_Conditions
+from Next_Conditions_after_running_again import Next_Conditions
+
+# output files
+output_file1 = "Selected_Conditions_after_running_again_2.py"
+output_file2 = "Initial_Conditions_after_running_again_2.py"
+output_file3 = "Next_Conditions_after_running_again_2.py"
 
 target_values = np.arange(0, 10000, 10)
-t_span = (10, 50)
+t_span = (int(Next_Conditions["time_history"][0]), int(Next_Conditions["time_history"][0]) + 800)
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -30,6 +38,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     """
 
     """
+
     i = Next_Conditions["i"].item()
     if t != 0:
         latest_nonzero_value = Next_Conditions["all_time"][i - 1]
@@ -58,8 +67,8 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
-    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
+    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
     d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
     d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
@@ -169,36 +178,171 @@ if __name__ == "__main__":
             required_resp_mech_keys
     )
 
+    index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
+    start_index = index - 10000
+
+
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amv"][:index], label="Q_amv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Vu_amv", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_amv"][:index], label="VT_amv", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index], label="Emax_lv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index], label="Emax_rv", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="g")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cvam_O2"][:index], label="Cvam_O2", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["xM"][:index], label="xM", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["MO2_amp"][:index], label="MO2_amp", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_0"][:index], label="P_0", color="b")
+
+
+    # x1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_jp"][:index], label="Q_jp", color="b")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cvam_O2"][:index], label="Cvam_O2", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ash"][:index], label="f_sh", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_asp"][:index], label="f_sp", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_asv"][:index], label="f_sv", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="f_v", color="r")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_O2_sp"][:index], label="theta_change_O2_sp", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_CO2_sp"][:index], label="theta_change_CO2_sp", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_O2_sv"][:index], label="theta_change_O2_sv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_CO2_sv"][:index], label="theta_change_CO2_sv", color="y")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_O2_sh"][:index], label="theta_change_O2_sh", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_CO2_sh"][:index], label="theta_change_CO2_sh", color="g")
+
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amv"][:index], label="Q_amv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Vu_amv", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_amv"][:index], label="VT_amv", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index], label="Emax_lv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index], label="Emax_rv", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="g")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cvam_O2"][:index], label="Cvam_O2", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["xM"][:index], label="xM", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["MO2_amp"][:index], label="MO2_amp", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_0"][:index], label="P_0", color="b")
+
+
+    # x1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_jp"][:index], label="Q_jp", color="b")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cvam_O2"][:index], label="Cvam_O2", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="c")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sv"][:index], label="f_sv", color="b")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+    # Number of state variables
+    num_variables = state_variables.shape[0]
+
+    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
+
+    # # Plot cardio control variables
+    # plt.figure()
+    # for i, label in enumerate(required_cardio_keys):
+    #     # if label != "beta":
+    #     # if label == "Wh" or label == "P_tilda":  # Skip "Wh"
+    #     #     continue
+    #     color = colors[i % len(colors)]
+    #     plt.plot(time, state_variables[i], label=label, color=color, linestyle='-',
+    #              markersize=4)
+    #
+    # plt.xlabel("Time")
+    # plt.ylabel("Cardio Variables")
+    # plt.title("Evolution of Cardio Variables Over Time")
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    # plt.grid()
+    # plt.tight_layout()
+    # plt.show()
+
+    # Plot cardio control variables
+    plt.figure()
+    for i, label in enumerate(required_cardio_control_keys):
+        # if label != "beta":
+        if label == "Wh" or label == "P_tilda":  # Skip "Wh"
+            continue
+        color = colors[i % len(colors)]
+        plt.plot(time, state_variables[len(required_cardio_keys) + i], label=label, color=color, linestyle='-',
+                 markersize=4)
+
+    plt.xlabel("Time")
+    plt.ylabel("Cardio Control Variables")
+    plt.title("Evolution of Cardio Control Variables Over Time")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
+
+
 
     # Create a new dictionary for the delays
-    selected_conditions = {key: Next_Conditions[key] for key in ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
+    selected_conditions = {key: Next_Conditions[key] for key in
+                           ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
 
     # Save to a new Python file
-    with open('Selected_Conditions_after_running_again.py', 'w') as f:
-        f.write('Selected_Conditions = ')
-        f.write(repr(selected_conditions))
+    with open(output_file1, 'w') as f:
+        f.write('import numpy as np\n\n')
+        f.write('Selected_Conditions = {\n')
+        for key, value in selected_conditions.items():
+            f.write(f"    '{key}': np.array({value[start_index:index].tolist()}),\n")
+        f.write('}\n')
 
 
     # new initial state variables
     final_values = state_variables[:, -1]  # last time point
 
     # Open the new file for writing
-    with open("Initial_Conditions_after_running_again.py", "w") as f:
+    with open(output_file2, "w") as f:
         f.write("Initial_Conditions = {\n")
 
         for name, value in zip(state_variable_names, final_values):
-            f.write(f'    "{name}": {value:.6g},\n')  # adjust format as needed
+            f.write(f'    "{name}": {value},\n')  # adjust format as needed
 
         f.write("}\n")
 
 
 
-    index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
-
-    # Output file path
-    output_file = "Next_Conditions_after_running_again.py"
-
-    with open(output_file, "w") as f:
+    with open(output_file3, "w") as f:
         f.write("import numpy as np\n\n")
         f.write("Next_Conditions = {\n")
 
@@ -226,33 +370,34 @@ if __name__ == "__main__":
         f.write("}\n")
 
 
-    # # state variables excel
-    # if index > 100000:
-    #     index_start = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 100000
-    #
-    #     # Transpose state variables so that each row is a time point and columns are variable values
-    #     df = pd.DataFrame(data=solution.y[:, -100000:].T, columns=state_variable_names)
-    #     df.insert(0, "time", solution.t[-100000:])
-    #     df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
-    # else:
-    #     index_start = 0
-    #     df = pd.DataFrame(data=solution.y[:,:].T, columns=state_variable_names)
-    #     df.insert(0, "time", solution.t[:])
-    #     df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
-    #
-    # # Next_Conditions excel
-    # # Build a dictionary of shortened arrays
-    # data = {
-    #     key: val[index_start:index + 1]
-    #     for key, val in Next_Conditions.items()
-    #     if isinstance(val, np.ndarray) and len(val) > index
-    # }
-    #
-    # # Ensure time_history is first
-    # columns = ["time_history"] + [k for k in data if k != "time_history"]
-    # nextdf = pd.DataFrame({k: data[k] for k in columns})
-    #
-    # nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
+    # state variables excel
+    if index > 100000:
+        # index_start = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 100000
+        index_start = 0
+
+        # Transpose state variables so that each row is a time point and columns are variable values
+        df = pd.DataFrame(data=solution.y.T, columns=state_variable_names)
+        df.insert(0, "time", solution.t)
+        df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
+    else:
+        index_start = 0
+        df = pd.DataFrame(data=solution.y[:,:].T, columns=state_variable_names)
+        df.insert(0, "time", solution.t[:])
+        df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
+
+    # Next_Conditions excel
+    # Build a dictionary of shortened arrays
+    data = {
+        key: val[index_start:index + 1]
+        for key, val in Next_Conditions.items()
+        if isinstance(val, np.ndarray) and len(val) > index
+    }
+
+    # Ensure time_history is first
+    columns = ["time_history"] + [k for k in data if k != "time_history"]
+    nextdf = pd.DataFrame({k: data[k] for k in columns})
+
+    nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
 
 
 
