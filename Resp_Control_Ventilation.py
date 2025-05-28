@@ -41,12 +41,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     Pa_CO2_history = updates["Pa_CO2_history"]
     Pb_CO2_history = updates["Pb_CO2_history"]
 
-    A = updates["finish_breath_time"][-1]
     last_breath_time = max(0, t - updates["finish_breath_time"][-1])
-    AA = updates["resp_cycle"][i-1]
-
-    if t>10:
-        A = 2
 
     resp_cycle = last_breath_time % (t1 + t2)
     if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
@@ -116,7 +111,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     VD = GV_dead * VAflow + V0_dead
 
     # Vt1 = VAflow * (t1 + t2) + VD
-    A = updates["resp_cycle"][i-1]
     dt = 0.001
     updates["dt"] = dt
 
@@ -164,24 +158,19 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             t1, t2 = updates["Nd"][-2:]
             n_steps = int(np.round((t1 + t2) / dt)) + 1
             current_times = np.linspace(0, (t1 + t2), n_steps)
-            # print(VAflow, VD)
-            # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+            updates["current_times"] = current_times
 
             P_for_current_breath, dP_dt_for_current_breath = calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, params["E_rs"], params["R_rs"], params["P_ao"])
-            # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
             V_for_current_breath, dV_dt_for_current_breath = calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, params["E_rs"], params["R_rs"], params["P_ao"])
-            # VA_for_current_breath, dVA_dt_for_current_breath = opt.calculate_VA_dVA_dt(current_times, updates["Nd"][-2:])
 
             updates["P_musc_current"] = P_for_current_breath
             updates["V_current"] = V_for_current_breath
             updates["dV_dt_current"] = dV_dt_for_current_breath
             updates["dP_dt_current"] = dP_dt_for_current_breath
-            # updates["VA_current"] = VA_for_current_breath
-            # updates["dVA_dt_current"] = dVA_dt_for_current_breath
             updates["finish_breath_time"].append(t)
 
             # check optimisation results
-            print(f"guess: {updates["Nd"][-5:]}")
+            # print(f"guess: {updates["Nd"][-5:]}")
             # check whether pressure at time t1+t2 is 0
             # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
             # check whether dV_dt = 0 at t1
@@ -193,6 +182,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
             # plt.legend()
             # plt.show()
+    else:
+        n_steps = int(np.round((t1 + t2) / dt)) + 1
+        current_times = np.linspace(0, (t1 + t2), n_steps)
+        updates["current_times"] = current_times
+
 
     BF = 1 / (t1 + t2)
     TI = t1
@@ -206,22 +200,41 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     else:
         d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
+    # store ventilation variables
+    last_breath_time = t - updates["finish_breath_time"][-1]
+    breath = last_breath_time % (t1 + t2) # determine time within the breath
+
+    V = np.interp(breath, updates["current_times"], updates["V_current"])
+    dV_dt = np.interp(breath, updates["current_times"], updates["dV_dt_current"])
+    P_musc = np.interp(breath, updates["current_times"], updates["P_musc_current"])
 
     if num_removed > 0:
         for key in [
-            "VE_integral", "VD", "BF", "TI", "VT", "VAflow", "VE_flow", "resp_cycle"
+            "BF", "TI", "VT", "VE_integral", "VD", "resp_cycle", "VAflow", "VE_flow", "P_musc", "dV_dt", "V"
         ]:
             updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
         i = i - num_removed
 
-    updates["VE_integral"][i] = VE_integral
-    updates["VD"][i] = VD
+    # cardio inputs
     updates["BF"][i] = BF
     updates["TI"][i] = TI
     updates["VT"][i] = VT
+
+    # cardio control inputs
+    updates["VE_integral"][i] = VE_integral
+
+    # gas inputs
+    updates["VD"][i] = VD
+
+    # resp control vent
+    updates["resp_cycle"][i] = resp_cycle
+
     updates["VAflow"][i] = VAflow
     updates["VE_flow"][i] = VE_flow
-    updates["resp_cycle"][i] = resp_cycle
+
+    updates["P_musc"][i] = P_musc
+    updates["dV_dt"][i] = dV_dt
+    updates["V"][i] = V
 
     return [d_VE_integral_dt]
 

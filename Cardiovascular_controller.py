@@ -1,6 +1,8 @@
 import bisect
 import math
 import numpy as np
+from Parameters import Parameters as params
+
 
 
 def frac(x):
@@ -27,9 +29,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
      Emax_rv_change, Ts_change, Tv_change, xb_O2, xb_CO2, xh_O2, xh_CO2, Wh, xrm_O2, xrm_CO2, xam_O2, xM, x_met) = state
 
     ## Metabolic regulation
-    # constant parameters
-    AT = params["AT"]
-    MRTCO2_basal = params["MRTCO2_basal"]
     
     if t == t_start:
         heart_index = i
@@ -51,24 +50,40 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         resp_control_index = i - 1
         # gas_index = 0
 
+
+    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
+     Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv,
+     Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp,
+     GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv, tau_Emax_rv, tau_Ramp,
+     tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, AT, MRTCO2_basal,
+     g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc, tau_isc, theta_shn, theta_spn,
+     theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n, f_ac_max, f_ac_min, k_ac,
+     K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D, Cvb_O2_n, gb_O2, MO2_bp, R_bpn,
+     tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n,
+     Dmet, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = [params[k] for k in ["fab_o", "fes_o",
+    "fes_inf", "fes_max", "fev_o", "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv",
+    "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh",
+    "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv",
+    "Wt_v", "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
+    "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp", "tau_Rep",
+    "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0", "Vu_rmv0", "Vu_sv0", "AT",
+    "MRTCO2_basal", "gccsh", "gccsp", "gccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh", "PO2_sp", "PO2_sv", "tau_cc",
+    "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab",
+    "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap",
+    "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "tau_CO2",
+    "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2", "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w",
+    "W_hn", "Cvam_O2_n", "Dmet", "gam_O2", "gM", "Io_met", "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
+
         # Other inputs
     MRTCO2 = gas_exchange_inputs["MRTCO2"][gas_index]
-    # T_resp = 1 / resp_control_inputs["BF"]
+    Pa_O2 = gas_exchange_inputs["Pa_O2"][gas_index]
+    Pa_CO2 = gas_exchange_inputs["Pa_CO2"][gas_index]
+    Ca_O2 = gas_exchange_inputs["Ca_O2"][gas_index]
 
     VE_integral = resp_control_inputs["VE_integral"][resp_control_index]
 
-
     I = (MRTCO2 - MRTCO2_basal)/(AT - MRTCO2_basal)
 
-
-
-    ## Respiratory neuromuscular drive
-    # if t < TI:
-    #     RR = 1
-    # elif TI <= t < T_resp:
-    #     RR = 0, no need as Nt 0 outside of TI
-
-    # Nt = VE_integral
 
     a1, a2, tau, t1, t2 = exp_inputs["Nd"][-5:]
     prev_flat_bit = updates["prev_flat_bit"][gas_index]
@@ -82,30 +97,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         prev_flat_bit = VE_integral
 
     ## CNS Ischemic Response
-    # constant parameters
-    g_ccsh = params["gccsh"]
-    g_ccsp = params["gccsp"]
-    g_ccsv = params["gccsv"]
-    kisc_sh = params["kisc_sh"]
-    kisc_sp = params["kisc_sp"]
-    kisc_sv = params["kisc_sv"]
-    PO2_sh = params["PO2_sh"]
-    PO2_sp = params["PO2_sp"]
-    PO2_sv = params["PO2_sv"]
-    tau_cc = params["tau_cc"]
-    tau_isc = params["tau_isc"]
-    theta_shn = params["theta_shn"]
-    theta_spn = params["theta_spn"]
-    theta_svn = params["theta_svn"]
-    x_sh = params["x_sh"]
-    x_sp = params["x_sp"]
-    x_sv = params["x_sv"]
-
-    PaCO2_n = params["PaCO2_n"]
-
-    # Other inputs
-    Pa_O2 = gas_exchange_inputs["Pa_O2"][gas_index]
-    Pa_CO2 = gas_exchange_inputs["Pa_CO2"][gas_index]
 
     # cns response
     w_sp = x_sp / (1 + np.exp((Pa_O2 - PO2_sp)/kisc_sp))
@@ -130,12 +121,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     ## Afferent Pathways
     # afferent baroreflex constant parameters
-    f_ab_max = params["f_ab_max"]
-    f_ab_min = params["f_ab_min"]
-    k_ab = params["k_ab"]
-    P_n = params["P_n"]
-    tau_p = params["tau_p"]
-    tau_z = params["tau_z"]
 
     # Other inputs
     P_sa = heart_inputs["P_sa"][heart_index] # cardiovascular controller was run after cardio was run with states appended/updated so it must take the nonupdated version
@@ -147,20 +132,12 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     Wh_lv = heart_inputs["Wh_lv"][heart_index]
     Wh_rv = heart_inputs["Wh_rv"][heart_index]
 
-    exp_arg = np.clip((P_tilda - P_n) / k_ab, -40, 40)  # Prevent overflow
+    # exp_arg = np.clip((P_tilda - P_n) / k_ab, -40, 40)  # Prevent overflow
+    exp_arg = (P_tilda - P_n) / k_ab
     f_ab = (f_ab_min + f_ab_max * np.exp(exp_arg)) / (1 + np.exp(exp_arg))
     dP_tilda_dt = (P_sa + tau_z * dP_sa_dt - P_tilda) / tau_p
 
     # afferent chemoreflex pathway constant parameters
-    f_ac_IC = params["f_ac_IC"]
-    f_acCO2_n = params["f_acCO2_n"]
-    f_ac_max = params["f_ac_max"]
-    f_ac_min = params["f_ac_min"]
-    k_ac = params["k_ac"]
-    K_H = params["K_H"]
-    PaO2_ac_n = params["PaO2_ac_n"]
-    PaCO2_n = params["PaCO2_n"]
-    tau_ac = params["tau_ac"]
 
     if Pa_O2 >= 80:
         K = K_H
@@ -175,9 +152,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     d_fac_dt = (phi_ac - f_ac) / tau_ac
 
     # afferent activity from Pulmonary Stretch Receptors constant parameters
-    f_ap_IC = params["f_ap_IC"]
-    G_ap = params["G_ap"]
-    tau_ap = params["tau_ap"]
 
     # Other inputs
     VT = resp_control_inputs["VT"][resp_control_index]
@@ -187,13 +161,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
 
     ## Efferent Pathways constant parameters
-    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
-        kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
-        Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v) = [params[key] for key in
-                                                  ["fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v",
-        "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min",
-        "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh",
-        "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v"]]
 
 
     Y_sh = (Ysh_min + Ysh_max * np.exp((I - Io_sh)/kcc_sh)) / (1 + np.exp((I - Io_sh)/kcc_sh))
@@ -220,14 +187,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     f_v = first_term - Wt_v * Nt - Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
-
-    (Emax_lv0, Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0,
-     R_ep0, R_rmp0, R_sp0, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv,
-     tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0) = [params[key] for key in
-        ["Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
-         "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
-         "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0", "Vu_rmv0",
-         "Vu_sv0"]]
 
     f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history = [exp_inputs[key] for key in
                                                                               ["f_sp", "f_sh",
@@ -334,16 +293,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     Emax_rv1 = Emax_rv_change + Emax_rv0
 
     # heart period constants
-    DT_s = params["DT_s"]
-    DT_v = params["DT_v"]
-    fsh_IC = params["fsh_IC"]
-    fv_IC = params["fv_IC"]
-    GT_s = params["GT_s"]
-    GT_v = params["GT_v"]
-    T0 = params["T0"]
-
-    tau_Ts = params["tau_Ts"]
-    tau_Tv = params["tau_Tv"]
 
     delay_time0_2 = t - DT_v
     if delay_time0_2 >= t_start:
@@ -378,19 +327,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     ## Blood Flow Local Control
     # Cerebral Blood Flow constant parameters
-    A = params["A"]
-    B = params["B"]
-    C = params["C"]
-    D = params["D"]
-    Cvb_O2_n = params["Cvb_O2_n"]
-    gb_O2 = params["gb_O2"]
-    MO2_bp = params["MO2_bp"]
-    R_bpn = params["R_bpn"]
-    tau_CO2 = params["tau_CO2"]
-    tau_O2 = params["tau_O2"]
-
-    # other inputs
-    Ca_O2 = gas_exchange_inputs["Ca_O2"][gas_index]
 
     G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
     R_bp = 1 / G_bp
@@ -403,17 +339,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     dxb_CO2_dt = (- xb_CO2 - phi_b) / tau_CO2
 
     # Coronary and Resting Muscle Blood Flow constant parameters
-    Cvh_O2_n = params["Cvh_O2_n"]
-    Cvrm_O2_n = params["Cvrm_O2_n"]
-    gh_O2 = params["gh_O2"]
-    grm_O2 = params["grm_O2"]
-    Kh_CO2 = params["Kh_CO2"]
-    Krm_CO2 = params["Krm_CO2"]
-    MO2_hpn = params["MO2_hpn"]
-    MO2_rmp = params["MO2_rmp"]
-    R_hpn = params["R_hpn"]
-    tau_w = params["tau_w"]
-    W_hn = params["W_hn"]
 
     # other inputs
 
@@ -444,17 +369,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     dxrm_CO2_dt = (- xrm_CO2 + phi_rm) / tau_CO2
 
     # active muscle blood flow
-    Cvam_O2_n = params["Cvam_O2_n"]
-    Dmet = params["Dmet"]
-    gam_O2 = params["gam_O2"]
-    gM = params["gM"]
-    Io_met = params["Io_met"]
-    kmet = params["kmet"]
-    MO2_ampn = params["MO2_ampn"]
-    phi_max = params["phi_max"]
-    phi_min = params["phi_min"]
-    tau_M = params["tau_M"]
-    tau_met = params["tau_met"]
 
     R_amp = R_amp_n / (1 + xam_O2 + x_met)
 
@@ -503,11 +417,11 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     if num_removed > 0:
         keys = [
-            "f_sp", "f_sh", "f_v", "f_sv",
-            "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "HR",
-            "Emax_lv", "Emax_rv", "I", "phi_met", "Nt", "prev_flat_bit", "Pa_O2", "T",
-            "Cvb_O2", "f_ab", "f_ac", "Wh", "xamO2", "Cvam_O2", "MO2_amp", "xM", "f_asv", "f_asp", "f_ash", "theta_change_O2_sp",
-            "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh", "theta_change_CO2_sh"
+            "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
+            "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "prev_flat_bit",
+            "f_sp", "f_sh", "f_v", "f_sv", "phi_met"
+            # "f_ab", "f_ac", "Nt", "T", "Cvb_O2", "Wh", "xamO2", "Cvam_O2", "MO2_amp", "xM", "f_asv", "f_asp", "f_ash", "theta_change_O2_sp",
+            # "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh", "theta_change_CO2_sh"
         ]
         keys2 = [
             "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
@@ -567,6 +481,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["Emax_lv1"].append(Emax_lv1)
     updates["Emax_rv1"].append(Emax_rv1)
 
+    # cardio inputs
     updates["HR"][i] = HR
     updates["Vu_ev"][i] = Vu_ev
     updates["Vu_sv"][i] = Vu_sv
@@ -575,49 +490,48 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["Emax_lv"][i] = Emax_lv
     updates["Emax_rv"][i] = Emax_rv
 
-    updates["f_sp"][i] = f_sp
-    updates["f_sh"][i] = f_sh
-    updates["f_v"][i] = f_v
-    updates["phi_met"][i] = phi_met
-    updates["f_sv"][i] = f_sv
-    updates["f_ab"][i] = f_ab
-    updates["f_ac"][i] = f_ac
-    updates["f_ap"][i] = f_ap
-
     updates["R_ep"][i] = R_ep
     updates["R_amp"][i] = R_amp
     updates["R_rmp"][i] = R_rmp
     updates["R_sp"][i] = R_sp
     updates["R_bp"][i] = R_bp
     updates["R_hp"][i] = R_hp
-
     updates["I"][i] = I
-    updates["Nt"][i] = Nt
+
+    # needed in cardio controller
     updates["prev_flat_bit"][i] = prev_flat_bit
-    updates["Pa_O2"][i] = Pa_O2
-    updates["T"][i] = 1/HR
-    updates["Cvb_O2"][i] = Cvb_O2
 
-    updates["Wh"][i]= Wh
+    # save for delay
+    updates["f_sp"][i] = f_sp
+    updates["f_sh"][i] = f_sh
+    updates["f_v"][i] = f_v
+    updates["f_sv"][i] = f_sv
+    updates["phi_met"][i] = phi_met
 
-    updates["xamO2"][i] = xam_O2
-    updates["Cvam_O2"][i] = Cvam_O2
-    updates["MO2_amp"][i] = MO2_amp
-    updates["xM"][i] = xM
-    updates["f_asv"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv)
-    updates["f_asp"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp)
-    updates["f_ash"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash)
+    # updates["f_ac"][i] = f_ac
+    # updates["f_ab"][i] = f_ab
+    # updates["f_ap"][i] = f_ap
+    # updates["Nt"][i] = Nt
+    # updates["Cvb_O2"][i] = Cvb_O2
+    # updates["Wh"][i]= Wh
+    # updates["xamO2"][i] = xam_O2
+    # updates["Cvam_O2"][i] = Cvam_O2
+    # updates["MO2_amp"][i] = MO2_amp
+    # updates["xM"][i] = xM
+    # updates["f_asv"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv)
+    # updates["f_asp"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp)
+    # updates["f_ash"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash)
 
-    updates["theta_change_O2_sp"][i] = theta_change_O2_sp
-    updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
-    updates["theta_change_O2_sv"][i] = theta_change_O2_sv
-    updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
-    updates["theta_change_O2_sh"][i] = theta_change_O2_sh
-    updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
+    # updates["theta_change_O2_sp"][i] = theta_change_O2_sp
+    # updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
+    # updates["theta_change_O2_sv"][i] = theta_change_O2_sv
+    # updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
+    # updates["theta_change_O2_sh"][i] = theta_change_O2_sh
+    # updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
 
-    updates["sigma_Tv"][i] = sigma_Tv
-    updates["sigma_Ts"][i] = sigma_Ts
-    updates["Y_v"][i] = Y_v
+    # updates["sigma_Tv"][i] = sigma_Tv
+    # updates["sigma_Ts"][i] = sigma_Ts
+    # updates["Y_v"][i] = Y_v
 
     # updates["R_ep_change"][i] = R_ep_change
     # updates["R_sp_change"][i] = R_sp_change
@@ -630,9 +544,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # updates["Emax_rv_change"][i] = Emax_rv_change
     # updates["d_Ts_change_dt"][i] = d_Ts_change_dt
     # updates["d_Tv_change_dt"][i] = d_Tv_change_dt
-
-
-
 
     return [dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
             dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,

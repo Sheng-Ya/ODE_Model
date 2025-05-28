@@ -22,11 +22,41 @@ def activation_U(beta, atr, T, Tsys):
 
 
 
-def activation_H(ti, atr, T):
-    # rise and decrease
-    tr_atr = 0.05*T
-    td_atr = 0.1*T
+# def activation_H(ti, atr, T):
+#     # rise and decrease
+#     tr_atr = 0.05*T
+#     td_atr = 0.1*T
+#
+#     tr_ven = 0.15 * T
+#     td_ven = 0.3 * T
+#
+#     if ti <= 0.9 * T:
+#         t_la = ti + 0.1 * T
+#     else:
+#         t_la = ti - 0.9 * T
+#
+#
+#     if atr == 1:
+#         phi = np.where(t_la <= tr_atr,
+#                            0.5 * (1.0 - np.cos(np.pi * t_la / tr_atr)),
+#                        np.where(t_la <= td_atr,
+#                                 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))),
+#                                 0))
+#
+#     else:
+#         phi = np.where(ti <= tr_ven,
+#                        0.5 * (1.0 - np.cos(np.pi * ti / tr_ven)),
+#                        np.where(ti <= td_ven,
+#                                 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven))),
+#                                 0))
+#
+#     return phi
 
+
+
+def activation_H(ti, atr, T):
+    tr_atr = 0.05 * T
+    td_atr = 0.1 * T
     tr_ven = 0.15 * T
     td_ven = 0.3 * T
 
@@ -35,22 +65,20 @@ def activation_H(ti, atr, T):
     else:
         t_la = ti - 0.9 * T
 
-
     if atr == 1:
-        phi = np.where(t_la <= tr_atr,
-                           0.5 * (1.0 - np.cos(np.pi * t_la / tr_atr)),
-                       np.where(t_la <= td_atr,
-                                0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))),
-                                0))
-
+        if t_la <= tr_atr:
+            return 0.5 * (1.0 - np.cos(np.pi * t_la / tr_atr))
+        elif t_la <= td_atr:
+            return 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
+        else:
+            return 0.0
     else:
-        phi = np.where(ti <= tr_ven,
-                       0.5 * (1.0 - np.cos(np.pi * ti / tr_ven)),
-                       np.where(ti <= td_ven,
-                                0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven))),
-                                0))
-
-    return phi
+        if ti <= tr_ven:
+            return 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
+        elif ti <= td_ven:
+            return 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
+        else:
+            return 0.0
 
 
 def activation_S(t, atr, T):
