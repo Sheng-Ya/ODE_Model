@@ -80,6 +80,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     Pa_CO2 = gas_exchange_inputs["Pa_CO2"][gas_index]
     Ca_O2 = gas_exchange_inputs["Ca_O2"][gas_index]
 
+    MRTCO2_basal = MRTCO2_basal - params["MRBCO2"]
+
     VE_integral = resp_control_inputs["VE_integral"][resp_control_index]
 
     I = (MRTCO2 - MRTCO2_basal)/(AT - MRTCO2_basal)

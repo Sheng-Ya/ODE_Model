@@ -152,19 +152,19 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     KCCO2 = params["KCCO2"]
     KCSFCO2 = params["KCSFCO2"]
     MRBCO2 = params["MRBCO2"]
-    MRBO2 = params["MRBO2"]
+    MRBO2 = params["MO2_bp"]/1000
     VB = params["VB"]
 
     # Body Tissues Compartment
-    MRTCO2_basal = params["MRTCO2_basal"]
-    MRTO2_basal = params["MRTO2_basal"] - params["MO2_bp"]
+    MRTCO2_basal = params["MRTCO2_basal"] - params["MRBCO2"]
+    MRTO2_basal = params["MRTO2_basal"] - params["MO2_bp"]/1000
     tauMR = params["tauMR"]
     VTCO2 = params["VTCO2"]
     VTO2 = params["VTO2"]
 
     # exercise
-    MRCO2 = params["MRCO2"]
-    MRO2 = params["MRO2"] - params["MO2_bp"]
+    MRCO2 = params["MRCO2"] - params["MRBCO2"]
+    MRO2 = params["MRO2"] - params["MO2_bp"]/1000
 
     # if 1050 < t <= 1200:
     #     MRCO2 = 0.4/60 - 0.0009
