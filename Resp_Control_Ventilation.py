@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
 
 from Gas_Exchange import gas_exchange
-from Resp_Control_Breath_Optimiser import BreathOptimiser, simulate_euler
+from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 
 
 def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i, t_start):
@@ -125,7 +125,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
             bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
             tolerance = 0.001
-            opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
 
             # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
             # nlc_tau = {
@@ -135,7 +134,10 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             # Optimize
             # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
             # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
-            result = minimize(opt.objective, updates["Nd"][-2:], method='COBYLA', bounds=bounds)
+
+            required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"], params["E_rs"], params["R_rs"], params["P_ao"]]
+            initial_guess = updates["Nd"][-2:]
+            result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
 
             a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
             a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
@@ -165,9 +167,9 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             # print(VAflow, VD)
             # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
 
-            P_for_current_breath, dP_dt_for_current_breath = opt.calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:])
+            P_for_current_breath, dP_dt_for_current_breath = calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, params["E_rs"], params["R_rs"], params["P_ao"])
             # V_for_current_breath, dV_dt_for_current_breath = simulate_euler(current_times, P_for_current_breath, params["R_rs"], params["P_ao"], params["E_rs"])
-            V_for_current_breath, dV_dt_for_current_breath = opt.calculate_V_dV_dt(current_times, updates["Nd"][-2:])
+            V_for_current_breath, dV_dt_for_current_breath = calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, params["E_rs"], params["R_rs"], params["P_ao"])
             # VA_for_current_breath, dVA_dt_for_current_breath = opt.calculate_VA_dVA_dt(current_times, updates["Nd"][-2:])
 
             updates["P_musc_current"] = P_for_current_breath

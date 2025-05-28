@@ -1,9 +1,6 @@
 import bisect
 import math
-import os
-
 import numpy as np
-import pandas as pd
 
 
 def frac(x):
@@ -220,8 +217,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     Y_v = (Yv_min + Yv_max * np.exp((I - Io_v) / kcc_v)) / (1 + np.exp((I - Io_v) / kcc_v))
     first_term = (fev_o + fev_inf * np.exp((f_ab - fab_o)/kev)) / (1 + np.exp((f_ab - fab_o)/kev))
-    # f_v = first_term - Wt_v * Nt - Wc_v * f_ac - Wp_v * f_ap - theta_v + Y_v
-    f_v = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
+    f_v = first_term - Wt_v * Nt - Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
+    # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
 
     (Emax_lv0, Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0,
@@ -344,6 +341,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     GT_s = params["GT_s"]
     GT_v = params["GT_v"]
     T0 = params["T0"]
+
     tau_Ts = params["tau_Ts"]
     tau_Tv = params["tau_Tv"]
 
@@ -616,6 +614,10 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
     updates["theta_change_O2_sh"][i] = theta_change_O2_sh
     updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
+
+    updates["sigma_Tv"][i] = sigma_Tv
+    updates["sigma_Ts"][i] = sigma_Ts
+    updates["Y_v"][i] = Y_v
 
     # updates["R_ep_change"][i] = R_ep_change
     # updates["R_sp_change"][i] = R_sp_change

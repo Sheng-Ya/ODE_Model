@@ -1,328 +1,186 @@
 import numpy as np
-from matplotlib import pyplot as plt
-from scipy.integrate import simpson, solve_ivp
-from scipy.interpolate import interp1d
-from numba import njit
-
+# from matplotlib import pyplot as plt
+from scipy.integrate import simpson
+# from numba import njit
 
 
 # @njit
-def simulate_euler(times, P_musc, R_rs, P_ao, E_rs):
+def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
+
+    # Precompute key values
+    a2 = (-P_ao - E_rs * VA * (t1 + t2) - E_rs * VD) / (t1 ** 2)
+    a1 = -2 * a2 * t1
+    Pt1 = a1 * t1 + a2 * (t1 ** 2)
+    Vt1 = VA * (t1 + t2) + VD
+    tau = t2 / (-np.log(tolerance / Pt1))
+    B = E_rs / R_rs
+
+    return a1, a2, Pt1, Vt1, tau, B
+
+
+# @njit
+def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
+    """
+    Updated method for calculating V and dV/dt values
+    """
+    # Precompute constants
+    t1, t2 = initial_guess
+    a1, a2, Pt1, Vt1, tau, B = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
+
     V = np.zeros(len(times))
     dV_dt = np.zeros(len(times))
-    dt = np.diff(times)
 
-    for i in range(1, len(times)):
-        dV_dt[i-1] = (1 / R_rs) * ((P_musc[i-1] - P_ao) - E_rs * V[i - 1])
-        V[i] = V[i - 1] + dV_dt[i-1] * dt[i - 1]
+    # Breathing cycle patterns
+    breath = times % (t1 + t2)
+    mask_0_t1 = (0 <= breath) & (breath <= t1)
+    mask_t1_t2 = ~mask_0_t1
+    mask_0_t1[-1] = False
+    mask_t1_t2[-1] = False
 
-    dV_dt[-1] = (1 / R_rs) * ((P_musc[-1] - P_ao) - E_rs * V[-1])
+    x = breath[mask_0_t1]
+    z = breath[mask_t1_t2]
+
+    # Compute constants for solution
+    c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (np.exp(-B * t1) - 1)
+
+    d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
+    c2 = (Vt1 - (Pt1 / R_rs) / (B - 1 / tau)) / np.exp(-B * t1)
+
+    # Calculate for 0 <= breath <= t1
+    V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
+                    (a2 / E_rs) * (x ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * x +
+                    (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
+                    c1 * np.exp((-E_rs / R_rs) * x) + d1)
+    dV_dt[mask_0_t1] = (1 / R_rs) * (a1 * x + a2 * (x ** 2) - E_rs * V[mask_0_t1])
+
+    # Calculate for t1 <= breath <= t1 + t2
+    V[mask_t1_t2] = np.exp(-B * z) * ((Pt1 / R_rs) / (B - 1 / tau) *
+                                      np.exp((B - 1 / tau) * z + t1 / tau) + c2)
+    dV_dt[mask_t1_t2] = (1 / R_rs) * (Pt1 * np.exp(-(z - t1) / tau) - E_rs * V[mask_t1_t2])
 
     return V, dV_dt
 
 
-class BreathOptimiser:
-    def __init__(self, params, VAflow, VD, dt, tolerance):
-        self.params = params
-        self.VA = VAflow
-        self.VD = VD
-        self.dt = dt
-        self.tolerance = tolerance
+# @njit
+def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
+    """
+    Updated method for calculating P_musc and dP_musc/dt
+    """
+    t1, t2 = initial_guess
+    a1, a2, Pt1, _, tau, _ = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
 
-    # def calculate_VA_dVA_dt(self, times, initial_Nd_guess):
-    #     [t1, t2] = initial_Nd_guess
-    #     params = self.params
-    #     E_rs = params["E_rs"]
-    #     R_rs = params["R_rs"]
-    #     a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2) - E_rs * self.VD) / (t1 ** 2)
-    #     a1 = -2 * a2 * t1
-    #
-    #     VAflow = np.zeros(len(times))
-    #     dVA_dt = np.zeros(len(times))
-    #
-    #     # calculate P_musc at each t
-    #     breath = times % (t1 + t2)
-    #     mask_0_t1 = (0 <= breath) & (breath <= t1)
-    #     mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-    #     mask_0_t1[-1] = False
-    #     mask_t1_t2[-1] = False
-    #
-    #     x = breath[mask_0_t1]
-    #     z = breath[mask_t1_t2]
-    #     Pt1 = a1 * t1 + a2 * (t1 ** 2)
-    #     VAt1 = self.VA * (t1 + t2)
-    #
-    #     tau = t2 / (-np.log(self.tolerance / Pt1))
-    #
-    #     c1 = (VAt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
-    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
-    #     d1 = (a1 * R_rs / (E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)) - c1 + self.VD
-    #     d2 = self.VD
-    #     c2 = (VAt1 - (Pt1 / R_rs) * (1/(E_rs/R_rs - 1/tau))) / np.exp(-(E_rs/R_rs)*t1)
-    #     B = E_rs / R_rs
-    #
-    #     # Calculate V for breath in the range 0 to t1
-    #     VAflow[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (x**2) - (2 * a2 * R_rs / (E_rs ** 2)) * x
-    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + c1 * np.exp((-E_rs/R_rs) * x) - self.VD + d1)
-    #
-    #     dVA_dt[mask_0_t1] = (1/R_rs) * (a1 * x  + a2 * (x**2) - E_rs * VAflow[mask_0_t1])
-    #
-    #     # Calculate V for breath in the range t1 to t1 + t2
-    #     VAflow[mask_t1_t2] = np.exp(-B*z) * (Pt1 / R_rs) * (1/(B - 1/tau)) * np.exp(((B - 1/tau) * z) + t1/tau) + np.exp(-B*z) * c2 - self.VD + d2
-    #     dVA_dt[mask_t1_t2] = (1/R_rs) * (Pt1 * np.exp(-(z-t1)/tau) - E_rs * VAflow[mask_t1_t2])
-    #
-    #     return VAflow, dVA_dt
+    P_musc = np.zeros(len(times))
+    dP_musc_dt = np.zeros(len(times))
 
-    # def calculate_VA_dVA_dt(self, times, initial_Nd_guess):
-    #     [t1, t2] = initial_Nd_guess
-    #     params = self.params
-    #     E_rs = params["E_rs"]
-    #     R_rs = params["R_rs"]
-    #     a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2)) / (t1 ** 2) # changed so a2 is VA(t1 + t2) at t1 for VA
-    #     a1 = -2 * a2 * t1
-    #
-    #     VAflow = np.zeros(len(times))
-    #     dVA_dt = np.zeros(len(times))
-    #
-    #     # calculate P_musc at each t
-    #     breath = times % (t1 + t2)
-    #     mask_0_t1 = (0 <= breath) & (breath <= t1)
-    #     mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-    #     mask_0_t1[-1] = False
-    #     mask_t1_t2[-1] = False
-    #
-    #     x = breath[mask_0_t1]
-    #     z = breath[mask_t1_t2]
-    #     Pt1 = a1 * t1 + a2 * (t1 ** 2)
-    #     Vt1 = self.VA * (t1 + t2)
-    #
-    #     tau = t2 / (-np.log(self.tolerance / Pt1))
-    #
-    #     c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
-    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
-    #     d1 = (a1 * R_rs / (E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)) - c1
-    #     c2 = (Vt1 - (Pt1 / R_rs) * (1/(E_rs/R_rs - 1/tau))) / np.exp(-(E_rs/R_rs)*t1)
-    #     B = E_rs / R_rs
-    #
-    #     # Calculate V for breath in the range 0 to t1
-    #     VAflow[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (x**2) - (2 * a2 * R_rs / (E_rs ** 2)) * x
-    #                     + (2 * a2 * (R_rs**2) / (E_rs**3)) + c1 * np.exp((-E_rs/R_rs) * x) + d1)
-    #
-    #     dVA_dt[mask_0_t1] = (1/R_rs) * (a1 * x  + a2 * (x**2) - E_rs * VAflow[mask_0_t1])
-    #
-    #     # Calculate V for breath in the range t1 to t1 + t2
-    #     VAflow[mask_t1_t2] = np.exp(-B*z) * (Pt1 / R_rs) * (1/(B - 1/tau)) * np.exp(((B - 1/tau) * z) + t1/tau) + np.exp(-B*z) * c2
-    #     dVA_dt[mask_t1_t2] = (1/R_rs) * (Pt1 * np.exp(-(z-t1)/tau) - E_rs * VAflow[mask_t1_t2])
-    #
-    #     return VAflow, dVA_dt
+    # Breathing cycle patterns
+    breath = times % (t1 + t2)
+    mask_0_t1 = (0 <= breath) & (breath <= t1)
+    mask_t1_t2 = ~mask_0_t1
+    mask_0_t1[-1] = False
+    mask_t1_t2[-1] = False
 
-    def calculate_V_dV_dt(self, times, initial_Nd_guess):
-        [t1, t2] = initial_Nd_guess
-        params = self.params
-        E_rs = params["E_rs"]
-        R_rs = params["R_rs"]
-        a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2) - E_rs * self.VD) / (t1 ** 2)
-        a1 = -2 * a2 * t1
+    # Calculate P_musc for 0 <= breath <= t1
+    P_musc[mask_0_t1] = a1 * breath[mask_0_t1] + a2 * (breath[mask_0_t1] ** 2)
+    dP_musc_dt[mask_0_t1] = a1 + 2 * a2 * breath[mask_0_t1]
 
-        V = np.zeros(len(times))
-        dV_dt = np.zeros(len(times))
+    # Calculate P_musc for t1 <= breath <= t1 + t2
+    P_musc[mask_t1_t2] = Pt1 * np.exp(-(breath[mask_t1_t2] - t1) / tau)
+    dP_musc_dt[mask_t1_t2] = P_musc[mask_t1_t2] * (-1 / tau)
 
-        # calculate P_musc at each t
-        breath = times % (t1 + t2)
-        mask_0_t1 = (0 <= breath) & (breath <= t1)
-        mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-        mask_0_t1[-1] = False
-        mask_t1_t2[-1] = False
-
-        x = breath[mask_0_t1]
-        z = breath[mask_t1_t2]
-        Pt1 = a1 * t1 + a2 * (t1 ** 2)
-        Vt1 = self.VA * (t1 + t2) + self.VD
-
-        tau = t2 / (-np.log(self.tolerance / Pt1))
-
-        c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (t1**2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1
-                        + (2 * a2 * (R_rs**2) / (E_rs**3)) + (a1*R_rs/(E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)))) / (np.exp(-(E_rs/R_rs)*t1)-1)
-        d1 = (a1 * R_rs / (E_rs**2)) - (2 * a2 * (R_rs**2) / (E_rs**3)) - c1
-        c2 = (Vt1 - (Pt1 / R_rs) * (1/(E_rs/R_rs - 1/tau))) / np.exp(-(E_rs/R_rs)*t1)
-        B = E_rs / R_rs
-
-        # Calculate V for breath in the range 0 to t1
-        V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs/(E_rs**2)) + (a2 / E_rs) * (x**2) - (2 * a2 * R_rs / (E_rs ** 2)) * x
-                        + (2 * a2 * (R_rs**2) / (E_rs**3)) + c1 * np.exp((-E_rs/R_rs) * x) + d1)
-
-        dV_dt[mask_0_t1] = (1/R_rs) * (a1 * x  + a2 * (x**2) - E_rs * V[mask_0_t1])
-
-        # Calculate V for breath in the range t1 to t1 + t2
-        V[mask_t1_t2] = np.exp(-B*z) * (Pt1 / R_rs) * (1/(B - 1/tau)) * np.exp(((B - 1/tau) * z) + t1/tau) + np.exp(-B*z) * c2
-        dV_dt[mask_t1_t2] = (1/R_rs) * (Pt1 * np.exp(-(z-t1)/tau) - E_rs * V[mask_t1_t2])
-
-        return V, dV_dt
-
-    # def calculate(self, times, initial_Nd_guess):
-    #     [tau, t1, t2] = initial_Nd_guess
-    #     params = self.params
-    #     E_rs = params["E_rs"]
-    #     R_rs = params["R_rs"]
-    #     a2 = (-params["P_ao"] - E_rs * self.VA * (t1 + t2) - E_rs * self.VD) / (t1 ** 2)
-    #     a1 = -2 * a2 * t1
-    #
-    #     V = np.zeros(len(times))
-    #     dV_dt = np.zeros(len(times))
-    #
-    #     # calculate P_musc at each t
-    #     breath = times % (t1 + t2)
-    #     mask_0_t1 = (0 <= breath) & (breath <= t1)
-    #     mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-    #     mask_0_t1[-1] = True
-    #     mask_t1_t2[-1] = False
-    #
-    #     x = breath[mask_0_t1]
-    #     z = breath[mask_t1_t2]
-    #     Pt1 = a1 * t1 + a2 * (t1 ** 2)
-    #     Vt1 = self.VA * (t1 + t2) + self.VD
-    #
-    #     d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3))
-    #     c1 = (Vt1 - ((a1 / E_rs) * t1 - (a1 * R_rs / (E_rs ** 2)) + (a2 / E_rs) * (t1 ** 2) - (
-    #                 2 * a2 * R_rs / (E_rs ** 2)) * t1
-    #                  + (2 * a2 * (R_rs ** 2) / (E_rs ** 3)))) / np.exp(-(E_rs / R_rs) * t1)
-    #     c2 = (Vt1 - (Pt1 / R_rs) * (1 / (E_rs / R_rs - 1 / tau))) / np.exp(-(E_rs / R_rs) * t1)
-    #     B = E_rs / R_rs
-    #
-    #     # Calculate V for breath in the range 0 to t1
-    #     V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) + (a2 / E_rs) * (x ** 2) - (
-    #                 2 * a2 * R_rs / (E_rs ** 2)) * x
-    #                     + (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) + c1 * np.exp((-E_rs / R_rs) * x))
-    #
-    #     check_3 = ((a1 / E_rs) * t1 - (a1 * R_rs / (E_rs ** 2)) + (a2 / E_rs) * (t1 ** 2) - (
-    #                 2 * a2 * R_rs / (E_rs ** 2)) * t1
-    #                + (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) + d1 * np.exp((-E_rs / R_rs) * t1))
-    #
-    #     dV_dt[mask_0_t1] = (1 / R_rs) * (a1 * x + a2 * (x ** 2) - E_rs * V[mask_0_t1])
-    #
-    #     # Calculate V for breath in the range t1 to t1 + t2
-    #     V[mask_t1_t2] = np.exp(-B * z) * (Pt1 / R_rs) * (1 / (B - 1 / tau)) * np.exp(
-    #         ((B - 1 / tau) * z) + t1 / tau) + np.exp(-B * z) * c2
-    #     dV_dt[mask_t1_t2] = (1 / R_rs) * (Pt1 * np.exp(-(z - t1) / tau) - E_rs * V[mask_t1_t2])
-    #
-    #     return V, dV_dt
-
-    # def tau_constraint(self, initial_Nd_guess):
-    #     [tau, t1, t2] = initial_Nd_guess
-    #     # params = self.params
-    #
-    #     # a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
-    #     # a1 = -2 * a2 * t1
-    #
-    #     # Pt1 = a1 * t1 + a2 * (t1 ** 2)
-    #     # constraint = Pt1 * np.exp(-t2 / tau)
-    #     constraint = (-t2 / (np.log(0.001))) - tau
-    #     return constraint
+    return P_musc, dP_musc_dt
 
 
-    def calculate_P_musc_dP_dt(self, times, initial_Nd_guess):
-        [t1, t2] = initial_Nd_guess
-        params = self.params
+# @njit
+def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
+    """
+    Optimized Objective function
+    """
+    t1, t2 = initial_guess
+    n_steps = int(np.round((t1 + t2) / dt)) + 1
+    times = np.linspace(0, t1 + t2, n_steps)
 
-        a2 = (-params["P_ao"] - params["E_rs"] * self.VA * (t1 + t2) - params["E_rs"] * self.VD) / (t1 ** 2)
-        a1 = -2 * a2 * t1
+    lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao = required_params
 
-        P_musc_t1 = a1 * t1 + a2 * (t1 ** 2)
-        tau = t2 / (-np.log(self.tolerance/P_musc_t1)) # tau should be less than that but for optimisation, higher the better
+    P_musc, dP_musc_dt = calculate_P_musc_dP_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+    volume_signal, dV_dt_values = calculate_V_dV_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
 
-        P_musc = np.zeros(len(times))
-        dP_musc_dt = np.zeros(len(times))
+    # print((-2 * a2 * t1), a2, tau, t1, t2)
+    # plt.plot(volume_signal)
+    # plt.plot(check_V)
+    # plt.show() # compare euler to analytical solution
 
-        # calculate P_musc at each t
-        breath = times % (t1 + t2)
-        mask_0_t1 = (0 <= breath) & (breath <= t1)
-        mask_t1_t2 = (t1 < breath) & (breath <= (t1 + t2))
-        mask_0_t1[-1] = False
-        mask_t1_t2[-1] = False
+    inspire_index = int(np.round(t1 / dt))
+    dV2_dt2_values_squared = ((1 / R_rs) * ((dP_musc_dt - P_ao) -
+                                                      E_rs * dV_dt_values)) ** 2
 
-        # Calculate P_musc for breath in the range 0 to t1
-        P_musc[mask_0_t1] = a1 * breath[mask_0_t1] + a2 * (breath[mask_0_t1] ** 2)
-        dP_musc_dt[mask_0_t1] = a1 + 2 * a2 * breath[mask_0_t1]
+    E1_n = (1 - P_musc / Pmax) ** n
+    E2_n = (1 - dP_musc_dt / Pmax_dot) ** n
 
-        # Calculate P_musc for breath in the range t1 to t1 + t2
-        P_musc[mask_t1_t2] = P_musc_t1 * np.exp(-(breath[mask_t1_t2] - t1) / tau)
-        dP_musc_dt[mask_t1_t2] = P_musc_t1 * np.exp(-(breath[mask_t1_t2] - t1) / tau) * (-1 / tau)
+    # Compute inspiratory and expiratory integrals
+    integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / (
+            E1_n[:inspire_index] * E2_n[:inspire_index]) + lambda1 * dV2_dt2_values_squared[:inspire_index]
+    integrand_expire = dV2_dt2_values_squared[inspire_index:]
 
-        return P_musc, dP_musc_dt
+    integral_inspire = simpson(integrand_inspire)
+    integral_expire = simpson(integrand_expire)
+
+    WI = (1 / (t1 + t2)) * integral_inspire
+    WE = (1 / (t1 + t2)) * integral_expire
+
+    # Return cost function value
+    return np.log(WI + lambda2 * WE)
+
+# didn't do ln. Original paper has ln, but the Carlos paper does not
 
 
-    def objective(self, initial_Nd_guess):
-        """
-         Function to obtain a0, a1, a2, tau, t1, t2 Edit: removed a0 and a1
-        """
-        [t1, t2] = initial_Nd_guess
-        params = self.params
+# @njit
+# def simpson_numba(y, dx):
+#     N = len(y)
+#
+#     result = 0.0
+#
+#     # Uniform spacing
+#     if N % 2 == 0:
+#         # Simpson's rule on N-1 points, trapezoid for last
+#         for i in range(0, N - 2, 2):
+#             result += dx / 3 * (y[i] + 4 * y[i+1] + y[i+2])
+#         result += 0.5 * dx * (y[-2] + y[-1])
+#     else:
+#         for i in range(0, N - 2, 2):
+#             result += dx / 3 * (y[i] + 4 * y[i+1] + y[i+2])
+#
+#     return float(result)
 
-        # if t2 < 0:
-        #     return np.inf
+# @njit
+# def simpson_numba(y, x):
+#
+#     N = len(y)
+#     result = 0.0
+#
+#     # Non-uniform spacing
+#     if N % 2 == 0:
+#         # Apply Simpson's rule on N-1 points, trapezoid for last interval
+#         for i in range(0, N - 2, 2):
+#             h0 = x[i+1] - x[i]
+#             h1 = x[i+2] - x[i+1]
+#             h = h0 + h1
+#             a = -h1 / (h0 * h)
+#             b = (h1 - h0) / (h0 * h1)
+#             c = h0 / (h1 * h)
+#             result += (a * y[i] + b * y[i+1] + c * y[i+2]) * (h0 + h1)
+#
+#         # Trapezoid for last interval
+#         i = N - 2
+#         result += 0.5 * (x[i+1] - x[i]) * (y[i] + y[i+1])
+#     else:
+#         for i in range(0, N - 2, 2):
+#             h0 = x[i+1] - x[i]
+#             h1 = x[i+2] - x[i+1]
+#             h = h0 + h1
+#             a = -h1 / (h0 * h)
+#             b = (h1 - h0) / (h0 * h1)
+#             c = h0 / (h1 * h)
+#             result += (a * y[i] + b * y[i+1] + c * y[i+2]) * (h0 + h1)
+#
+#     return result
 
-        n_steps = int(np.round((t1 + t2) / self.dt)) + 1
-        times = np.linspace(0, (t1 + t2), n_steps)
-
-        # Breathing Pattern Optimiser
-        lambda1 = params["lambda1"]
-        lambda2 = params["lambda2"]
-        n = params["n"]
-        Pmax = params["Pmax"]
-        Pmax_dot = params["Pmax_dot"]
-
-        P_musc, dP_musc_dt = self.calculate_P_musc_dP_dt(times, initial_Nd_guess)
-
-        # volume_signal, dV_dt_values  = simulate_euler(times, P_musc, params["R_rs"], params["P_ao"], params["E_rs"])
-
-        volume_signal, dV_dt_values = self.calculate_V_dV_dt(times, initial_Nd_guess)
-
-        # print((-2 * a2 * t1), a2, tau, t1, t2)
-        # plt.plot(volume_signal)
-        # plt.plot(check_V)
-        # plt.show() # compare euler to analytical solution
-
-        inspire_index = int(round(t1 / self.dt))
-        dV2_dt2_values_squared = ((1 / params["R_rs"]) * ((dP_musc_dt - params["P_ao"]) - params["E_rs"] * dV_dt_values)) ** 2
-
-        E1_n = (1 - P_musc / Pmax) ** n
-        E2_n = (1 - dP_musc_dt / Pmax_dot) ** n
-
-        integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / (E1_n[:inspire_index] * E2_n[:inspire_index]) + lambda1 * dV2_dt2_values_squared[:inspire_index]
-        integrand_expire = dV2_dt2_values_squared[inspire_index:]
-
-        # Integrate over time using Simpson’s rule
-        integral_inspire = simpson(integrand_inspire, x=times[:inspire_index])
-        integral_expire = simpson(integrand_expire, x=times[inspire_index:])
-
-        WI = (1 / (t1 + t2)) * integral_inspire
-        WE = (1 / (t1 + t2)) * integral_expire
-
-        J = np.log(WI + lambda2 * WE)
-
-        return J
-
-    # didn't do ln. Original paper has ln, but the Carlos paper does not
-
-    def compute_integral_inspire(self, t1, t2):
-        times = np.linspace(0, t1 + t2, int(np.round((t1 + t2) / self.dt)) + 1)
-        P_musc, dP_musc_dt = self.calculate_P_musc_dP_dt(times, [t1, t2])
-        volume_signal, dV_dt_values = self.calculate_V_dV_dt(times, [t1, t2])
-        inspire_index = int(round(t1 / self.dt))
-
-        dV2_dt2_values_squared = ((1 / self.params["R_rs"]) *
-                                  ((dP_musc_dt - self.params["P_ao"]) - self.params["E_rs"] * dV_dt_values)) ** 2
-
-        E1_n = (1 - P_musc / self.params["Pmax"]) ** self.params["n"]
-        E2_n = (1 - dP_musc_dt / self.params["Pmax_dot"]) ** self.params["n"]
-
-        integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / \
-                            (E1_n[:inspire_index] * E2_n[:inspire_index]) + \
-                            self.params["lambda1"] * dV2_dt2_values_squared[:inspire_index]
-        integrand_expire = dV2_dt2_values_squared[inspire_index:]
-
-        # Integrate over time using Simpson’s rule
-        integral_inspire = simpson(integrand_inspire, x=times[:inspire_index])
-        integral_expire = simpson(integrand_expire, x=times[inspire_index:])
-
-        return integral_inspire, integral_expire

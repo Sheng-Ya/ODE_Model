@@ -185,22 +185,24 @@ def gas_exchange(t, state, params, time_history, resp_mech_inputs, resp_control_
     MRCO2 = params["MRCO2"]
     MRO2 = params["MRO2"]
 
-    if 1050 < t <= 1200:
-        MRCO2 = 0.4/60 - 0.0009
-        MRO2 = 0.45 / 60 - 0.000925
+    # if 1050 < t <= 1200:
+    #     MRCO2 = 0.4/60 - 0.0009
+    #     MRO2 = 0.45 / 60 - 0.000925
+    #
+    # if 1200 < t <= 1350:
+    #     MRCO2 = 0.6/60 - 0.0009
+    #     MRO2 = 0.65 / 60 - 0.000925
+    #
+    # if 1350 < t <= 1500:
+    #     MRCO2 = 0.8/60 - 0.0009
+    #     MRO2 = 0.85 / 60 - 0.000925
 
-    if 1200 < t <= 1350:
-        MRCO2 = 0.6/60 - 0.0009
-        MRO2 = 0.65 / 60 - 0.000925
-
-    if 1350 < t <= 1500:
-        MRCO2 = 0.8/60 - 0.0009
-        MRO2 = 0.85 / 60 - 0.000925
-
-    if 1500 < t:
+    if 910 < t:
         MRCO2 = 1/60 - 0.0009
         MRO2 = 1.05 / 60 - 0.000925
 
+    if 920 < t:
+        A = 2
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure
     # CvbO2 is NOT the same as CBO2 (CBO2 doesn't include haemoglobin), but here CvbCO2 is the SAME as CBCO2 (just the curve)

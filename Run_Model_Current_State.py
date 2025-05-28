@@ -9,7 +9,7 @@ from scipy.signal import find_peaks
 from line_profiler import LineProfiler
 from collections import deque
 
-from Resp_Control_Breath_Optimiser import BreathOptimiser
+import Resp_Control_Breath_Optimiser
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
@@ -25,12 +25,12 @@ from Initial_Conditions_after_running_again import Initial_Conditions
 from Next_Conditions_after_running_again import Next_Conditions
 
 # output files
-output_file1 = "Selected_Conditions_after_running_again_2.py"
-output_file2 = "Initial_Conditions_after_running_again_2.py"
-output_file3 = "Next_Conditions_after_running_again_2.py"
+output_file1 = "Selected_Conditions_after_running_again_3.py"
+output_file2 = "Initial_Conditions_after_running_again_3.py"
+output_file3 = "Next_Conditions_after_running_again_3.py"
 
 target_values = np.arange(0, 10000, 10)
-t_span = (int(Next_Conditions["time_history"][0]), int(Next_Conditions["time_history"][0]) + 800)
+t_span = (int(Next_Conditions["time_history"][0]), int(Next_Conditions["time_history"][0]) + 50)
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -152,20 +152,22 @@ def simulate():
 
 if __name__ == "__main__":
 
-    # lp = LineProfiler()
-    # lp.add_function(BreathOptimiser.objective)
+    lp = LineProfiler()
+    lp.add_function(Resp_Control_Breath_Optimiser.objective)
 
-    # lp.add_function(combined_system)
-    # lp.add_function(cardiovascular_controller)
-    # lp.add_function(cardiovascular_system)
-    # lp.add_function(gas_exchange)
-    # lp.add_function(respiratory_mechanics)
-    # lp.enable()
+    lp.add_function(combined_system)
+    lp.add_function(cardiovascular_controller)
+    lp.add_function(cardiovascular_system)
+    lp.add_function(gas_exchange)
+    lp.add_function(respiratory_mechanics)
+    lp.add_function(resp_control_vent)
+
+    lp.enable()
     solution = simulate()
     print("ODE Status:", solution.status)
     print("ODE Message:", solution.message)
-    # lp.disable()
-    # lp.print_stats()
+    lp.disable()
+    lp.print_stats()
 
     time = solution.t
     state_variables = solution.y
@@ -180,6 +182,21 @@ if __name__ == "__main__":
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
     start_index = index - 10000
+
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index], label="Emax_lv")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index], label="Emax_rv")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I")
+    #
+    #
+    #
+    # Add labels and legend
+    plt.ylabel("")
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 
@@ -206,14 +223,14 @@ if __name__ == "__main__":
 
     # x1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_jp"][:index], label="Q_jp", color="b")
     # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cvam_O2"][:index], label="Cvam_O2", color="k")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="c")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ash"][:index], label="f_sh", color="c")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_asp"][:index], label="f_sp", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_asv"][:index], label="f_sv", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I", color="b")
-
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="f_v", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ash"][:index], label="f_sh", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_asp"][:index], label="f_sp", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_asv"][:index], label="f_sv", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ap"][:index], label="f_ap", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Y_v"][:index], label="Y_v", color="b")
 
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_O2_sp"][:index], label="theta_change_O2_sp", color="r")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_change_CO2_sp"][:index], label="theta_change_CO2_sp", color="b")
@@ -316,90 +333,88 @@ if __name__ == "__main__":
 
 
     # Create a new dictionary for the delays
-    selected_conditions = {key: Next_Conditions[key] for key in
-                           ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
+    # selected_conditions = {key: Next_Conditions[key] for key in
+    #                        ["f_sp", "f_sh", "f_v", "f_sv", "phi_met", "time_history", "PA_O2", "PA_CO2"]}
 
-    # Save to a new Python file
-    with open(output_file1, 'w') as f:
-        f.write('import numpy as np\n\n')
-        f.write('Selected_Conditions = {\n')
-        for key, value in selected_conditions.items():
-            f.write(f"    '{key}': np.array({value[start_index:index].tolist()}),\n")
-        f.write('}\n')
-
-
-    # new initial state variables
-    final_values = state_variables[:, -1]  # last time point
-
-    # Open the new file for writing
-    with open(output_file2, "w") as f:
-        f.write("Initial_Conditions = {\n")
-
-        for name, value in zip(state_variable_names, final_values):
-            f.write(f'    "{name}": {value},\n')  # adjust format as needed
-
-        f.write("}\n")
-
-
-
-    with open(output_file3, "w") as f:
-        f.write("import numpy as np\n\n")
-        f.write("Next_Conditions = {\n")
-
-        # Ensure 'i' and all other non populated arrays are set correctly
-        # f.write(f'    "i": np.array([{index}]),\n\n')
-        f.write(f'    "i": np.array([{0}]),\n')
-        f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
-        f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
-
-        for key, array in Next_Conditions.items():
-            if key in ["i", "time_since_beat", "Nd"]:
-                continue  # Already handled
-            if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
-                last_value = array[index]
-                f.write(
-                    f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
-            else:
-                if isinstance(array, (list, np.ndarray)):
-                    values = list(array)
-                else:
-                    values = [array]
-
-                f.write(f'    "{key}": {values},\n')
-
-        f.write("}\n")
-
-
-    # state variables excel
-    if index > 100000:
-        # index_start = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 100000
-        index_start = 0
-
-        # Transpose state variables so that each row is a time point and columns are variable values
-        df = pd.DataFrame(data=solution.y.T, columns=state_variable_names)
-        df.insert(0, "time", solution.t)
-        df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
-    else:
-        index_start = 0
-        df = pd.DataFrame(data=solution.y[:,:].T, columns=state_variable_names)
-        df.insert(0, "time", solution.t[:])
-        df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
-
-    # Next_Conditions excel
-    # Build a dictionary of shortened arrays
-    data = {
-        key: val[index_start:index + 1]
-        for key, val in Next_Conditions.items()
-        if isinstance(val, np.ndarray) and len(val) > index
-    }
-
-    # Ensure time_history is first
-    columns = ["time_history"] + [k for k in data if k != "time_history"]
-    nextdf = pd.DataFrame({k: data[k] for k in columns})
-
-    nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
+    # # Save to a new Python file
+    # with open(output_file1, 'w') as f:
+    #     f.write('import numpy as np\n\n')
+    #     f.write('Selected_Conditions = {\n')
+    #     for key, value in selected_conditions.items():
+    #         f.write(f"    '{key}': np.array({value[start_index:index].tolist()}),\n")
+    #     f.write('}\n')
+    #
+    #
+    # # new initial state variables
+    # final_values = state_variables[:, -1]  # last time point
+    #
+    # # Open the new file for writing
+    # with open(output_file2, "w") as f:
+    #     f.write("Initial_Conditions = {\n")
+    #
+    #     for name, value in zip(state_variable_names, final_values):
+    #         f.write(f'    "{name}": {value},\n')  # adjust format as needed
+    #
+    #     f.write("}\n")
+    #
+    #
+    #
+    # with open(output_file3, "w") as f:
+    #     f.write("import numpy as np\n\n")
+    #     f.write("Next_Conditions = {\n")
+    #
+    #     # Ensure 'i' and all other non populated arrays are set correctly
+    #     # f.write(f'    "i": np.array([{index}]),\n\n')
+    #     f.write(f'    "i": np.array([{0}]),\n')
+    #     f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
+    #     f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
+    #
+    #     for key, array in Next_Conditions.items():
+    #         if key in ["i", "time_since_beat", "Nd"]:
+    #             continue  # Already handled
+    #         if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
+    #             last_value = array[index]
+    #             f.write(
+    #                 f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
+    #         else:
+    #             if isinstance(array, (list, np.ndarray)):
+    #                 values = list(array)
+    #             else:
+    #                 values = [array]
+    #
+    #             f.write(f'    "{key}": {values},\n')
+    #
+    #     f.write("}\n")
 
 
+    # # state variables excel
+    # if index > 100000:
+    #     # index_start = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 100000
+    #     index_start = 0
+    #
+    #     # Transpose state variables so that each row is a time point and columns are variable values
+    #     df = pd.DataFrame(data=solution.y.T, columns=state_variable_names)
+    #     df.insert(0, "time", solution.t)
+    #     df.to_csv("C:/Users/vanes/Documents/state_variables_output1.csv", index=False)
+    # else:
+    #     index_start = 0
+    #     df = pd.DataFrame(data=solution.y[:,:].T, columns=state_variable_names)
+    #     df.insert(0, "time", solution.t[:])
+    #     df.to_csv("C:/Users/vanes/Documents/state_variables_output1.csv", index=False)
+    #
+    # # Next_Conditions excel
+    # # Build a dictionary of shortened arrays
+    # data = {
+    #     key: val[index_start:index + 1]
+    #     for key, val in Next_Conditions.items()
+    #     if isinstance(val, np.ndarray) and len(val) > index
+    # }
+    #
+    # # Ensure time_history is first
+    # columns = ["time_history"] + [k for k in data if k != "time_history"]
+    # nextdf = pd.DataFrame({k: data[k] for k in columns})
+    #
+    # nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output1.csv", index=False)
 
 
 
@@ -411,21 +426,23 @@ if __name__ == "__main__":
 
 
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Pa_O2", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_O2"][:index], label="PA_O2", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Pa_CO2", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="PA_CO2", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
 
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VE_flow"][:index], label="VE_flow", color="b")
 
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Pa_O2", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_O2"][:index], label="PA_O2", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Pa_CO2", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="PA_CO2", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
+    #
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VE_flow"][:index], label="VE_flow", color="b")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
 
     # fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt", color="c")

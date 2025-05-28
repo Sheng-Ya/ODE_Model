@@ -219,7 +219,7 @@ Parameters = {
     "fab_o": 25,               # Central value in the curve of fab
     "fes_o": 16.11,            # Constant parameter
     "fes_inf": 2.1,            # Constant parameter
-    "fes_max": 60,             # Saturation level above which the sympathetic activity cannot increase
+    "fes_max": 80,             # Saturation level above which the sympathetic activity cannot increase # changed
     "fev_o": 3.2,              # Constant parameter
     "fev_inf": 6.3,            # Constant parameter
     "kes": 0.0675,             # Constant parameter
@@ -311,7 +311,7 @@ Parameters = {
     "fv_IC": 4.2748,         # Initial condition for the efferent vagal activity
     "GT_s": -0.13,          # Constant gain factor
     "GT_v": 0.09,           # Constant gain factor
-    "T0": 0.83333,              # Heart period in the absence of cardiac innervation # want to change to 0.83333 from 0.58
+    "T0": 0.58,              # Heart period in the absence of cardiac innervation # want to change to 0.83333 from 0.58
     "tau_Ts": 2,              # Time constant
     "tau_Tv": 1.5,            # Time constant
 # }

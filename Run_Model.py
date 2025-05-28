@@ -28,7 +28,7 @@ output_file3 = "Next_Conditions_new.py"
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 150) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 300) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
