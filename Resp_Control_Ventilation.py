@@ -26,6 +26,14 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     KpO2 = params["KpO2"]
     V0_dead = params["V0_dead"]
     VA_rest = params["VA_rest"]
+    lambda1 = params["lambda1"]
+    lambda2 = params["lambda2"]
+    n = params["n"]
+    Pmax = params["Pmax"]
+    Pmax_dot = params["Pmax_dot"]
+    E_rs = params["E_rs"]
+    R_rs = params["R_rs"]
+    P_ao = params["P_ao"]
 
     if t == t_start:
         gas_exchange_index = i
@@ -82,8 +90,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         G3 = 0
 
     # VA_rest = 0.03
-    AAA = params["PbCO2IC"]
-    A = VA_rest * (KcCO2 * (PmbCO2 - params["PbCO2IC"])) #+ KpCO2 * PamCO2
 
     # VAflow = VA_rest * (KcCO2 * (PmbCO2 - params["PbCO2IC"])) + KpCO2 * PamCO2 + G3 + KcMRV * MRV + VA_rest - 8.29
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
@@ -126,14 +132,14 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             #     'fun': opt.tau_constraint
             # }
             # Optimize
-            # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
-            # print((-a2 * (t1) ** 2 - params["P_ao"] - params["E_rs"] * VAflow * t1 - params["E_rs"] * VD) / (params["E_rs"] * VAflow))
+            # print((a1 * t1 + a2 * (t1 ** 2) - P_ao) - E_rs * (VAflow * (t1 + t2) + VD))
+            # print((-a2 * (t1) ** 2 - P_ao - E_rs * VAflow * t1 - E_rs * VD) / (E_rs * VAflow))
 
-            required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"], params["E_rs"], params["R_rs"], params["P_ao"]]
+            required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
             initial_guess = updates["Nd"][-2:]
             result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
 
-            a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (result.x[0] + result.x[1]) - params["E_rs"] * VD) / (result.x[0] ** 2) # VAflow constraint
+            a2 = (-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2) # VAflow constraint
             a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
             Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
             tau = t2 / (-np.log(tolerance/Pt1))
@@ -142,10 +148,10 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["Nd"].append(a2)
             updates["Nd"].append(tau)
             updates["Nd"].extend(result.x)
-            updates["J"].append(result.fun)
+            # updates["J"].append(result.fun)
 
             # if 910.5 > t > 910:
-            #     a2 = (-params["P_ao"] - params["E_rs"] * VAflow * (0.5 + 0.8) - params["E_rs"] * VD) / (0.5 ** 2) # VAflow constraint
+            #     a2 = (-P_ao - E_rs * VAflow * (0.5 + 0.8) - E_rs * VD) / (0.5 ** 2) # VAflow constraint
             #     a1 = -2 * a2 * 0.5  # dP_dt = 0 at t1
             #     Pt1 = a1 * 0.5 + a2 * (0.5 ** 2)
             #     tau = 0.8 / (-np.log(tolerance/Pt1))
@@ -160,8 +166,8 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             current_times = np.linspace(0, (t1 + t2), n_steps)
             updates["current_times"] = current_times
 
-            P_for_current_breath, dP_dt_for_current_breath = calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, params["E_rs"], params["R_rs"], params["P_ao"])
-            V_for_current_breath, dV_dt_for_current_breath = calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, params["E_rs"], params["R_rs"], params["P_ao"])
+            P_for_current_breath, dP_dt_for_current_breath = calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+            V_for_current_breath, dV_dt_for_current_breath = calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
 
             updates["P_musc_current"] = P_for_current_breath
             updates["V_current"] = V_for_current_breath
@@ -170,11 +176,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["finish_breath_time"].append(t)
 
             # check optimisation results
-            # print(f"guess: {updates["Nd"][-5:]}")
+            print(f"guess: {updates["Nd"][-5:]}")
             # check whether pressure at time t1+t2 is 0
             # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
             # check whether dV_dt = 0 at t1
-            # print((a1 * t1 + a2 * (t1 ** 2) - params["P_ao"]) - params["E_rs"] * (VAflow * (t1 + t2) + VD))
+            # print((a1 * t1 + a2 * (t1 ** 2) - P_ao) - E_rs * (VAflow * (t1 + t2) + VD))
             # print(VAflow * (t1 + t2) + VD)
             # plt.plot(current_times, V_for_current_breath, label="V")
             # plt.plot(current_times, dV_dt_for_current_breath, label="dV_dt")

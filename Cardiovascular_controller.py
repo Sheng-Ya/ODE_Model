@@ -60,7 +60,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
      theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n, f_ac_max, f_ac_min, k_ac,
      K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D, Cvb_O2_n, gb_O2, MO2_bp, R_bpn,
      tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n,
-     Dmet, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = [params[k] for k in ["fab_o", "fes_o",
+     gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = [params[k] for k in ["fab_o", "fes_o",
     "fes_inf", "fes_max", "fev_o", "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv",
     "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh",
     "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv",
@@ -72,7 +72,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap",
     "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "tau_CO2",
     "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2", "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w",
-    "W_hn", "Cvam_O2_n", "Dmet", "gam_O2", "gM", "Io_met", "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
+    "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met", "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
 
         # Other inputs
     MRTCO2 = gas_exchange_inputs["MRTCO2"][gas_index]
@@ -381,7 +381,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     phi_met = (phi_min + phi_max * np.exp((I - Io_met) / kmet)) / (1 + np.exp((I - Io_met) / kmet))
 
-    delay_time_met = t - Dmet
+    delay_time_met = t - 4
     if delay_time_met >= t_start:
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, delay_time_met) - 1
@@ -508,42 +508,33 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["f_sv"][i] = f_sv
     updates["phi_met"][i] = phi_met
 
-    # updates["f_ac"][i] = f_ac
-    # updates["f_ab"][i] = f_ab
-    # updates["f_ap"][i] = f_ap
-    # updates["Nt"][i] = Nt
-    # updates["Cvb_O2"][i] = Cvb_O2
-    # updates["Wh"][i]= Wh
-    # updates["xamO2"][i] = xam_O2
-    # updates["Cvam_O2"][i] = Cvam_O2
-    # updates["MO2_amp"][i] = MO2_amp
-    # updates["xM"][i] = xM
-    # updates["f_asv"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv)
-    # updates["f_asp"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp)
-    # updates["f_ash"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash)
 
-    # updates["theta_change_O2_sp"][i] = theta_change_O2_sp
-    # updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
-    # updates["theta_change_O2_sv"][i] = theta_change_O2_sv
-    # updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
-    # updates["theta_change_O2_sh"][i] = theta_change_O2_sh
-    # updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
+    # just for plotting purposes
+    updates["f_ac"][i] = f_ac
+    updates["f_ab"][i] = f_ab
+    updates["f_ap"][i] = f_ap
+    updates["Nt"][i] = Nt
+    updates["Cvb_O2"][i] = Cvb_O2
+    updates["Wh"][i]= Wh
+    updates["xamO2"][i] = xam_O2
+    updates["Cvam_O2"][i] = Cvam_O2
+    updates["MO2_amp"][i] = MO2_amp
+    updates["xM"][i] = xM
+    updates["f_asv"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv)
+    updates["f_asp"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp)
+    updates["f_ash"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash)
 
-    # updates["sigma_Tv"][i] = sigma_Tv
-    # updates["sigma_Ts"][i] = sigma_Ts
-    # updates["Y_v"][i] = Y_v
+    updates["theta_change_O2_sp"][i] = theta_change_O2_sp
+    updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
+    updates["theta_change_O2_sv"][i] = theta_change_O2_sv
+    updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
+    updates["theta_change_O2_sh"][i] = theta_change_O2_sh
+    updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
 
-    # updates["R_ep_change"][i] = R_ep_change
-    # updates["R_sp_change"][i] = R_sp_change
-    # updates["R_rmp_change"][i] = R_rmp_n_change
-    # updates["R_amp_change"][i] = R_amp_n_change
-    # updates["Vu_ev_change"][i] = Vu_ev_change
-    # updates["Vu_rmv_change"][i] = Vu_rmv_change
-    # updates["Vu_amv_change"][i] = Vu_amv_change
-    # updates["Emax_lv_change"][i] = Emax_lv_change
-    # updates["Emax_rv_change"][i] = Emax_rv_change
-    # updates["d_Ts_change_dt"][i] = d_Ts_change_dt
-    # updates["d_Tv_change_dt"][i] = d_Tv_change_dt
+    updates["sigma_Tv"][i] = sigma_Tv
+    updates["sigma_Ts"][i] = sigma_Ts
+    updates["Y_v"][i] = Y_v
+
 
     return [dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
             dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,

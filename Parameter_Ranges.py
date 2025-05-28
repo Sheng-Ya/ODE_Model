@@ -80,8 +80,8 @@ parameters = {
     "VT_n": (0.73 * lower, 0.73 * upper),
     "BF": (0.25 * lower, 0.25 * upper),
 
-    # "Emax_lv": (2.392 * lower, 2.392 * upper),
-    # "Emax_rv": (1.412 * lower, 1.412 * upper),
+    "Emax_lv": (2.392 * lower, 2.392 * upper),
+    "Emax_rv": (1.412 * lower, 1.412 * upper),
     "HR": (1.2 * lower, 1.2 * upper),
     "T_resp": (4 * lower, 4 * upper),
     "TI": (1.8 * lower, 1.8 * upper),

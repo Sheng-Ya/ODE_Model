@@ -9,7 +9,7 @@ from scipy.signal import find_peaks
 from line_profiler import LineProfiler
 from collections import deque
 
-from Resp_Control_Breath_Optimiser import BreathOptimiser
+import Resp_Control_Breath_Optimiser
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
@@ -19,23 +19,26 @@ from Respiratory_Mechanics import respiratory_mechanics
 
 
 from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
-from Initial_Conditions import Initial_Conditions
-from Next_Conditions import Next_Conditions
+# from Initial_Conditions import Initial_Conditions
+# from Next_Conditions import Next_Conditions
+from Initial_Conditions_after_running_again import Initial_Conditions
+from Next_Conditions_after_running_again import Next_Conditions
 
-output_file1 = "Selected_Conditions_new.py"
-output_file2 = "Initial_Conditions_new.py"
-output_file3 = "Next_Conditions_new.py"
+# output_file1 = "Selected_Conditions_new.py"
+# output_file2 = "Initial_Conditions_new.py"
+# output_file3 = "Next_Conditions_new.py"
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 300) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech):
+def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control):
     """
 
     """
+
     i = Next_Conditions["i"].item()
     if t != 0:
         latest_nonzero_value = Next_Conditions["all_time"][i - 1]
@@ -53,27 +56,26 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     idx_cardio_contr = idx_cardio + num_cardio_control
     idx_gas = idx_cardio_contr + num_gas
     idx_resp_contr = idx_gas + num_resp_control
-    idx_resp_mech = idx_resp_contr + num_resp_mech
+    # idx_resp_mech = idx_resp_contr + num_resp_mech
 
     # Extract each subsystem's state variables
     cardio_state = Initial_Conditions_numpy[:idx_cardio]
     cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
     gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
     resp_contr_state = Initial_Conditions_numpy[idx_gas:idx_resp_contr]
-    resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
+    # resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
     d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
-    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
+    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
     d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
-    d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
+    # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
-    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent, d_resp_mech))
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_mech))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
 
-    if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
-        print(f"NaN or Inf detected at t = {t}")
+    # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
+    #     print(f"NaN or Inf detected at t = {t}")
 
     if num_removed == 0:
         Initial_Conditions_dict["time_history"][i] = t
@@ -99,8 +101,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
                 print(last_nonzero_value1)
 
     return d_combined
-
-# t_eval = np.arange(t_span[0], t_span[1], 0.01) # set as the number of times calculated in solution.t
 
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
@@ -132,20 +132,18 @@ IC_resp_contr = np.array([Initial_Conditions[key] for key in required_resp_contr
 num_resp_control = len(required_resp_control_keys)
 
 
-# resp mechanics
-required_resp_mech_keys = ["Vflow_ua"]
-IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
-num_resp_mech = len(required_resp_mech_keys)
+# # resp mechanics
+# required_resp_mech_keys = ["Vflow_ua"]
+# IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
+# num_resp_mech = len(required_resp_mech_keys)
 
-# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
-IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr, IC_resp_mech))
-# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_mech))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
 t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
 def simulate():
     # Solve ODE
     ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
-                             atol=1e-6, args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, num_resp_mech))
+                             atol=1e-6, args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control))
 
     return ODE_solution
 
@@ -174,8 +172,7 @@ if __name__ == "__main__":
             required_cardio_keys +
             required_cardio_control_keys +
             required_gas_keys +
-            required_resp_control_keys +
-            required_resp_mech_keys
+            required_resp_control_keys
     )
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1

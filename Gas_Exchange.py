@@ -13,29 +13,19 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
      dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV) = state
 
     # Gas Exchange and Mixing
-    # a1 = params["a1"]
     a2 = params["a2"]
     alpha1 = params["alpha1"]
     alpha2 = params["alpha2"]
     beta1 = params["beta1"]
     beta2 = params["beta2"]
-    # C1 = params["C1"]
     C2 = params["C2"]
-    # Pd_CO2_IC = params["Pd_CO2_IC"]
-    # Pd_O2_IC = params["Pd_O2_IC"]
     Fi_CO2 = params["Fi_CO2"]
     Fi_O2 = params["Fi_O2"]
     K1 = params["K1"]
     K2 = params["K2"]
     LCTV = params["LCTV"]
     PACO2_Delay_IC = params["PACO2_Delay_IC"]
-    # dPa_CO2_dt_IC = params["dPa_CO2_dt_IC"]
-    # PACO2_IC = params["PACO2_IC"]
-    # d2Pa_CO2_dt2_IC = params["d2Pa_CO2_dt2_IC"]
     PAO2_Delay_IC = params["PAO2_Delay_IC"]
-    # dPa_O2_dt_IC = params["dPa_O2_dt_IC"]
-    # PAO2_IC = params["PAO2_IC"]
-    # d2Pa_O2_dt2_IC = params["d2Pa_O2_dt2_IC"]
     P_atm = params["P_atm"]
     P_ws = params["P_ws"]
     T1 = params["T1"]
@@ -160,28 +150,22 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     # Gas transport
     # Brain
     dc = params["dc"]
-    # h = params["h"]
     KCCO2 = params["KCCO2"]
     KCSFCO2 = params["KCSFCO2"]
     MRBCO2 = params["MRBCO2"]
     MRBO2 = params["MRBO2"]
-    # PbCO2IC = params["PbCO2IC"]
-    # SbCO2 = params["SbCO2"]
-    # SCO2 = params["SCO2"]
-    VB = 0.9
+    VB = params["VB"]
 
     # Body Tissues Compartment
-    # Cv_CO2_IC = params["Cv_CO2_IC"]
-    # Cv_O2_IC = params["Cv_O2_IC"]
     MRTCO2_basal = params["MRTCO2_basal"]
-    MRTO2_basal = params["MRTO2_basal"]
+    MRTO2_basal = params["MRTO2_basal"] - params["MO2_bp"]
     tauMR = params["tauMR"]
     VTCO2 = params["VTCO2"]
     VTO2 = params["VTO2"]
 
     # exercise
     MRCO2 = params["MRCO2"]
-    MRO2 = params["MRO2"]
+    MRO2 = params["MRO2"] - params["MO2_bp"]
 
     # if 1050 < t <= 1200:
     #     MRCO2 = 0.4/60 - 0.0009
@@ -194,13 +178,11 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     # if 1350 < t <= 1500:
     #     MRCO2 = 0.8/60 - 0.0009
     #     MRO2 = 0.85 / 60 - 0.000925
+    #
+    # if 910 < t:
+    #     MRCO2 = 1/60 - 0.0009
+    #     MRO2 = 1.05 / 60 - 0.000925
 
-    if 910 < t:
-        MRCO2 = 1/60 - 0.0009
-        MRO2 = 1.05 / 60 - 0.000925
-
-    if 920 < t:
-        A = 2
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure
     # CvbO2 is NOT the same as CBO2 (CBO2 doesn't include haemoglobin), but here CvbCO2 is the SAME as CBCO2 (just the curve)
@@ -315,25 +297,25 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     updates["Pa_O2_history"].append(Pa_O2)
     updates["Pa_CO2_history"].append(Pa_CO2)
 
-    # updates["Pd_5_O2"][i] = Pd_5_O2
-    # updates["Pb_CO2"][i] = Pb_CO2
-    # updates["Cv_O2"][i] = CvO2
-    # updates["Ca_CO2"][i] = CaCO2
-    # updates["Cv_CO2"][i] = CvCO2
-    # updates["FCO2"][i] = FCO2
-    # updates["FO2"][i] = FO2
-    # updates["QT"][i] = QT
-    # updates["cCO2_diff"][i] = cCO2_diff
-    # updates["cO2_diff"][i] = cO2_diff
-    # updates["dCvO2_dt"][i] = dCTO2_dt
-    # updates["dCvCO2_dt"][i] = dCvtCO2_dt
-    # updates["Ta"][i] = Ta
-    # updates["dPA_O2_dt"][i] = dPA_O2_dt
-    # updates["dPA_CO2_dt"][i] = dPA_CO2_dt
-    # updates["Pd_5_O2"][i] = Pd_5_O2
-    # updates["Pd_5_CO2"][i] = Pd_5_CO2
-    # updates["t_minus_Ta"][i] = t_minus_Ta
-    # updates["PvtCO2"][i] = PvtCO2
+
+    # just for plotting purposes
+    updates["Pd_5_O2"][i] = Pd_5_O2
+    updates["Pb_CO2"][i] = Pb_CO2
+    updates["Cv_O2"][i] = CvO2
+    updates["Ca_CO2"][i] = CaCO2
+    updates["Cv_CO2"][i] = CvCO2
+    updates["FCO2"][i] = FCO2
+    updates["FO2"][i] = FO2
+    updates["QT"][i] = QT
+    updates["cCO2_diff"][i] = cCO2_diff
+    updates["cO2_diff"][i] = cO2_diff
+    updates["Ta"][i] = Ta
+    updates["dPA_O2_dt"][i] = dPA_O2_dt
+    updates["dPA_CO2_dt"][i] = dPA_CO2_dt
+    updates["Pd_5_O2"][i] = Pd_5_O2
+    updates["Pd_5_CO2"][i] = Pd_5_CO2
+    updates["t_minus_Ta"][i] = t_minus_Ta
+    updates["PvtCO2"][i] = PvtCO2
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
             dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,

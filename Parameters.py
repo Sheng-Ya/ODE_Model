@@ -393,6 +393,7 @@ Parameters = {
     "VL_CO2": 3,                    # Lungs storage volume for CO2 (l)
     "VL_O2": 2.5,                   # Lungs storage volume for O2 (l)
     "Z": 0.0227,                    # Molar conversion factor (l/mmol)
+    "VB": 0.9,                      # Gas volume in brain (L)
 # }
 
 # Table 24: Parameters of the Brain Compartment
@@ -413,9 +414,9 @@ Parameters = {
     "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
     "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
     "MRCO2": 0.2/60 - 0.0009,               # Minimum metabolic production rate for CO2 (l/min STPD)
-    "MRO2": 0.25/60 - 0.000925,               # Minimum metabolic consumption rate for O2 (l/min STPD)
+    "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD) brain O2 minused in gas exchange
     "MRTCO2_basal": 0.2/60 - 0.0009,            # Basal metabolic production rate for CO2 (l/min STPD)
-    "MRTO2_basal": 0.25/60 - 0.000925,            # Basal metabolic consumption rate for O2 (l/min STPD)
+    "MRTO2_basal": 0.25/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
     "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l) # changed from 15
     "VTO2": 0.25,                      # Body tissue storage volume for O2 (l) # changed from 6

@@ -66,16 +66,14 @@ upper = 1.5
 
 sp = ProblemSpec({
     'outputs': ["P_sys"],
-    # 'num_vars': 90,  # Number of parameters
+    # 'num_vars': 51,  # Number of parameters
     'names': [
         'C_sa', 'L_sa', 'R_sa', 'C_amp', 'C_amv', 'C_bp', 'C_bv', 'C_ep', 'C_ev',
         'C_hp', 'C_hv', 'C_rmp', 'C_rmv', 'C_sp', 'C_sv', 'R_amv_n', 'R_bv_n',
         'R_ev_n', 'R_hv_n', 'R_rmv_n', 'R_sv_n', 'D1', 'D2', 'K1_vc', 'K2_vc',
         'Kr_vc', 'Rvc_n', 'C_pa', 'C_pp', 'C_pv', 'L_pa', 'R_pa', 'R_pp', 'R_pv',
         'Emax_la', 'P0_la', 'Emax_ra', 'P0_ra', 'P0_lv', 'P0_rv', 'g_abd', 'g_thor',
-        'P_abdmax_n', 'P_abdmin_n', 'P_thormax_n', 'P_thormin_n', 'VT_n', 'BF',
-        'Emax_lv', 'Emax_rv', 'HR', 'T_resp', 'TI', 'VT', 'R_ep', 'R_amp', 'R_rmp',
-        'R_sp', 'R_bp', 'R_hp'
+        'P_abdmax_n', 'P_abdmin_n', 'P_thormax_n', 'P_thormin_n', 'VT_n', 'A_im', 'Tc', 'T_im'
     ],
     'bounds': [
         [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
@@ -93,11 +91,8 @@ sp = ProblemSpec({
         [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [1.5 * lower, 1.5 * upper],
         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
         [-1 * upper, 0 * lower], [-2.5 * upper, -2.5 * lower], [-1 * upper, 0.0 * lower],
-        [-3 * upper, 0.0 * lower], [0.73 * lower, 0.73 * upper], [0.25 * lower, 0.25 * upper],
-        [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [1.2 * lower, 1.2 * upper],
-        [4 * lower, 4 * upper], [1.8 * lower, 1.8 * upper], [0.73 * lower, 0.73 * upper],
-        [1.655 * lower, 1.655 * upper], [3.51 * lower, 3.51 * upper], [5.27 * lower, 5.27 * upper],
-        [2.49 * lower, 2.49 * upper], [6.57 * lower, 6.57 * upper], [19.71 * lower, 19.71 * upper]
+        [-3 * upper, 0.0 * lower], [0.73 * lower, 0.73 * upper], [50 * lower, 50 * upper],
+        [0.75 * lower, 0.75 * upper], [1 * lower, 1 * upper]
     ],
 })
 
