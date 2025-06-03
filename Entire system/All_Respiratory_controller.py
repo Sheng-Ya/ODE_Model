@@ -3,7 +3,7 @@ from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 
 
-def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i, t_start):
+def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i, t_start, Parameters):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -15,22 +15,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     (VE_integral) = state[0].item()
 
-    GV_dead = params["GV_dead"]
-    Kbg = params["Kbg"]
-    KcCO2 = params["KcCO2"]
-    KcMRV = params["KcMRV"]
-    KpCO2 = params["KpCO2"]
-    KpO2 = params["KpO2"]
-    V0_dead = params["V0_dead"]
-    VA_rest = params["VA_rest"]
-    lambda1 = params["lambda1"]
-    lambda2 = params["lambda2"]
-    n = params["n"]
-    Pmax = params["Pmax"]
-    Pmax_dot = params["Pmax_dot"]
-    E_rs = params["E_rs"]
-    R_rs = params["R_rs"]
-    P_ao = params["P_ao"]
+    (GV_dead, Kbg, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
+        (params[k] if k in params else Parameters[k] for k in [
+            "GV_dead", "Kbg", "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "lambda1", "lambda2", "n",
+            "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"
+        ])
 
     if t == t_start:
         gas_exchange_index = i
@@ -173,7 +162,9 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["finish_breath_time"].append(t)
 
             # check optimisation results
-            print(f"guess: {updates["Nd"][-5:]}")
+            # print(f"guess: {updates["Nd"][-5:]}")
+            # print(params["GV_dead"], params["Kbg"], params["KcCO2"], params["KcMRV"], params["KpCO2"], params["KpO2"], params["V0_dead"], params["VA_rest"])
+
             # check whether pressure at time t1+t2 is 0
             # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
             # check whether dV_dt = 0 at t1

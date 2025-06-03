@@ -6,7 +6,7 @@ from Activation_Functions import activation_H
 def frac(x):
     return x - math.floor(x)
 
-def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, i, t_start):
+def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, i, t_start, Parameters):
     """
     Pulmonary circulation state variables: VT_pa, VT_pp, VT_pv, Q_pa
     Cardiovascular system state variables: VT_la, VT_lv, VT_ra, VT_rv
@@ -28,7 +28,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
      R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la, Emax_ra,
      P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min, C_ep, C_sp, C_bp,
      C_hp, C_rmp, C_amp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv, Vu_ep,
-     Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (params[k] for k in ["A_im", "Tc", "T_im", "g_abd", "g_thor",
+     Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (params[k] if k in params else Parameters[k] for k in ["A_im", "Tc", "T_im", "g_abd", "g_thor",
     "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv",
     "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv", "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la",
     "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa", "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
@@ -36,17 +36,15 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv", "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp",
     "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
 
+
+
     # Determine the correct index based on t
     if t == t_start:
         heart_control_index = i
         time_since_beat = updates["time_since_beat"][i]
-        # heart_control_index = 0
-        # resp_control_index = 0
         resp_control_index = i
     else:
         heart_control_index = i - 1
-        # heart_control_index = 0
-        # resp_control_index = 0
         resp_control_index = i - 1
         time_since_beat = updates["time_since_beat"][i - 1]
 
@@ -56,20 +54,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     if (Tc / T_im) >= alp >= 0:
         psi = np.sin(np.pi * (T_im / Tc) * alp)
-    elif (Tc / T_im) <= alp <= 1:
+    elif (Tc / T_im) < alp <= 1:
         psi = 0
 
     P_im = A_im * psi
 
-    # p_im is 0 in resting conditions
-    # P_im = 0
-
-
-
-    ## Respiratory Pump
-    # if t > 1000:
-    #     P_thormax_n = -4
-    #     P_thormin_n = -9
 
     # respiratory controller inputs
     T_resp = 1 / resp_control_inputs["BF"][resp_control_index]
@@ -106,8 +95,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     third = (TI / 2) / T_resp
     S = (t % T_resp) / T_resp
 
-    if t >= 9.9999:
-        A = 2
 
     if 0 <= S < first:
         P_thor = P_thormax - (P_thormax - P_thormin) * (T_resp / TI) * S
@@ -171,8 +158,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
     ##############################################################
 
-    if t > 1062.2:
-        A = 2
+
     # V_lv can be growing but there should not be any flow (Q) into the ventricles?
     if VT_lv > Vu_lv:
         V_lv = VT_lv - Vu_lv
@@ -252,16 +238,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         V_ra = 0
 
 
-
-
-
     ##################################
     # P_ra = (V_ra / C_ra) + P_thor
     Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor
     ##################################
-
-
-
 
 
 
@@ -326,10 +306,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     # if t!=0:
     #     source_values = updates["source_values"][-1] + source(t) * (t - updates["time_history"][-1])
-    #     A = source_values
     # else:
     #     source_values = 0
-    #     A = 0
 
     # source_values = source(t)
 
@@ -382,8 +360,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     P_s = P_abd
 
-    if t > 24.3:
-        A = 2
 
     if P_vc < P_s:
         R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))

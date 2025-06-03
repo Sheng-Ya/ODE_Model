@@ -30,7 +30,7 @@ from Next_Conditions_after_running_again import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 4000) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -209,32 +209,32 @@ if __name__ == "__main__":
     # # Output file path
     # output_file = "Next_Conditions_new.py"
     #
-    # with open(output_file3, "w") as f:
-    #     f.write("import numpy as np\n\n")
-    #     f.write("Next_Conditions = {\n")
-    #
-    #     # Ensure 'i' and all other non populated arrays are set correctly
-    #     # f.write(f'    "i": np.array([{index}]),\n\n')
-    #     f.write(f'    "i": np.array([{0}]),\n')
-    #     f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
-    #     f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
-    #
-    #     for key, array in Next_Conditions.items():
-    #         if key in ["i", "time_since_beat", "Nd"]:
-    #             continue  # Already handled
-    #         if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
-    #             last_value = array[index]
-    #             f.write(
-    #                 f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
-    #         else:
-    #             if isinstance(array, (list, np.ndarray)):
-    #                 values = list(array)
-    #             else:
-    #                 values = [array]
-    #
-    #             f.write(f'    "{key}": {values},\n')
-    #
-    #     f.write("}\n")
+    with open(output_file3, "w") as f:
+        f.write("import numpy as np\n\n")
+        f.write("Next_Conditions = {\n")
+
+        # Ensure 'i' and all other non populated arrays are set correctly
+        # f.write(f'    "i": np.array([{index}]),\n\n')
+        f.write(f'    "i": np.array([{0}]),\n')
+        f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
+        f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
+
+        for key, array in Next_Conditions.items():
+            if key in ["i", "time_since_beat", "Nd"]:
+                continue  # Already handled
+            if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
+                last_value = array[index]
+                f.write(
+                    f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
+            else:
+                if isinstance(array, (list, np.ndarray)):
+                    values = list(array)
+                else:
+                    values = [array]
+
+                f.write(f'    "{key}": {values},\n')
+
+        f.write("}\n")
 
 
 
@@ -308,13 +308,13 @@ if __name__ == "__main__":
 
 
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Pa_O2", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_O2"][:index], label="PA_O2", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Pa_CO2", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="PA_CO2", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
-
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_rv"][:index], label="P_rv", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_O2"][:index], label="PA_O2", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Pa_CO2", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="PA_CO2", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Pb_CO2", color="c")
+    #
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V", color="k")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VE_flow"][:index], label="VE_flow", color="b")
 
     ax1.set_xlabel("Time (s)")
