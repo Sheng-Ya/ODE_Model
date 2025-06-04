@@ -57,11 +57,24 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     actual_index = i % BUFFER_LIMIT
 
     if t != 0:
+        A = Initial_Conditions_dict["all_time"]
+        all_time = Initial_Conditions_dict["all_time"]
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
-        latest_nonzero_value = Initial_Conditions_dict["all_time"][latest_nonzero_index]
+        latest_nonzero_value = all_time[latest_nonzero_index]
         if t < latest_nonzero_value:
-            index = bisect.bisect_left(Initial_Conditions_dict["time_history"], t)
-            num_removed = (i - index) if (i - index) >= 0 else BUFFER_LIMIT + (i - index)
+
+            index = -1  # Set a default value for safety
+
+            # Iterating through the buffer in circular order
+            for j in range(BUFFER_LIMIT):
+                logical_index = (latest_nonzero_index - j - 1) % BUFFER_LIMIT  # Traversing backwards
+                if all_time[logical_index] == t or all_time[logical_index] < t:
+                    index = (logical_index + 1) % BUFFER_LIMIT
+                    break
+
+            num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
+            if num_removed > 5:
+                raise ValueError(f"num_removed should not be greater than 5, got {num_removed}")
         else:
             num_removed = 0
     else:
@@ -93,26 +106,23 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i)
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i)
-    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i)
+    d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
     A = list(d_combined)
-
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
 
     if num_removed == 0:
-        # Initial_Conditions_dict["time_history"][actual_index] = t
         Initial_Conditions_dict["all_time"][actual_index] = t
         Initial_Conditions_dict["i"][0] = i + 1
         # i = i + 1
     else:
-        # Initial_Conditions_dict["time_history"][(i - num_removed) % BUFFER_LIMIT] = t
-        Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
+        Initial_Conditions_dict["all_time"][(i- num_removed) % BUFFER_LIMIT] = t
         Initial_Conditions_dict["i"][0] = i - num_removed + 1
 
 

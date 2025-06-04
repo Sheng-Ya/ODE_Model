@@ -11,7 +11,7 @@ from Activation_Functions import activation_U, activation_H, activation_Naghavi,
 def frac(x):
     return x - math.floor(x)
 
-def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, t_start, time_saved, i):
+def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, t_start, time_saved, i, BUFFER_LIMIT):
     """
     Pulmonary circulation state variables: VT_pa, VT_pp, VT_pv, Q_pa
     Cardiovascular system state variables: VT_la, VT_lv, VT_ra, VT_rv
@@ -45,15 +45,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     if t == t_start:
         heart_control_index = i % BUFFER_LIMIT
         time_since_beat = updates["time_since_beat"][i % BUFFER_LIMIT]
-        # heart_control_index = 0
-        # resp_control_index = 0
-        resp_control_index = i
+        resp_control_index = i % BUFFER_LIMIT
     else:
-        heart_control_index = (i - num_removed) % BUFFER_LIMIT
-        # heart_control_index = 0
-        # resp_control_index = 0
-        resp_control_index = i - 1
-        time_since_beat = updates["time_since_beat"][i - 1]
+        heart_control_index = (i - num_removed - 1) % BUFFER_LIMIT
+        resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
+        time_since_beat = updates["time_since_beat"][(i - num_removed - 1) % BUFFER_LIMIT]
 
     # Muscle Pump
     # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1
@@ -604,21 +600,25 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         time_since_beat = t
 
 
-    if num_removed == 0:
-        # update values needed in other systems
-        for key, new_value in zip(
-                [   # cardiac control inputs
-                    "P_sa_store", "dP_sa_dt_store", "Q_bp_store", "Q_hp_store",
-                    "Q_rmp_store", "Q_amp_store", "Wh_lv_store", "Wh_rv_store",
-                    "time_since_beat_store",
-                    # gas exchange inputs
-                    "Q_pp_store", "Q_la_store"],
 
-                [   P_sa, dP_sa_dt, Q_bp, Q_hp, Q_rmp, Q_amp,
-                    Wh_lv, Wh_rv, time_since_beat, Q_pp, Q_la]
-        ):
-            # shift and update
-            updates[key][0], updates[key][1] = updates[key][1], new_value
+    # update values needed in other systems
+    for key, new_value in zip(
+            [   # cardiac control inputs
+                "P_sa_store", "dP_sa_dt_store", "Q_bp_store", "Q_hp_store",
+                "Q_rmp_store", "Q_amp_store", "Wh_lv_store", "Wh_rv_store",
+                "time_since_beat_store",
+                # gas exchange inputs
+                "Q_pp_store", "Q_la_store"],
+
+            [   P_sa, dP_sa_dt, Q_bp, Q_hp, Q_rmp, Q_amp,
+                Wh_lv, Wh_rv, time_since_beat, Q_pp, Q_la]
+    ):
+        if num_removed == 0:
+            updates[key][(i % BUFFER_LIMIT)] = new_value
+        else:
+            updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
+            # updates[key][((i - num_removed) % BUFFER_LIMIT): ((i + 1) % BUFFER_LIMIT)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
+
 
 
 

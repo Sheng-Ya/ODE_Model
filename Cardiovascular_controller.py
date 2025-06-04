@@ -9,7 +9,7 @@ def frac(x):
     return x - math.floor(x)
 
 
-def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i):
+def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,
@@ -29,11 +29,15 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
      Emax_rv_change, Ts_change, Tv_change, xb_O2, xb_CO2, xh_O2, xh_CO2, Wh, xrm_O2, xrm_CO2, xam_O2, xM, x_met) = state
 
     ## Metabolic regulation
-    
 
-    heart_index = 0
-    gas_index = 1
-    resp_control_index = 1
+    if t == t_start:
+        heart_index = i % BUFFER_LIMIT
+        gas_index = i % BUFFER_LIMIT
+        resp_control_index = i % BUFFER_LIMIT
+    else:
+        heart_index = (i - num_removed - 1) % BUFFER_LIMIT
+        gas_index = (i - num_removed - 1) % BUFFER_LIMIT
+        resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
 
 
     (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
@@ -465,23 +469,25 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["Emax_lv1"].append(Emax_lv1)
     updates["Emax_rv1"].append(Emax_rv1)
 
-    if num_removed == 0:
-        # update values needed in other systems
-        for key, new_value in zip(
-                [   # Cardio inputs
-                    "HR_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
-                    "Emax_lv_store", "Emax_rv_store", "R_ep_store", "R_amp_store", "R_rmp_store",
-                    "R_sp_store", "R_bp_store", "R_hp_store", "I_store",
 
-                    # Needed in cardio controller
-                    "prev_flat_bit_store"],
+    # update values needed in other systems
+    for key, new_value in zip(
+            [   # Cardio inputs
+                "HR_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
+                "Emax_lv_store", "Emax_rv_store", "R_ep_store", "R_amp_store", "R_rmp_store",
+                "R_sp_store", "R_bp_store", "R_hp_store", "I_store",
 
-                [   HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
-                    Emax_lv, Emax_rv, R_ep, R_amp, R_rmp,
-                    R_sp, R_bp, R_hp, I, prev_flat_bit]
-        ):
-            # shift and update
-            updates[key][0], updates[key][1] = updates[key][1], new_value
+                # Needed in cardio controller
+                "prev_flat_bit_store"],
+
+            [   HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
+                Emax_lv, Emax_rv, R_ep, R_amp, R_rmp,
+                R_sp, R_bp, R_hp, I, prev_flat_bit]
+    ):
+        if num_removed == 0:
+            updates[key][(i % BUFFER_LIMIT)] = new_value
+        else:
+            updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
 
 

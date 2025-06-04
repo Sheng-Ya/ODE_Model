@@ -6,7 +6,7 @@ from Gas_Exchange import gas_exchange
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 
 
-def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, t_start, time_saved, i):
+def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, t_start, time_saved, i, BUFFER_LIMIT):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -35,7 +35,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     R_rs = params["R_rs"]
     P_ao = params["P_ao"]
 
-    gas_exchange_index = 0
+
+    if t == t_start:
+        gas_exchange_index = i % BUFFER_LIMIT
+    else:
+        gas_exchange_index = (i - num_removed - 1) % BUFFER_LIMIT
 
     MRV = gas_exchange_inputs["MRV_store"][gas_exchange_index]
 
@@ -51,7 +55,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
-        if resp_cycle < updates["resp_cycle_store"][1] and (updates["resp_cycle_store"][1] - resp_cycle) > 1:
+        if resp_cycle < updates["resp_cycle_store"][gas_exchange_index] and (updates["resp_cycle_store"][gas_exchange_index] - resp_cycle) > 1:
             updates["PamO2"].append(PamO2)
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
@@ -65,7 +69,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PmbCO2 = updates["PmbCO2"][-1]
 
         if t != t_start:
-            if resp_cycle < updates["resp_cycle_store"][1] and (updates["resp_cycle_store"][1] - resp_cycle) > 1: # restarts
+            if resp_cycle < updates["resp_cycle_store"][gas_exchange_index] and (updates["resp_cycle_store"][gas_exchange_index] - resp_cycle) > 1: # restarts
                 PamO2 = np.mean(Pa_O2_history)
                 PamCO2 = np.mean(Pa_CO2_history)
                 PmbCO2 = np.mean(Pb_CO2_history)
@@ -116,7 +120,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     updates["dt"] = dt
 
     if t != t_start or t == 0:
-        if resp_cycle < updates["resp_cycle_store"][1] and (updates["resp_cycle_store"][1] - resp_cycle) > 1:
+        if resp_cycle < updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] and (updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] - resp_cycle) > 1 and num_removed == 0:
 
             bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
             tolerance = 0.001
@@ -216,27 +220,28 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     #         updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
     #     i = i - num_removed
 
-    if num_removed == 0:
-        # Combine keys and corresponding values for updates
-        for key, new_value in zip(
-                [   # Cardio inputs
-                    "BF_store", "TI_store", "VT_store",
+    # Combine keys and corresponding values for updates
+    for key, new_value in zip(
+            [   # Cardio inputs
+                "BF_store", "TI_store", "VT_store",
 
-                    # Cardio control inputs
-                    "VE_integral_store",
+                # Cardio control inputs
+                "VE_integral_store",
 
-                    # Gas inputs
-                    "VD_store",
+                # Gas inputs
+                "VD_store",
 
-                    # Resp control vent
-                    "resp_cycle_store", "VAflow_store", "VE_flow_store", "P_musc_store", "dV_dt_store", "V_store"],
+                # Resp control vent
+                "resp_cycle_store", "VAflow_store", "VE_flow_store", "P_musc_store", "dV_dt_store", "V_store"],
 
-                [   # Corresponding values
-                    BF, TI, VT, VE_integral, VD,
-                    resp_cycle, VAflow, VE_flow, P_musc, dV_dt, V]
-        ):
-            # shift and update
-            updates[key][0], updates[key][1] = updates[key][1], new_value
+            [   # Corresponding values
+                BF, TI, VT, VE_integral, VD,
+                resp_cycle, VAflow, VE_flow, P_musc, dV_dt, V]
+    ):
+        if num_removed == 0:
+            updates[key][(i % BUFFER_LIMIT)] = new_value
+        else:
+            updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
 
 
