@@ -39,15 +39,15 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
         heart_index = i
         resp_mech_index = i
         resp_control_index = i
-    elif num_removed > 0:
-        heart_index = i - num_removed - 1
-        # resp_mech variables have not been removed yet
-        resp_mech_index = i - 1
-        resp_control_index = i - 1
+    # elif num_removed > 0:
+    #     heart_index = i - num_removed - 1
+    #     # resp_mech variables have not been removed yet
+    #     resp_mech_index = i - 1
+    #     resp_control_index = i - 1
     else:
-        heart_index = i - 1
-        resp_mech_index = i - 1
-        resp_control_index = i - 1
+        heart_index = i - 1 - num_removed
+        resp_mech_index = i - 1 - num_removed
+        resp_control_index = i - 1 - num_removed
 
     # inputs
     V_dead = resp_control_inputs["VD"][resp_control_index] # need to change once resp controller is added in

@@ -49,11 +49,11 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         # resp_control_index = 0
         resp_control_index = i
     else:
-        heart_control_index = i - 1
+        heart_control_index = i - 1 - num_removed
         # heart_control_index = 0
         # resp_control_index = 0
-        resp_control_index = i - 1
-        time_since_beat = updates["time_since_beat"][i - 1]
+        resp_control_index = i - 1 - num_removed
+        time_since_beat = updates["time_since_beat"][i - 1 - num_removed]
 
     # Muscle Pump
     # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1

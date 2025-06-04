@@ -36,11 +36,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     P_ao = params["P_ao"]
 
     if t == t_start:
-        gas_exchange_index = i
-    elif num_removed > 0:
-        gas_exchange_index = i - num_removed - 1
+        gas_exchange_index = i - num_removed
+    # elif num_removed > 0:
+    #     gas_exchange_index = i - num_removed - 1
     else:
-        gas_exchange_index = i - 1
+        gas_exchange_index = i - 1 - num_removed
 
     MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
 
