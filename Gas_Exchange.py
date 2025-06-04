@@ -110,8 +110,8 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
                     PA_O2_old = previous_Selected_Conditions["PA_O2_store"][-1]
                     PA_CO2_old = previous_Selected_Conditions["PA_CO2_store"][-1]
                 else:
-                    PA_O2_old = updates["PA_O2_old"][0]
-                    PA_CO2_old = updates["PA_CO2_old"][0]
+                    PA_O2_old = PAO2_Delay_IC
+                    PA_CO2_old = PACO2_Delay_IC
 
     x1 = Pa_O2
     x2 = Pa_CO2
