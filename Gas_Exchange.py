@@ -36,7 +36,7 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     s = 0.04
 
 
-    heart_index = 1
+    heart_index = 0
     resp_control_index = 1
 
     # inputs

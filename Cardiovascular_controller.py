@@ -31,7 +31,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     ## Metabolic regulation
     
 
-    heart_index = 1
+    heart_index = 0
     gas_index = 1
     resp_control_index = 1
 
