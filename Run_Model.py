@@ -42,7 +42,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     """
 
     if t != 0:
-        latest_nonzero_value = Next_Conditions["all_time"][1]
+        latest_nonzero_value = Initial_Conditions_dict["all_time"][1]
         if t < latest_nonzero_value:
             num_removed = 1
         else:
@@ -50,7 +50,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     else:
         num_removed = 0
 
-    Next_Conditions["all_time"][0], Next_Conditions["all_time"][1] = Next_Conditions["all_time"][1], t
+    Initial_Conditions_dict["all_time"][0], Initial_Conditions_dict["all_time"][1] = Initial_Conditions_dict["all_time"][1], t
 
     # if t != 0:
     #     latest_nonzero_index = (i - 1) % BUFFER_LIMIT
@@ -93,8 +93,8 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved)
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved)
-    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved)
+    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved)
     d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
