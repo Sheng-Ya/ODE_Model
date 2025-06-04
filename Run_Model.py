@@ -30,7 +30,7 @@ from Next_Conditions_new_update import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 30) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.001
 
