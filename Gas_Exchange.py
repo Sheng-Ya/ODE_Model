@@ -3,7 +3,7 @@ import numpy as np
 # from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 
-def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_system_inputs, updates, num_removed, i, t_start, previous_Selected_Conditions):
+def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved):
     """
         # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, time_history, V, dV_dt
 
@@ -35,26 +35,16 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     Z = params["Z"]
     s = 0.04
 
-    if t == t_start:
-        heart_index = i
-        resp_mech_index = i
-        resp_control_index = i
-    elif num_removed > 0:
-        heart_index = i - num_removed - 1
-        # resp_mech variables have not been removed yet
-        resp_mech_index = i - 1
-        resp_control_index = i - 1
-    else:
-        heart_index = i - 1
-        resp_mech_index = i - 1
-        resp_control_index = i - 1
+
+    heart_index = 1
+    resp_control_index = 1
 
     # inputs
-    V_dead = resp_control_inputs["VD"][resp_control_index] # need to change once resp controller is added in
-    dV_dt = resp_control_inputs["dV_dt"][resp_control_index]
-    Q_pp = heart_system_inputs["Q_pp"][heart_index]/1000
-    Q_bp = heart_system_inputs["Q_bp"][heart_index]/1000
-    Q_la = heart_system_inputs["Q_la"][heart_index]/1000
+    V_dead = resp_control_inputs["VD_store"][resp_control_index] # need to change once resp controller is added in
+    dV_dt = resp_control_inputs["dV_dt_store"][resp_control_index]
+    Q_pp = heart_system_inputs["Q_pp_store"][heart_index]/1000
+    Q_bp = heart_system_inputs["Q_bp_store"][heart_index]/1000
+    Q_la = heart_system_inputs["Q_la_store"][heart_index]/1000
 
     for w in range(1, 6):
         if w == 1 and dV_dt >= 0:
@@ -117,8 +107,8 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
                     PA_O2_old = previous_Selected_Conditions["PA_O2"][-1]
                     PA_CO2_old = previous_Selected_Conditions["PA_CO2"][-1]
                 else:
-                    PA_O2_old = updates["PA_O2_old"][i - 1]
-                    PA_CO2_old = updates["PA_CO2_old"][i - 1]
+                    PA_O2_old = updates["PA_O2_old"][0]
+                    PA_CO2_old = updates["PA_CO2_old"][0]
 
     x1 = Pa_O2
     x2 = Pa_CO2
@@ -262,60 +252,76 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
 
     dMRV_dt = ((MRR - 1) - MRV) / tau_MRV
 
-    if num_removed > 0:
-        keys = [
-            "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2", "MRV", "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
-            # "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
-            # "cCO2_diff", "cO2_diff", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
-            # "t_minus_Ta", "PvtCO2"
-        ]
-        keys2 = [
-            "Pb_CO2_history", "Pa_O2_history", "Pa_CO2_history"
-        ]
-        for key in keys:
-            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
-        for key in keys2:
-            del updates[key][-num_removed:]
+    # if num_removed > 0:
+    #     keys = [
+    #         "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2", "MRV", "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
+    #         # "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
+    #         # "cCO2_diff", "cO2_diff", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
+    #         # "t_minus_Ta", "PvtCO2"
+    #     ]
+    #     keys2 = [
+    #         "Pb_CO2_history", "Pa_O2_history", "Pa_CO2_history"
+    #     ]
+    #     for key in keys:
+    #         updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+    #     for key in keys2:
+    #         del updates[key][-num_removed:]
+    #
+    #     i = i - num_removed
 
-        i = i - num_removed
+    if num_removed == 0:
+        # Combine keys and corresponding values for updates
+        for key, new_value in zip(
+                [   # Cardio control inputs
+                    "MRTCO2_store", "Pa_O2_store", "Pa_CO2_store", "Ca_O2_store",
 
-    # cardio control inputs
-    updates["MRTCO2"][i] = MRTCO2
-    updates["Pa_O2"][i] = Pa_O2
-    updates["Pa_CO2"][i] = Pa_CO2
-    updates["Ca_O2"][i] = CaO2
+                    # Resp control vent inputs
+                    "MRV_store",
 
-    # resp control vent inputs
-    updates["MRV"][i] = MRV
+                    # Histories for gas
+                    "PA_O2_store", "PA_CO2_store", "PA_O2_old_store", "PA_CO2_old_store"],
 
-    # histories for gas
-    updates["PA_O2"][i] = PA_O2
-    updates["PA_CO2"][i] = PA_CO2
-    updates["PA_O2_old"][i] = PA_O2_old
-    updates["PA_CO2_old"][i] = PA_CO2_old
-    updates["Pb_CO2_history"].append(Pb_CO2)
-    updates["Pa_O2_history"].append(Pa_O2)
-    updates["Pa_CO2_history"].append(Pa_CO2)
+                [   # Corresponding values
+                    MRTCO2, Pa_O2, Pa_CO2, CaO2, MRV,
+                    PA_O2, PA_CO2, PA_O2_old, PA_CO2_old]
+        ):
+            # shift and update
+            updates[key][0], updates[key][1] = updates[key][1], new_value
+
+        # histories for gas
+        updates["Pb_CO2_history"].append(Pb_CO2)
+        updates["Pa_O2_history"].append(Pa_O2)
+        updates["Pa_CO2_history"].append(Pa_CO2)
 
 
     # just for plotting purposes
-    updates["Pd_5_O2"][i] = Pd_5_O2
-    updates["Pb_CO2"][i] = Pb_CO2
-    updates["Cv_O2"][i] = CvO2
-    updates["Ca_CO2"][i] = CaCO2
-    updates["Cv_CO2"][i] = CvCO2
-    updates["FCO2"][i] = FCO2
-    updates["FO2"][i] = FO2
-    updates["QT"][i] = QT
-    updates["cCO2_diff"][i] = cCO2_diff
-    updates["cO2_diff"][i] = cO2_diff
-    updates["Ta"][i] = Ta
-    updates["dPA_O2_dt"][i] = dPA_O2_dt
-    updates["dPA_CO2_dt"][i] = dPA_CO2_dt
-    updates["Pd_5_O2"][i] = Pd_5_O2
-    updates["Pd_5_CO2"][i] = Pd_5_CO2
-    updates["t_minus_Ta"][i] = t_minus_Ta
-    updates["PvtCO2"][i] = PvtCO2
+    if ((t % time_saved) < 1e-9 or (time_saved - (t % time_saved)) < 1e-9) and num_removed == 0 and t > 10:
+        j = updates["j"].item()
+
+        keys_and_values = zip(
+            [   # Cardio control inputs
+                "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
+
+                # Resp control vent inputs
+                "MRV",
+
+                # Histories for gas
+                "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
+                "Pd_5_O2", "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2",
+                "FCO2", "FO2", "QT", "cCO2_diff", "cO2_diff",
+                "Ta", "dPA_O2_dt", "dPA_CO2_dt", "Pd_5_O2",
+                "Pd_5_CO2", "t_minus_Ta", "PvtCO2"],
+
+            [   # Corresponding values
+                MRTCO2, Pa_O2, Pa_CO2, CaO2, MRV,
+                PA_O2, PA_CO2, PA_O2_old, PA_CO2_old,
+                Pd_5_O2, Pb_CO2, CvO2, CaCO2, CvCO2,
+                FCO2, FO2, QT, cCO2_diff, cO2_diff,
+                Ta, dPA_O2_dt, dPA_CO2_dt, Pd_5_O2,
+                Pd_5_CO2, t_minus_Ta, PvtCO2])
+
+        for key, value in keys_and_values:
+            updates[key][j] = value
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
             dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,

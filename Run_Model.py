@@ -22,7 +22,7 @@ from Selected_Conditions import Selected_Conditions as previous_Selected_Conditi
 # from Initial_Conditions import Initial_Conditions
 # from Next_Conditions import Next_Conditions
 from Initial_Conditions_after_running_again import Initial_Conditions
-from Next_Conditions_after_running_again import Next_Conditions
+from Next_Conditions_new_update import Next_Conditions
 
 # output_file1 = "Selected_Conditions_new.py"
 # output_file2 = "Initial_Conditions_new.py"
@@ -30,26 +30,52 @@ from Next_Conditions_after_running_again import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 4000) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+
+time_saved = 0.001
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control):
+def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved):
     """
 
     """
 
-    i = Next_Conditions["i"].item()
     if t != 0:
-        latest_nonzero_value = Next_Conditions["all_time"][i - 1]
+        latest_nonzero_value = Next_Conditions["all_time"][1]
         if t < latest_nonzero_value:
-            index = bisect.bisect_left(Next_Conditions["time_history"], t)
-            num_removed = i - index
-            Next_Conditions["time_history"][index:i + 1] = np.full((num_removed + 1,), 1e6)
+            num_removed = 1
         else:
             num_removed = 0
     else:
         num_removed = 0
+
+    Next_Conditions["all_time"][0], Next_Conditions["all_time"][1] = Next_Conditions["all_time"][1], t
+
+    # if t != 0:
+    #     latest_nonzero_index = (i - 1) % BUFFER_LIMIT
+    #     latest_nonzero_value = Next_Conditions["all_time"][latest_nonzero_index]
+    #     if t < latest_nonzero_value:
+    #         index = bisect.bisect_left(Next_Conditions["time_history"], t)
+    #         num_removed = (i - index) if (i - index) >= 0 else BUFFER_LIMIT + (i - index)
+    #         # Reset the buffer values for replaced entries
+    #         for j in range(index, i + 1):
+    #             Next_Conditions["time_history"][j % BUFFER_LIMIT] = 1e6
+    #     else:
+    #         num_removed = 0
+    # else:
+    #     num_removed = 0
+
+    # if t != 0:
+    #     latest_nonzero_value = Next_Conditions["all_time"][i - 1]
+    #     if t < latest_nonzero_value:
+    #         index = bisect.bisect_left(Next_Conditions["time_history"], t)
+    #         num_removed = i - index
+    #         Next_Conditions["time_history"][index:i + 1] = np.full((num_removed + 1,), 1e6)
+    #     else:
+    #         num_removed = 0
+    # else:
+    #     num_removed = 0
 
     # Indices for slicing
     idx_cardio = num_cardio
@@ -66,10 +92,10 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
-    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0])
+    d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved)
+    d_gas = gas_exchange(t, gas_state, Parameters, Next_Conditions["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved)
+    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
@@ -77,28 +103,35 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
 
-    if num_removed == 0:
-        Initial_Conditions_dict["time_history"][i] = t
-        Initial_Conditions_dict["all_time"][i] = t
-        Initial_Conditions_dict["i"][0] = i + 1
-        i = i + 1
-    else:
-        Initial_Conditions_dict["time_history"][i - num_removed] = t
-        Initial_Conditions_dict["all_time"][i - num_removed] = t
-        Initial_Conditions_dict["i"][0] = i - num_removed + 1
-        i = i - num_removed + 1
+    # if num_removed == 0:
+    #     Initial_Conditions_dict["time_history"][i] = t
+    #     Initial_Conditions_dict["all_time"][i] = t
+    #     Initial_Conditions_dict["i"][0] = i + 1
+    #     i = i + 1
+    # else:
+    #     Initial_Conditions_dict["time_history"][i - num_removed] = t
+    #     Initial_Conditions_dict["all_time"][i - num_removed] = t
+    #     Initial_Conditions_dict["i"][0] = i - num_removed + 1
+    #     i = i - num_removed + 1
 
-    # just for checking progress of code
+
+    # # just for checking progress of code
+    # if t != 0:
+    #     if i > 2:
+    #         last_nonzero_value1 = Next_Conditions["time_history"][i - 1]
+    #         last_nonzero_value2 = Next_Conditions["time_history"][i - 2]
+    #         if t > 0.00001:
+    #             if last_nonzero_value1 < last_nonzero_value2:
+    #                 print("ISSUE")
+    #         diff = np.abs(last_nonzero_value1 - target_values)
+    #         if np.any(diff < 0.001):
+    #             print(last_nonzero_value1)
+
+    # Debugging check for progress
     if t != 0:
-        if i > 2:
-            last_nonzero_value1 = Next_Conditions["time_history"][i - 1]
-            last_nonzero_value2 = Next_Conditions["time_history"][i - 2]
-            if t > 0.00001:
-                if last_nonzero_value1 < last_nonzero_value2:
-                    print("ISSUE")
-            diff = np.abs(last_nonzero_value1 - target_values)
-            if np.any(diff < 0.001):
-                print(last_nonzero_value1)
+        diff = np.abs(t - target_values)
+        if np.any(diff < 0.0001):
+            print(t)
 
     return d_combined
 
@@ -143,7 +176,7 @@ t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
 def simulate():
     # Solve ODE
     ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
-                             atol=1e-6, args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control))
+                             atol=1e-6, args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved))
 
     return ODE_solution
 
@@ -209,32 +242,32 @@ if __name__ == "__main__":
     # # Output file path
     # output_file = "Next_Conditions_new.py"
     #
-    with open(output_file3, "w") as f:
-        f.write("import numpy as np\n\n")
-        f.write("Next_Conditions = {\n")
-
-        # Ensure 'i' and all other non populated arrays are set correctly
-        # f.write(f'    "i": np.array([{index}]),\n\n')
-        f.write(f'    "i": np.array([{0}]),\n')
-        f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
-        f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
-
-        for key, array in Next_Conditions.items():
-            if key in ["i", "time_since_beat", "Nd"]:
-                continue  # Already handled
-            if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
-                last_value = array[index]
-                f.write(
-                    f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
-            else:
-                if isinstance(array, (list, np.ndarray)):
-                    values = list(array)
-                else:
-                    values = [array]
-
-                f.write(f'    "{key}": {values},\n')
-
-        f.write("}\n")
+    # with open(output_file3, "w") as f:
+    #     f.write("import numpy as np\n\n")
+    #     f.write("Next_Conditions = {\n")
+    #
+    #     # Ensure 'i' and all other non populated arrays are set correctly
+    #     # f.write(f'    "i": np.array([{index}]),\n\n')
+    #     f.write(f'    "i": np.array([{0}]),\n')
+    #     f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
+    #     f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
+    #
+    #     for key, array in Next_Conditions.items():
+    #         if key in ["i", "time_since_beat", "Nd"]:
+    #             continue  # Already handled
+    #         if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
+    #             last_value = array[index]
+    #             f.write(
+    #                 f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
+    #         else:
+    #             if isinstance(array, (list, np.ndarray)):
+    #                 values = list(array)
+    #             else:
+    #                 values = [array]
+    #
+    #             f.write(f'    "{key}": {values},\n')
+    #
+    #     f.write("}\n")
 
 
 

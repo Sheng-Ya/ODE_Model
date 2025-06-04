@@ -6,7 +6,7 @@ from Gas_Exchange import gas_exchange
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 
 
-def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, i, t_start):
+def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, t_start, time_saved):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function
@@ -35,28 +35,23 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     R_rs = params["R_rs"]
     P_ao = params["P_ao"]
 
-    if t == t_start:
-        gas_exchange_index = i
-    elif num_removed > 0:
-        gas_exchange_index = i - num_removed - 1
-    else:
-        gas_exchange_index = i - 1
+    gas_exchange_index = 0
 
-    MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
+    MRV = gas_exchange_inputs["MRV_store"][gas_exchange_index]
 
     a1, a2, tau, t1, t2 = updates["Nd"][-5:]
     Pa_O2_history = updates["Pa_O2_history"]
     Pa_CO2_history = updates["Pa_CO2_history"]
     Pb_CO2_history = updates["Pb_CO2_history"]
 
-    last_breath_time = max(0, t - updates["finish_breath_time"][-1])
+    last_breath_time = max(0, t - updates["finish_breath_time"])
 
     resp_cycle = last_breath_time % (t1 + t2)
-    if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
+    if t <= (t1 + t2) and updates["finish_breath_time"] == 0:
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
-        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
+        if resp_cycle < updates["resp_cycle_store"][1] and (updates["resp_cycle_store"][1] - resp_cycle) > 1:
             updates["PamO2"].append(PamO2)
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
@@ -70,7 +65,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PmbCO2 = updates["PmbCO2"][-1]
 
         if t != t_start:
-            if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1: # restarts
+            if resp_cycle < updates["resp_cycle_store"][1] and (updates["resp_cycle_store"][1] - resp_cycle) > 1: # restarts
                 PamO2 = np.mean(Pa_O2_history)
                 PamCO2 = np.mean(Pa_CO2_history)
                 PmbCO2 = np.mean(Pb_CO2_history)
@@ -121,7 +116,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     updates["dt"] = dt
 
     if t != t_start or t == 0:
-        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
+        if resp_cycle < updates["resp_cycle_store"][1] and (updates["resp_cycle_store"][1] - resp_cycle) > 1:
 
             bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
             tolerance = 0.001
@@ -173,7 +168,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["V_current"] = V_for_current_breath
             updates["dV_dt_current"] = dV_dt_for_current_breath
             updates["dP_dt_current"] = dP_dt_for_current_breath
-            updates["finish_breath_time"].append(t)
+            updates["finish_breath_time"] = t
 
             # check optimisation results
             print(f"guess: {updates["Nd"][-5:]}")
@@ -207,40 +202,69 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # store ventilation variables
-    last_breath_time = t - updates["finish_breath_time"][-1]
+
     breath = last_breath_time % (t1 + t2) # determine time within the breath
 
     V = np.interp(breath, updates["current_times"], updates["V_current"])
     dV_dt = np.interp(breath, updates["current_times"], updates["dV_dt_current"])
     P_musc = np.interp(breath, updates["current_times"], updates["P_musc_current"])
 
-    if num_removed > 0:
-        for key in [
-            "BF", "TI", "VT", "VE_integral", "VD", "resp_cycle", "VAflow", "VE_flow", "P_musc", "dV_dt", "V"
-        ]:
-            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
-        i = i - num_removed
+    # if num_removed > 0:
+    #     for key in [
+    #         "BF", "TI", "VT", "VE_integral", "VD", "resp_cycle", "VAflow", "VE_flow", "P_musc", "dV_dt", "V"
+    #     ]:
+    #         updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
+    #     i = i - num_removed
 
-    # cardio inputs
-    updates["BF"][i] = BF
-    updates["TI"][i] = TI
-    updates["VT"][i] = VT
+    if num_removed == 0:
+        # Combine keys and corresponding values for updates
+        for key, new_value in zip(
+                [   # Cardio inputs
+                    "BF_store", "TI_store", "VT_store",
 
-    # cardio control inputs
-    updates["VE_integral"][i] = VE_integral
+                    # Cardio control inputs
+                    "VE_integral_store",
 
-    # gas inputs
-    updates["VD"][i] = VD
+                    # Gas inputs
+                    "VD_store",
 
-    # resp control vent
-    updates["resp_cycle"][i] = resp_cycle
+                    # Resp control vent
+                    "resp_cycle_store", "VAflow_store", "VE_flow_store", "P_musc_store", "dV_dt_store", "V_store"],
 
-    updates["VAflow"][i] = VAflow
-    updates["VE_flow"][i] = VE_flow
+                [   # Corresponding values
+                    BF, TI, VT, VE_integral, VD,
+                    resp_cycle, VAflow, VE_flow, P_musc, dV_dt, V]
+        ):
+            # shift and update
+            updates[key][0], updates[key][1] = updates[key][1], new_value
 
-    updates["P_musc"][i] = P_musc
-    updates["dV_dt"][i] = dV_dt
-    updates["V"][i] = V
+
+
+    # just for plotting purposes
+    if ((t % time_saved) < 1e-9 or (time_saved - (t % time_saved)) < 1e-9) and num_removed == 0 and t > 10:
+        j = updates["j"].item()
+
+        keys_and_values = zip(
+            [   # Cardio inputs
+                "BF", "TI", "VT",
+
+                # Cardio control inputs
+                "VE_integral",
+
+                # Gas inputs
+                "VD",
+
+                # Resp control vent
+                "resp_cycle", "VAflow", "VE_flow",
+                "P_musc", "dV_dt", "V" ],
+
+            [   # Corresponding values
+                BF, TI, VT, VE_integral, VD, resp_cycle,
+                VAflow, VE_flow, P_musc, dV_dt, V])
+
+        for key, value in keys_and_values:
+            updates[key][j] = value
+
 
     return [d_VE_integral_dt]
 
