@@ -307,33 +307,33 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
 
 
     # just for plotting purposes
-    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-    #     j = updates["j"].item()
+    if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
+        j = updates["j"].item()
 
-    keys_and_values = zip(
-        [   # Cardio control inputs
-            "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
+        keys_and_values = zip(
+            [   # Cardio control inputs
+                "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
 
-            # Resp control vent inputs
-            "MRV",
+                # Resp control vent inputs
+                "MRV",
 
-            # Histories for gas
-            "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
-            "Pd_5_O2", "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2",
-            "FCO2", "FO2", "QT", "cCO2_diff", "cO2_diff",
-            "Ta", "dPA_O2_dt", "dPA_CO2_dt", "Pd_5_O2",
-            "Pd_5_CO2", "t_minus_Ta", "PvtCO2"],
+                # Histories for gas
+                "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
+                "Pd_5_O2", "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2",
+                "FCO2", "FO2", "QT", "cCO2_diff", "cO2_diff",
+                "Ta", "dPA_O2_dt", "dPA_CO2_dt", "Pd_5_O2",
+                "Pd_5_CO2", "t_minus_Ta", "PvtCO2"],
 
-        [   # Corresponding values
-            MRTCO2, Pa_O2, Pa_CO2, CaO2, MRV,
-            PA_O2, PA_CO2, PA_O2_old, PA_CO2_old,
-            Pd_5_O2, Pb_CO2, CvO2, CaCO2, CvCO2,
-            FCO2, FO2, QT, cCO2_diff, cO2_diff,
-            Ta, dPA_O2_dt, dPA_CO2_dt, Pd_5_O2,
-            Pd_5_CO2, t_minus_Ta, PvtCO2])
+            [   # Corresponding values
+                MRTCO2, Pa_O2, Pa_CO2, CaO2, MRV,
+                PA_O2, PA_CO2, PA_O2_old, PA_CO2_old,
+                Pd_5_O2, Pb_CO2, CvO2, CaCO2, CvCO2,
+                FCO2, FO2, QT, cCO2_diff, cO2_diff,
+                Ta, dPA_O2_dt, dPA_CO2_dt, Pd_5_O2,
+                Pd_5_CO2, t_minus_Ta, PvtCO2])
 
-    for key, value in keys_and_values:
-        updates[key][i] = value
+        for key, value in keys_and_values:
+            updates[key][j] = value
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
             dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
