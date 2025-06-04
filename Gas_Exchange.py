@@ -295,7 +295,7 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
 
 
     # just for plotting purposes
-    if ((t % time_saved) < 1e-9 or (time_saved - (t % time_saved)) < 1e-9) and num_removed == 0 and t > 10:
+    if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
         j = updates["j"].item()
 
         keys_and_values = zip(

@@ -612,9 +612,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
             updates[key][0], updates[key][1] = updates[key][1], new_value
 
 
-
+    if t > 0.0008:
+        A = t % time_saved
     # just for plotting purposes
-    if ((t % time_saved) < 1e-9 or (time_saved - (t % time_saved)) < 1e-9) and num_removed == 0 and t > 10:
+    if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
         j = updates["j"].item()
 
         keys_and_values = zip(
@@ -649,7 +650,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         for key, value in keys_and_values:
             updates[key][j] = value
 
-        updates["j"] = updates["j"].item() + 1
+        updates["j"] = np.array(updates["j"].item() + 1)
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
             dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt]
