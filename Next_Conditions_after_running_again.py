@@ -2,6 +2,7 @@ import numpy as np
 
 Next_Conditions = {
     "i": np.array([0]),
+
     "time_since_beat": np.pad(np.array([899.6837451860961, 899.6837451860961]), (0, 700000 - 2), mode="constant", constant_values=1e6),
     "Nd": [13.2818159, -3.7235, 0.25442073, 1.5, 2],
     "xamO2": np.pad(np.array([0.0]), (0, 700000 - 1), mode="constant", constant_values=1e6),

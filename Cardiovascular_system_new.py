@@ -11,7 +11,7 @@ from Activation_Functions import activation_U, activation_H, activation_Naghavi,
 def frac(x):
     return x - math.floor(x)
 
-def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, t_start, time_saved):
+def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, t_start, time_saved, i):
     """
     Pulmonary circulation state variables: VT_pa, VT_pp, VT_pv, Q_pa
     Cardiovascular system state variables: VT_la, VT_lv, VT_ra, VT_rv
@@ -41,10 +41,19 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv", "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp",
     "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
 
-
-    heart_control_index = 1
-    resp_control_index = 1
-    time_since_beat = updates["time_since_beat_store"][1]
+    # Determine the correct index based on t
+    if t == t_start:
+        heart_control_index = i % BUFFER_LIMIT
+        time_since_beat = updates["time_since_beat"][i % BUFFER_LIMIT]
+        # heart_control_index = 0
+        # resp_control_index = 0
+        resp_control_index = i
+    else:
+        heart_control_index = (i - num_removed) % BUFFER_LIMIT
+        # heart_control_index = 0
+        # resp_control_index = 0
+        resp_control_index = i - 1
+        time_since_beat = updates["time_since_beat"][i - 1]
 
     # Muscle Pump
     # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1
@@ -612,8 +621,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
             updates[key][0], updates[key][1] = updates[key][1], new_value
 
 
-    if t > 0.0008:
-        A = t % time_saved
+
     # just for plotting purposes
     if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
         j = updates["j"].item()

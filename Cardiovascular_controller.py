@@ -9,7 +9,7 @@ def frac(x):
     return x - math.floor(x)
 
 
-def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved):
+def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,

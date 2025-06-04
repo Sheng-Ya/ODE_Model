@@ -6,7 +6,7 @@ from Gas_Exchange import gas_exchange
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 
 
-def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, t_start, time_saved):
+def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_removed, t_start, time_saved, i):
     """
         Ventilation controller: Calculate VD, VD_flow, VE_flow, BF, TI
         Breathing pattern optimiser state variables: another function

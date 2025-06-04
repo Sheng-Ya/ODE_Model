@@ -3,7 +3,7 @@ import numpy as np
 # from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 
-def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved):
+def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i):
     """
         # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, time_history, V, dV_dt
 
