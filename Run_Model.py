@@ -30,7 +30,7 @@ from Next_Conditions_after_running_again import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 4000) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -73,6 +73,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
+    A = list(d_combined)
 
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
@@ -209,32 +210,32 @@ if __name__ == "__main__":
     # # Output file path
     # output_file = "Next_Conditions_new.py"
     #
-    with open(output_file3, "w") as f:
-        f.write("import numpy as np\n\n")
-        f.write("Next_Conditions = {\n")
-
-        # Ensure 'i' and all other non populated arrays are set correctly
-        # f.write(f'    "i": np.array([{index}]),\n\n')
-        f.write(f'    "i": np.array([{0}]),\n')
-        f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
-        f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
-
-        for key, array in Next_Conditions.items():
-            if key in ["i", "time_since_beat", "Nd"]:
-                continue  # Already handled
-            if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
-                last_value = array[index]
-                f.write(
-                    f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
-            else:
-                if isinstance(array, (list, np.ndarray)):
-                    values = list(array)
-                else:
-                    values = [array]
-
-                f.write(f'    "{key}": {values},\n')
-
-        f.write("}\n")
+    # with open(output_file3, "w") as f:
+    #     f.write("import numpy as np\n\n")
+    #     f.write("Next_Conditions = {\n")
+    #
+    #     # Ensure 'i' and all other non populated arrays are set correctly
+    #     # f.write(f'    "i": np.array([{index}]),\n\n')
+    #     f.write(f'    "i": np.array([{0}]),\n')
+    #     f.write(f'    "time_since_beat": np.pad(np.array([{Next_Conditions["time_since_beat"][index - 1]}, {Next_Conditions["time_since_beat"][index]}]), (0, 1200000 - 2), mode="constant", constant_values=1e6),\n')
+    #     f.write(f'    "Nd": {Next_Conditions["Nd"][-5:]},\n\n')
+    #
+    #     for key, array in Next_Conditions.items():
+    #         if key in ["i", "time_since_beat", "Nd"]:
+    #             continue  # Already handled
+    #         if isinstance(array, np.ndarray) and array.ndim == 1 and len(array) > index:
+    #             last_value = array[index]
+    #             f.write(
+    #                 f'    "{key}": np.pad(np.array([{last_value}]), (0, 1200000 - 1), mode="constant", constant_values=1e6),\n')
+    #         else:
+    #             if isinstance(array, (list, np.ndarray)):
+    #                 values = list(array)
+    #             else:
+    #                 values = [array]
+    #
+    #             f.write(f'    "{key}": {values},\n')
+    #
+    #     f.write("}\n")
 
 
 
