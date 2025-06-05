@@ -99,9 +99,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     I = heart_control_inputs["I"][heart_control_index]
 
     A = list(heart_control_inputs["R_ep"])
-    AA = list(heart_control_inputs["R_ep"])
-    AAA = heart_control_inputs["R_amp"]
-    B = list(heart_control_inputs["Vu_ev"])
 
 
     VT_change = VT - VT_n # units of L
