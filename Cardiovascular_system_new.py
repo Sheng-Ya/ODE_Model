@@ -44,12 +44,12 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # Determine the correct index based on t
     if t == t_start:
         heart_control_index = i % BUFFER_LIMIT
-        time_since_beat = updates["time_since_beat"][i % BUFFER_LIMIT]
+        time_since_beat = updates["time_since_beat_store"][i % BUFFER_LIMIT]
         resp_control_index = i % BUFFER_LIMIT
     else:
         heart_control_index = (i - num_removed - 1) % BUFFER_LIMIT
         resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
-        time_since_beat = updates["time_since_beat"][(i - num_removed - 1) % BUFFER_LIMIT]
+        time_since_beat = updates["time_since_beat_store"][(i - num_removed - 1) % BUFFER_LIMIT]
 
     # Muscle Pump
     # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1

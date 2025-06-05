@@ -446,6 +446,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     # update after every heartbeat
     if time_since_beat1 != time_since_beat2 and num_removed == 0:
+        AAA = list(updates["time_since_beat_store"])
         HR = np.mean(updates["HR1"])
         updates["HR1"].clear()
 
