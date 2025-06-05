@@ -71,6 +71,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     MRTCO2_basal = MRTCO2_basal - params["MRBCO2"]
 
+    AAA = list(gas_exchange_inputs["Pa_CO2_store"])
+
     VE_integral = resp_control_inputs["VE_integral_store"][resp_control_index]
 
     I = (MRTCO2 - MRTCO2_basal)/(AT - MRTCO2_basal)

@@ -96,9 +96,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
 
     if num_removed > 0:
         updates["A"][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
-        i = i - num_removed
 
-    updates["A"][i] = R_ep
+    updates["A"][i - num_removed] = R_ep
 
     if t >2 :
         A = list(updates["A"])
@@ -626,6 +625,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         if num_removed == 0:
             updates[key][(i % BUFFER_LIMIT)] = new_value
         else:
+            A = (i - num_removed) % BUFFER_LIMIT
             updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
             # updates[key][((i - num_removed) % BUFFER_LIMIT): ((i + 1) % BUFFER_LIMIT)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
 
