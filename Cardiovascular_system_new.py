@@ -91,8 +91,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     Emax_rv = heart_control_inputs["Emax_rv"][heart_control_index]
 
     R_ep = heart_control_inputs["R_ep"][heart_control_index]
-    R_amp = heart_control_inputs["R_ep"][heart_control_index]
-    R_rmp = heart_control_inputs["R_ep"][heart_control_index]
+    R_amp = heart_control_inputs["R_amp"][heart_control_index]
+    R_rmp = heart_control_inputs["R_rmp"][heart_control_index]
     R_sp = heart_control_inputs["R_sp"][heart_control_index]
     R_bp = heart_control_inputs["R_bp"][heart_control_index]
     R_hp = heart_control_inputs["R_hp"][heart_control_index]
