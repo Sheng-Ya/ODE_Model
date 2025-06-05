@@ -94,7 +94,15 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     R_hp = heart_control_inputs["R_hp_store"][heart_control_index]
     I = heart_control_inputs["I_store"][heart_control_index]
 
-    A = list(heart_control_inputs["R_ep_store"])
+    if num_removed > 0:
+        updates["A"][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+        i = i - num_removed
+
+    updates["A"][i] = R_ep
+
+    if t >2 :
+        A = list(updates["A"])
+        B = 2
 
 
     VT_change = VT - VT_n # units of L

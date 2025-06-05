@@ -1,6 +1,7 @@
 import numpy as np
 
 Next_Conditions = {
+    "A": np.pad(np.array([0.0]), (0, 700000 - 1), mode="constant", constant_values=1e6),
     "i": np.array([0]),
     "time_since_beat": np.pad(np.array([0.0, 0.0]), (0, 700000 - 2), mode="constant", constant_values=1e6),
     "Nd": [13.2818159, -3.7235, 0.25442073, 1.5, 2],
