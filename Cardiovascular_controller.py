@@ -487,12 +487,13 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         if num_removed == 0:
             updates[key][(i % BUFFER_LIMIT)] = new_value
         else:
+            A = (i - num_removed) % BUFFER_LIMIT
+            AA = updates["R_ep_store"]
             updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
-            i = i - num_removed
 
 
-
-    # just for plotting purposes
+    AA = updates["R_ep_store"]
+            # just for plotting purposes
     if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
         j = updates["j"].item()
 
