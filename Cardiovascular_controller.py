@@ -292,9 +292,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     Vu_rmv1 = max(Vu_rmv_change + Vu_rmv0, 0)
     Vu_amv1 = max(Vu_amv_change + Vu_amv0, 0)
 
-    if abs(Vu_ev1 - 544.460568461574) < 1e-6:
-        # Code to execute if the condition is true
-        print("Vu_ev is approximately equal to 544.460568461574")
 
     Emax_lv1 = Emax_lv_change + Emax_lv0
     Emax_rv1 = Emax_rv_change + Emax_rv0
@@ -506,12 +503,17 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         if num_removed == 0:
             updates[key][(i % BUFFER_LIMIT)] = new_value
         else:
-            A = (i - num_removed) % BUFFER_LIMIT
-            AA = updates["R_ep_store"]
             updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
+        if num_removed > 0:
+            keys2 = [
+                "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
+            ]
+            for key in keys2:
+                del updates[key][-num_removed:]
 
-    AA = updates["R_ep_store"]
+
+
             # just for plotting purposes
     if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
         j = updates["j"].item()
