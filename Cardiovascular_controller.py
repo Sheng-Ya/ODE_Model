@@ -201,8 +201,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     if delay_time2 >= t_start:
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, delay_time2) - 1
-        f_sp_delay2 = f_sp_history[delay_index]
-        f_sh_delay2 = f_sh_history[delay_index]
+        f_sp_delay2 = f_sp_history[delay_index % BUFFER_LIMIT]
+        f_sh_delay2 = f_sh_history[delay_index % BUFFER_LIMIT]
     else:
         if t == 0:
             f_sp_delay2 = f_sp
@@ -221,7 +221,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     if delay_time5 >= t_start:
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, delay_time5) - 1
-        f_sv_delay5 = f_sv_history[delay_index]
+        f_sv_delay5 = f_sv_history[delay_index % BUFFER_LIMIT]
     else:
         if t == 0:
             f_sv_delay5 = f_sv
@@ -301,7 +301,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     if delay_time0_2 >= t_start:
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, delay_time0_2) - 1
-        f_v_delay0_2 = f_v_history[delay_index]
+        f_v_delay0_2 = f_v_history[delay_index % BUFFER_LIMIT]
     else:
         if t == 0:
             f_v_delay0_2 = f_v
@@ -388,7 +388,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     if delay_time_met >= t_start:
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, delay_time_met) - 1
-        phi_met_delay = phi_met_history[delay_index]
+        phi_met_delay = phi_met_history[delay_index % BUFFER_LIMIT]
     elif t_start != 0:
         delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time_met) - 1
         phi_met_delay = previous_Selected_Conditions["phi_met"][delay_index]
@@ -436,10 +436,12 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     #
     #     i = i - num_removed
 
-
-
-    time_since_beat1 = updates["time_since_beat_store"][1]
-    time_since_beat2 = updates["time_since_beat_store"][0]
+    if heart_index <= 1:
+        time_since_beat1 = updates["time_since_beat_store"][heart_index]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index]
+    else:
+        time_since_beat1 = updates["time_since_beat_store"][heart_index]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index - 1]
 
     # update after every heartbeat
     if time_since_beat1 != time_since_beat2 and num_removed == 0:
