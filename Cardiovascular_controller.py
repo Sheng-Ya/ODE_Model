@@ -506,12 +506,12 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         else:
             updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-        if num_removed > 0:
-            keys2 = [
-                "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
-            ]
-            for key in keys2:
-                del updates[key][-num_removed:]
+    if num_removed > 0:
+        keys2 = [
+            "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
+        ]
+        for key in keys2:
+            del updates[key][-num_removed:]
 
 
 
