@@ -292,6 +292,10 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     Vu_rmv1 = max(Vu_rmv_change + Vu_rmv0, 0)
     Vu_amv1 = max(Vu_amv_change + Vu_amv0, 0)
 
+    if abs(Vu_ev1 - 544.460568461574) < 1e-6:
+        # Code to execute if the condition is true
+        print("Vu_ev is approximately equal to 544.460568461574")
+
     Emax_lv1 = Emax_lv_change + Emax_lv0
     Emax_rv1 = Emax_rv_change + Emax_rv0
 
