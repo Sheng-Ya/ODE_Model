@@ -71,7 +71,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     MRTCO2_basal = MRTCO2_basal - params["MRBCO2"]
 
-    AAA = list(gas_exchange_inputs["Pa_CO2_store"])
+    # AAA = list(gas_exchange_inputs["Pa_CO2_store"])
 
     VE_integral = resp_control_inputs["VE_integral_store"][resp_control_index]
 
@@ -192,9 +192,9 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
 
     f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history = [exp_inputs[key] for key in
-                                                                              ["f_sp", "f_sh",
-                                                                               "f_v", "f_sv",
-                                                                               "phi_met"]]
+                                                                              ["f_sp_store", "f_sh_store",
+                                                                               "f_v_store", "f_sv_store",
+                                                                               "phi_met_store"]]
 
     # added the below to get f_sp_delay from previous iterations.
     delay_time2 = t - 2
@@ -487,14 +487,15 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             [   # Cardio inputs
                 "HR_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
                 "Emax_lv_store", "Emax_rv_store", "R_ep_store", "R_amp_store", "R_rmp_store",
-                "R_sp_store", "R_bp_store", "R_hp_store", "I_store",
+                "R_sp_store", "R_bp_store", "R_hp_store", "I_store", "f_sp_store", "f_sh_store",
+                "f_v_store", "f_sv_store", "phi_met_store",
 
                 # Needed in cardio controller
                 "prev_flat_bit_store"],
 
             [   HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
                 Emax_lv, Emax_rv, R_ep, R_amp, R_rmp,
-                R_sp, R_bp, R_hp, I, prev_flat_bit]
+                R_sp, R_bp, R_hp, I, prev_flat_bit, f_sp, f_sh, f_v, f_sv, phi_met]
     ):
         if num_removed == 0:
             updates[key][(i % BUFFER_LIMIT)] = new_value

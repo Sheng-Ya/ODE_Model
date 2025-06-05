@@ -33,7 +33,7 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 30) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.001
-BUFFER_LIMIT = 100
+BUFFER_LIMIT = 700000
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -107,13 +107,15 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
     d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
-    A = list(d_combined)
+
+    if t > 2:
+        A = list(d_combined)
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
 
