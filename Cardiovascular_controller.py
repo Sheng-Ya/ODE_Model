@@ -105,8 +105,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     dtheta_change_O2_sp_dt = (-theta_change_O2_sp + w_sp) / tau_isc
     dtheta_change_CO2_sp_dt = (-theta_change_CO2_sp + g_ccsp * (Pa_CO2 - PaCO2_n))/tau_cc
 
-    if t > 0.845:
-        AAA = list(gas_exchange_inputs["theta_change_O2_sp"])
+    # if t > 0.845:
+    #     AAA = list(gas_exchange_inputs["theta_change_O2_sp"])
 
     theta_sp = theta_spn - theta_change_O2_sp - theta_change_CO2_sp
 
