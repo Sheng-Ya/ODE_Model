@@ -99,7 +99,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     #
     # updates["A"][i - num_removed] = R_ep
 
-    if t >2 :
+    if t >0.856 :
         A = list(updates["A"])
         B = 2
 
