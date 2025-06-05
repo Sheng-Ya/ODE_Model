@@ -292,7 +292,6 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
             updates[key][(i % BUFFER_LIMIT)] = new_value
         else:
             updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
-            i = i - num_removed
 
 
     if num_removed > 0:

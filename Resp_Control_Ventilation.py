@@ -242,7 +242,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates[key][(i % BUFFER_LIMIT)] = new_value
         else:
             updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
-            i = i - num_removed
 
 
 
