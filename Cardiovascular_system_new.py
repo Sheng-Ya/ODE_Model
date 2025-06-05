@@ -605,11 +605,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # update after every heartbeat
     if t - time_since_beat > T:
         time_since_beat = t
-    else:
-        if i > 1:
-            time_since_beat = updates["time_since_beat"][i - 1]
-        else:
-            time_since_beat = 0
 
 
     # cardio control inputs
