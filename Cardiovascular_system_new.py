@@ -98,7 +98,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     R_hp = heart_control_inputs["R_hp"][heart_control_index]
     I = heart_control_inputs["I"][heart_control_index]
 
-    if t > 0.856:
+    if t > 0.847:
         A = list(heart_control_inputs["R_rmp"])
 
 
