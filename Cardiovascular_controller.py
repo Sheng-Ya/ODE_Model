@@ -97,10 +97,10 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     dtheta_change_CO2_sp_dt = (-theta_change_CO2_sp + g_ccsp * (Pa_CO2 - PaCO2_n))/tau_cc
 
 
-    if num_removed > 0:
-        updates["A"][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
-
-    updates["A"][i - num_removed] = theta_change_O2_sp
+    # if num_removed > 0:
+    #     updates["A"][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+    #
+    # updates["A"][i - num_removed] = theta_change_O2_sp
 
     # if t >0.845 :
     #     AAA= list(updates["A"])
@@ -495,7 +495,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
             [   HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
                 Emax_lv, Emax_rv, R_ep, R_amp, R_rmp,
-                R_sp, R_bp, R_hp, I, prev_flat_bit, f_sp, f_sh, f_v, f_sv, phi_met]
+                R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, phi_met, prev_flat_bit]
     ):
         if num_removed == 0:
             updates[key][(i % BUFFER_LIMIT)] = new_value

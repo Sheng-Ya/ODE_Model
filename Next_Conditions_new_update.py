@@ -239,7 +239,7 @@ Next_Conditions = {
     "P_musc_store": np.array([4.852823241268209] * 700000),
     "dV_dt_store": np.array([0.48005969739718407] * 700000),
     "V_store": np.array([0.15539008927528375] * 700000),
-    "all_time": np.array([0.0] * 700000),
+    "all_time": np.array([100000.0] * 700000),
     "f_sh_store": np.array([3.2603313714207984] * 700000),
     "f_ap_store": np.array([6.173021658774502] * 700000),
     "f_sv_store": np.array([3.6022099670168326] * 700000),
