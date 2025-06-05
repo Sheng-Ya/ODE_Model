@@ -437,55 +437,6 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     #
     #     i = i - num_removed
 
-    if heart_index <= 1:
-        time_since_beat1 = updates["time_since_beat_store"][heart_index]
-        time_since_beat2 = updates["time_since_beat_store"][heart_index]
-    else:
-        time_since_beat1 = updates["time_since_beat_store"][heart_index]
-        time_since_beat2 = updates["time_since_beat_store"][heart_index - 1]
-
-    # update after every heartbeat
-    if time_since_beat1 != time_since_beat2 and num_removed == 0:
-        AAA = list(updates["time_since_beat_store"])
-        HR = np.mean(updates["HR1"])
-        updates["HR1"].clear()
-
-        Vu_ev = np.mean(updates["Vu_ev1"])
-        updates["Vu_ev1"].clear()
-
-        Vu_sv = np.mean(updates["Vu_sv1"])
-        updates["Vu_sv1"].clear()
-
-        Vu_rmv = np.mean(updates["Vu_rmv1"])
-        updates["Vu_rmv1"].clear()
-
-        Vu_amv = np.mean(updates["Vu_amv1"])
-        updates["Vu_amv1"].clear()
-
-        Emax_lv = np.mean(updates["Emax_lv1"])
-        updates["Emax_lv1"].clear()
-
-        Emax_rv = np.mean(updates["Emax_rv1"])
-        updates["Emax_rv1"].clear()
-
-
-        # update history
-    # updates["HR1"] = np.append(updates["HR1"], HR1)
-    # updates["Vu_ev1"] = np.append(updates["Vu_ev1"], Vu_ev1)
-    # updates["Vu_sv1"] = np.append(updates["Vu_sv1"], Vu_sv1)
-    # updates["Vu_rmv1"] = np.append(updates["Vu_rmv1"], Vu_rmv1)
-    # updates["Vu_amv1"] = np.append(updates["Vu_amv1"], Vu_amv1)
-    # updates["Emax_lv1"] = np.append(updates["Emax_lv1"], Emax_lv1)
-    # updates["Emax_rv1"] = np.append(updates["Emax_rv1"], Emax_rv1)
-    updates["HR1"].append(HR1)
-    updates["Vu_ev1"].append(Vu_ev1)
-    updates["Vu_sv1"].append(Vu_sv1)
-    updates["Vu_rmv1"].append(Vu_rmv1)
-    updates["Vu_amv1"].append(Vu_amv1)
-    updates["Emax_lv1"].append(Emax_lv1)
-    updates["Emax_rv1"].append(Emax_rv1)
-
-
     # update values needed in other systems
     for key, new_value in zip(
             [   # Cardio inputs
@@ -512,6 +463,59 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         ]
         for key in keys2:
             del updates[key][-num_removed:]
+
+
+
+
+
+
+    if heart_index <= 1:
+        time_since_beat1 = updates["time_since_beat_store"][heart_index]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index]
+    else:
+        time_since_beat1 = updates["time_since_beat_store"][heart_index]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index - 1]
+
+
+    # update after every heartbeat
+    if time_since_beat1 != time_since_beat2 and num_removed == 0:
+        AAA = list(updates["time_since_beat_store"])
+        HR = np.mean(updates["HR1"])
+        updates["HR1"].clear()
+
+        Vu_ev = np.mean(updates["Vu_ev1"])
+        updates["Vu_ev1"].clear()
+
+        Vu_sv = np.mean(updates["Vu_sv1"])
+        updates["Vu_sv1"].clear()
+
+        Vu_rmv = np.mean(updates["Vu_rmv1"])
+        updates["Vu_rmv1"].clear()
+
+        Vu_amv = np.mean(updates["Vu_amv1"])
+        updates["Vu_amv1"].clear()
+
+        Emax_lv = np.mean(updates["Emax_lv1"])
+        updates["Emax_lv1"].clear()
+
+        Emax_rv = np.mean(updates["Emax_rv1"])
+        updates["Emax_rv1"].clear()
+
+        # update history
+    # updates["HR1"] = np.append(updates["HR1"], HR1)
+    # updates["Vu_ev1"] = np.append(updates["Vu_ev1"], Vu_ev1)
+    # updates["Vu_sv1"] = np.append(updates["Vu_sv1"], Vu_sv1)
+    # updates["Vu_rmv1"] = np.append(updates["Vu_rmv1"], Vu_rmv1)
+    # updates["Vu_amv1"] = np.append(updates["Vu_amv1"], Vu_amv1)
+    # updates["Emax_lv1"] = np.append(updates["Emax_lv1"], Emax_lv1)
+    # updates["Emax_rv1"] = np.append(updates["Emax_rv1"], Emax_rv1)
+    updates["HR1"].append(HR1)
+    updates["Vu_ev1"].append(Vu_ev1)
+    updates["Vu_sv1"].append(Vu_sv1)
+    updates["Vu_rmv1"].append(Vu_rmv1)
+    updates["Vu_amv1"].append(Vu_amv1)
+    updates["Emax_lv1"].append(Emax_lv1)
+    updates["Emax_rv1"].append(Emax_rv1)
 
 
 
