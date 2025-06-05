@@ -94,6 +94,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     R_hp = heart_control_inputs["R_hp_store"][heart_control_index]
     I = heart_control_inputs["I_store"][heart_control_index]
 
+    A = list(heart_control_inputs["R_ep_store"])
+
 
     VT_change = VT - VT_n # units of L
     TE = T_resp - TI
