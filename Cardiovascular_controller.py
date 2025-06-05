@@ -102,9 +102,9 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     updates["A"][i - num_removed] = theta_change_O2_sp
 
-    if t >0.847 :
-        A = list(updates["A"])
-        B = 2
+    if t >0.845 :
+        AAA= list(updates["A"])
+        BBB = 2
 
     theta_sp = theta_spn - theta_change_O2_sp - theta_change_CO2_sp
 
