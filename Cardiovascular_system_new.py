@@ -98,8 +98,8 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     R_hp = heart_control_inputs["R_hp"][heart_control_index]
     I = heart_control_inputs["I"][heart_control_index]
 
-    if t > 0.847:
-        A = list(heart_control_inputs["R_rmp"])
+    # if t > 0.847:
+    #     A = list(heart_control_inputs["R_rmp"])
 
 
     VT_change = VT - VT_n # units of L
