@@ -203,11 +203,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     VE_flow = VAflow + VD_flow # in a second
     VT = VE_flow * (t1 + t2)
 
-    # from cardiovascular controller
-    if 0 <= (resp_cycle % (t1 + t2)) <= TI:
-        d_VE_integral_dt = VE_flow
-    else:
-        d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # store ventilation variables
     last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
@@ -218,6 +213,12 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
     dV_dt = np.interp(resp_cycle, updates["current_times"], updates["dV_dt_current"])
     P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
+
+    # from cardiovascular controller
+    if 0 <= (resp_cycle % (t1 + t2)) <= TI:
+        d_VE_integral_dt = VE_flow
+    else:
+        d_VE_integral_dt = VE_flow  # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     if num_removed > 0:
         for key in [
