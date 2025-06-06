@@ -55,14 +55,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
-        if resp_cycle < updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] and (updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] - resp_cycle) > 1 and num_removed == 0:
-            updates["PamO2"].append(PamO2)
-            updates["PamCO2"].append(PamCO2)
-            updates["PmbCO2"].append(PmbCO2)
-
-            updates["Pa_O2_history"].clear()
-            updates["Pa_CO2_history"].clear()
-            updates["Pb_CO2_history"].clear()
     else:
         PamO2 = updates["PamO2"][-1]
         PamCO2 = updates["PamCO2"][-1]

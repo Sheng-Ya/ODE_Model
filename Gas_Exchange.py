@@ -300,6 +300,12 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
         del updates["Pa_O2_history"][-num_removed:]
         del updates["Pa_CO2_history"][-num_removed:]
 
+
+    if t == 0:
+        updates["Pa_O2_history"].clear()
+        updates["Pa_CO2_history"].clear()
+        updates["Pb_CO2_history"].clear()
+
     updates["Pb_CO2_history"].append(Pb_CO2)
     updates["Pa_O2_history"].append(Pa_O2)
     updates["Pa_CO2_history"].append(Pa_CO2)
