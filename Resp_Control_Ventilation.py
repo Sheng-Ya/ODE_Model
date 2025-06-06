@@ -56,7 +56,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
-        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
+        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1 and num_removed == 0:
             updates["PamO2"].append(PamO2)
             updates["PamCO2"].append(PamCO2)
             updates["PmbCO2"].append(PmbCO2)
@@ -70,7 +70,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         PmbCO2 = updates["PmbCO2"][-1]
 
         if t != t_start:
-            if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1: # restarts
+            if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1 and num_removed == 0: # restarts
                 PamO2 = np.mean(Pa_O2_history)
                 PamCO2 = np.mean(Pa_CO2_history)
                 PmbCO2 = np.mean(Pb_CO2_history)
@@ -121,7 +121,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     updates["dt"] = dt
 
     if t != t_start or t == 0:
-        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1:
+        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1 and num_removed == 0:
 
             bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
             tolerance = 0.001
