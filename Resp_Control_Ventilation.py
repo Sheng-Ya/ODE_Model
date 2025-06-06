@@ -48,10 +48,10 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     Pa_CO2_history = updates["Pa_CO2_history"]
     Pb_CO2_history = updates["Pb_CO2_history"]
 
-    last_breath_time = max(0, (t - updates["finish_breath_time"]))
+    last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
 
     resp_cycle = last_breath_time % (t1 + t2)
-    if t <= (t1 + t2) and updates["finish_breath_time"] == 0:
+    if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
@@ -172,7 +172,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["V_current"] = V_for_current_breath
             updates["dV_dt_current"] = dV_dt_for_current_breath
             updates["dP_dt_current"] = dP_dt_for_current_breath
-            updates["finish_breath_time"] = t
+            updates["finish_breath_time"].append(t)
 
             # check optimisation results
             print(f"guess: {updates["Nd"][-5:]}")
@@ -206,13 +206,12 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # store ventilation variables
-    A = updates["finish_breath_time"]
-    last_breath_time = max(0, (t - updates["finish_breath_time"]))
-    breath = last_breath_time % (t1 + t2) # determine time within the breath
+    last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
+    resp_cycle = last_breath_time % (t1 + t2) # determine time within the breath
 
-    V = np.interp(breath, updates["current_times"], updates["V_current"])
-    dV_dt = np.interp(breath, updates["current_times"], updates["dV_dt_current"])
-    P_musc = np.interp(breath, updates["current_times"], updates["P_musc_current"])
+    V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
+    dV_dt = np.interp(resp_cycle, updates["current_times"], updates["dV_dt_current"])
+    P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
 
     # if num_removed > 0:
     #     for key in [
