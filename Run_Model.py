@@ -73,6 +73,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
                     break
 
             num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
+            Initial_Conditions_dict["all_time"][index:i + 1] = np.full((num_removed + 1,), 1e6)
             if num_removed > 5:
                 raise ValueError(f"num_removed should not be greater than 5, got {num_removed}")
         else:
@@ -117,7 +118,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     A = list(d_combined)
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
-    if t> 5:
+    if t> 6.544:
         AAA = 2
 
     if num_removed == 0:
