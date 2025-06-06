@@ -62,9 +62,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
         if t != t_start:
             if resp_cycle < updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] and (updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] - resp_cycle) > 1 and num_removed == 0: # restarts
-                PamO2 = np.mean([val for (t_val, val) in updates["Pa_O2_history"] if t_start < t_val <= t])
-                PamCO2 = np.mean([val for (t_val, val) in updates["Pa_CO2_history"] if t_start < t_val <= t])
-                PmbCO2 = np.mean([val for (t_val, val) in updates["Pb_CO2_history"] if t_start < t_val <= t])
+                t_last_breath = updates["finish_breath_time"][-1]
+
+                PamO2 = np.mean([val for (t_val, val) in updates["Pa_O2_history"] if t_last_breath < t_val <= t])
+                PamCO2 = np.mean([val for (t_val, val) in updates["Pa_CO2_history"] if t_last_breath < t_val <= t])
+                PmbCO2 = np.mean([val for (t_val, val) in updates["Pb_CO2_history"] if t_last_breath < t_val <= t])
 
                 updates["PamO2"].append(PamO2)
                 updates["PamCO2"].append(PamCO2)
