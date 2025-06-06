@@ -1,3 +1,5 @@
+import bisect
+
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
@@ -49,10 +51,14 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     Pa_CO2_history = updates["Pa_CO2_history"]
     Pb_CO2_history = updates["Pb_CO2_history"]
 
-    last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
+    A = updates["finish_breath_time"]
+    index = bisect.bisect_left(updates["finish_breath_time"], t) - 1
+    finish_breath_time = updates["finish_breath_time"][index]
+
+    last_breath_time = max(0, (t - finish_breath_time))
 
     resp_cycle = last_breath_time % (t1 + t2)
-    if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
+    if t <= (t1 + t2) and finish_breath_time == 0:
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
@@ -207,7 +213,9 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # store ventilation variables
-    last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
+    index = bisect.bisect_left(updates["finish_breath_time"], t) - 1
+    finish_breath_time = updates["finish_breath_time"][index]
+    last_breath_time = max(0, (t - finish_breath_time))
     breath = last_breath_time % (t1 + t2) # determine time within the breath
 
     V = np.interp(breath, updates["current_times"], updates["V_current"])
