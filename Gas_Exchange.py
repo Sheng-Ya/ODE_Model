@@ -94,7 +94,7 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
 
     t_minus_Ta = t - Ta
 
-    if t_minus_Ta >= t_start and t > abs(Ta):
+    if t_minus_Ta >= t_start and t > abs(Ta) and Ta > 0:
         # Find the index for delay_time in time_history
         delay_index = bisect.bisect_right(time_history, t_minus_Ta) - 1
         PA_O2_old = updates["PA_O2"][delay_index]
