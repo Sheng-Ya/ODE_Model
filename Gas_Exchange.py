@@ -293,9 +293,18 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     updates["PA_CO2"][i] = PA_CO2
     updates["PA_O2_old"][i] = PA_O2_old
     updates["PA_CO2_old"][i] = PA_CO2_old
+
+    if t == 0:
+        updates["Pa_O2_history"].clear()
+        updates["Pa_CO2_history"].clear()
+        updates["Pb_CO2_history"].clear()
+
+
     updates["Pb_CO2_history"].append(Pb_CO2)
     updates["Pa_O2_history"].append(Pa_O2)
     updates["Pa_CO2_history"].append(Pa_CO2)
+
+    # A = updates["Pa_CO2_history"]
 
 
     # just for plotting purposes

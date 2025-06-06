@@ -51,20 +51,13 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
 
     last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
+    A = updates["PamO2"]
 
     resp_cycle = last_breath_time % (t1 + t2)
     if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
-        if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1 and num_removed == 0:
-            updates["PamO2"].append(PamO2)
-            updates["PamCO2"].append(PamCO2)
-            updates["PmbCO2"].append(PmbCO2)
-
-            updates["Pa_O2_history"].clear()
-            updates["Pa_CO2_history"].clear()
-            updates["Pb_CO2_history"].clear()
     else:
         PamO2 = updates["PamO2"][-1]
         PamCO2 = updates["PamCO2"][-1]
