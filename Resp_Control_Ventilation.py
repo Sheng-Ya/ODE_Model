@@ -48,7 +48,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     Pa_CO2_history = updates["Pa_CO2_history"]
     Pb_CO2_history = updates["Pb_CO2_history"]
 
-    last_breath_time = max(0, t - updates["finish_breath_time"])
+    last_breath_time = max(0, (t - updates["finish_breath_time"]))
 
     resp_cycle = last_breath_time % (t1 + t2)
     if t <= (t1 + t2) and updates["finish_breath_time"] == 0:
@@ -207,7 +207,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     # store ventilation variables
     A = updates["finish_breath_time"]
-    last_breath_time = max(0, t - updates["finish_breath_time"])
+    last_breath_time = max(0, (t - updates["finish_breath_time"]))
     breath = last_breath_time % (t1 + t2) # determine time within the breath
 
     V = np.interp(breath, updates["current_times"], updates["V_current"])
