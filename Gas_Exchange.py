@@ -87,9 +87,6 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
 
     t_minus_Ta = t - Ta
 
-    if t > 6.544:
-        A = list(all_time)
-
     if t_minus_Ta >= t_start and t > abs(Ta):
         # Find the index for delay_time in all_time
         delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
