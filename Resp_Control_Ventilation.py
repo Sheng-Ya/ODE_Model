@@ -1,5 +1,3 @@
-import bisect
-
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
@@ -46,19 +44,22 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
 
+    # deal with rejected steps
+    if t - updates["finish_breath_time"][-1] < 0:
+        updates["finish_breath_time"].pop()
+        updates["Nd"] = updates["Nd"][:-5]
+
     a1, a2, tau, t1, t2 = updates["Nd"][-5:]
     Pa_O2_history = updates["Pa_O2_history"]
     Pa_CO2_history = updates["Pa_CO2_history"]
     Pb_CO2_history = updates["Pb_CO2_history"]
 
-    A = updates["finish_breath_time"]
-    index = bisect.bisect_left(updates["finish_breath_time"], t) - 1
-    finish_breath_time = updates["finish_breath_time"][index]
 
-    last_breath_time = max(0, (t - finish_breath_time))
+
+    last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
 
     resp_cycle = last_breath_time % (t1 + t2)
-    if t <= (t1 + t2) and finish_breath_time == 0:
+    if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
         PamO2 = Pa_O2_history[0]
         PamCO2 = Pa_CO2_history[0]
         PmbCO2 = Pb_CO2_history[0]
@@ -213,14 +214,14 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # store ventilation variables
-    index = bisect.bisect_left(updates["finish_breath_time"], t) - 1
-    finish_breath_time = updates["finish_breath_time"][index]
-    last_breath_time = max(0, (t - finish_breath_time))
-    breath = last_breath_time % (t1 + t2) # determine time within the breath
+    last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
 
-    V = np.interp(breath, updates["current_times"], updates["V_current"])
-    dV_dt = np.interp(breath, updates["current_times"], updates["dV_dt_current"])
-    P_musc = np.interp(breath, updates["current_times"], updates["P_musc_current"])
+
+    resp_cycle = last_breath_time % (t1 + t2) # determine time within the breath
+
+    V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
+    dV_dt = np.interp(resp_cycle, updates["current_times"], updates["dV_dt_current"])
+    P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
 
     if num_removed > 0:
         for key in [
