@@ -33,7 +33,7 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.001
-BUFFER_LIMIT = 700000
+BUFFER_LIMIT = 10000
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -57,7 +57,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     actual_index = i % BUFFER_LIMIT
 
     if t != 0:
-        A = Initial_Conditions_dict["all_time"]
         all_time = Initial_Conditions_dict["all_time"]
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = all_time[latest_nonzero_index]
@@ -73,7 +72,10 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
                     break
 
             num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
-            Initial_Conditions_dict["all_time"][index:i + 1] = np.full((num_removed + 1,), 1e6)
+
+            for j in range(num_removed + 1):
+                Initial_Conditions_dict["all_time"][(index + j) % BUFFER_LIMIT] = 1e6
+
             if num_removed > 5:
                 raise ValueError(f"num_removed should not be greater than 5, got {num_removed}")
         else:
@@ -114,7 +116,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
-    A = list(d_combined)
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
     if t> 6.954:
