@@ -206,7 +206,8 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
         d_VE_integral_dt = VE_flow # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # store ventilation variables
-    last_breath_time = t - updates["finish_breath_time"]
+    A = updates["finish_breath_time"]
+    last_breath_time = max(0, t - updates["finish_breath_time"])
     breath = last_breath_time % (t1 + t2) # determine time within the breath
 
     V = np.interp(breath, updates["current_times"], updates["V_current"])
