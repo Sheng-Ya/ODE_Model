@@ -3,9 +3,9 @@ import numpy as np
 # from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 
-def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT):
+def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT):
     """
-        # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, time_history, V, dV_dt
+        # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, all_time, V, dV_dt
 
     """
 
@@ -88,8 +88,8 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     t_minus_Ta = t - Ta
 
     if t_minus_Ta >= t_start and t > abs(Ta):
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, t_minus_Ta) - 1
+        # Find the index for delay_time in all_time
+        delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
         # AAAA = list(updates["PA_O2_store"])
         PA_O2_old = updates["PA_O2_store"][delay_index % BUFFER_LIMIT]
         PA_CO2_old = updates["PA_CO2_store"][delay_index % BUFFER_LIMIT]
@@ -103,7 +103,7 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
                     PA_O2_old = previous_Selected_Conditions["PA_O2_store"][-1]
                     PA_CO2_old = previous_Selected_Conditions["PA_CO2_store"][-1]
                 else:
-                    delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], t_minus_Ta) - 1
+                    delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], t_minus_Ta) - 1
                     PA_O2_old = previous_Selected_Conditions["PA_O2_store"][delay_index]
                     PA_CO2_old = previous_Selected_Conditions["PA_CO2_store"][delay_index]
             else:

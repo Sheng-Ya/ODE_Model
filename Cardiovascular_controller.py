@@ -9,7 +9,7 @@ def frac(x):
     return x - math.floor(x)
 
 
-def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT):
+def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,
@@ -199,8 +199,8 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # added the below to get f_sp_delay from previous iterations.
     delay_time2 = t - 2
     if delay_time2 >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time2) - 1
+        # Find the index for delay_time in all_time
+        delay_index = bisect.bisect_right(all_time, delay_time2) - 1
         f_sp_delay2 = f_sp_history[delay_index % BUFFER_LIMIT]
         f_sh_delay2 = f_sh_history[delay_index % BUFFER_LIMIT]
     else:
@@ -209,7 +209,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             f_sh_delay2 = f_sh
         else:
             if t_start != 0: # this is for the previous run with delays recorded to be used for the current run
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time2) - 1
+                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time2) - 1
                 f_sp_delay2 = previous_Selected_Conditions["f_sp"][delay_index]
                 f_sh_delay2 = previous_Selected_Conditions["f_sh"][delay_index]
             else:
@@ -219,15 +219,15 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     delay_time5 = t - 5
     if delay_time5 >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time5) - 1
+        # Find the index for delay_time in all_time
+        delay_index = bisect.bisect_right(all_time, delay_time5) - 1
         f_sv_delay5 = f_sv_history[delay_index % BUFFER_LIMIT]
     else:
         if t == 0:
             f_sv_delay5 = f_sv
         else:
             if t_start != 0:
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time5) - 1
+                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time5) - 1
                 f_sv_delay5 = previous_Selected_Conditions["f_sv"][delay_index]
             else:
                 f_sv_delay5 = 3.97
@@ -300,15 +300,15 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     delay_time0_2 = t - DT_v
     if delay_time0_2 >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time0_2) - 1
+        # Find the index for delay_time in all_time
+        delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
         f_v_delay0_2 = f_v_history[delay_index % BUFFER_LIMIT]
     else:
         if t == 0:
             f_v_delay0_2 = f_v
         else:
             if t_start != 0:
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time0_2) - 1
+                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time0_2) - 1
                 f_v_delay0_2 = previous_Selected_Conditions["f_v"][delay_index]
             else:
                 f_v_delay0_2 = 4.2748 # np.mean(f_v_history), f_v_IC
@@ -387,11 +387,11 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     delay_time_met = t - 4
     if delay_time_met >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time_met) - 1
+        # Find the index for delay_time in all_time
+        delay_index = bisect.bisect_right(all_time, delay_time_met) - 1
         phi_met_delay = phi_met_history[delay_index % BUFFER_LIMIT]
     elif t_start != 0:
-        delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time_met) - 1
+        delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time_met) - 1
         phi_met_delay = previous_Selected_Conditions["phi_met"][delay_index]
     else:
         phi_met_delay = phi_met
