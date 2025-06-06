@@ -86,6 +86,10 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     I = (MRTCO2 - MRTCO2_basal)/(AT - MRTCO2_basal)
 
+    # deal with rejected steps
+    if t - updates["finish_breath_time"][-1] < 0:
+        updates["finish_breath_time"].pop()
+        updates["Nd"] = updates["Nd"][:-5]
 
     a1, a2, tau, t1, t2 = exp_inputs["Nd"][-5:]
     prev_flat_bit = updates["prev_flat_bit"][gas_index]

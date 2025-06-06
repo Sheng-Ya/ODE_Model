@@ -44,10 +44,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     MRV = gas_exchange_inputs["MRV"][gas_exchange_index]
 
-    # deal with rejected steps
-    if t - updates["finish_breath_time"][-1] < 0:
-        updates["finish_breath_time"].pop()
-        updates["Nd"] = updates["Nd"][:-5]
 
     a1, a2, tau, t1, t2 = updates["Nd"][-5:]
     Pa_O2_history = updates["Pa_O2_history"]
