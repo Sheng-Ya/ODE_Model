@@ -52,7 +52,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
 
     last_breath_time = max(0, (t - updates["finish_breath_time"][-1]))
-    A = updates["PamO2"]
 
     resp_cycle = last_breath_time % (t1 + t2)
     if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
