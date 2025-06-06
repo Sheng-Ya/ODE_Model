@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
+from collections import deque
 
 from Gas_Exchange import gas_exchange
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
@@ -55,9 +56,9 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     resp_cycle = last_breath_time % (t1 + t2)
     if t <= (t1 + t2) and updates["finish_breath_time"][-1] == 0:
-        PamO2 = Pa_O2_history[0]
-        PamCO2 = Pa_CO2_history[0]
-        PmbCO2 = Pb_CO2_history[0]
+        PamO2 = Pa_O2_history[0][1]
+        PamCO2 = Pa_CO2_history[0][1]
+        PmbCO2 = Pb_CO2_history[0][1]
     else:
         PamO2 = updates["PamO2"][-1]
         PamCO2 = updates["PamCO2"][-1]
@@ -65,17 +66,20 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
         if t != t_start:
             if resp_cycle < updates["resp_cycle"][i-1] and (updates["resp_cycle"][i-1] - resp_cycle) > 1 and num_removed == 0: # restarts
-                PamO2 = np.mean(Pa_O2_history)
-                PamCO2 = np.mean(Pa_CO2_history)
-                PmbCO2 = np.mean(Pb_CO2_history)
+                t_start = updates["finish_breath_time"][-1]
+
+                PamO2 = np.mean([val for (t_val, val) in updates["Pa_O2_history"] if t_start < t_val <= t])
+                PamCO2 = np.mean([val for (t_val, val) in updates["Pa_CO2_history"] if t_start < t_val <= t])
+                PmbCO2 = np.mean([val for (t_val, val) in updates["Pb_CO2_history"] if t_start < t_val <= t])
 
                 updates["PamO2"].append(PamO2)
                 updates["PamCO2"].append(PamCO2)
                 updates["PmbCO2"].append(PmbCO2)
 
-                updates["Pa_O2_history"].clear()
-                updates["Pa_CO2_history"].clear()
-                updates["Pb_CO2_history"].clear()
+                min_time = updates["finish_breath_time"][-2]  # safe cutoff
+                updates["Pa_O2_history"] = [(t, val) for (t, val) in updates["Pa_O2_history"] if t >= min_time]
+                updates["Pa_CO2_history"] = [(t, val) for (t, val) in updates["Pa_CO2_history"] if t >= min_time]
+                updates["Pb_CO2_history"] = [(t, val) for (t, val) in updates["Pb_CO2_history"] if t >= min_time]
 
 
     if PamO2 < 104:
