@@ -79,7 +79,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     A = list(d_combined)
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
-    if t > 6:
+    if t > 0.845:
         AAA = 2
 
     if num_removed == 0:
