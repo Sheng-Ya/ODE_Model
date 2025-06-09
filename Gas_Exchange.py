@@ -84,14 +84,22 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
             dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
 
     Ta = LCTV / Q_la
+    Ta = 2
 
     t_minus_Ta = t - Ta
 
     if t_minus_Ta >= t_start and t > abs(Ta) and Ta > 0:
         # Find the index for delay_time in all_time
-        delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
+        if i > BUFFER_LIMIT:
+            sorted_times = np.concatenate((all_time[heart_index + 1:], all_time[:heart_index + 1]))
+            idx_in_sorted = np.searchsorted(sorted_times, t_minus_Ta, side='right') - 1
+            delay_index = (idx_in_sorted + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
+
         PA_O2_old = updates["PA_O2_store"][delay_index % BUFFER_LIMIT]
         PA_CO2_old = updates["PA_CO2_store"][delay_index % BUFFER_LIMIT]
+
     else:
         if t == 0:
             PA_O2_old = PAO2_Delay_IC
