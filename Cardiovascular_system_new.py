@@ -610,52 +610,45 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
             [   P_sa, dP_sa_dt, Q_bp, Q_hp, Q_rmp, Q_amp,
                 Wh_lv, Wh_rv, time_since_beat, Q_pp, Q_la]
     ):
-        if num_removed == 0:
-            updates[key][(i % BUFFER_LIMIT)] = new_value
-        else:
-            updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
-            # updates[key][((i - num_removed) % BUFFER_LIMIT): ((i + 1) % BUFFER_LIMIT)] = np.full((num_removed + 1,), 1e6)  # Replace values with 1e6
+        updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
 
 
+    # # just for plotting purposes
+    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
 
-    # just for plotting purposes
-    if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-        j = updates["j"].item()
+    keys_and_values = zip(
+        [
+            # Cardio control inputs
+            "P_sa", "dP_sa_dt", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Wh_lv", "Wh_rv", "time_since_beat",
 
-        keys_and_values = zip(
-            [
-                # Cardio control inputs
-                "P_sa", "dP_sa_dt", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Wh_lv", "Wh_rv", "time_since_beat",
+            # Gas exchange inputs
+            "Q_pp", "Q_la",
 
-                # Gas exchange inputs
-                "Q_pp", "Q_la",
+            # For plot
+            "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
+            "Pmax_la", "Pmax_ra", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
+            "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc", "Qi_lv",
+            "Qi_rv", "V_pa", "phi", "phi_atr", "S", "V_pv", "V_pp", "P_amv", "P_ev", "V_u",
+            "V_sv", "V_rmv", "V_amv", "V_bv", "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv",
+            "P_im", "Q_amv", "Q_sp", "Q_ep", "Q_pa", "P_abd", "V_sa", "P_bv", "Q_bv", "R_bv",
+            "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
+            "VT_vc", "P_0", "time_history"],
 
-                # For plot
-                "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
-                "Pmax_la", "Pmax_ra", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
-                "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc", "Qi_lv",
-                "Qi_rv", "V_pa", "phi", "phi_atr", "S", "V_pv", "V_pp", "P_amv", "P_ev", "V_u",
-                "V_sv", "V_rmv", "V_amv", "V_bv", "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv",
-                "P_im", "Q_amv", "Q_sp", "Q_ep", "Q_pa", "P_abd", "V_sa", "P_bv", "Q_bv", "R_bv",
-                "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-                "VT_vc", "P_0", "time_history"],
+        [   # Corresponding values
+            P_sa, dP_sa_dt, Q_bp, Q_hp, Q_rmp, Q_amp, Wh_lv, Wh_rv, time_since_beat,
+            Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
+            Pmax_la, Pmax_ra, V_rv, V_ra, V_lv, V_la, VT_rv, VT_ra,
+            VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, V_vc, P_vc, Qi_lv,
+            Qi_rv, V_pa, phi, phi_atr, S, V_pv, V_pp, P_amv, P_ev, V_u,
+            V_sv, V_rmv, V_amv, V_bv, V_hv, P_sp, Q_sa, Q_jp, Q_vc, VT_amv,
+            P_im, Q_amv, Q_sp, Q_ep, Q_pa, P_abd, V_sa, P_bv, Q_bv, R_bv,
+            VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
+            VT_vc, P_0, t])
 
-            [   # Corresponding values
-                P_sa, dP_sa_dt, Q_bp, Q_hp, Q_rmp, Q_amp, Wh_lv, Wh_rv, time_since_beat,
-                Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
-                Pmax_la, Pmax_ra, V_rv, V_ra, V_lv, V_la, VT_rv, VT_ra,
-                VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, V_vc, P_vc, Qi_lv,
-                Qi_rv, V_pa, phi, phi_atr, S, V_pv, V_pp, P_amv, P_ev, V_u,
-                V_sv, V_rmv, V_amv, V_bv, V_hv, P_sp, Q_sa, Q_jp, Q_vc, VT_amv,
-                P_im, Q_amv, Q_sp, Q_ep, Q_pa, P_abd, V_sa, P_bv, Q_bv, R_bv,
-                VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-                VT_vc, P_0, t])
+    for key, value in keys_and_values:
+        updates[key][updates["j"].item()- num_removed] = value
 
-        for key, value in keys_and_values:
-            updates[key][j] = value
-
-        updates["j"] = np.array(updates["j"].item() + 1)
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
             dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt]

@@ -119,13 +119,11 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
     #     print(f"NaN or Inf detected at t = {t}")
 
-    if num_removed == 0:
-        Initial_Conditions_dict["all_time"][actual_index] = t
-        Initial_Conditions_dict["i"][0] = i + 1
-        # i = i + 1
-    else:
-        Initial_Conditions_dict["all_time"][(i- num_removed) % BUFFER_LIMIT] = t
-        Initial_Conditions_dict["i"][0] = i - num_removed + 1
+
+    Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
+    Initial_Conditions_dict["i"][0] = i - num_removed + 1
+
+    Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
 
 
     # # just for checking progress of code
@@ -314,7 +312,7 @@ if __name__ == "__main__":
     columns = ["time_history"] + [k for k in data if k != "time_history"]
     nextdf = pd.DataFrame({k: data[k] for k in columns})
 
-    # nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
+    nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
     nextdf.to_parquet("C:/Users/vanes/Documents/Next_Conditions_Output.parquet", index=False)
 
 

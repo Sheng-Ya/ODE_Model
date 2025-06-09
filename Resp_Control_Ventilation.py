@@ -226,37 +226,34 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
                 BF, TI, VT, VE_integral, VD,
                 resp_cycle, VAflow, VE_flow, P_musc, dV_dt, V]
     ):
-        if num_removed == 0:
-            updates[key][(i % BUFFER_LIMIT)] = new_value
-        else:
-            updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
+        updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
 
 
-    # just for plotting purposes
-    if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-        j = updates["j"].item()
+    # # just for plotting purposes
+    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
+    #     j = updates["j"].item()
+    #
+    keys_and_values = zip(
+        [   # Cardio inputs
+            "BF", "TI", "VT",
 
-        keys_and_values = zip(
-            [   # Cardio inputs
-                "BF", "TI", "VT",
+            # Cardio control inputs
+            "VE_integral",
 
-                # Cardio control inputs
-                "VE_integral",
+            # Gas inputs
+            "VD",
 
-                # Gas inputs
-                "VD",
+            # Resp control vent
+            "resp_cycle", "VAflow", "VE_flow",
+            "P_musc", "dV_dt", "V" ],
 
-                # Resp control vent
-                "resp_cycle", "VAflow", "VE_flow",
-                "P_musc", "dV_dt", "V" ],
+        [   # Corresponding values
+            BF, TI, VT, VE_integral, VD, resp_cycle,
+            VAflow, VE_flow, P_musc, dV_dt, V])
 
-            [   # Corresponding values
-                BF, TI, VT, VE_integral, VD, resp_cycle,
-                VAflow, VE_flow, P_musc, dV_dt, V])
-
-        for key, value in keys_and_values:
-            updates[key][j] = value
+    for key, value in keys_and_values:
+        updates[key][updates["j"].item() - num_removed] = value
 
 
     return [d_VE_integral_dt]
