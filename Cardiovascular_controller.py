@@ -204,9 +204,15 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     delay_time2 = t - 2
     if delay_time2 >= t_start:
         # Find the index for delay_time in all_time
-        delay_index = bisect.bisect_right(all_time, delay_time2) - 1
-        f_sp_delay2 = f_sp_history[delay_index % BUFFER_LIMIT]
-        f_sh_delay2 = f_sh_history[delay_index % BUFFER_LIMIT]
+        if i > BUFFER_LIMIT:
+            sorted_times = np.concatenate((all_time[heart_index + 1:], all_time[:heart_index + 1]))
+            idx_in_sorted = np.searchsorted(sorted_times, delay_time2, side='right') - 1
+            delay_index = (idx_in_sorted + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time2) - 1
+
+        f_sp_delay2 = f_sp_history[delay_index]
+        f_sh_delay2 = f_sh_history[delay_index]
     else:
         if t == 0:
             f_sp_delay2 = f_sp
@@ -224,8 +230,15 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     delay_time5 = t - 5
     if delay_time5 >= t_start:
         # Find the index for delay_time in all_time
-        delay_index = bisect.bisect_right(all_time, delay_time5) - 1
-        f_sv_delay5 = f_sv_history[delay_index % BUFFER_LIMIT]
+        if i > BUFFER_LIMIT:
+            sorted_times = np.concatenate((all_time[heart_index + 1:], all_time[:heart_index + 1]))
+            idx_in_sorted = np.searchsorted(sorted_times, delay_time5, side='right') - 1
+            delay_index = (idx_in_sorted + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time5) - 1
+
+        f_sv_delay5 = f_sv_history[delay_index]
+
     else:
         if t == 0:
             f_sv_delay5 = f_sv
@@ -305,11 +318,13 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     delay_time0_2 = t - DT_v
     if delay_time0_2 >= t_start:
         # Find the index for delay_time in all_time
-        # delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
-        delay_index = next(i for i, val in enumerate(all_time) if val >= delay_time0_2)
-        f_v_delay0_2 = f_v_history[delay_index % BUFFER_LIMIT]
-        if t> 10:
-            AAA = list(f_v_history)
+        if i > BUFFER_LIMIT:
+            sorted_times = np.concatenate((all_time[heart_index + 1:], all_time[:heart_index + 1]))
+            idx_in_sorted = np.searchsorted(sorted_times, delay_time0_2, side='right') - 1
+            delay_index = (idx_in_sorted + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
+        f_v_delay0_2 = f_v_history[delay_index]
     else:
         if t == 0:
             f_v_delay0_2 = f_v
@@ -395,8 +410,15 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     delay_time_met = t - 4
     if delay_time_met >= t_start:
         # Find the index for delay_time in all_time
-        delay_index = bisect.bisect_right(all_time, delay_time_met) - 1
-        phi_met_delay = phi_met_history[delay_index % BUFFER_LIMIT]
+        if i > BUFFER_LIMIT:
+            sorted_times = np.concatenate((all_time[heart_index + 1:], all_time[:heart_index + 1]))
+            idx_in_sorted = np.searchsorted(sorted_times, delay_time_met, side='right') - 1
+            delay_index = (idx_in_sorted + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time_met) - 1
+
+        phi_met_delay = phi_met_history[delay_index]
+
     elif t_start != 0:
         delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time_met) - 1
         phi_met_delay = previous_Selected_Conditions["phi_met"][delay_index]
