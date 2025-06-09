@@ -90,8 +90,8 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
             dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_O2 - Pd_5_O2)
             dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
 
-    Ta = LCTV / Q_la
-    Ta = 2
+    # Ta = LCTV / Q_la
+    Ta = 8.8
 
     t_minus_Ta = t - Ta
 
