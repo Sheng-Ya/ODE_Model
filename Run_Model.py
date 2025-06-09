@@ -33,7 +33,7 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.001
-BUFFER_LIMIT = 10000
+BUFFER_LIMIT = 6000
 
 # First iteration
 # get the first derivative and outputs from all the separated systems

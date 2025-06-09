@@ -97,8 +97,8 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
         else:
             delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
 
-        PA_O2_old = updates["PA_O2_store"][delay_index % BUFFER_LIMIT]
-        PA_CO2_old = updates["PA_CO2_store"][delay_index % BUFFER_LIMIT]
+        PA_O2_old = updates["PA_O2_store"][delay_index]
+        PA_CO2_old = updates["PA_CO2_store"][delay_index]
 
     else:
         if t == 0:
