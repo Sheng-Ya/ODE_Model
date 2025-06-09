@@ -197,13 +197,13 @@ def simulate():
 if __name__ == "__main__":
 
     # lp = LineProfiler()
-    # lp.add_function(BreathOptimiser.objective)
-
+    # lp.add_function(Resp_Control_Breath_Optimiser.objective)
+    #
     # lp.add_function(combined_system)
     # lp.add_function(cardiovascular_controller)
     # lp.add_function(cardiovascular_system)
     # lp.add_function(gas_exchange)
-    # lp.add_function(respiratory_mechanics)
+    # lp.add_function(resp_control_vent)
     # lp.enable()
     solution = simulate()
     print("ODE Status:", solution.status)

@@ -49,39 +49,39 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     Q_bp = heart_system_inputs["Q_bp_store"][heart_index]/1000
     Q_la = heart_system_inputs["Q_la_store"][heart_index]/1000
 
-    for w in range(1, 6):
-        if w == 1 and dV_dt >= 0:
-            PiO2 = Fi_O2 * (P_atm - P_ws) / 100
-            PiCO2 = Fi_CO2 * (P_atm - P_ws) / 100
-            dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PiO2 - Pd_1_O2)
-            dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PiCO2 - Pd_1_CO2)
-        if w > 1 and dV_dt >= 0:
-            dPd_2_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_1_O2 - Pd_2_O2)
-            dPd_2_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_1_CO2 - Pd_2_CO2)
+    if dV_dt >=0:
+        PiO2 = Fi_O2 * (P_atm - P_ws) / 100
+        PiCO2 = Fi_CO2 * (P_atm - P_ws) / 100
 
-            dPd_3_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_3_O2)
-            dPd_3_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_3_CO2)
+        dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PiO2 - Pd_1_O2)
+        dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PiCO2 - Pd_1_CO2)
 
-            dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_4_O2)
-            dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_4_CO2)
+        dPd_2_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_1_O2 - Pd_2_O2)
+        dPd_2_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_1_CO2 - Pd_2_CO2)
 
-            dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_5_O2) # edited to just have one deadspace
-            dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_5_CO2)
-        if w < 5 and dV_dt < 0:
-            dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_1_O2)
-            dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_1_CO2)
+        dPd_3_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_3_O2)
+        dPd_3_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_3_CO2)
 
-            dPd_2_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_2_O2)
-            dPd_2_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_2_CO2)
+        dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_4_O2)
+        dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_4_CO2)
 
-            dPd_3_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_3_O2)
-            dPd_3_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_3_CO2)
+        dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_5_O2)  # edited to just have one deadspace
+        dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_5_CO2)
+    else:
+        dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_1_O2)
+        dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_1_CO2)
 
-            dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_O2 - Pd_4_O2)
-            dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_CO2 - Pd_4_CO2)
-        if w == 5 and dV_dt < 0:
-            dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_O2 - Pd_5_O2)
-            dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
+        dPd_2_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_2_O2)
+        dPd_2_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_2_CO2)
+
+        dPd_3_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_3_O2)
+        dPd_3_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_3_CO2)
+
+        dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_O2 - Pd_4_O2)
+        dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_CO2 - Pd_4_CO2)
+
+        dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_O2 - Pd_5_O2)
+        dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
 
     # Ta = LCTV / Q_la
     Ta = 8.8
@@ -91,9 +91,15 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     if t_minus_Ta >= t_start and t > abs(Ta) and Ta > 0:
         # Find the index for delay_time in all_time
         if i > BUFFER_LIMIT:
-            sorted_times = np.concatenate((all_time[heart_index + 1:], all_time[:heart_index + 1]))
-            idx_in_sorted = np.searchsorted(sorted_times, t_minus_Ta, side='right') - 1
-            delay_index = (idx_in_sorted + heart_index + 1) % BUFFER_LIMIT
+            # Find index in wrapped all_time array (emulate np.concatenate with searchsorted)
+            if t_minus_Ta >= all_time[0]:
+                # No wrap-around
+                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], t_minus_Ta, side='right') - 1
+                delay_index = idx_in_sorted1 % BUFFER_LIMIT
+            else:
+                # Wrap-around
+                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], t_minus_Ta, side='right') - 1
+                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
         else:
             delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
 
@@ -263,22 +269,6 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
 
     dMRV_dt = ((MRR - 1) - MRV) / tau_MRV
 
-    # if num_removed > 0:
-    #     keys = [
-    #         "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2", "MRV", "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
-    #         # "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "FCO2", "FO2", "QT",
-    #         # "cCO2_diff", "cO2_diff", "Ta", "dPA_CO2_dt", "dPA_O2_dt", "Pd_5_O2", "Pd_5_CO2",
-    #         # "t_minus_Ta", "PvtCO2"
-    #     ]
-    #     keys2 = [
-    #         "Pb_CO2_history", "Pa_O2_history", "Pa_CO2_history"
-    #     ]
-    #     for key in keys:
-    #         updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
-    #     for key in keys2:
-    #         del updates[key][-num_removed:]
-    #
-    #     i = i - num_removed
 
 
     # update values needed in other systems
@@ -319,34 +309,34 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     updates["Pa_CO2_history"].append((t, Pa_CO2))
 
 
-    # just for plotting purposes
-    if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-        j = updates["j"].item()
-
-        keys_and_values = zip(
-            [   # Cardio control inputs
-                "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
-
-                # Resp control vent inputs
-                "MRV",
-
-                # Histories for gas
-                "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
-                "Pd_5_O2", "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2",
-                "FCO2", "FO2", "QT", "cCO2_diff", "cO2_diff",
-                "Ta", "dPA_O2_dt", "dPA_CO2_dt", "Pd_5_O2",
-                "Pd_5_CO2", "t_minus_Ta", "PvtCO2"],
-
-            [   # Corresponding values
-                MRTCO2, Pa_O2, Pa_CO2, CaO2, MRV,
-                PA_O2, PA_CO2, PA_O2_old, PA_CO2_old,
-                Pd_5_O2, Pb_CO2, CvO2, CaCO2, CvCO2,
-                FCO2, FO2, QT, cCO2_diff, cO2_diff,
-                Ta, dPA_O2_dt, dPA_CO2_dt, Pd_5_O2,
-                Pd_5_CO2, t_minus_Ta, PvtCO2])
-
-        for key, value in keys_and_values:
-            updates[key][j] = value
+    # # just for plotting purposes
+    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
+    #     j = updates["j"].item()
+    #
+    #     keys_and_values = zip(
+    #         [   # Cardio control inputs
+    #             "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
+    #
+    #             # Resp control vent inputs
+    #             "MRV",
+    #
+    #             # Histories for gas
+    #             "PA_O2", "PA_CO2", "PA_O2_old", "PA_CO2_old",
+    #             "Pd_5_O2", "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2",
+    #             "FCO2", "FO2", "QT", "cCO2_diff", "cO2_diff",
+    #             "Ta", "dPA_O2_dt", "dPA_CO2_dt", "Pd_5_O2",
+    #             "Pd_5_CO2", "t_minus_Ta", "PvtCO2"],
+    #
+    #         [   # Corresponding values
+    #             MRTCO2, Pa_O2, Pa_CO2, CaO2, MRV,
+    #             PA_O2, PA_CO2, PA_O2_old, PA_CO2_old,
+    #             Pd_5_O2, Pb_CO2, CvO2, CaCO2, CvCO2,
+    #             FCO2, FO2, QT, cCO2_diff, cO2_diff,
+    #             Ta, dPA_O2_dt, dPA_CO2_dt, Pd_5_O2,
+    #             Pd_5_CO2, t_minus_Ta, PvtCO2])
+    #
+    #     for key, value in keys_and_values:
+    #         updates[key][j] = value
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
             dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
