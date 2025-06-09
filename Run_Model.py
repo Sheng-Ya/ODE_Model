@@ -32,7 +32,7 @@ from Next_Conditions_new_update import Next_Conditions
 target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
-time_saved = 0.001
+time_saved = 0.005
 BUFFER_LIMIT = 10000
 
 # First iteration
@@ -282,37 +282,7 @@ if __name__ == "__main__":
     #
     #     f.write("}\n")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # index_start = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 100000
     # # state variables excel
     # if index > 100000:
     #     index_start = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 100000
@@ -326,20 +296,26 @@ if __name__ == "__main__":
     #     df = pd.DataFrame(data=solution.y[:,:].T, columns=state_variable_names)
     #     df.insert(0, "time", solution.t[:])
     #     df.to_csv("C:/Users/vanes/Documents/state_variables_output.csv", index=False)
-    #
-    # # Next_Conditions excel
-    # # Build a dictionary of shortened arrays
-    # data = {
-    #     key: val[index_start:index + 1]
-    #     for key, val in Next_Conditions.items()
-    #     if isinstance(val, np.ndarray) and len(val) > index
-    # }
-    #
-    # # Ensure time_history is first
-    # columns = ["time_history"] + [k for k in data if k != "time_history"]
-    # nextdf = pd.DataFrame({k: data[k] for k in columns})
-    #
+
+    index_start = 0
+    # Next_Conditions excel
+    # Build a dictionary of shortened arrays
+    data = {
+        key: val[index_start:index + 1]
+        for key, val in Next_Conditions.items()
+        if (
+                isinstance(val, np.ndarray)
+                and val.ndim >= 1  # Only arrays with at least 1 dimension
+                and len(val) > index
+        )
+    }
+
+    # Ensure time_history is first
+    columns = ["time_history"] + [k for k in data if k != "time_history"]
+    nextdf = pd.DataFrame({k: data[k] for k in columns})
+
     # nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
+    nextdf.to_parquet("C:/Users/vanes/Documents/Next_Conditions_Output.parquet", index=False)
 
 
 
