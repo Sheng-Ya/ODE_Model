@@ -56,39 +56,41 @@ def gas_exchange(t, state, params, time_history, resp_control_inputs, heart_syst
     Q_bp = heart_system_inputs["Q_bp"][heart_index]/1000
     Q_la = heart_system_inputs["Q_la"][heart_index]/1000
 
-    for w in range(1, 6):
-        if w == 1 and dV_dt >= 0:
-            PiO2 = Fi_O2 * (P_atm - P_ws) / 100
-            PiCO2 = Fi_CO2 * (P_atm - P_ws) / 100
-            dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PiO2 - Pd_1_O2)
-            dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PiCO2 - Pd_1_CO2)
-        if w > 1 and dV_dt >= 0:
-            dPd_2_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_1_O2 - Pd_2_O2)
-            dPd_2_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_1_CO2 - Pd_2_CO2)
+    constant = (abs(dV_dt) / (0.2 * V_dead))
 
-            dPd_3_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_3_O2)
-            dPd_3_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_3_CO2)
+    if dV_dt >= 0:
+        PiO2 = Fi_O2 * (P_atm - P_ws) / 100
+        PiCO2 = Fi_CO2 * (P_atm - P_ws) / 100
 
-            dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_4_O2)
-            dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_4_CO2)
+        dPd_1_O2_dt = constant * (PiO2 - Pd_1_O2)
+        dPd_1_CO2_dt = constant * (PiCO2 - Pd_1_CO2)
 
-            dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_5_O2) # edited to just have one deadspace
-            dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_5_CO2)
-        if w < 5 and dV_dt < 0:
-            dPd_1_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_O2 - Pd_1_O2)
-            dPd_1_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_2_CO2 - Pd_1_CO2)
+        dPd_2_O2_dt = constant * (Pd_1_O2 - Pd_2_O2)
+        dPd_2_CO2_dt = constant * (Pd_1_CO2 - Pd_2_CO2)
 
-            dPd_2_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_O2 - Pd_2_O2)
-            dPd_2_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_3_CO2 - Pd_2_CO2)
+        dPd_3_O2_dt = constant * (Pd_2_O2 - Pd_3_O2)
+        dPd_3_CO2_dt = constant * (Pd_2_CO2 - Pd_3_CO2)
 
-            dPd_3_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_O2 - Pd_3_O2)
-            dPd_3_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_4_CO2 - Pd_3_CO2)
+        dPd_4_O2_dt = constant * (Pd_3_O2 - Pd_4_O2)
+        dPd_4_CO2_dt = constant * (Pd_3_CO2 - Pd_4_CO2)
 
-            dPd_4_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_O2 - Pd_4_O2)
-            dPd_4_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (Pd_5_CO2 - Pd_4_CO2)
-        if w == 5 and dV_dt < 0:
-            dPd_5_O2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_O2 - Pd_5_O2)
-            dPd_5_CO2_dt = (abs(dV_dt) / (0.2 * V_dead)) * (PA_CO2 - Pd_5_CO2)
+        dPd_5_O2_dt = constant * (Pd_4_O2 - Pd_5_O2)  # edited to just have one deadspace
+        dPd_5_CO2_dt = constant * (Pd_4_CO2 - Pd_5_CO2)
+    else:
+        dPd_1_O2_dt = constant * (Pd_2_O2 - Pd_1_O2)
+        dPd_1_CO2_dt = constant * (Pd_2_CO2 - Pd_1_CO2)
+
+        dPd_2_O2_dt = constant * (Pd_3_O2 - Pd_2_O2)
+        dPd_2_CO2_dt = constant * (Pd_3_CO2 - Pd_2_CO2)
+
+        dPd_3_O2_dt = constant * (Pd_4_O2 - Pd_3_O2)
+        dPd_3_CO2_dt = constant * (Pd_4_CO2 - Pd_3_CO2)
+
+        dPd_4_O2_dt = constant * (Pd_5_O2 - Pd_4_O2)
+        dPd_4_CO2_dt = constant * (Pd_5_CO2 - Pd_4_CO2)
+
+        dPd_5_O2_dt = constant * (PA_O2 - Pd_5_O2)
+        dPd_5_CO2_dt = constant * (PA_CO2 - Pd_5_CO2)
 
     # Ta = LCTV / Q_la
     Ta = 8.8
