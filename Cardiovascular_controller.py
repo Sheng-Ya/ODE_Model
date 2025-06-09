@@ -71,8 +71,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     MRTCO2_basal = MRTCO2_basal - params["MRBCO2"]
 
-    # AAA = list(gas_exchange_inputs["Pa_CO2_store"])
-
     VE_integral = resp_control_inputs["VE_integral_store"][resp_control_index]
 
     I = (MRTCO2 - MRTCO2_basal)/(AT - MRTCO2_basal)
@@ -100,15 +98,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     dtheta_change_O2_sp_dt = (-theta_change_O2_sp + w_sp) / tau_isc
     dtheta_change_CO2_sp_dt = (-theta_change_CO2_sp + g_ccsp * (Pa_CO2 - PaCO2_n))/tau_cc
 
-
-    # if num_removed > 0:
-    #     updates["A"][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
-    #
-    # updates["A"][i - num_removed] = theta_change_O2_sp
-
-    # if t >0.845 :
-    #     AAA= list(updates["A"])
-    #     BBB = 2
 
     theta_sp = theta_spn - theta_change_O2_sp - theta_change_CO2_sp
 
@@ -489,7 +478,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     # update after every heartbeat
     if time_since_beat1 != time_since_beat2 and num_removed == 0:
-        AAA = list(updates["time_since_beat_store"])
         HR = np.mean(updates["HR1"])
         updates["HR1"].clear()
 
