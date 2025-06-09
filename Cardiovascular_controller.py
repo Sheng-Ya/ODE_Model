@@ -305,8 +305,11 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     delay_time0_2 = t - DT_v
     if delay_time0_2 >= t_start:
         # Find the index for delay_time in all_time
-        delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
+        # delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
+        delay_index = next(i for i, val in enumerate(all_time) if val >= delay_time0_2)
         f_v_delay0_2 = f_v_history[delay_index % BUFFER_LIMIT]
+        if t> 10:
+            AAA = list(f_v_history)
     else:
         if t == 0:
             f_v_delay0_2 = f_v
