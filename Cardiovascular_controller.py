@@ -563,36 +563,51 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     #         # just for plotting purposes
     # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-
     keys_and_values = zip(
         [   # Cardio inputs
             "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
             "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I",
 
-            # Needed in cardio controller
-            "prev_flat_bit",
-
-            # Save for delay
-            "f_sp", "f_sh", "f_v", "f_sv", "phi_met",
-
-            # For plot
-            "f_ac", "f_ab", "f_ap", "Nt", "Cvb_O2", "Wh", "xamO2", "Cvam_O2",
-            "MO2_amp", "xM", "theta_change_O2_sp", "theta_change_CO2_sp",
-            "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
-            "theta_change_CO2_sh", "sigma_Tv", "sigma_Ts", "Y_v"],
+            ],
 
         [   # Corresponding values
             HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
             R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I,
-            prev_flat_bit,
-            f_sp, f_sh, f_v, f_sv, phi_met,
-            f_ac, f_ab, f_ap, Nt, Cvb_O2, Wh, xam_O2, Cvam_O2,
-            MO2_amp, xM, theta_change_O2_sp, theta_change_CO2_sp,
-            theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
-            theta_change_CO2_sh, sigma_Tv, sigma_Ts, Y_v])
+            ])
 
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value
+            # updates[key][updates["j"].item()] = value
+
+    # keys_and_values = zip(
+    #     [   # Cardio inputs
+    #         "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
+    #         "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I",
+    #
+    #         # Needed in cardio controller
+    #         "prev_flat_bit",
+    #
+    #         # Save for delay
+    #         "f_sp", "f_sh", "f_v", "f_sv", "phi_met",
+    #
+    #         # For plot
+    #         "f_ac", "f_ab", "f_ap", "Nt", "Cvb_O2", "Wh", "xamO2", "Cvam_O2",
+    #         "MO2_amp", "xM", "theta_change_O2_sp", "theta_change_CO2_sp",
+    #         "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
+    #         "theta_change_CO2_sh", "sigma_Tv", "sigma_Ts", "Y_v"],
+    #
+    #     [   # Corresponding values
+    #         HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
+    #         R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I,
+    #         prev_flat_bit,
+    #         f_sp, f_sh, f_v, f_sv, phi_met,
+    #         f_ac, f_ab, f_ap, Nt, Cvb_O2, Wh, xam_O2, Cvam_O2,
+    #         MO2_amp, xM, theta_change_O2_sp, theta_change_CO2_sp,
+    #         theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
+    #         theta_change_CO2_sh, sigma_Tv, sigma_Ts, Y_v])
+    #
+    # for key, value in keys_and_values:
+    #     updates[key][updates["j"].item() - num_removed] = value
 
 
     return [dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,

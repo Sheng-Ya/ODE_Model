@@ -524,7 +524,7 @@ if __name__ == "__main__":
 
     fig, ax1 = plt.subplots()
     print(len(Next_Conditions["time_history"][:index]))
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["T"][:index], label="T", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR", color="g")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["time_since_beat"][:index], label="time_since_beat", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="phi", color="b")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="phi_atr", color="k")
