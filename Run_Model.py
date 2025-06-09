@@ -30,7 +30,7 @@ from Next_Conditions_new_update import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 3800) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
@@ -312,9 +312,8 @@ if __name__ == "__main__":
     columns = ["time_history"] + [k for k in data if k != "time_history"]
     nextdf = pd.DataFrame({k: data[k] for k in columns})
 
-    nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
     nextdf.to_parquet("C:/Users/vanes/Documents/Next_Conditions_Output.parquet", index=False)
-
+    nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
 
 
 
