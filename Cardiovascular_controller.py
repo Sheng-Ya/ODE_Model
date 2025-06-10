@@ -522,13 +522,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         updates["Emax_rv1"].clear()
 
         # update history
-    # updates["HR1"] = np.append(updates["HR1"], HR1)
-    # updates["Vu_ev1"] = np.append(updates["Vu_ev1"], Vu_ev1)
-    # updates["Vu_sv1"] = np.append(updates["Vu_sv1"], Vu_sv1)
-    # updates["Vu_rmv1"] = np.append(updates["Vu_rmv1"], Vu_rmv1)
-    # updates["Vu_amv1"] = np.append(updates["Vu_amv1"], Vu_amv1)
-    # updates["Emax_lv1"] = np.append(updates["Emax_lv1"], Emax_lv1)
-    # updates["Emax_rv1"] = np.append(updates["Emax_rv1"], Emax_rv1)
     updates["HR1"].append(HR1)
     updates["Vu_ev1"].append(Vu_ev1)
     updates["Vu_sv1"].append(Vu_sv1)

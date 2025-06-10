@@ -112,7 +112,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     # Vt1 = VAflow * (t1 + t2) + VD
     dt = 0.001
-    updates["dt"] = dt
 
     if t != t_start or t == 0:
         if resp_cycle < updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] and (updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] - resp_cycle) > 1 and num_removed == 0:
