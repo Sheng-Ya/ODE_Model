@@ -12,11 +12,11 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
      dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV) = state
 
     # Gas Exchange and Mixing
-    (a2, alpha1, alpha2, beta1, beta2, C2, Fi_CO2, Fi_O2, K1, K2, LCTV, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+    (a2, alpha1, alpha2, beta1, beta2, C2, Fi_CO2, Fi_O2, K1, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
      P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
      VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = \
         (params[k] if k in params else Parameters[k] for k in [
-            "a2", "alpha1", "alpha2", "beta1", "beta2", "C2", "Fi_CO2", "Fi_O2", "K1", "K2", "LCTV", "PACO2_Delay_IC",
+            "a2", "alpha1", "alpha2", "beta1", "beta2", "C2", "Fi_CO2", "Fi_O2", "K1", "K2", "PACO2_Delay_IC",
             "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
             "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"
         ])
