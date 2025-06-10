@@ -15,7 +15,7 @@ Parameters = {
     "C_amv": 9.4,    # Active skeletal muscle venous compliance
     "C_bp": 0.658,   # Brain peripheral compliance
     "C_bv": 10.71,   # Brain venous compliance
-    "C_ep": 0.968,   # Extra-splanchnic peripheral compliance
+    "C_ep": 0.668,   # Extra-splanchnic peripheral compliance
     "C_ev": 20,      # Extra-splanchnic venous compliance
     "C_hp": 0.419,   # Coronary peripheral compliance
     "C_hv": 3.57,    # Coronary venous compliance
