@@ -10,6 +10,7 @@ from line_profiler import LineProfiler
 from collections import deque
 
 import Resp_Control_Breath_Optimiser
+
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
@@ -36,7 +37,7 @@ from Next_Conditions_new_update import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 50) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
@@ -122,9 +123,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
-    # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
-    #     print(f"NaN or Inf detected at t = {t}")
-    A = list(d_combined)
+    # A = list(d_combined)
 
 
     Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
@@ -215,6 +214,50 @@ if __name__ == "__main__":
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
 
+    i = Next_Conditions["i"].item()
+    sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
+
+
+
+    HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, HR, label="HR", color="r")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+
+
+
+    P_sa = np.concatenate((Next_Conditions["P_sa_store"][i:], Next_Conditions["P_sa_store"][:i]))
+
+    peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
+    troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
+
+    # last_5_troughs = troughs[-6:-1]  # Get indices of last 5 minima
+    # last_5_min = P_sa[last_5_troughs]  # Get actual minimum values
+    #
+    # last_5_peaks = peaks[-6:-1]  # Get indices of last 5 max
+    # last_5_max = P_sa[last_5_peaks]  # Get actual max values
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, P_sa, label="P_sa")
+
+    ax1.scatter(sorted_times[troughs], P_sa[troughs], color='r', marker='o', label="Detected Minima")
+    ax1.scatter(sorted_times[peaks], P_sa[peaks], color='g', marker='x', label="Detected Maxima")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+
 
 
 
@@ -292,22 +335,22 @@ if __name__ == "__main__":
     index_start = 0
     # Next_Conditions excel
     # Build a dictionary of shortened arrays
-    data = {
-        key: val[index_start:index + 1]
-        for key, val in Next_Conditions.items()
-        if (
-                isinstance(val, np.ndarray)
-                and val.ndim >= 1  # Only arrays with at least 1 dimension
-                and len(val) > index
-        )
-    }
-
-    # Ensure time_history is first
-    columns = ["time_history"] + [k for k in data if k != "time_history"]
-    nextdf = pd.DataFrame({k: data[k] for k in columns})
-
-    nextdf.to_parquet("C:/Users/vanes/Documents/Next_Conditions_Output.parquet", index=False)
-    nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
+    # data = {
+    #     key: val[index_start:index + 1]
+    #     for key, val in Next_Conditions.items()
+    #     if (
+    #             isinstance(val, np.ndarray)
+    #             and val.ndim >= 1  # Only arrays with at least 1 dimension
+    #             and len(val) > index
+    #     )
+    # }
+    #
+    # # Ensure time_history is first
+    # columns = ["time_history"] + [k for k in data if k != "time_history"]
+    # nextdf = pd.DataFrame({k: data[k] for k in columns})
+    #
+    # nextdf.to_parquet("C:/Users/vanes/Documents/Next_Conditions_Output.parquet", index=False)
+    # nextdf.to_csv("C:/Users/vanes/Documents/Next_Conditions_Output.csv", index=False)
 
 
 
@@ -474,19 +517,19 @@ if __name__ == "__main__":
             plt.grid(True)
             plt.show()
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_CO2_dt"][:index], label="dPA_CO2_dt")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_O2_dt"][:index], label="dPA_O2_dt")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_CO2"][:index], label="Pd_5_CO2")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_CO2_dt"][:index], label="dPA_CO2_dt")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dPA_O2_dt"][:index], label="dPA_O2_dt")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["V"][:index], label="V")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_CO2"][:index], label="Pd_5_CO2")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pd_5_O2"][:index], label="Pd_5_O2")
+    # # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["dV_dt"][:index], label="dV_dt")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
 
     # Number of state variables
     num_variables = state_variables.shape[0]
@@ -530,7 +573,7 @@ if __name__ == "__main__":
 
     ax2 = ax1.twinx()
 
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_lv"][:index], label="V_lv", color="g")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_lv"][:index], label="VT_lv", color="g")
     # ax2.set_ylabel("Flow (mL/s)", color="k")
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
@@ -558,9 +601,9 @@ if __name__ == "__main__":
 
     # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["A"][:index], label="A")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sp"][:index], label="Q_sp")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sp"][:index], label="Q_sp")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ep"][:index], label="Q_ep")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ep"][:index], label="Q_ep")
     # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sp"][:index], label="Q_sp")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_bp"][:index], label="Q_bp")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_hp"][:index], label="Q_hp")

@@ -27,7 +27,6 @@ parameters = {
   "KCCO2": (346000 * upper, 346000 * lower),
   # "KCSFCO2": (320 * upper, 320 * lower),
   "MRBCO2": (0.0009 * upper, 0.0009 * lower),
-  "Ta": (8.8 * upper, 8.8 * lower),
   # "VB": (0.9 * upper, 0.9 * lower),
   # "MRTCO2_basal": (0.00243333 * upper, 0.00243333 * lower),
   # "MRTO2_basal": (0.00325708 * upper, 0.00325708 * lower),
@@ -37,7 +36,6 @@ parameters = {
   # "MRCO2": (0.00243333 * upper, 0.00243333 * lower),
   # "MRO2": (0.00325708 * upper, 0.00325708 * lower),
   # "tau_MRV": (50 * upper, 50 * lower),
-  "s": (0.04 * upper, 0.04 * lower),
 
 
     # resp contr
@@ -136,6 +134,7 @@ parameters = {
     "A_im": (50 * lower, 50 * upper),
     "Tc": (0.75 * lower, 0.75),
     "T_im": (1, 1 * upper),
+    "s": (0.04 * upper, 0.04 * lower),
 
     # cardio control
 

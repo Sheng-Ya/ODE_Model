@@ -21,10 +21,8 @@ from Respiratory_Mechanics import respiratory_mechanics
 
 
 from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
-# from Initial_Conditions import Initial_Conditions
-# from Next_Conditions import Next_Conditions
 from Initial_Conditions_after_running_again import Initial_Conditions
-from Next_Conditions_after_running_again import Next_Conditions
+from All_Next_Conditions import Next_Conditions
 
 # output_file1 = "Selected_Conditions_new.py"
 # output_file2 = "Initial_Conditions_new.py"
@@ -32,7 +30,7 @@ from Next_Conditions_after_running_again import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 50) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 60) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -149,10 +147,9 @@ IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
 def simulate_cpu(Current_Parameters, storage):
     list_keys = {
-        'HR1', 'Vu_ev1', 'Vu_sv1', 'Vu_rmv1', 'Vu_amv1',
-        'Emax_lv1', 'Emax_rv1', 'PamO2', 'PamCO2', 'PmbCO2',
+        'HR1', 'Vu_ev1', 'Vu_sv1', 'Vu_rmv1', 'Vu_amv1', 'Emax_lv1', 'Emax_rv1'
         'Pa_O2_history', 'Pa_CO2_history', 'Pb_CO2_history',
-        'Nd', 'finish_breath_time'
+        'PamO2', 'PamCO2', 'PmbCO2', 'Nd', 'finish_breath_time'
     }
 
     local_updates = {
@@ -163,7 +160,7 @@ def simulate_cpu(Current_Parameters, storage):
     ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters))
 
-    index = np.where(local_updates["time_history"] == 1e6)[0][0] - 1
+    index = np.where(local_updates["all_time"] == 1e6)[0][0] - 1
     P_sa_smooth = local_updates["P_sa"][:index]
 
     peaks, _ = find_peaks(P_sa_smooth, distance=int(500))  # Adjust distance based on heart rate

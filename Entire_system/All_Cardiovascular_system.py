@@ -58,7 +58,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     P_im = A_im * psi
 
 
-
     # respiratory controller inputs
     T_resp = 1 / resp_control_inputs["BF_store"][resp_control_index]
     TI = resp_control_inputs["TI_store"][resp_control_index]
@@ -110,7 +109,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         P_abd = P_abdmax - (P_abdmax - P_abdmin) * ((TI + TE - T_resp * S) / TE)
 
 
-
     # added P_thor to only the pulmonary compartments
     if VT_pa > Vu_pa:
         V_pa = VT_pa - Vu_pa
@@ -140,11 +138,9 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_la = 0
 
-    # phi_atr = activation_U(beta, 1)
+
     phi_atr = activation_H(t - time_since_beat, 1, T)
-    # phi_atr = activation_Naghavi(t, 1)
-    # phi_atr = g_function(t, 1)
-    # phi_cond = activation_conduit(t, T)
+
 
     # P_la = (V_la / C_la) + P_thor
     Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
@@ -157,32 +153,13 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_lv = 0
 
-    # phi = activation_U(beta, 0)
+
     phi = activation_H(t - time_since_beat, 0, T)
-    # phi = activation_Naghavi(t, 0)
-    # phi = g_function(t, 0)
+
 
     Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1) + P_thor
 
-    # if Q_lv > 0:
-    #     d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao) - Kv_ao * Q_lv * np.sin(theta_ao)
-    # else:
-    #     theta_ao = 0.0872665 # theta_ao_min
-    #     d2theta_ao_dt2 = 0
-    #     # d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao)
 
-    # aortic valve
-    # parameters:
-    # Kp_ao = 55
-    # Kf_ao = 50
-    # Kb_ao = 2
-    # Kv_ao = 7
-    # theta_ao_max = 1.309 # 75 degrees to radian
-
-    # if t == 0:
-    #     Q_lv = 0
-    # else:
-    #     Q_lv = updates["Q_lv"][-1]
 
     if Pmax_lv > P_sa:
         # if theta_ao > theta_ao_max:
@@ -200,10 +177,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         # d2theta_ao_dt2 = 0.0
         P_lv = Pmax_lv
 
-        # AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
-        AR_ao = 1
-
-    # P_lv = Pmax_lv - (KR_lv * Pmax_lv) * Q_lv
 
     ##################
     # P_lv already considers P_thor, no need to add again
@@ -256,7 +229,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     # P_ra = Pmax_ra - R_ra * Qi_rv
     ####################################
 
-    # P_pv and P_sa don't seem to stabilise
+
     ####### moved from the pulmonary circulation system here
     Q_la = (P_pv - P_la) / R_pv
     Q_pp = (P_pp - P_pv) / R_pp
@@ -283,14 +256,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     else:
         V_vc = 0
 
-    # if t!=0:
-    #     source_values = updates["source_values"][-1] + source(t) * (t - updates["time_history"][-1])
-    #     A = source_values
-    # else:
-    #     source_values = 0
-    #     A = 0
 
-    # source_values = source(t)
 
     if V_vc < Vu_vc:
         if t != 0:
@@ -446,7 +412,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
         else:
             P_amv = P_im + P_0
             VT_amv = 0
-        # P_amv = P_0 + P_im
 
     Q_amp = (P_sp - P_amv) / R_amp
 
@@ -482,19 +447,10 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     left_over_volume = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
                         - V_hv - V_vc - V_u - multiplied)
 
-    # if left_over_volume < 0:
-    # raise ValueError("Error: wrong")
 
     P_ev = left_over_volume / C_ev  # + source_values
 
     Q_ep = (P_sp - P_ev) / R_ep
-
-    # if VT_ev >= Vu_ev:
-    #     V_ev = VT_ev - Vu_ev
-    #     P_ev = V_ev/C_ev
-    # else:
-    #     V_ev = 0
-    #     P_ev = 0
 
     P_e = 0
 
@@ -516,26 +472,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     dVT_vc_dt = Q_vc - Q_ra
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
     dQ_sa_dt = (P_sa - P_thor - R_sa * Q_sa - P_sp) / L_sa
-    # VT_sa = V_sa + Vu_sa
-    # should be + ?, edit: removed P_thor from here. Ignore
 
-    # if num_removed > 0:
-    # keys = [
-    #     "P_sa", "dP_sa_dt", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Wh_lv", "Wh_rv", "time_since_beat", "Q_pp", "Q_la",
-    #     # "Q_lv", "Q_ra", "Q_rv",
-    #     # "P_ra", "P_la", "P_lv", "P_rv",
-    #     # "Pmax_lv", "Pmax_rv", "Pmax_la", "Pmax_ra", "V_rv", "V_ra", "V_lv", "V_la",
-    #     # "VT_rv", "VT_ra", "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor",
-    #     # "V_vc", "P_vc", "Qi_lv", "Qi_rv", "phi", "S", "V_pv", "V_pp", "V_pa",
-    #     # "P_amv", "P_ev", "V_u", "V_sv", "V_rmv", "V_amv", "V_bv", "V_hv", "P_sp",
-    #     # "Q_sa", "Q_jp", "Q_vc", "VT_amv", "P_im", "Q_amv", "Q_sp", "Q_pa",
-    #     # "phi_atr", "P_abd", "Q_ep", "Pmax_la", "Pmax_ra", "V_sa", "P_bv", "R_bv",
-    #     # "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv",
-    #     # "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_vc", "Q_bv"
-    # ]
-    # for key in keys:
-    #     updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6) # Replace values with 1e6
-    # i = i - num_removed
 
     # update after every heartbeat
     if t - time_since_beat > T:
@@ -555,74 +492,6 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-    # # just for plotting purposes
-    # keys_and_values = zip(
-    #     [
-    #         # Cardio control inputs
-    #         "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp",
-    #
-    #         # Gas exchange inputs
-    #         "Q_pp", "Q_la",
-    #
-    #         # For plot
-    #         "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
-    #         "Pmax_la", "Pmax_ra", "VT_rv", "VT_ra",
-    #         "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "P_vc", "Qi_lv",
-    #         "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "V_u",
-    #         "P_sp", "Q_sa", "Q_vc", "VT_amv",
-    #         "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
-    #         "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-    #         "VT_vc", "time_history"],
-    #
-    #     [  # Corresponding values
-    #         P_sa, Q_bp, Q_hp, Q_rmp, Q_amp,
-    #         Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
-    #         Pmax_la, Pmax_ra, VT_rv, VT_ra,
-    #         VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv,
-    #         Qi_rv, phi, phi_atr, P_amv, P_ev, V_u,
-    #         P_sp, Q_sa, Q_vc, VT_amv,
-    #         Q_amv, Q_pa, V_sa, P_bv, R_bv,
-    #         VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-    #         VT_vc, t])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item() - num_removed] = value
-    #     # updates[key][updates["j"].item()] = value
-
-    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
-
-    # keys_and_values = zip(
-    #     [
-    #         # Cardio control inputs
-    #         "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Wh_lv", "Wh_rv", "time_since_beat",
-    #
-    #         # Gas exchange inputs
-    #         "Q_pp", "Q_la",
-    #
-    #         # For plot
-    #         "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
-    #         "Pmax_la", "Pmax_ra", "V_rv", "V_ra", "V_lv", "V_la", "VT_rv", "VT_ra",
-    #         "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "V_vc", "P_vc", "Qi_lv",
-    #         "Qi_rv", "V_pa", "phi", "phi_atr", "S", "V_pv", "V_pp", "P_amv", "P_ev", "V_u",
-    #         "V_sv", "V_rmv", "V_amv", "V_bv", "V_hv", "P_sp", "Q_sa", "Q_jp", "Q_vc", "VT_amv",
-    #         "P_im", "Q_amv", "Q_sp", "Q_ep", "Q_pa", "P_abd", "V_sa", "P_bv", "Q_bv", "R_bv",
-    #         "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-    #         "VT_vc", "P_0", "time_history"],
-    #
-    #     [   # Corresponding values
-    #         P_sa, dP_sa_dt, Q_bp, Q_hp, Q_rmp, Q_amp, Wh_lv, Wh_rv, time_since_beat,
-    #         Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
-    #         Pmax_la, Pmax_ra, V_rv, V_ra, V_lv, V_la, VT_rv, VT_ra,
-    #         VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, V_vc, P_vc, Qi_lv,
-    #         Qi_rv, V_pa, phi, phi_atr, S, V_pv, V_pp, P_amv, P_ev, V_u,
-    #         V_sv, V_rmv, V_amv, V_bv, V_hv, P_sp, Q_sa, Q_jp, Q_vc, VT_amv,
-    #         P_im, Q_amv, Q_sp, Q_ep, Q_pa, P_abd, V_sa, P_bv, Q_bv, R_bv,
-    #         VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-    #         VT_vc, P_0, t])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item()- num_removed] = value
 
     return [dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
             dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt]

@@ -176,9 +176,9 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     MRCO2 = params["MRCO2"] - params["MRBCO2"]
     MRO2 = params["MRO2"] - params["MO2_bp"]/1000
 
-    if 2000 < t <= 2500:
-        MRCO2 = 0.4/60 - 0.0009
-        MRO2 = 0.45 / 60 - 0.000925
+    # if 300 < t <= 400:
+    #     MRCO2 = 0.4/60 - 0.0009
+    #     MRO2 = 0.45 / 60 - 0.000925
 
     # if 1200 < t <= 1350:
     #     MRCO2 = 0.6/60 - 0.0009
@@ -188,7 +188,7 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     #     MRCO2 = 0.8/60 - 0.0009
     #     MRO2 = 0.85 / 60 - 0.000925
     #
-    # if 910 < t:
+    # if 300 < t:
     #     MRCO2 = 1/60 - 0.0009
     #     MRO2 = 1.05 / 60 - 0.000925
 
