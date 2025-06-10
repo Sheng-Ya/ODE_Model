@@ -64,7 +64,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     # Other inputs
     MRTCO2_basal = MRTCO2_basal - MRBCO2
-    MRTCO2 = gas_exchange_inputs["MRTCO2_store"][gas_index] - MRBCO2
+    MRTCO2 = gas_exchange_inputs["MRTCO2_store"][gas_index]
     Pa_O2 = gas_exchange_inputs["Pa_O2_store"][gas_index]
     Pa_CO2 = gas_exchange_inputs["Pa_CO2_store"][gas_index]
     Ca_O2 = gas_exchange_inputs["Ca_O2_store"][gas_index]
