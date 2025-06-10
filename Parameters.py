@@ -237,7 +237,7 @@ Parameters = {
     "Ysp_max": 5.5,            # Upper saturation of the central command response (peripheral resistance)
     "Ysp_min": -0.037,         # Lower saturation of the central command response (peripheral resistance)
     "Ysv_max": 64.9,           # Upper saturation of the central command response (unstressed volume of veins)
-    "Ysv_min": -0.437,         # Lower saturation of the central command response (unstressed volume of veins)
+    "Ysv_min": -0.028,         # Lower saturation of the central command response (unstressed volume of veins)
     "Yv_max": 1.9,             # Upper saturation of the central command response
     "Yv_min": -0.0008,         # Lower saturation of the central command response
     "theta_v": -0.68,          # Offset term
