@@ -37,7 +37,7 @@ from Next_Conditions_new_update import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 50) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
@@ -214,20 +214,38 @@ if __name__ == "__main__":
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
 
-    i = Next_Conditions["i"].item()
+
+
+    i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
-
-
-
-    HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
-    fig, ax1 = plt.subplots()
-    ax1.plot(sorted_times, HR, label="HR", color="r")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
+    #
+    # HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
+    #
+    # # Initialize list of segments
+    # flat_segments = []
+    #
+    # # Start from the end and track the current segment value
+    # prev_value = None
+    # for j in range(len(HR) - 1, -1, -1):
+    #     current_value = HR[j]
+    #     if current_value != prev_value:
+    #         # New segment found
+    #         flat_segments.append(current_value)
+    #         prev_value = current_value
+    #         if len(flat_segments) == 10:
+    #             break
+    #
+    # print("Last 10 unique flat segments:", flat_segments)
+    #
+    #
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, HR, label="HR", color="r")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
 
 
 
@@ -238,11 +256,13 @@ if __name__ == "__main__":
     peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
     troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
 
-    # last_5_troughs = troughs[-6:-1]  # Get indices of last 5 minima
-    # last_5_min = P_sa[last_5_troughs]  # Get actual minimum values
-    #
-    # last_5_peaks = peaks[-6:-1]  # Get indices of last 5 max
-    # last_5_max = P_sa[last_5_peaks]  # Get actual max values
+    last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
+    last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
+
+    last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
+    last_10_max = P_sa[last_10_peaks]  # Get actual max values
+
+    print(np.mean(last_10_max), np.mean(last_10_min))
 
     fig, ax1 = plt.subplots()
     ax1.plot(sorted_times, P_sa, label="P_sa")

@@ -488,8 +488,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
 
 
-
-
     if heart_index <= 1:
         time_since_beat1 = updates["time_since_beat_store"][heart_index]
         time_since_beat2 = updates["time_since_beat_store"][heart_index]

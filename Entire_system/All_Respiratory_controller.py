@@ -113,7 +113,6 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["P_musc_current"] = P_for_current_breath
             updates["V_current"] = V_for_current_breath
             updates["dV_dt_current"] = dV_dt_for_current_breath
-            updates["dP_dt_current"] = dP_dt_for_current_breath
             updates["finish_breath_time"].append(t)
 
             # check optimisation results
