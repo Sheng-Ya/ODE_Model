@@ -75,8 +75,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
     # A = list(d_combined)
 
-    # if np.any(np.isnan(d_combined)) or np.any(np.isinf(d_combined)):
-    #     print(f"NaN or Inf detected at t = {t}")
 
 
     if num_removed == 0:
