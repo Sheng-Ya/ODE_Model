@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
 from line_profiler import LineProfiler
-from collections import deque
 
 import Resp_Control_Breath_Optimiser
 from Cardiovascular_controller import cardiovascular_controller
