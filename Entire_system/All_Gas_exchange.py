@@ -2,7 +2,7 @@ import bisect
 import numpy as np
 
 
-def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT, Parameters):
+def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_inputs, updates, num_removed, t_start, previous_Selected_Conditions, i, BUFFER_LIMIT, Parameters):
     """
         # Gas Exchange and Mixing need inputs: Q_pp, Q_bp, Q_la, time_history, V, dV_dt
 
@@ -143,27 +143,19 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
 
     # Gas transport
     # Brain
-    dc = params["dc"]
-    KCCO2 = params["KCCO2"]
-    KCSFCO2 = params["KCSFCO2"]
-    MRBCO2 = params["MRBCO2"]
-    MRBO2 = params["MO2_bp"] / 1000
-    VB = params["VB"]
+    MRBO2 = MO2_bp / 1000
 
     # Body Tissues Compartment
-    MRTCO2_basal = params["MRTCO2_basal"] - params["MRBCO2"]
-    MRTO2_basal = params["MRTO2_basal"] - params["MO2_bp"] / 1000
-    tauMR = params["tauMR"]
-    VTCO2 = params["VTCO2"]
-    VTO2 = params["VTO2"]
+    MRTCO2_basal = MRTCO2_basal - MRBCO2
+    MRTO2_basal = MRTO2_basal - MO2_bp / 1000
 
     # exercise
-    MRCO2 = params["MRCO2"] - params["MRBCO2"]
-    MRO2 = params["MRO2"] - params["MO2_bp"] / 1000
+    MRCO2 = MRCO2 - MRBCO2
+    MRO2 = MRO2 - MO2_bp / 1000
 
-    if 2000 < t <= 2500:
-        MRCO2 = 0.4 / 60 - 0.0009
-        MRO2 = 0.45 / 60 - 0.000925
+    # if 2000 < t <= 2500:
+    #     MRCO2 = 0.4 / 60 - 0.0009
+    #     MRO2 = 0.45 / 60 - 0.000925
 
     # if 1200 < t <= 1350:
     #     MRCO2 = 0.6/60 - 0.0009
@@ -226,7 +218,6 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     # dPvbCO2_dt = (MRBCO2 + Q_bp * SCO2 * (Pa_CO2 - PvbCO2) - h) / SbCO2
     dPCSFCO2_dt = (PvbCO2 - PCSFCO2) / KCSFCO2
 
-    tau_MRV = params["tau_MRV"]
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 

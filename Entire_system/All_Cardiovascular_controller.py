@@ -7,8 +7,8 @@ def frac(x):
     return x - math.floor(x)
 
 def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inputs, resp_control_inputs,
-                              gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions,
-                              time_saved, i, BUFFER_LIMIT, Parameters):
+                              gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, i,
+                              BUFFER_LIMIT, Parameters):
 
     """
     Afferent Pathways state variables:
@@ -111,7 +111,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     theta_sh = theta_shn - theta_change_O2_sh - theta_change_CO2_sh
 
     ## Afferent Pathways
-    # afferent baroreflex constant parameters
 
     # Other inputs
     P_sa = heart_inputs["P_sa_store"][heart_index]
@@ -128,8 +127,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     f_ab = (f_ab_min + f_ab_max * np.exp(exp_arg)) / (1 + np.exp(exp_arg))
     dP_tilda_dt = (P_sa + tau_z * dP_sa_dt - P_tilda) / tau_p
 
-    # afferent chemoreflex pathway constant parameters
-
     if Pa_O2 >= 80:
         K = K_H
     elif 40 <= Pa_O2 < 80:
@@ -142,15 +139,11 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     d_fac_dt = (phi_ac - f_ac) / tau_ac
 
-    # afferent activity from Pulmonary Stretch Receptors constant parameters
-
     # Other inputs
     VT = resp_control_inputs["VT_store"][resp_control_index]
 
     phi_ap = G_ap * VT
     df_ap_dt = (phi_ap - f_ap) / tau_ap
-
-    ## Efferent Pathways constant parameters
 
     Y_sh = (Ysh_min + Ysh_max * np.exp((I - Io_sh) / kcc_sh)) / (1 + np.exp((I - Io_sh) / kcc_sh))
     f_ash = Wt_sh * Nt + Wb_sh * f_ab + Wc_sh * f_ac + Wp_sh * f_ap - theta_sh
@@ -343,7 +336,6 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     HR1 = 1 / T
 
     ## Blood Flow Local Control
-    # Cerebral Blood Flow constant parameters
 
     G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
     R_bp = 1 / G_bp
@@ -355,9 +347,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     dxb_CO2_dt = (- xb_CO2 - phi_b) / tau_CO2
 
-    # Coronary and Resting Muscle Blood Flow constant parameters
-
-    # other inputs
+    # Coronary and Resting Muscle Blood Flow
 
     # coronary
     R_hp = R_hpn * (1 + xh_CO2) / (1 + xh_O2)

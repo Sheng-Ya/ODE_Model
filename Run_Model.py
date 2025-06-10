@@ -218,34 +218,34 @@ if __name__ == "__main__":
 
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
-    #
-    # HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
-    #
-    # # Initialize list of segments
-    # flat_segments = []
-    #
-    # # Start from the end and track the current segment value
-    # prev_value = None
-    # for j in range(len(HR) - 1, -1, -1):
-    #     current_value = HR[j]
-    #     if current_value != prev_value:
-    #         # New segment found
-    #         flat_segments.append(current_value)
-    #         prev_value = current_value
-    #         if len(flat_segments) == 10:
-    #             break
-    #
-    # print("Last 10 unique flat segments:", flat_segments)
-    #
-    #
-    # fig, ax1 = plt.subplots()
-    # ax1.plot(sorted_times, HR, label="HR", color="r")
-    #
-    # ax1.set_xlabel("Time (s)")
-    # ax1.tick_params(axis='y', labelcolor="k")
-    # ax1.legend(loc="upper left")
-    # ax1.grid(True)
-    # plt.show()
+
+    HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
+
+    # Initialize list of segments
+    flat_segments = []
+
+    # Start from the end and track the current segment value
+    prev_value = None
+    for j in range(len(HR) - 1, -1, -1):
+        current_value = HR[j]
+        if current_value != prev_value:
+            # New segment found
+            flat_segments.append(current_value)
+            prev_value = current_value
+            if len(flat_segments) == 10:
+                break
+
+    print("Last 10 unique flat segments:", flat_segments)
+
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, HR, label="HR", color="r")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
 
 
 

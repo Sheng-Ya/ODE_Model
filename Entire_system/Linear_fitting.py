@@ -78,10 +78,10 @@ def combined_system(t, Initial_Conditions_numpy, Current_Parameters, Initial_Con
     # resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    d_cardio = cardiovascular_system(t, cardio_state, Current_Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], Parameters)
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Current_Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions, Parameters)
-    d_gas = gas_exchange(t, gas_state, Current_Parameters, Initial_Conditions_dict["time_history"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], previous_Selected_Conditions, Parameters)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Current_Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, i, t_span[0], Parameters)
+    d_cardio = cardiovascular_system(t, cardio_state, Current_Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], i, BUFFER_LIMIT, Parameters)
+    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Current_Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, i, BUFFER_LIMIT, Parameters)
+    d_gas = gas_exchange(t, gas_state, Current_Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, i, BUFFER_LIMIT, Parameters)
+    d_resp_vent = resp_control_vent(t, resp_contr_state, Current_Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], i, BUFFER_LIMIT, Parameters)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Current_Parameters, Initial_Conditions_dict, num_removed, i)
 
     d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
@@ -185,8 +185,11 @@ def simulate_cpu(Current_Parameters, storage):
 
     return np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)
 
-def parallel_simulations(param_samples, storage, n_jobs):
-    results = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in param_samples)
+def parallel_simulations(param_samples, sample_descriptions, storage, n_jobs):
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(lambda params, desc: (desc, simulate_cpu(params, storage)))(params, desc)
+        for params, desc in zip(param_samples, sample_descriptions)
+    )
     return results
 
 
@@ -209,24 +212,33 @@ if __name__ == "__main__":
 
     # Create OAT samples
     param_samples = []
-    for key, (low, high) in parameters_change.items():
-        # Low sample
-        low_sample = [nominal_values[k] if k != key else low for k in param_keys]
-        param_samples.append(low_sample)
-
+    sample_descriptions = []
+    for key, (high, low) in parameters_change.items():
         # High sample
         high_sample = [nominal_values[k] if k != key else high for k in param_keys]
         param_samples.append(high_sample)
+        sample_descriptions.append(f"{key} HIGH")
+
+        # Low sample
+        low_sample = [nominal_values[k] if k != key else low for k in param_keys]
+        param_samples.append(low_sample)
+        sample_descriptions.append(f"{key} LOW")
 
     # Convert to NumPy array (same type/shape as lhd.sample(1000))
     X_oat = np.array(param_samples)
 
+    # Print the order
+    print("Simulation order:")
+    for i, desc in enumerate(sample_descriptions):
+        print(f"{i + 1:02d}: {desc}")
+
     param_samples = [dict(zip(param_keys, row)) for row in X_oat]
     print(f"Number of samples created: {len(X_oat)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, sample_descriptions, Next_Conditions, n_jobs=-1)
 
     print(Result)
 
-    np.save('X_samples_HR_P_sys_P_dia.npy', X_oat)
-    np.save('Result_HR_P_sys_P_dia.npy', Result)
+    np.save('X_samples_HR_P_sys_P_dia_test.npy', X_oat)
+    np.save('Result_HR_P_sys_P_dia_test.npy', np.array(Result, dtype=object))
+

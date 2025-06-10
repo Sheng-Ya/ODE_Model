@@ -6,7 +6,7 @@ from Activation_Functions import activation_H
 def frac(x):
     return x - math.floor(x)
 
-def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, t_start, time_saved, i, BUFFER_LIMIT, Parameters):
+def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_inputs, updates, num_removed, t_start, i, BUFFER_LIMIT, Parameters):
     """
     Pulmonary circulation state variables: VT_pa, VT_pp, VT_pv, Q_pa
     Cardiovascular system state variables: VT_la, VT_lv, VT_ra, VT_rv
