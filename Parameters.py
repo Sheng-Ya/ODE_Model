@@ -11,7 +11,7 @@ Parameters = {
 #     # Systemic peripheral and venous circulation
 #     # Table 2. Compliance values
 # systemic_peripheral_and_venous = {
-    "C_amp": 0.615,  # Active skeletal muscle peripheral compliance
+    "C_amp": 0.315,  # Active skeletal muscle peripheral compliance
     "C_amv": 9.4,    # Active skeletal muscle venous compliance
     "C_bp": 0.658,   # Brain peripheral compliance
     "C_bv": 10.71,   # Brain venous compliance
