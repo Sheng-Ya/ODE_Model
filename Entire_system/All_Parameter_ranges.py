@@ -459,7 +459,7 @@ Parameters = {
   "AT": (1/60),
   "g_ccsh": 1,
   "g_ccsp": 1.5,
-  "g_ccsv": 0.1,
+  "g_ccsv": 0,
   "kisc_sh": 6,
   "kisc_sp": 2,
   "kisc_sv": 2,
