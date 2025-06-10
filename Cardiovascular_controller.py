@@ -450,6 +450,17 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         time_since_beat1 = updates["time_since_beat"][heart_index]
         time_since_beat2 = updates["time_since_beat"][heart_index - 1]
 
+
+    if t == 0:
+        updates["HR1"].clear()
+        updates["Vu_ev1"].clear()
+        updates["Vu_sv1"].clear()
+        updates["Vu_rmv1"].clear()
+        updates["Vu_amv1"].clear()
+        updates["Emax_lv1"].clear()
+        updates["Emax_rv1"].clear()
+
+
     # update after every heartbeat
     if time_since_beat1 != time_since_beat2 and num_removed == 0:
         HR = np.mean(updates["HR1"])
