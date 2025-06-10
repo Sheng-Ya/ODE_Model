@@ -73,6 +73,8 @@ Parameters = {
 # heart = {
 #     "C_la": 4, # 19.23,          # Left atrial compliances changed
 #     "C_ra": 5, # 31.25,          # Right atrial compliances changed
+    "s": 0.04,
+    "Ta": 8.8,
     "KE_lv": 0.014, # 0.014      # End-diastolic P-V relationship in left ventricle # adjusted (changes a lot depending on whether it is 0.06 or 0.05)
     "KE_rv": 0.011, # 0.011       # End-diastolic P-V relationship in right ventricle Another model use 0.027
     # "KR_lv": 0.000375,     # Viscosity of left ventricle

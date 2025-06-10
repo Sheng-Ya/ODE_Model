@@ -6,9 +6,10 @@ import numpy as np
 def frac(x):
     return x - math.floor(x)
 
+def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inputs, resp_control_inputs,
+                              gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions,
+                              time_saved, i, BUFFER_LIMIT, Parameters):
 
-def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_inputs, resp_control_inputs,
-                              gas_exchange_inputs, updates, num_removed, i, t_start, previous_Selected_Conditions, Parameters):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,
@@ -30,24 +31,13 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     ## Metabolic regulation
 
     if t == t_start:
-        heart_index = i
-        gas_index = i
-        # resp_control_index = 0
-        resp_control_index = i
-        # gas_index = 0
-    elif num_removed > 0:
-        heart_index = i - num_removed - 1
-        # gas exchange variables have not been removed yet
-        gas_index = i - 1
-        # resp_control_index = 0
-        resp_control_index = i - 1
-        # gas_index = 0
+        heart_index = i % BUFFER_LIMIT
+        gas_index = i % BUFFER_LIMIT
+        resp_control_index = i % BUFFER_LIMIT
     else:
-        heart_index = i - 1
-        gas_index = i - 1
-        # resp_control_index = 0
-        resp_control_index = i - 1
-        # gas_index = 0
+        heart_index = (i - num_removed - 1) % BUFFER_LIMIT
+        gas_index = (i - num_removed - 1) % BUFFER_LIMIT
+        resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
 
     (MRBCO2, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
      Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp,
@@ -74,17 +64,22 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     # Other inputs
     MRTCO2_basal = MRTCO2_basal - MRBCO2
-    MRTCO2 = gas_exchange_inputs["MRTCO2"][gas_index] - MRBCO2
-    Pa_O2 = gas_exchange_inputs["Pa_O2"][gas_index]
-    Pa_CO2 = gas_exchange_inputs["Pa_CO2"][gas_index]
-    Ca_O2 = gas_exchange_inputs["Ca_O2"][gas_index]
+    MRTCO2 = gas_exchange_inputs["MRTCO2_store"][gas_index] - MRBCO2
+    Pa_O2 = gas_exchange_inputs["Pa_O2_store"][gas_index]
+    Pa_CO2 = gas_exchange_inputs["Pa_CO2_store"][gas_index]
+    Ca_O2 = gas_exchange_inputs["Ca_O2_store"][gas_index]
 
-    VE_integral = resp_control_inputs["VE_integral"][resp_control_index]
+    VE_integral = resp_control_inputs["VE_integral_store"][resp_control_index]
 
     I = (MRTCO2 - MRTCO2_basal) / (AT - MRTCO2_basal)
 
+    # deal with rejected steps
+    if t - updates["finish_breath_time"][-1] < 0:
+        updates["finish_breath_time"].pop()
+        updates["Nd"] = updates["Nd"][:-5]
+
     a1, a2, tau, t1, t2 = exp_inputs["Nd"][-5:]
-    prev_flat_bit = updates["prev_flat_bit"][gas_index]
+    prev_flat_bit = updates["prev_flat_bit_store"][gas_index]
 
     last_breath_time = t - updates["finish_breath_time"][-1]
 
@@ -119,15 +114,14 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # afferent baroreflex constant parameters
 
     # Other inputs
-    P_sa = heart_inputs["P_sa"][
-        heart_index]  # cardiovascular controller was run after cardio was run with states appended/updated so it must take the nonupdated version
-    dP_sa_dt = heart_inputs["dP_sa_dt"][heart_index]
-    Q_bp = heart_inputs["Q_bp"][heart_index]
-    Q_hp = heart_inputs["Q_hp"][heart_index]
-    Q_rmp = heart_inputs["Q_rmp"][heart_index]
-    Q_amp = heart_inputs["Q_amp"][heart_index]
-    Wh_lv = heart_inputs["Wh_lv"][heart_index]
-    Wh_rv = heart_inputs["Wh_rv"][heart_index]
+    P_sa = heart_inputs["P_sa_store"][heart_index]  # cardiovascular controller was run after cardio was run with states appended/updated so it must take the nonupdated version
+    dP_sa_dt = heart_inputs["dP_sa_dt_store"][heart_index]
+    Q_bp = heart_inputs["Q_bp_store"][heart_index]
+    Q_hp = heart_inputs["Q_hp_store"][heart_index]
+    Q_rmp = heart_inputs["Q_rmp_store"][heart_index]
+    Q_amp = heart_inputs["Q_amp_store"][heart_index]
+    Wh_lv = heart_inputs["Wh_lv_store"][heart_index]
+    Wh_rv = heart_inputs["Wh_rv_store"][heart_index]
 
     # exp_arg = np.clip((P_tilda - P_n) / k_ab, -40, 40)  # Prevent overflow
     exp_arg = (P_tilda - P_n) / k_ab
@@ -151,7 +145,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # afferent activity from Pulmonary Stretch Receptors constant parameters
 
     # Other inputs
-    VT = resp_control_inputs["VT"][resp_control_index]
+    VT = resp_control_inputs["VT_store"][resp_control_index]
 
     phi_ap = G_ap * VT
     df_ap_dt = (phi_ap - f_ap) / tau_ap
@@ -182,15 +176,27 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
     f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history = [exp_inputs[key] for key in
-                                                                              ["f_sp", "f_sh",
-                                                                               "f_v", "f_sv",
-                                                                               "phi_met"]]
+                                                                              ["f_sp_store", "f_sh_store",
+                                                                               "f_v_store", "f_sv_store",
+                                                                               "phi_met_store"]]
 
     # added the below to get f_sp_delay from previous iterations.
     delay_time2 = t - 2
     if delay_time2 >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time2) - 1
+        # Find the index for delay_time in all_time
+        if i > BUFFER_LIMIT:
+            # Find index in wrapped all_time array
+            if delay_time2 >= all_time[0]:
+                # No wrap-around
+                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time2, side='right') - 1
+                delay_index = idx_in_sorted1 % BUFFER_LIMIT
+            else:
+                # Wrap-around
+                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time2, side='right') - 1
+                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time2) - 1
+
         f_sp_delay2 = f_sp_history[delay_index]
         f_sh_delay2 = f_sh_history[delay_index]
     else:
@@ -199,7 +205,7 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
             f_sh_delay2 = f_sh
         else:
             if t_start != 0:  # this is for the previous run with delays recorded to be used for the current run
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time2) - 1
+                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time2) - 1
                 f_sp_delay2 = previous_Selected_Conditions["f_sp"][delay_index]
                 f_sh_delay2 = previous_Selected_Conditions["f_sh"][delay_index]
             else:
@@ -209,15 +215,27 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     delay_time5 = t - 5
     if delay_time5 >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time5) - 1
+        # Find the index for delay_time in all_time
+        if i > BUFFER_LIMIT:
+            if delay_time5 >= all_time[0]:
+                # No wrap-around
+                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time5, side='right') - 1
+                delay_index = idx_in_sorted1 % BUFFER_LIMIT
+            else:
+                # Wrap-around
+                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time5, side='right') - 1
+                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time5) - 1
+
         f_sv_delay5 = f_sv_history[delay_index]
+
     else:
         if t == 0:
             f_sv_delay5 = f_sv
         else:
             if t_start != 0:
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time5) - 1
+                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time5) - 1
                 f_sv_delay5 = previous_Selected_Conditions["f_sv"][delay_index]
             else:
                 f_sv_delay5 = 3.97
@@ -289,15 +307,25 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     delay_time0_2 = t - DT_v
     if delay_time0_2 >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time0_2) - 1
+        # Find the index for delay_time in all_time
+        if i > BUFFER_LIMIT:
+            if delay_time0_2 >= all_time[0]:
+                # No wrap-around
+                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time0_2, side='right') - 1
+                delay_index = idx_in_sorted1 % BUFFER_LIMIT
+            else:
+                # Wrap-around
+                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time0_2, side='right') - 1
+                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
         f_v_delay0_2 = f_v_history[delay_index]
     else:
         if t == 0:
             f_v_delay0_2 = f_v
         else:
             if t_start != 0:
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time0_2) - 1
+                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time0_2) - 1
                 f_v_delay0_2 = previous_Selected_Conditions["f_v"][delay_index]
             else:
                 f_v_delay0_2 = 4.2748  # np.mean(f_v_history), f_v_IC
@@ -376,11 +404,24 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
 
     delay_time_met = t - 4
     if delay_time_met >= t_start:
-        # Find the index for delay_time in time_history
-        delay_index = bisect.bisect_right(time_history, delay_time_met) - 1
+        # Find the index for delay_time in all_time
+        if i > BUFFER_LIMIT:
+            # Find index in wrapped all_time array
+            if delay_time_met >= all_time[0]:
+                # No wrap-around
+                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time_met, side='right') - 1
+                delay_index = idx_in_sorted1 % BUFFER_LIMIT
+            else:
+                # Wrap-around
+                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time_met, side='right') - 1
+                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+        else:
+            delay_index = bisect.bisect_right(all_time, delay_time_met) - 1
+
         phi_met_delay = phi_met_history[delay_index]
+
     elif t_start != 0:
-        delay_index = bisect.bisect_right(previous_Selected_Conditions["time_history"], delay_time_met) - 1
+        delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time_met) - 1
         phi_met_delay = previous_Selected_Conditions["phi_met"][delay_index]
     else:
         phi_met_delay = phi_met
@@ -396,38 +437,45 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
         Emax_lv = Emax_lv1
         Emax_rv = Emax_rv1
     else:
-        HR = updates["HR"][heart_index]
-        Vu_ev = updates["Vu_ev"][heart_index]
-        Vu_sv = updates["Vu_sv"][heart_index]
-        Vu_rmv = updates["Vu_rmv"][heart_index]
-        Vu_amv = updates["Vu_amv"][heart_index]
-        Emax_lv = updates["Emax_lv"][heart_index]
-        Emax_rv = updates["Emax_rv"][heart_index]
+        HR = updates["HR_store"][heart_index]
+        Vu_ev = updates["Vu_ev_store"][heart_index]
+        Vu_sv = updates["Vu_sv_store"][heart_index]
+        Vu_rmv = updates["Vu_rmv_store"][heart_index]
+        Vu_amv = updates["Vu_amv_store"][heart_index]
+        Emax_lv = updates["Emax_lv_store"][heart_index]
+        Emax_rv = updates["Emax_rv_store"][heart_index]
+
+    # if num_removed > 0:
+    #     keys = [
+    #         "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
+    #         "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "prev_flat_bit",
+    #         "f_sp", "f_sh", "f_v", "f_sv", "phi_met"
+    #         # "f_ab", "f_ac", "Nt", "T", "Cvb_O2", "Wh", "xamO2", "Cvam_O2", "MO2_amp", "xM", "f_asv", "f_asp", "f_ash", "theta_change_O2_sp",
+    #         # "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh", "theta_change_CO2_sh"
+    #     ]
+    #     keys2 = [
+    #         "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
+    #     ]
+    #     for key in keys:
+    #         updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
+    #     for key in keys2:
+    #         del updates[key][-num_removed:]
+    #
+    #     i = i - num_removed
 
     if num_removed > 0:
-        keys = [
-            "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
-            "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "prev_flat_bit",
-            "f_sp", "f_sh", "f_v", "f_sv", "phi_met"
-            # "f_ab", "f_ac", "Nt", "T", "Cvb_O2", "Wh", "xamO2", "Cvam_O2", "MO2_amp", "xM", "f_asv", "f_asp", "f_ash", "theta_change_O2_sp",
-            # "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh", "theta_change_CO2_sh"
-        ]
         keys2 = [
             "HR1", "Vu_ev1", "Vu_sv1", "Vu_rmv1", "Vu_amv1", "Emax_lv1", "Emax_rv1"
         ]
-        for key in keys:
-            updates[key][(i - num_removed): (i + 1)] = np.full((num_removed + 1,), 1e6)
         for key in keys2:
             del updates[key][-num_removed:]
 
-        i = i - num_removed
-
     if heart_index <= 1:
-        time_since_beat1 = updates["time_since_beat"][heart_index]
-        time_since_beat2 = updates["time_since_beat"][heart_index]
+        time_since_beat1 = updates["time_since_beat_store"][heart_index]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index]
     else:
-        time_since_beat1 = updates["time_since_beat"][heart_index]
-        time_since_beat2 = updates["time_since_beat"][heart_index - 1]
+        time_since_beat1 = updates["time_since_beat_store"][heart_index]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index - 1]
 
     # update after every heartbeat
     if time_since_beat1 != time_since_beat2 and num_removed == 0:
@@ -468,69 +516,72 @@ def cardiovascular_controller(t, state, params, time_history, exp_inputs, heart_
     updates["Emax_lv1"].append(Emax_lv1)
     updates["Emax_rv1"].append(Emax_rv1)
 
-    # cardio inputs
-    updates["HR"][i] = HR
-    updates["Vu_ev"][i] = Vu_ev
-    updates["Vu_sv"][i] = Vu_sv
-    updates["Vu_rmv"][i] = Vu_rmv
-    updates["Vu_amv"][i] = Vu_amv
-    updates["Emax_lv"][i] = Emax_lv
-    updates["Emax_rv"][i] = Emax_rv
+    # update values needed in other systems
+    for key, new_value in zip(
+            [  # Cardio inputs
+                "HR_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
+                "Emax_lv_store", "Emax_rv_store", "R_ep_store", "R_amp_store", "R_rmp_store",
+                "R_sp_store", "R_bp_store", "R_hp_store", "I_store", "f_sp_store", "f_sh_store",
+                "f_v_store", "f_sv_store", "phi_met_store",
 
-    updates["R_ep"][i] = R_ep
-    updates["R_amp"][i] = R_amp
-    updates["R_rmp"][i] = R_rmp
-    updates["R_sp"][i] = R_sp
-    updates["R_bp"][i] = R_bp
-    updates["R_hp"][i] = R_hp
-    updates["I"][i] = I
+                # Needed in cardio controller
+                "prev_flat_bit_store"],
 
-    # needed in cardio controller
-    updates["prev_flat_bit"][i] = prev_flat_bit
+            [HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
+             Emax_lv, Emax_rv, R_ep, R_amp, R_rmp,
+             R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, phi_met, prev_flat_bit]
+    ):
+        updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-    # save for delay
-    updates["f_sp"][i] = f_sp
-    updates["f_sh"][i] = f_sh
-    updates["f_v"][i] = f_v
-    updates["f_sv"][i] = f_sv
-    updates["phi_met"][i] = phi_met
 
-    # updates["f_ac"][i] = f_ac
-    # updates["f_ab"][i] = f_ab
-    # updates["f_ap"][i] = f_ap
-    # updates["Nt"][i] = Nt
-    # updates["Cvb_O2"][i] = Cvb_O2
-    # updates["Wh"][i]= Wh
-    # updates["xamO2"][i] = xam_O2
-    # updates["Cvam_O2"][i] = Cvam_O2
-    # updates["MO2_amp"][i] = MO2_amp
-    # updates["xM"][i] = xM
-    # updates["f_asv"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv)
-    # updates["f_asp"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp)
-    # updates["f_ash"][i] = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash)
 
-    # updates["theta_change_O2_sp"][i] = theta_change_O2_sp
-    # updates["theta_change_CO2_sp"][i] = theta_change_CO2_sp
-    # updates["theta_change_O2_sv"][i] = theta_change_O2_sv
-    # updates["theta_change_CO2_sv"][i] = theta_change_CO2_sv
-    # updates["theta_change_O2_sh"][i] = theta_change_O2_sh
-    # updates["theta_change_CO2_sh"][i] = theta_change_CO2_sh
+    #         # just for plotting purposes
+    # if ((t % time_saved) < 0.001 or (time_saved - (t % time_saved)) < 0.001) and num_removed == 0:
+    # keys_and_values = zip(
+    #     [  # Cardio inputs
+    #         "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
+    #         "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I",
+    #
+    #     ],
+    #
+    #     [  # Corresponding values
+    #         HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
+    #         R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I,
+    #     ])
+    #
+    # for key, value in keys_and_values:
+    #     updates[key][updates["j"].item() - num_removed] = value
+    #     # updates[key][updates["j"].item()] = value
 
-    # updates["sigma_Tv"][i] = sigma_Tv
-    # updates["sigma_Ts"][i] = sigma_Ts
-    # updates["Y_v"][i] = Y_v
-
-    # updates["R_ep_change"][i] = R_ep_change
-    # updates["R_sp_change"][i] = R_sp_change
-    # updates["R_rmp_change"][i] = R_rmp_n_change
-    # updates["R_amp_change"][i] = R_amp_n_change
-    # updates["Vu_ev_change"][i] = Vu_ev_change
-    # updates["Vu_rmv_change"][i] = Vu_rmv_change
-    # updates["Vu_amv_change"][i] = Vu_amv_change
-    # updates["Emax_lv_change"][i] = Emax_lv_change
-    # updates["Emax_rv_change"][i] = Emax_rv_change
-    # updates["d_Ts_change_dt"][i] = d_Ts_change_dt
-    # updates["d_Tv_change_dt"][i] = d_Tv_change_dt
+    # keys_and_values = zip(
+    #     [   # Cardio inputs
+    #         "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
+    #         "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I",
+    #
+    #         # Needed in cardio controller
+    #         "prev_flat_bit",
+    #
+    #         # Save for delay
+    #         "f_sp", "f_sh", "f_v", "f_sv", "phi_met",
+    #
+    #         # For plot
+    #         "f_ac", "f_ab", "f_ap", "Nt", "Cvb_O2", "Wh", "xamO2", "Cvam_O2",
+    #         "MO2_amp", "xM", "theta_change_O2_sp", "theta_change_CO2_sp",
+    #         "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
+    #         "theta_change_CO2_sh", "sigma_Tv", "sigma_Ts", "Y_v"],
+    #
+    #     [   # Corresponding values
+    #         HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
+    #         R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I,
+    #         prev_flat_bit,
+    #         f_sp, f_sh, f_v, f_sv, phi_met,
+    #         f_ac, f_ab, f_ap, Nt, Cvb_O2, Wh, xam_O2, Cvam_O2,
+    #         MO2_amp, xM, theta_change_O2_sp, theta_change_CO2_sp,
+    #         theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
+    #         theta_change_CO2_sh, sigma_Tv, sigma_Ts, Y_v])
+    #
+    # for key, value in keys_and_values:
+    #     updates[key][updates["j"].item() - num_removed] = value
 
     return [dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
             dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,

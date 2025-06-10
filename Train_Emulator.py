@@ -11,8 +11,8 @@ from autoemulate.compare import AutoEmulate
 
 # X = np.load('C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire system/X_samples_PA_gas_resp.npy')
 # two_Result = np.load('C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire system/Result_PA_gas_resp.npy')
-Y = np.load('C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire system/X_samples_HR_P_sys_P_dia.npy')
-two_Result = np.load('C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire system/Result_HR_P_sys_P_dia.npy')
+Y = np.load('/Entire_system/X_samples_HR_P_sys_P_dia.npy')
+two_Result = np.load('/Entire_system/Result_HR_P_sys_P_dia.npy')
 
 
 Result = two_Result[:, 0]
