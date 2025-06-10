@@ -428,3 +428,363 @@ Parameters = {
 # gas_transport = {
     "tau_MRV": 50,            # Metabolic rate time constant (s)
 }
+
+
+
+
+
+
+# Parameters = {
+#
+#     "C_sa": 0.28,
+#     "L_sa": 0.00022,
+#     "R_sa": 0.06,
+#     "Vu_sa": 0,
+#
+#     "C_amp": 0.315,
+#     "C_amv": 9.4,
+#     "C_bp": 0.358,
+#     "C_bv": 10.71,
+#     "C_ep": 0.668,
+#     "C_ev": 20,
+#     "C_hp": 0.119,
+#     "C_hv": 3.57,
+#     "C_rmp": 0.21,
+#     "C_rmv": 6.28,
+#     "C_sp": 2.05,
+#     "C_sv": 61.11,
+#     "kr_am": 24.17,
+#     "P_0": 3.93,
+#     "R_amv_n": 0.0833,
+#     "R_bv_n": 0.075,
+#     "R_ev_n": 0.04,
+#     "R_hv_n": 0.224,
+#     "R_rmv_n": 0.125,
+#     "R_sv_n": 0.038,
+#     "V_tot": 5027.6,
+#     "Vu_amp": 60.22,
+#     "Vu_bp": 68.42,
+#     "Vu_bv": 279.49,
+#     "Vu_ep": 127.72,
+#     "Vu_hp": 23,
+#     "Vu_hv": 93.16,
+#     "Vu_rmp": 40.1,
+#     "Vu_sp": 260.3,
+#
+#     "D1": 0.3855,
+#     "D2": -5,
+#     "K1_vc": 0.15,
+#     "K2_vc": 0.4,
+#     "Kr_vc": 0.001,
+#     "Rvc_n": 0.0025,
+#     "Vu_vc": 123,
+#     "Vvc_max": 350,
+#     "Vvc_min": 50,
+#
+#     "C_pa": 8, # 0.76,
+#     "C_pp": 10, # 5.8,
+#     "C_pv": 25.37, # 25.37,
+#     "L_pa": 0.00018,
+#     "R_pa": 0.023,
+#     "R_pp": 0.0894,
+#     "R_pv": 0.0056,
+#     "Vu_pa": 0,
+#     "Vu_pp": 116.6775,
+#     "Vu_pv": 114,
+#
+#     "s": 0.04,
+#     "Ta": 8.8,
+#     "KE_lv": 0.014, # 0.014
+#     "KE_rv": 0.011, # 0.011
+#
+#     "Emax_la": 0.45,
+#     "P0_la": 0.45,
+#     "KE_la": 0.05,
+#
+#     "Emax_ra": 0.45,
+#     "P0_ra": 0.45,
+#     "KE_ra": 0.05,
+#     "P0_lv": 1.5, # 1.5
+#     "P0_rv": 1.5, # 1.5
+#     "Vu_la": 4,
+#     "Vu_lv": 5,
+#     "Vu_ra": 4,
+#     "Vu_rv": 10,
+#
+#     "A_im": 50,
+#     "Tc": 0.75,
+#     "T_im": 1,
+#
+#
+#
+#     "g_abd": 3.39,
+#     "g_thor": 6.8,
+#     "P_abdmax_n": 0,
+#     "P_abdmin_n": -2.5,
+#     "P_thormax_n": -4,
+#     "P_thormin_n": -9,
+#     "VT_n": 0.45,
+#
+#     "f_ab_max": 47.78,
+#     "f_ab_min": 2.52,
+#     "k_ab": 11.76,
+#     "P_n": 92,
+#     "tau_p": 2.076,
+#     "tau_z": 6.37,
+#
+#     "f_ac_IC": 8.0807,
+#     "f_acCO2_n": 1.4,
+#     "f_ac_max": 12.3,
+#     "f_ac_min": 0.835,
+#     "k_ac": 29.27,
+#     "K_H": 3,
+#     "PaO2_ac_n": 45,
+#     "PaCO2_n": 40,
+#     "tau_ac": 2,
+#
+#
+#
+#     "f_ap_IC": 4.4492,
+#     "G_ap": 11.76,
+#     "tau_ap": 2,
+#
+#     "A": 20.9,
+#     "B": 92.8,
+#     "C": 10570,
+#     "D": -5.251,
+#     "Cvb_O2_n": 0.14,
+#     "gb_O2": 10,
+#     "MO2_bp": 0.925,
+#     "R_bpn": 6.57,
+#     "tau_CO2": 20,
+#     "tau_O2": 10,
+#
+#     "Cvh_O2_n": 0.11,
+#     "Cvrm_O2_n": 0.155,
+#     "gh_O2": 35,        # Constant gain factor
+#     "grm_O2": 30,       # Constant gain factor
+#     "Kh_CO2": 11.11,
+#     "Krm_CO2": 142.8,
+#     "MO2_hpn": 0.4,     # Nominal value of O2 consumption rate in the heart
+#     "MO2_rmp": 0.86,    # Consumption rate in the resting muscle
+#     "R_hpn": 19.71,
+#     "tau_w": 5,
+#     "W_hn": 12660,
+#
+#     "Cvam_O2_n": 0.1555,
+#     "Dmet": 4,                 # Pure delay
+#     "gam_O2": 30,              # Constant gain factor
+#     "gM": 40,                  # Static gain
+#     "Io_met": 0.4266,          # Is I at the central point of the sigmoid
+#     "kmet": 0.18,
+#     "MO2_ampn": 0.516,         # Nominal oxygen consumption rate
+#     "phi_max": 20,
+#     "phi_min": -1.87,
+#     "tau_M": 40,               # Time constant
+#     "tau_met": 10,             # Time constant
+# # }
+#
+#     # Table 14. CNS Ischemic Response
+# # cns_ischemic_response = {
+#     "g_ccsh": 1,
+#     "g_ccsp": 1.5,
+#     "g_ccsv": 0,
+#     "kisc_sh": 6,
+#     "kisc_sp": 2,
+#     "kisc_sv": 2,
+#     "PO2_sh": 45,
+#     "PO2_sp": 30,
+#     "PO2_sv": 30,
+#     "tau_cc": 20,
+#     "tau_isc": 30,
+#     "theta_shn": 3.6,
+#     "theta_spn": 13.32,
+#     "theta_svn": 13.32,
+#     "x_sh": 53,
+#     "x_sp": 6,
+#     "x_sv": 6,
+# # }
+#
+#
+#     "AT": 1/60,                   # Anaerobic threshold
+#
+#     "fab_o": 25,               # Central value in the curve of fab
+#     "fes_o": 16.11,            # Constant parameter
+#     "fes_inf": 2.1,            # Constant parameter
+#     "fes_max": 80,
+#     "fev_o": 3.2,              # Constant parameter
+#     "fev_inf": 6.3,            # Constant parameter
+#     "kes": 0.0675,             # Constant parameter
+#     "kev": 7.06,               # Constant parameter
+#     "Io_sh": 0.658,
+#     "Io_sp": 0.65,
+#     "Io_sv": 0.45,
+#     "Io_v": 0.126,
+#     "kcc_sh": 0.114,
+#     "kcc_sp": 0.13,
+#     "kcc_sv": 0.09,
+#     "kcc_v": 0.0162,
+#     "Ysh_max": 9,
+#     "Ysh_min": -0.0283,
+#     "Ysp_max": 5.5,
+#     "Ysp_min": -0.037,
+#     "Ysv_max": 64.9,
+#     "Ysv_min": -0.028,
+#     "Yv_max": 1.9,
+#     "Yv_min": -0.0008,
+#     "theta_v": -0.68,
+#     "Wb_sh": -1.75,
+#     "Wb_sp": -1.1375,
+#     "Wb_sv": -1.1375,
+#     "Wc_sh": 1,
+#     "Wc_sp": 1.716,
+#     "Wc_sv": 1.716,
+#     "Wc_v": 0.2,
+#     "Wp_sh": 0,
+#     "Wp_sp": -0.3997,
+#     "Wp_sv": -0.3997,
+#     "Wp_v": -0.103,
+#     "Wt_sh": 0.4,
+#     "Wt_sp": 0.4,
+#     "Wt_sv": 0.4,
+#     "Wt_v": 0.4,
+#
+#     "DEmax,lv": 2,
+#     "DEmax,rv": 2,
+#     "DR_amp": 2,
+#     "DR_ep": 2,
+#     "DR_rmp": 2,
+#     "DR_sp": 2,
+#     "DV_amv": 5,
+#     "DV_ev": 5,
+#     "DV_rmv": 5,
+#     "DV_sv": 5,
+#     "Emax_lv0": 2.392,
+#     "Emax_rv0": 1.412,
+#     "fes_min": 2.66,
+#     "GEmax_lv": 0.475,
+#     "GEmax_rv": 0.282,
+#     "GR_amp": 2.47,
+#     "GR_ep": 1.94,
+#     "GR_rmp": 2.47,
+#     "GR_sp": 0.695,
+#     "GV_amv": -58.29,
+#     "GV_ev": -74.21,
+#     "GV_rmv": -58.29,
+#     "GV_sv": -265.4,
+#     "R_amp0": 3.510,
+#     "R_ep0": 1.655,
+#     "R_rmp0": 5.270,
+#     "R_sp0": 2.49,
+#     "tau_Emax_lv": 8,
+#     "tau_Emax_rv": 8,
+#     "tau_Ramp": 2,
+#     "tau_Rep": 2,
+#     "tau_Rrmp": 2,
+#     "tau_Rsp": 2,
+#     "tau_Vamv": 20,
+#     "tau_Vev": 20,
+#     "tau_Vrmv": 20,
+#     "tau_Vsv": 20,
+#     "Vu_amv0": 286.4,
+#     "Vu_ev0": 607.8,
+#     "Vu_rmv0": 190.95,
+#     "Vu_sv0": 1361.6,
+#
+#     "DT_s": 2,
+#     "DT_v": 0.2,
+#     "fsh_IC": 3.8576,
+#     "fv_IC": 4.2748,
+#     "GT_s": -0.13,
+#     "GT_v": 0.09,
+#     "T0": 0.58,
+#     "tau_Ts": 2,
+#     "tau_Tv": 1.5,
+#
+#
+#     "A0_ua": 1,
+#     "b_ua": 1,
+#     "C_ua": 0.001,
+#     "K_ua": 1,
+#     "Pcrit_min": -40,
+#     "R_AW": 0.82128,
+#     "R_CW": 0.8326,
+#     "R_L": 1.3661,
+#     "R_trachea": 1000000,
+#     "R_rs": 3.02,
+#
+#     "E_CW": 10.5,
+#     "E_L": 10.5,
+#     "E_rs": 21.9,
+#     "k_aw1": 1.85,
+#     "k_aw2": 0.43,
+#     "P_ao": 0,
+#
+#     "GV_dead": 0.1698,
+#     "Kbg": 17.4,
+#     "KcCO2": 0.2332,
+#     "KcMRV": 1,
+#     "KpCO2": 0.2025,
+#     "KpO2": 4.72e-9,
+#     "V0_dead": 0.1587,
+#     "VA_rest": 0.067,
+#
+#     "lambda1": 0.4,
+#     "lambda2": 0.05,
+#     "n": 1.101,
+#     "Pmax": 50,
+#     "Pmax_dot": 1000,
+#
+#     "a1": 0.3836,
+#     "a2": 1.219,
+#     "alpha1": 0.03198,
+#     "alpha2": 0.05591,
+#     "beta1": 0.008275,
+#     "beta2": 0.03255,
+#     "C1": 9,
+#     "C2": 40,
+#     "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359],
+#     "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579],
+#     "Fi_CO2": 0.0421,
+#     "Fi_O2": 21.0379,
+#     "K1": 13,
+#     "K2": 25,
+#     "LCTV": 0.588,
+#     "PACO2_Delay_IC": 40.4448,
+#     "dPa_CO2_dt_IC": -0.2465,
+#     "PACO2_IC": 40.9432,
+#     "d2Pa_CO2_dt2_IC": 40.3928,
+#     "PAO2_Delay_IC": 103.1223,
+#     "dPa_O2_dt_IC": 0.3557,
+#     "PAO2_IC": 102.5153,
+#     "d2Pa_O2_dt2_IC": 103.1435,
+#     "P_atm": 760,
+#     "P_ws": 47,
+#     "T1": 1,
+#     "T2": 2,
+#     "VL_CO2": 3,
+#     "VL_O2": 2.5,
+#     "Z": 0.0227,
+#     "VB": 0.9,
+#
+#     "dc": 0.015,
+#     "h": 0.0183/1000,
+#     "KCCO2": 346000,
+#     "KCSFCO2": 320,
+#     "MRBCO2": 0.0009,
+#     "MRBO2": 0.000925,
+#     "PbCO2IC": 48.5338,
+#     "SbCO2": 0.36/1000,
+#     "SCO2": 0.0043,
+#
+#     "Cv_CO2_IC": 0.5247,
+#     "Cv_O2_IC": 0.1639,
+#     "MRCO2": 0.2/60,
+#     "MRO2": 0.25/60,
+#     "MRTCO2_basal": 0.2/60,
+#     "MRTO2_basal": 0.25/60,
+#     "tauMR": 50,
+#     "VTCO2": 0.25,
+#     "VTO2": 0.25,
+#     "tau_MRV": 50,
+# }
