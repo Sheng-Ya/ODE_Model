@@ -49,7 +49,7 @@ Parameters = {
     "K1_vc": 0.15,     # Parameter for P-V curve of vena cava
     "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
     "Kr_vc": 0.001,    # Gain for vena cava flow resistance
-    "Rvc_n": 0.0025,    # Nominal vena cava flow resistance (changed to 0.0025 from 0.025 for better left atrial pressures)
+    "Rvc_n": 0.0025,    # Nominal vena cava flow resistance (changed to 0.0025 from xxx for better left atrial pressures)
     "Vu_vc": 123,      # Vena cava unstressed volume
     "Vvc_max": 350,     # Maximum volume of vena cava
     "Vvc_min": 50,      # Minimum volume of vena cava
