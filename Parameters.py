@@ -13,15 +13,15 @@ Parameters = {
 # systemic_peripheral_and_venous = {
     "C_amp": 0.315,  # Active skeletal muscle peripheral compliance
     "C_amv": 9.4,    # Active skeletal muscle venous compliance
-    "C_bp": 0.658,   # Brain peripheral compliance
+    "C_bp": 0.358,   # Brain peripheral compliance
     "C_bv": 10.71,   # Brain venous compliance
     "C_ep": 0.668,   # Extra-splanchnic peripheral compliance
     "C_ev": 20,      # Extra-splanchnic venous compliance
-    "C_hp": 0.419,   # Coronary peripheral compliance
+    "C_hp": 0.119,   # Coronary peripheral compliance
     "C_hv": 3.57,    # Coronary venous compliance
-    "C_rmp": 0.51,   # Resting skeletal muscle peripheral compliance
+    "C_rmp": 0.21,   # Resting skeletal muscle peripheral compliance
     "C_rmv": 6.28,   # Resting skeletal muscle venous compliance
-    "C_sp": 3.35,    # Splanchnic peripheral compliance
+    "C_sp": 2.05,    # Splanchnic peripheral compliance
     "C_sv": 61.11,   # Splanchnic venous compliance
     "kr_am": 24.17,  # Constant parameter
     "P_0": 3.93,     # Constant parameter
