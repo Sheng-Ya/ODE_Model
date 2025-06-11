@@ -169,7 +169,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["finish_breath_time"].append(t)
 
             # check optimisation results
-            print(f"guess: {updates["Nd"][-5:]}")
+            print(f"guess: {updates['Nd'][-5:]}")
             # check whether pressure at time t1+t2 is 0
             # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
             # check whether dV_dt = 0 at t1
