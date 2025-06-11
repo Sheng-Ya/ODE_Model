@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the results
-results = np.load('Result_HR_P_sys_P_dia_20.npy', allow_pickle=True)
+results = np.load('Result_HR_P_sys_P_dia_exercise_20_from_steady.npy', allow_pickle=True)
 
-X = np.load('X_samples_HR_P_sys_P_dia_20.npy', allow_pickle=True)
+X = np.load('X_samples_HR_P_sys_P_dia_exercise_20_from_steady.npy', allow_pickle=True)
 
 # Organize into a dict: param → {"LOW": (..), "HIGH": (..)}
 param_data = {}

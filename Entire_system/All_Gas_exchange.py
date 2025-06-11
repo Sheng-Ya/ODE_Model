@@ -165,7 +165,7 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     #     MRCO2 = 0.8/60 - 0.0009
     #     MRO2 = 0.85 / 60 - 0.000925
     #
-    # if 910 < t:
+    # if 50 < t:
     #     MRCO2 = 1/60 - 0.0009
     #     MRO2 = 1.05 / 60 - 0.000925
 
