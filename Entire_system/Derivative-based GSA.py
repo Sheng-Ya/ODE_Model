@@ -125,6 +125,15 @@ sp = ProblemSpec({
     ],
 })
 
+HR = Result[:, 0]
+HR_sorted_index = np.argsort(HR)[::-1]
+HR_sorted = HR[HR_sorted_index]
+
+fig, ax1 = plt.subplots()
+ax1.bar(range(600), HR_sorted[500:1100], label="HR", color="b")
+
+plt.show()
+
 Si = dgsm.analyze(sp, X, HR, print_to_console=True)
 
 ## Extract and sort
