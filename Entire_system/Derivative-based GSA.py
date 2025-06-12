@@ -147,7 +147,7 @@ names_1, names_2 = top_names[:mid], top_names[mid:]
 plt.figure(figsize=(10, 8))
 plt.bar(names_1, dgsm_1)
 plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("Top Half of Parameters by DGSM")
+plt.title("10 Base Points: Top Half of Parameters by DGSM for HR")
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(rotation=90)
 plt.tight_layout()
@@ -161,4 +161,34 @@ plt.title("Bottom Half of Parameters by DGSM")
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(rotation=90)
 plt.tight_layout()
+plt.show()
+
+
+
+
+# Calculate cumulative sum and total sum
+cumusum = np.cumsum(top_dgsm)
+total = cumusum[-1]
+
+# Find the index where cumulative sum reaches 95% of total
+threshold_index = np.searchsorted(cumusum, 0.95 * total) + 1  # +1 to include that index
+
+# Get variables contributing to 95% of sensitivity
+vars_95 = top_names[:threshold_index]
+sens_95 = top_dgsm[:threshold_index]
+
+print(f"Number of variables contributing 95% sensitivity: {threshold_index}")
+print("Variables:")
+for var, sens in zip(vars_95, sens_95):
+    print(f"{var}: {sens}")
+
+# Optional: Plot these variables only
+plt.figure(figsize=(10, 6))
+plt.bar(vars_95, sens_95)
+plt.xlabel("Parameters")
+plt.ylabel("DGSM Sensitivity")
+plt.title("Parameters contributing 95% of DGSM Sensitivity")
+plt.xticks(rotation=90)
+plt.tight_layout()
+plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
