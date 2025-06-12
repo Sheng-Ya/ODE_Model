@@ -151,6 +151,10 @@ def simulate_cpu(Current_Parameters, storage):
     ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
                              atol=1e-6, args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters))
 
+    if ODE_solution.status == -1:
+        # Integration failed or early termination
+        return 0.0, 0.0, 0.0
+
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
 

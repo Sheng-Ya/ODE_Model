@@ -1,6 +1,7 @@
 import numpy as np
 from SALib import ProblemSpec
 from SALib.sample import finite_diff
+from autoemulate.experimental_design import LatinHypercube
 
 from tqdm import tqdm
 import tqdm_joblib
@@ -24,7 +25,7 @@ from All_Next_Conditions import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 120) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 60) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
@@ -306,16 +307,18 @@ if __name__ == "__main__":
 
     param_keys = list(sp["names"])
 
-    # DGSM uses finite differences sampling since it is a derivative based method
-    # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 10)
+    # sample from a simulation (do this for initial training of emulator but use saltelli sampling for GSA)
+    lhd = LatinHypercube(list(sp["bounds"]))
+    X = lhd.sample(152000)
+
     param_samples = [dict(zip(param_keys, row)) for row in X]
+
     print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
 
     print(Result)
 
-    np.save('DGSM_10_X_samples_HR_P_sys_P_dia_steady.npy', X)
-    np.save('DGSM_10_Result_HR_P_sys_P_dia_steady.npy', Result)
+    np.save('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy', X)
+    np.save('LHCS_152000_Result_HR_P_sys_P_dia_rest.npy', Result)
 
