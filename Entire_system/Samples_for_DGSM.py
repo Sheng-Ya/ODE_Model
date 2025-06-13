@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from SALib import ProblemSpec
 from SALib.sample import finite_diff
@@ -194,10 +196,32 @@ def simulate_cpu(Current_Parameters, storage):
 
     return np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)
 
-def parallel_simulations(param_samples, storage, n_jobs):
-    with tqdm_joblib.tqdm_joblib(tqdm(desc="Simulations", total=len(param_samples), disable=True)) as progress_bar:
-        results = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in param_samples)
-    return results
+def chunked(iterable, n):
+    """Yield successive n-sized chunks from iterable."""
+    for i in range(0, len(iterable), n):
+        yield iterable[i:i + n]
+
+
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_chunked.npy'):
+    results_all = []
+
+    # If file exists from previous run, remove it to start fresh
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk), disable=True)):
+            results_chunk = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in chunk)
+
+        results_all.extend(results_chunk)
+
+        # # Save chunk incrementally (appending)
+        # np.save(f'result_chunk_{i:03d}.npy', results_chunk)  # individual chunks
+
+        # Optional: also accumulate in a single array
+        np.save(save_path, np.array(results_all))  # full file overwritten
+
+    return results_all
 
 
 if __name__ == "__main__":
@@ -308,7 +332,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 10)
+    X = finite_diff.sample(sp, 100)
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
 
@@ -316,6 +340,6 @@ if __name__ == "__main__":
 
     print(Result)
 
-    np.save('DGSM_10_X_samples_HR_P_sys_P_dia_steady.npy', X)
-    np.save('DGSM_10_Result_HR_P_sys_P_dia_steady.npy', Result)
+    np.save('DGSM_100_X_samples_HR_P_sys_P_dia_steady.npy', X)
+    np.save('DGSM_100_Result_HR_P_sys_P_dia_steady.npy', Result)
 
