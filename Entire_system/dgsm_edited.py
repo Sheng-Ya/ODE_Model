@@ -137,7 +137,7 @@ def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level, varia
     """v_i sensitivity measure following Sobol and Kucherenko (2009).
     For comparison, total order S_tot <= dgsm
     """
-    D = np.var((base != 0) & (perturbed != 0))
+    D = np.var(base[(base != 0) & (perturbed != 0)])
     vi = calc_vi_mean(base, perturbed, x_delta, variable)
     dgsm = vi * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
 
