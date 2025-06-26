@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 from scipy.stats import norm
 
 import numpy as np
@@ -91,15 +92,31 @@ def analyze(
         X_perturbed[:, j] = X[(j + 1) : Y_size : step, j]
         variable = S["names"][j]
 
-        # if variable == "g_ccsv":
+        # X_values = X_perturbed[:, j]
+        # Y_values = perturbed[:, j]
+
+        # if variable == "MRBCO2":
         #     A = list(X_base[4,:])
         #     AA = list(X_perturbed[4,:])
+        #
+        #     plt.figure()
+        #     plt.scatter(X_values, Y_values, alpha=0.7)
+        #     plt.xlabel(variable)
+        #     plt.ylabel("Heart Rate")
+        #     plt.title(f"Heart Rate vs {variable}")
+        #     plt.grid(True)
+        #     plt.tight_layout()
+        #     plt.show()
 
         diff = X_perturbed[:, j] - X_base[:, j]
         perturbed_j = perturbed[:, j]
-        S["vi"][j], S["vi_std"][j] = calc_vi_stats(base, perturbed_j, diff, variable)
+
+
+        mask = (base != 0) & (perturbed_j != 0)
+
+        S["vi"][j], S["vi_std"][j] = calc_vi_stats(base[mask], perturbed_j[mask], diff[mask], variable)
         S["dgsm"][j], S["dgsm_conf"][j] = calc_dgsm(
-            base, perturbed_j, diff, bounds[j], num_resamples, conf_level, variable
+            base[mask], perturbed_j[mask], diff[mask], bounds[j], num_resamples, conf_level, variable
         )
 
     if print_to_console:
@@ -116,10 +133,23 @@ def calc_vi_stats(base, perturbed, x_delta, variable):
 
     Same as calc_vi_mean but returns standard deviation as well.
     """
-    mask = (base != 0) & (perturbed != 0)
-    dfdx = ((perturbed[mask] - base[mask]) / x_delta[mask]) ** 2
+    dfdx = ((perturbed - base) / x_delta) ** 2
 
-    return np.mean(dfdx), np.std(dfdx)
+    # Calculate mean and std of all values
+    mean_dfdx = np.mean(dfdx)
+    std_dfdx = np.std(dfdx)
+
+    # Keep values within 2 standard deviations from the mean
+    mask = np.abs(dfdx - mean_dfdx) <= 2 * std_dfdx
+    dfdx_filtered = dfdx[mask]
+
+    # A =  np.mean(dfdx)
+    # AA = np.std(dfdx)
+    # AAA = np.mean(dfdx_filtered)
+    # AAAA = np.std(dfdx_filtered)
+
+    return np.mean(dfdx_filtered), np.std(dfdx_filtered)
+    # return np.mean(dfdx), np.std(dfdx)
 
 
 def calc_vi_mean(base, perturbed, x_delta, variable):
@@ -127,31 +157,37 @@ def calc_vi_mean(base, perturbed, x_delta, variable):
 
     Same as calc_vi_stats but only returns the mean.
     """
-    mask = (base != 0) & (perturbed != 0)
-    dfdx = ((perturbed[mask] - base[mask]) / x_delta[mask]) ** 2
+    dfdx = ((perturbed - base) / x_delta) ** 2
 
-    return dfdx.mean()
+    # Calculate mean and std of all values
+    mean_dfdx = np.mean(dfdx)
+    std_dfdx = np.std(dfdx)
+
+    # Keep values within 2 standard deviations from the mean
+    mask = np.abs(dfdx - mean_dfdx) <= std_dfdx
+    dfdx_filtered = dfdx[mask]
+
+    return np.mean(dfdx_filtered)
+    # return dfdx.mean()
 
 
 def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level, variable):
     """v_i sensitivity measure following Sobol and Kucherenko (2009).
     For comparison, total order S_tot <= dgsm
     """
-    D = np.var(base[(base != 0) & (perturbed != 0)])
-    vi = calc_vi_mean(base, perturbed, x_delta, variable)
+    D = np.var(base)
+    vi, vi_std = calc_vi_stats(base, perturbed, x_delta, variable)
     dgsm = vi * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
 
-    len_base = len(base[(base != 0) & (perturbed != 0)])
+    len_base = len(base)
     s = np.empty(num_resamples)
     r = np.random.randint(len_base, size=(num_resamples, len_base))
 
-    base_exclude_zero = base[(base != 0) & (perturbed != 0)]
-    perturbed_exclude_zero = perturbed[(base != 0) & (perturbed != 0)]
-    x_delta_exclude_zero = x_delta[(base != 0) & (perturbed != 0)]
-
     for i in range(num_resamples):
         r_i = r[i]
-        s[i] = calc_vi_mean(base_exclude_zero[r_i], perturbed_exclude_zero[r_i], x_delta_exclude_zero[r_i], variable)
+        # s[i] = calc_vi_mean(base[r_i], perturbed[r_i], x_delta[r_i], variable)
+        mean_value = calc_vi_mean(base[r_i], perturbed[r_i], x_delta[r_i], variable)
+        s[i] = mean_value * (bounds[1] - bounds[0]) ** 2 / (D * np.pi ** 2)
 
     return dgsm, norm.ppf(0.5 + conf_level / 2.0) * s.std(ddof=1)
 
