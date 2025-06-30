@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
 
 from Gas_Exchange import gas_exchange
+from Parameters import Parameters
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 
 
@@ -18,22 +19,11 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     (VE_integral) = state[0].item()
 
-    GV_dead = params["GV_dead"]
-    Kbg = params["Kbg"]
-    KcCO2 = params["KcCO2"]
-    KcMRV = params["KcMRV"]
-    KpCO2 = params["KpCO2"]
-    KpO2 = params["KpO2"]
-    V0_dead = params["V0_dead"]
-    VA_rest = params["VA_rest"]
-    lambda1 = params["lambda1"]
-    lambda2 = params["lambda2"]
-    n = params["n"]
-    Pmax = params["Pmax"]
-    Pmax_dot = params["Pmax_dot"]
-    E_rs = params["E_rs"]
-    R_rs = params["R_rs"]
-    P_ao = params["P_ao"]
+    (GV_dead, Kbg, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
+        (params[k] if k in params else Parameters[k] for k in [
+            "GV_dead", "Kbg", "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "lambda1", "lambda2", "n",
+            "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"
+        ])
 
 
     if t == t_start:

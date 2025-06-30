@@ -1,34 +1,27 @@
-from SALib import ProblemSpec
-from SALib.plotting.bar import plot as barplot
-# from SALib.analyze import dgsm
-import dgsm_edited as dgsm
-import matplotlib.pyplot as plt
 import numpy as np
+from SALib import ProblemSpec
 
-# X_original = np.load('DGSM_10_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-# Result_original = np.load('DGSM_10_Result_HR_P_sys_P_dia_steady_remove.npy')
+from SALib.plotting.bar import plot as barplot
+from SALib.analyze import dgsm
+import matplotlib.pyplot as plt
+
+
+X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:, 0]
 #
-# mask = ~np.all(Result_original == 0, axis=1)
+# X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+# Result_500 = np.load('LHC_emulator_DGSM_500_result.npy')
+
+# X_250 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+# Result_250 = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')[:, 0]
 #
-# X = X_original[mask]
-# Result = Result_original[mask]
+# Result_250 = np.insert(Result_250, 41374, [[0]], axis=0)
 
-X1 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result1 = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')
-X_orig_base = X1[0::184, :]
-Result_orig_base = Result1[0::184, :]
-A = list(X1)
 
-X_base = np.load('DGSM_500_base_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_base = np.load('DGSM_500_base_Result_HR_P_sys_P_dia_steady_remove.npy')
-AA = list(Result_base)
 
-Result_base_success = Result_base[Result_base[:,0] != 0]
-X_base_success = X_base[Result_base[:,0] != 0]
-AA = list(X_base_success)
+HR_500 = Result_500
+# HR_250 = Result_250
 
-HR = Result1[:, 0]
-A = list(HR)
 
 lower = 0.8
 upper = 1.2
@@ -68,7 +61,7 @@ sp = ProblemSpec({
         [0.1698 * lower, 0.1698 * upper], [17.4 * lower, 17.4 * upper], [0.2332 * lower, 0.2332 * upper],
         [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [50 * lower, 50 * upper],
-        [1000 * lower, 1000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+        [5000 * lower, 5000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
         # cardio
         [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
         [0.315 * lower, 0.315 * upper], [9.4 * lower, 9.4 * upper], [0.358 * lower, 0.358 * upper],
@@ -116,7 +109,7 @@ sp = ProblemSpec({
         [1.655 * lower, 1.655 * upper],    [5.27 * lower, 5.27 * upper],
         [2.49 * lower, 2.49 * upper],    [(1/60) * lower, (1/60) * upper],
         [1 * lower, 1 * upper],    [1.5 * lower, 1.5 * upper],
-        [0 * lower, 0.1 * upper],    [6 * lower, 6 * upper],
+        [0.1 * lower, 0 * upper],    [6 * lower, 6 * upper],
         [2 * lower, 2 * upper],    [2 * lower, 2 * upper],
         [45 * lower, 45 * upper],    [30 * lower, 30 * upper],
         [30 * lower, 30 * upper],    [3.6 * lower, 3.6 * upper],
@@ -146,79 +139,111 @@ sp = ProblemSpec({
     ],
 })
 
-# HR = Result[:, 0]
-# HR_sorted_index = np.argsort(HR)[::-1]
-# HR_sorted = HR[HR_sorted_index]
-#
-# fig, ax1 = plt.subplots()
-# ax1.bar(range(600), HR_sorted[500:1100], label="HR", color="b")
-#
-# plt.show()
+def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
 
-Si = dgsm.analyze(sp, X, HR, print_to_console=True)
+    D = problem["num_vars"]
+    Y_size = Y.size
 
-## Extract and sort
-dgsm = np.array(Si['dgsm'])
-names = np.array(Si['names'])
+    if Y_size % (D + 1) == 0:
+        N = int(Y_size / (D + 1))
 
-dgsm_sorted = np.argsort(dgsm)[::-1]  # descending order
-top_dgsm = dgsm[dgsm_sorted]
-top_names = names[dgsm_sorted]
+    dims = (N, D)
+    base = np.empty(N)
+    X_base = np.empty(dims)
+    perturbed = np.empty(dims)
+    X_perturbed = np.empty(dims)
+    step = D + 1
 
-# top_dgsm = top_dgsm[7:]
-# top_names = top_names[7:]
+    base = Y[0:Y_size:step]
+    X_base = X[0:Y_size:step, :]
 
-# Split the sorted arrays in half
-mid = len(top_dgsm) // 2
-dgsm_1, dgsm_2 = top_dgsm[:mid], top_dgsm[mid:]
-names_1, names_2 = top_names[:mid], top_names[mid:]
+    for j in range(D):
+        perturbed[:, j] = Y[(j + 1): Y_size: step]
+        X_perturbed[:, j] = X[(j + 1): Y_size: step, j]
 
-# Plot first half
-plt.figure(figsize=(10, 8))
-plt.bar(names_1, np.log(dgsm_1))
-plt.xlabel("Log Sensitivity Index (DGSM)")
-plt.title("HR DGSM 250 BP exercise pt 1")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.show()
+    plots_per_figure = 20
+    rows, cols = 4, 5  # 4x5 grid = 20 plots
 
-# Plot second half
-plt.figure(figsize=(10, 8))
-plt.bar(names_2, dgsm_2)
-plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM 250 BP exercise pt 2")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.show()
+    for i in range(0, D, plots_per_figure):
+        fig, axes = plt.subplots(rows, cols, figsize=(36, 12))
+        # plt.get_current_fig_manager().full_screen_toggle()
+        axes = axes.flatten()
+
+        for k, j in enumerate(range(i, min(i + plots_per_figure, D))):
+            variable = problem["names"][j]
+            X_values = X_perturbed[:, j]
+            Y_values = perturbed[:, j]
+            X_base_param = X_base[:, j]
+
+            # Remove zeros (optional filtering)
+            mask = (X_values != 0) & (Y_values != 0)
+
+            x_base = X_base_param[mask]
+            y_base = base[mask]
+            x_pert = X_values[mask]
+            y_pert = Y_values[mask]
+
+            # add second mask for too large dfdx
+            dfdx = ((y_pert - y_base) / (x_pert - x_base)) ** 2
+
+            # Calculate mean and std of all values
+            mean_dfdx = np.mean(dfdx)
+            std_dfdx = np.std(dfdx)
+            # mean_dfdx = np.mean(((y_pert - y_base) ** 2))
+            # std_dfdx = np.std(((y_pert - y_base) ** 2))
+
+            # Keep values within 2 standard deviations from the mean
+            mask2 = np.abs(dfdx - mean_dfdx) <= 2 * std_dfdx
+            # mask2 = np.abs(((y_pert - y_base) ** 2) - mean_dfdx) <= 2 * std_dfdx
+
+            x_base1 = x_base[mask2]
+            y_base1 = y_base[mask2]
+            x_pert1 = x_pert[mask2]
+            y_pert1 = y_pert[mask2]
+
+            valid_points = set(zip(x_base1, y_base1))
 
 
 
 
-# Calculate cumulative sum and total sum
-cumusum = np.cumsum(top_dgsm)
-total = cumusum[-1]
 
-# Find the index where cumulative sum reaches 95% of total
-threshold_index = np.searchsorted(cumusum, 0.95 * total) + 1  # +1 to include that index
+            axes[k].scatter(x_pert, y_pert, alpha=0.7, s=10, label="Perturbed")
+            axes[k].scatter(x_base, y_base, alpha=0.7, s=10, label="Base")
 
-# Get variables contributing to 95% of sensitivity
-vars_95 = top_names[:threshold_index]
-sens_95 = top_dgsm[:threshold_index]
+            # Draw arrows from base to perturbed points
+            for xb, yb, xp, yp in zip(x_base, y_base, x_pert, y_pert):
+                if abs(yp - yb) > 0.02:
+                    color = "k" if (xb, yb) in valid_points else "r"  # light red
+                    axes[k].annotate(
+                        "",
+                        xy=(xp, yp),  # Arrow head (perturbed)
+                        xytext=(xb, yb),  # Arrow tail (base)
+                        arrowprops=dict(arrowstyle="->", color=color, lw=1, alpha=0.6),
+                    )
 
-print(f"Number of variables contributing 95% sensitivity: {threshold_index}")
-print("Variables:")
-for var, sens in zip(vars_95, sens_95):
-    print(f"{var}: {sens}")
+            axes[k].set_title(f"{variable}", fontsize=10)
+            axes[k].set_xlabel(variable, fontsize=8)
+            axes[k].set_ylabel("Heart Rate", fontsize=8)
+            axes[k].grid(True)
 
-# Optional: Plot these variables only
-plt.figure(figsize=(10, 6))
-plt.bar(vars_95, sens_95)
-plt.xlabel("Parameters")
-plt.ylabel("DGSM Sensitivity")
-plt.title("Parameters contributing 95% of DGSM Sensitivity")
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.show()
+        # Turn off unused subplots
+        for k in range(j - i + 1, plots_per_figure):
+            axes[k].axis("off")
+
+        plt.tight_layout()
+        plt.suptitle(f"Heart Rate vs Parameters {i + 1}–{min(i + plots_per_figure, D)}", fontsize=14, y=1.02)
+        plt.subplots_adjust(top=0.92)
+        plt.show()
+
+    return None  # or return something if needed
+
+
+
+
+Si_500 = result_range(sp, X_500, HR_500)
+# Si_250 = result_range(sp, X_250, HR_250)
+
+
+
+
+

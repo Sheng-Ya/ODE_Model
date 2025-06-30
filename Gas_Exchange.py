@@ -1,5 +1,9 @@
 import bisect
 import numpy as np
+
+from Parameters import Parameters
+
+
 # from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 
 
@@ -13,27 +17,15 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
      dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV) = state
 
     # Gas Exchange and Mixing
-    a2 = params["a2"]
-    alpha1 = params["alpha1"]
-    alpha2 = params["alpha2"]
-    beta1 = params["beta1"]
-    beta2 = params["beta2"]
-    C2 = params["C2"]
-    Fi_CO2 = params["Fi_CO2"]
-    Fi_O2 = params["Fi_O2"]
-    K1 = params["K1"]
-    K2 = params["K2"]
-    LCTV = params["LCTV"]
-    PACO2_Delay_IC = params["PACO2_Delay_IC"]
-    PAO2_Delay_IC = params["PAO2_Delay_IC"]
-    P_atm = params["P_atm"]
-    P_ws = params["P_ws"]
-    T1 = params["T1"]
-    T2 = params["T2"]
-    VL_CO2 = params["VL_CO2"]
-    VL_O2 = params["VL_O2"]
-    Z = params["Z"]
-    s = 0.04
+    (a2, alpha1, alpha2, beta1, beta2, C2, Fi_CO2, Fi_O2, K1, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
+     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = \
+        (params[k] if k in params else Parameters[k] for k in [
+            "a2", "alpha1", "alpha2", "beta1", "beta2", "C2", "Fi_CO2", "Fi_O2", "K1", "K2", "PACO2_Delay_IC",
+            "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
+            "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s",
+            "Ta"
+        ])
 
     if t == t_start:
         heart_index = i % BUFFER_LIMIT
@@ -158,23 +150,15 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
 
     # Gas transport
     # Brain
-    dc = params["dc"]
-    KCCO2 = params["KCCO2"]
-    KCSFCO2 = params["KCSFCO2"]
-    MRBCO2 = params["MRBCO2"]
-    MRBO2 = params["MO2_bp"]/1000
-    VB = params["VB"]
+    MRBO2 = MO2_bp/1000
 
     # Body Tissues Compartment
-    MRTCO2_basal = params["MRTCO2_basal"] - params["MRBCO2"]
-    MRTO2_basal = params["MRTO2_basal"] - params["MO2_bp"]/1000
-    tauMR = params["tauMR"]
-    VTCO2 = params["VTCO2"]
-    VTO2 = params["VTO2"]
+    MRTCO2_basal = MRTCO2_basal - MRBCO2
+    MRTO2_basal = MRTO2_basal - MO2_bp / 1000
 
     # exercise
-    MRCO2 = params["MRCO2"] - params["MRBCO2"]
-    MRO2 = params["MRO2"] - params["MO2_bp"]/1000
+    MRCO2 = MRCO2 - MRBCO2
+    MRO2 = MRO2 - MO2_bp / 1000
 
     # if 300 < t <= 400:
     #     MRCO2 = 0.4/60 - 0.0009
@@ -188,9 +172,9 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     #     MRCO2 = 0.8/60 - 0.0009
     #     MRO2 = 0.85 / 60 - 0.000925
     #
-    # if 300 < t:
-    #     MRCO2 = 1/60 - 0.0009
-    #     MRO2 = 1.05 / 60 - 0.000925
+    if 120 < t:
+        MRCO2 = 1/60 - 0.0009
+        MRO2 = 1.05 / 60 - 0.000925
 
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure
@@ -241,7 +225,6 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     # dPvbCO2_dt = (MRBCO2 + Q_bp * SCO2 * (Pa_CO2 - PvbCO2) - h) / SbCO2
     dPCSFCO2_dt = (PvbCO2 - PCSFCO2) / KCSFCO2
 
-    tau_MRV = params["tau_MRV"]
     dMRTO2_dt = (MRO2 - MRTO2) / tauMR
     dMRTCO2_dt = (MRCO2 - MRTCO2) / tauMR
 

@@ -1,21 +1,27 @@
 import numpy as np
 from SALib import ProblemSpec
 from SALib.plotting.bar import plot as barplot
-from SALib.analyze import dgsm
+# from SALib.analyze import dgsm
 import matplotlib.pyplot as plt
 import dgsm_edited as dgsm
 
 # X_4 = np.load('DGSM_4_X_samples_HR_P_sys_P_dia_steady.npy')
 # Result_4 = np.load('DGSM_4_Result_HR_P_sys_P_dia_steady.npy')
 
-X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove.npy')
+# X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+# Result_500 = np.load('LHC_emulator_DGSM_500_result.npy')
 
-X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
+X_250 = np.load('DGSM_1000_X_samples_HR.npy')
+Result_250 = np.load('LHC_hyper_emulator_DGSM_1000_result.npy')
+
+X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:, 0]
+
+# X_500 = np.load('DGSM_1000_X_samples_HR.npy')
+# Result_500 = np.load('LHC_emulator_DGSM_1000_result.npy')
 
 # X_250 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-# Result_250 = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')
+# Result_250 = np.load('LHC_emulator_DGSM_250_result.npy')
 
 # Result_250 = np.insert(Result_250, 41374, [[0, 0, 0]], axis=0)
 # X_linear =  np.load('Linear_X_samples_HR_P_sys_P_dia_vary_by_20_steady.npy', allow_pickle=True)
@@ -23,8 +29,8 @@ Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
 #41374
 
 # HR_4 = Result_4[:, 0]
-HR_500 = Result_500[:, 0]
-HR_250 = Result_250[:, 0]
+HR_500 = Result_500
+HR_250 = Result_250
 # HR_linear = Result_linear[:, 0]
 
 lower = 0.8
@@ -204,8 +210,8 @@ fig, ax = plt.subplots(figsize=(8, 12))
 # ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500', xerr=log_conf_500_top)
 ax.barh(x + width/2, si_500_top, width, label='DGSM_500', xerr=conf_500_top)
 ax.barh(x - width/2, si_250_top, width, label='DGSM_250', xerr=conf_250_top)
-# ax.barh(x - width/2, np.log(si_250_top), width, label='DGSM_250')
-# ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500')
+# ax.barh(x - width/2, si_250_top, width, label='DGSM_250')
+# ax.barh(x + width/2, si_500_top, width, label='DGSM_500')
 
 
 ax.set_xlabel('log(Sensitivity Index (Si))')
@@ -246,17 +252,16 @@ width = 0.35
 fig, ax = plt.subplots(figsize=(8, 12))
 ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500', xerr=conf_500_bottom)
 ax.barh(x - width/2, si_250_bottom, width, label='DGSM_250', xerr=conf_250_bottom)
-# ax.barh(x - width/2, np.log(si_250_bottom), width, label='DGSM_250')
-# ax.barh(x + width/2, np.log(si_500_bottom), width, label='DGSM_500')
+# ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500')
+# ax.barh(x - width/2, si_250_bottom, width, label='DGSM_250')
 
 ax.set_xlabel('Sensitivity Index (Si)')
 ax.set_title('Bottom 30 DGSM Sensitivities for HR at 250 and 500 Base Points')
 ax.set_yticks(x)
 ax.set_yticklabels(labels)
+ax.invert_yaxis()  # Least influential at top
 ax.legend()
 plt.tight_layout()
-ax.set_ylim(x.min() - width, x.max() + width)
-ax.invert_yaxis()  # Least influential at top
 plt.show()
 
 

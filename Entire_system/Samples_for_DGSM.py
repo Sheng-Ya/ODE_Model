@@ -24,9 +24,11 @@ from Selected_Conditions import Selected_Conditions as previous_Selected_Conditi
 from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import Next_Conditions
 
+from Parameters_test import Parameters as Para
+
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 120) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 60) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
@@ -202,7 +204,7 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_chunked.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=10, save_path='Result_DGSM_chunked.npy'):
     results_all = []
 
     # If file exists from previous run, remove it to start fresh
@@ -210,7 +212,7 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_p
         os.remove(save_path)
 
     for i, chunk in enumerate(chunked(param_samples, chunk_size)):
-        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk), disable=True)):
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk))):
             results_chunk = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in chunk)
 
         results_all.extend(results_chunk)
@@ -332,14 +334,17 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 100)
-    param_samples = [dict(zip(param_keys, row)) for row in X]
+    X = finite_diff.sample(sp, 10)
+    # param_samples = [dict(zip(param_keys, row)) for row in X]
+    param_samples = [Para]
     print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
 
     print(Result)
 
-    np.save('DGSM_100_X_samples_HR_P_sys_P_dia_steady.npy', X)
-    np.save('DGSM_100_Result_HR_P_sys_P_dia_steady.npy', Result)
+    # np.save('DGSM_100_X_samples_HR_P_sys_P_dia_steady.npy', X)
+    # np.save('DGSM_100_Result_HR_P_sys_P_dia_steady.npy', Result)
+    np.save('DGSM_test_X.npy', X)
+    np.save('DGSM_test_result.npy', Result)
 

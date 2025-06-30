@@ -1,9 +1,14 @@
+import os
+
 import numpy as np
+import tqdm_joblib
 
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
+from tqdm import tqdm
+
 from All_Parameter_ranges import parameters as parameters_change
 
 from All_Cardiovascular_controller import cardiovascular_controller
@@ -89,11 +94,11 @@ def combined_system(t, Initial_Conditions_numpy, Current_Parameters, Initial_Con
     Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
 
-    # Debugging check for progress
-    if t != 0:
-        diff = np.abs(t - target_values)
-        if np.any(diff < 0.0001):
-            print(t)
+    # # Debugging check for progress
+    # if t != 0:
+    #     diff = np.abs(t - target_values)
+    #     if np.any(diff < 0.0001):
+    #         print(t)
 
     return d_combined
 
@@ -188,13 +193,49 @@ def simulate_cpu(Current_Parameters, storage):
                 break
 
     return np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)
+#
+# def parallel_simulations(param_samples, sample_descriptions, storage, n_jobs):
+#     results = Parallel(n_jobs=n_jobs)(
+#         delayed(lambda params, desc: (desc, simulate_cpu(params, storage)))(params, desc)
+#         for params, desc in zip(param_samples, sample_descriptions)
+#     )
+#     return results
 
-def parallel_simulations(param_samples, sample_descriptions, storage, n_jobs):
-    results = Parallel(n_jobs=n_jobs)(
-        delayed(lambda params, desc: (desc, simulate_cpu(params, storage)))(params, desc)
-        for params, desc in zip(param_samples, sample_descriptions)
-    )
-    return results
+# def chunked(iterable, n):
+#     """Yield successive n-sized chunks from iterable."""
+#     for i in range(0, len(iterable), n):
+#         yield iterable[i:i + n]
+
+def chunked(iterable1, iterable2, n):
+    """Yield successive n-sized chunks from two iterables."""
+    for i in range(0, len(iterable1), n):
+        yield iterable1[i:i + n], iterable2[i:i + n]
+
+
+def parallel_simulations(param_samples, sample_descriptions, storage, n_jobs, chunk_size=240, save_path='Result_DGSM_chunked.npy'):
+    results_all = []
+
+    # If file exists from previous run, remove it to start fresh
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    # for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+    #     with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk))):
+    #         results_chunk = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in chunk)
+
+    for i, (param_chunk, desc_chunk) in enumerate(chunked(param_samples, sample_descriptions, chunk_size)):
+
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(param_chunk))):
+            results_chunk = Parallel(n_jobs=n_jobs)(
+                delayed(lambda params, desc: (desc, simulate_cpu(params, storage)))(params, desc)
+                for params, desc in zip(param_chunk, desc_chunk)
+            )
+
+        results_all.extend(results_chunk)
+        np.save(save_path, np.array(results_all, dtype=object))  # dtype=object to store tuples properly
+
+
+    return results_all
 
 
 if __name__ == "__main__":
@@ -217,6 +258,12 @@ if __name__ == "__main__":
     # Create OAT samples
     param_samples = []
     sample_descriptions = []
+
+    nominal_sample = [nominal_values[k] for k in param_keys]
+    param_samples.append(nominal_sample)
+    sample_descriptions.append("NOMINAL")
+
+
     for key, (high, low) in parameters_change.items():
         # High sample
         high_sample = [nominal_values[k] if k != key else high for k in param_keys]
@@ -228,8 +275,21 @@ if __name__ == "__main__":
         param_samples.append(low_sample)
         sample_descriptions.append(f"{key} LOW")
 
+        # 25% sample
+        q25 = low + 0.25 * (high - low)
+        q25_sample = [nominal_values[k] if k != key else q25 for k in param_keys]
+        param_samples.append(q25_sample)
+        sample_descriptions.append(f"{key} Q25")
+
+        # 75% sample
+        q75 = low + 0.75 * (high - low)
+        q75_sample = [nominal_values[k] if k != key else q75 for k in param_keys]
+        param_samples.append(q75_sample)
+        sample_descriptions.append(f"{key} Q75")
+
     # Convert to NumPy array (same type/shape as lhd.sample(1000))
     X_oat = np.array(param_samples)
+    np.save('X_samples_HR_P_sys_P_dia_box_linear.npy', X_oat)
 
     # Print the order
     print("Simulation order:")
@@ -243,6 +303,5 @@ if __name__ == "__main__":
 
     print(Result)
 
-    np.save('X_samples_HR_P_sys_P_dia_test.npy', X_oat)
-    np.save('Result_HR_P_sys_P_dia_test.npy', np.array(Result, dtype=object))
+    np.save('Result_HR_P_sys_P_dia_box_linear.npy', np.array(Result, dtype=object))
 

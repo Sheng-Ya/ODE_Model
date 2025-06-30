@@ -1,34 +1,21 @@
+import numpy as np
 from SALib import ProblemSpec
 from SALib.plotting.bar import plot as barplot
 # from SALib.analyze import dgsm
-import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
-import numpy as np
+import dgsm_edited as dgsm
 
-# X_original = np.load('DGSM_10_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-# Result_original = np.load('DGSM_10_Result_HR_P_sys_P_dia_steady_remove.npy')
-#
-# mask = ~np.all(Result_original == 0, axis=1)
-#
-# X = X_original[mask]
-# Result = Result_original[mask]
 
-X1 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result1 = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')
-X_orig_base = X1[0::184, :]
-Result_orig_base = Result1[0::184, :]
-A = list(X1)
 
-X_base = np.load('DGSM_500_base_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_base = np.load('DGSM_500_base_Result_HR_P_sys_P_dia_steady_remove.npy')
-AA = list(Result_base)
+X_rest = np.load('DGSM_100_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+Result_rest = np.load('DGSM_100_Result_HR_P_sys_P_dia_steady_remove.npy')
 
-Result_base_success = Result_base[Result_base[:,0] != 0]
-X_base_success = X_base[Result_base[:,0] != 0]
-AA = list(X_base_success)
+X_exercise =  np.load('DGSM_100_X_samples_HR_P_sys_P_dia_exercise_remove.npy', allow_pickle=True)
+Result_exercise = np.load('DGSM_100_Result_HR_P_sys_P_dia_exercise_remove.npy', allow_pickle=True)
 
-HR = Result1[:, 0]
-A = list(HR)
+
+HR_rest = Result_rest[:, 0]
+HR_exercise = Result_exercise[:, 0]
 
 lower = 0.8
 upper = 1.2
@@ -116,7 +103,7 @@ sp = ProblemSpec({
         [1.655 * lower, 1.655 * upper],    [5.27 * lower, 5.27 * upper],
         [2.49 * lower, 2.49 * upper],    [(1/60) * lower, (1/60) * upper],
         [1 * lower, 1 * upper],    [1.5 * lower, 1.5 * upper],
-        [0 * lower, 0.1 * upper],    [6 * lower, 6 * upper],
+        [0.1 * lower, 0 * upper],    [6 * lower, 6 * upper],
         [2 * lower, 2 * upper],    [2 * lower, 2 * upper],
         [45 * lower, 45 * upper],    [30 * lower, 30 * upper],
         [30 * lower, 30 * upper],    [3.6 * lower, 3.6 * upper],
@@ -146,79 +133,267 @@ sp = ProblemSpec({
     ],
 })
 
-# HR = Result[:, 0]
-# HR_sorted_index = np.argsort(HR)[::-1]
-# HR_sorted = HR[HR_sorted_index]
-#
-# fig, ax1 = plt.subplots()
-# ax1.bar(range(600), HR_sorted[500:1100], label="HR", color="b")
-#
-# plt.show()
+Si_rest = dgsm.analyze(sp, X_rest, HR_rest, print_to_console=True)
+Si_exercise = dgsm.analyze(sp, X_exercise, HR_exercise, print_to_console=True)
 
-Si = dgsm.analyze(sp, X, HR, print_to_console=True)
 
 ## Extract and sort
-dgsm = np.array(Si['dgsm'])
-names = np.array(Si['names'])
+dgsm_rest = np.array(Si_rest['dgsm'])
+names_rest = np.array(Si_rest['names'])
+dgsm_exercise = np.array(Si_exercise['dgsm'])
+names_exercise = np.array(Si_exercise['names'])
 
-dgsm_sorted = np.argsort(dgsm)[::-1]  # descending order
-top_dgsm = dgsm[dgsm_sorted]
-top_names = names[dgsm_sorted]
 
-# top_dgsm = top_dgsm[7:]
-# top_names = top_names[7:]
 
-# Split the sorted arrays in half
-mid = len(top_dgsm) // 2
-dgsm_1, dgsm_2 = top_dgsm[:mid], top_dgsm[mid:]
-names_1, names_2 = top_names[:mid], top_names[mid:]
+# rank by most influential
+dgsm_rest_sorted = dgsm_rest[np.argsort(dgsm_rest)[::-1]]
+names_rest_sorted = names_rest[np.argsort(dgsm_rest)[::-1]]
+dgsm_exercise_sorted = dgsm_exercise[np.argsort(dgsm_exercise)[::-1]]
+names_exercise_sorted = names_exercise[np.argsort(dgsm_exercise)[::-1]]
 
-# Plot first half
-plt.figure(figsize=(10, 8))
-plt.bar(names_1, np.log(dgsm_1))
-plt.xlabel("Log Sensitivity Index (DGSM)")
-plt.title("HR DGSM 250 BP exercise pt 1")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation=90)
+N = 30 # Change to how many variables to examine
+
+# Get top N names and their Si values at rest
+most_important_names = names_rest_sorted[:N]
+si_rest_top = dgsm_rest_sorted[:N]
+
+# Get corresponding Si values for exercise (in the same order as rest's top N)
+# Make a dictionary for fast lookup
+exercise_dict = dict(zip(names_exercise, dgsm_exercise))
+si_exercise_top = np.array([exercise_dict[name] for name in most_important_names])
+
+# X-axis labels
+labels = most_important_names
+x = np.arange(len(labels))
+width = 0.35
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 12))
+ax.barh(x - width/2, np.log(si_rest_top), width, label='Rest')
+ax.barh(x + width/2, np.log(si_exercise_top), width, label='Exercise')
+
+ax.set_xlabel('log(Sensitivity Index (Si))')
+ax.set_title('Top DGSM Sensitivities for HR at Rest and Exercise')
+ax.set_yticks(x)
+ax.set_yticklabels(labels)
+ax.invert_yaxis()  # Most influential at top
+ax.legend()
 plt.tight_layout()
 plt.show()
 
-# Plot second half
-plt.figure(figsize=(10, 8))
-plt.bar(names_2, dgsm_2)
-plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM 250 BP exercise pt 2")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation=90)
+
+
+
+
+# Define range for next 50 most influential parameters
+start_idx = 133
+end_idx = 183
+
+# Get next 50 parameter names and Si values at rest
+next_important_names = names_rest_sorted[start_idx:end_idx]
+si_rest_next = dgsm_rest_sorted[start_idx:end_idx]
+
+# Get corresponding Si values for exercise
+si_exercise_next = np.array([exercise_dict[name] for name in next_important_names])
+
+# X-axis labels
+labels_next = next_important_names
+x_next = np.arange(len(labels_next))
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 14))
+ax.barh(x_next - width/2, si_rest_next, width, label='Rest')
+ax.barh(x_next + width/2, si_exercise_next, width, label='Exercise')
+
+ax.set_xlabel('Sensitivity Index')
+ax.set_title('DGSM Sensitivities for HR (last 50 parameters)')
+ax.set_yticks(x_next)
+ax.set_yticklabels(labels_next)
+ax.invert_yaxis()  # So more important parameters are higher up
+ax.legend()
 plt.tight_layout()
 plt.show()
 
 
 
 
-# Calculate cumulative sum and total sum
-cumusum = np.cumsum(top_dgsm)
-total = cumusum[-1]
 
-# Find the index where cumulative sum reaches 95% of total
-threshold_index = np.searchsorted(cumusum, 0.95 * total) + 1  # +1 to include that index
 
-# Get variables contributing to 95% of sensitivity
-vars_95 = top_names[:threshold_index]
-sens_95 = top_dgsm[:threshold_index]
 
-print(f"Number of variables contributing 95% sensitivity: {threshold_index}")
-print("Variables:")
-for var, sens in zip(vars_95, sens_95):
-    print(f"{var}: {sens}")
 
-# Optional: Plot these variables only
-plt.figure(figsize=(10, 6))
-plt.bar(vars_95, sens_95)
-plt.xlabel("Parameters")
-plt.ylabel("DGSM Sensitivity")
-plt.title("Parameters contributing 95% of DGSM Sensitivity")
-plt.xticks(rotation=90)
+
+
+
+
+def get_ranks(names_reference, target_names):
+    return [np.where(names_reference == name)[0][0] + 1 for name in target_names]  # +1 for 1-based rank
+
+N = 50 # Change to how many variables to examine
+
+# plot most influential
+most_important_names = names_rest_sorted[:N]
+
+# Create a name → rank mapping for DGSM_250
+dgsm_rest_ranks = {name: rank + 1 for rank, name in enumerate(names_rest_sorted)}
+
+# Sort least_important_names by their DGSM_250 rank (ascending = least to most influential)
+most_important_names_sorted = most_important_names
+
+# Update all relevant lists in the same order
+ranks_exercise = get_ranks(names_exercise_sorted, most_important_names_sorted)
+ranks_rest = get_ranks(names_rest_sorted, most_important_names_sorted)
+
+# X-axis labels with DGSM_250 rank
+labels = [f"{name} ({dgsm_rest_ranks[name]})" for name in most_important_names_sorted]
+
+
+# X-axis labels
+labels = most_important_names
+x = np.arange(len(labels))
+width = 0.35
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 12))
+ax.barh(x - width/2, ranks_rest, width, label='Rest', color='lightblue')
+ax.barh(x + width/2, ranks_exercise, width, label='Exercise', color='#ff7f0e')
+
+ax.set_xlabel('Ranks')
+ax.set_title('Top DGSM Sensitivities for HR at Rest and Exercise')
+ax.set_yticks(x)
+ax.set_yticklabels(labels)
+ax.invert_yaxis()  # Most influential at top
+ax.legend()
 plt.tight_layout()
-plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
+
+
+
+
+
+
+
+
+
+
+# Number of parameters to plot
+N = 50
+
+# Select the least influential parameters (last N from sorted list)
+least_important_names = names_rest_sorted[-N:]
+
+# Create a name → rank mapping from the rest condition
+dgsm_rest_ranks = {name: rank + 1 for rank, name in enumerate(names_rest_sorted)}
+
+# Get ranks in both conditions
+ranks_rest_least = get_ranks(names_rest_sorted, least_important_names)
+ranks_exercise_least = get_ranks(names_exercise_sorted, least_important_names)
+
+# Labels with ranks for better readability
+labels_least = [f"{name} ({dgsm_rest_ranks[name]})" for name in least_important_names]
+
+# X-axis setup
+x = np.arange(len(labels_least))
+width = 0.35
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 14))
+ax.barh(x - width/2, ranks_rest_least, width, label='Rest', color='lightblue')
+ax.barh(x + width/2, ranks_exercise_least, width, label='Exercise', color='#ff7f0e')
+
+ax.set_xlabel('Rank (lower = more influential)')
+ax.set_title('Ranks of Least Influential DGSM Parameters for HR')
+ax.set_yticks(x)
+ax.set_yticklabels(labels_least)
+ax.invert_yaxis()  # So lower ranks appear higher
+ax.legend()
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
+# # Linear fitting variables interpreted
+# # Organize into a dict: param → {"LOW": (..), "HIGH": (..)}
+# param_data = {}
+# for label, values in Result_linear:
+#     param_name, level = label.split()
+#     if param_name not in param_data:
+#         param_data[param_name] = {}
+#     param_data[param_name][level] = values
+#
+# diffs_hr = {}
+#
+# for param, levels in param_data.items():
+#     if "LOW" in levels and "HIGH" in levels:
+#         low_vals = np.array(levels["LOW"])
+#         high_vals = np.array(levels["HIGH"])
+#         diff = np.abs(high_vals - low_vals)
+#
+#         diffs_hr[param] = diff[0]
+#     else:
+#         print(f"Warning: missing HIGH/LOW for {param}")
+#
+# # Sort by descending difference
+# sorted_params_hr = sorted(diffs_hr, key=diffs_hr.get, reverse=True)
+# sorted_values_hr = [diffs_hr[k] for k in sorted_params_hr]
+#
+# # Create linear rank mapping
+# ranks_linear_dict = {name: rank + 1 for rank, name in enumerate(sorted_params_hr)}
+
+
+
+
+
+
+
+# N = 80  # Change to how many least significant you want to examine
+# least_important_names = names_250_sorted[-N:]
+#
+# def get_ranks(names_reference, target_names):
+#     return [np.where(names_reference == name)[0][0] + 1 for name in target_names]  # +1 for 1-based rank
+#
+#
+#
+# # Create a name → rank mapping for DGSM_250
+# dgsm_250_ranks = {name: rank + 1 for rank, name in enumerate(names_250_sorted)}
+#
+# # Sort least_important_names by their DGSM_250 rank (ascending = least to most influential)
+# least_important_names_sorted = least_important_names
+#
+# # Update all relevant lists in the same order
+# ranks_4 = get_ranks(names_4_sorted, least_important_names_sorted)
+# ranks_10 = get_ranks(names_10_sorted, least_important_names_sorted)
+# ranks_250 = get_ranks(names_250_sorted, least_important_names_sorted)
+# ranks_linear = [ranks_linear_dict[name] for name in least_important_names_sorted]
+#
+# # X-axis labels with DGSM_250 rank
+# labels = [f"{name} ({dgsm_250_ranks[name]})" for name in least_important_names_sorted]
+#
+#
+# x = np.arange(len(labels))  # label locations
+# width = 0.2
+#
+# fig, ax = plt.subplots(figsize=(6, 15))
+# rects1 = ax.barh(x - 1.5*width, ranks_linear, width, label='Linear ΔHR')
+# rects2 = ax.barh(x - 0.5*width, ranks_4, width, label='DGSM_4')
+# rects3 = ax.barh(x + 0.5*width, ranks_10, width, label='DGSM_10')
+#
+# ax.set_xlabel('Rank (lower = more important)')
+# ax.set_title('Ranks of Least Sensitive DGSM_250 Parameters for HR at REST')
+# ax.set_yticks(x)
+# ax.set_yticklabels(labels)
+# ax.legend()
+# ax.set_ylim(-0.5, len(labels) - 0.5)
+# plt.tight_layout()
+# # plt.gca().invert_yaxis()  # So that lower ranks are higher up
+# plt.show()

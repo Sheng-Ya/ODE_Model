@@ -114,7 +114,7 @@ def analyze(
 
         mask = (base != 0) & (perturbed_j != 0)
 
-        S["vi"][j], S["vi_std"][j] = calc_vi_stats(base[mask], perturbed_j[mask], diff[mask], variable)
+        # S["vi"][j], S["vi_std"][j] = calc_vi_stats(base[mask], perturbed_j[mask], diff[mask], variable)
         S["dgsm"][j], S["dgsm_conf"][j] = calc_dgsm(
             base[mask], perturbed_j[mask], diff[mask], bounds[j], num_resamples, conf_level, variable
         )
@@ -138,18 +138,24 @@ def calc_vi_stats(base, perturbed, x_delta, variable):
     # Calculate mean and std of all values
     mean_dfdx = np.mean(dfdx)
     std_dfdx = np.std(dfdx)
+    # mean_dfdx1 = np.mean((perturbed - base)**2)
+    # std_dfdx1 = np.std((perturbed - base)**2)
 
     # Keep values within 2 standard deviations from the mean
-    mask = np.abs(dfdx - mean_dfdx) <= 2 * std_dfdx
+    mask = np.abs(dfdx - mean_dfdx) <= 3* std_dfdx
+    # mask1 = np.abs(((perturbed - base)**2) - mean_dfdx1) <= 2*std_dfdx1
     dfdx_filtered = dfdx[mask]
 
-    # A =  np.mean(dfdx)
-    # AA = np.std(dfdx)
-    # AAA = np.mean(dfdx_filtered)
-    # AAAA = np.std(dfdx_filtered)
+
+    # mean_dfdx = np.mean(dfdx_filtered1)
+    # std_dfdx = np.std(dfdx_filtered1)
+    # mask = np.abs(dfdx_filtered1 - mean_dfdx) <= 3 * std_dfdx
+    # dfdx_filtered = dfdx_filtered1[mask]
+
 
     return np.mean(dfdx_filtered), np.std(dfdx_filtered)
     # return np.mean(dfdx), np.std(dfdx)
+    # return np.median(dfdx), np.std(dfdx)
 
 
 def calc_vi_mean(base, perturbed, x_delta, variable):
@@ -162,13 +168,24 @@ def calc_vi_mean(base, perturbed, x_delta, variable):
     # Calculate mean and std of all values
     mean_dfdx = np.mean(dfdx)
     std_dfdx = np.std(dfdx)
+    # mean_dfdx1 = np.mean((perturbed - base) ** 2)
+    # std_dfdx1 = np.std((perturbed - base) ** 2)
 
     # Keep values within 2 standard deviations from the mean
-    mask = np.abs(dfdx - mean_dfdx) <= std_dfdx
+    mask = np.abs(dfdx - mean_dfdx) <= 3* std_dfdx
+    # mask1 = np.abs(((perturbed - base)**2) - mean_dfdx1) <= 2*std_dfdx1
+
     dfdx_filtered = dfdx[mask]
+
+
+    # mean_dfdx = np.mean(dfdx_filtered1)
+    # std_dfdx = np.std(dfdx_filtered1)
+    # mask = np.abs(dfdx_filtered1 - mean_dfdx) <= 3 * std_dfdx
+    # dfdx_filtered = dfdx_filtered1[mask]
 
     return np.mean(dfdx_filtered)
     # return dfdx.mean()
+    # return np.median(dfdx)
 
 
 def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level, variable):
@@ -176,18 +193,28 @@ def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level, varia
     For comparison, total order S_tot <= dgsm
     """
     D = np.var(base)
-    vi, vi_std = calc_vi_stats(base, perturbed, x_delta, variable)
+    vi, _ = calc_vi_stats(base, perturbed, x_delta, variable)
+    # A = calc_vi_mean(base, perturbed, x_delta, variable)
     dgsm = vi * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
+    # AA = A * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
 
     len_base = len(base)
     s = np.empty(num_resamples)
     r = np.random.randint(len_base, size=(num_resamples, len_base))
+
+    # w = np.empty(num_resamples)
 
     for i in range(num_resamples):
         r_i = r[i]
         # s[i] = calc_vi_mean(base[r_i], perturbed[r_i], x_delta[r_i], variable)
         mean_value = calc_vi_mean(base[r_i], perturbed[r_i], x_delta[r_i], variable)
         s[i] = mean_value * (bounds[1] - bounds[0]) ** 2 / (D * np.pi ** 2)
+
+    #     mean_value2,_ = calc_vi_stats(base[r_i], perturbed[r_i], x_delta[r_i], variable)
+    #     w[i] = mean_value2 * (bounds[1] - bounds[0]) ** 2 / (D * np.pi ** 2)
+    #
+    # AAA = norm.ppf(0.5 + conf_level / 2.0) * s.std(ddof=1)
+    # AAAA = norm.ppf(0.5 + conf_level / 2.0) * w.std(ddof=1)
 
     return dgsm, norm.ppf(0.5 + conf_level / 2.0) * s.std(ddof=1)
 

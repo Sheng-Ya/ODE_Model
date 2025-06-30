@@ -112,6 +112,15 @@ Next_Conditions = {
     "j": np.array([0]),
 
 
+    "f_sp": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "f_sh": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "f_v": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "f_sv": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "Nt": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "f_ab": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "f_ac": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+    "f_ap": np.pad(np.array([0.0]), (0, 4000000 - 1), mode="constant", constant_values=1e6),
+
     "resp_cycle_store": np.array([0.0, 0.0, 0.0, 0.0] + [10000] * 9996),  # Special handling for the 5th value
     "P_sa_store": np.array([89.94924014525328] * 10000),
     "dP_sa_dt_store": np.array([-28.424303165102273] * 10000),

@@ -333,8 +333,8 @@ if __name__ == "__main__":
 
     # sample from a simulation (do this for initial training of emulator but use saltelli sampling for GSA)
     lhd = LatinHypercube(list(sp["bounds"]))
-    X = lhd.sample(152000)
-    np.save('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy', X)
+    X = lhd.sample(1000)
+    # np.save('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy', X)
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
