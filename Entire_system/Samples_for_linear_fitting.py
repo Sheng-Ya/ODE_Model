@@ -240,7 +240,7 @@ def parallel_simulations(param_samples, sample_descriptions, storage, n_jobs, ch
 
 if __name__ == "__main__":
 
-    t_eval = np.linspace(0, t_span[1], t_span[1] * 1000)
+    t_eval = np.arange(0, t_span[1], 0.001)
 
     # Compute nominal (midpoint) values
     nominal_values = {k: (v[0] + v[1]) / 2 for k, v in parameters_change.items()}

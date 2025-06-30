@@ -1,4 +1,5 @@
 import os
+import copy
 
 import numpy as np
 from SALib import ProblemSpec
@@ -64,8 +65,7 @@ def combined_system(t, Initial_Conditions_numpy, Current_Parameters, Initial_Con
             for j in range(num_removed + 1):
                 Initial_Conditions_dict["all_time"][(index + j) % BUFFER_LIMIT] = 1e6
 
-            if num_removed > 5:
-                raise ValueError(f"num_removed should not be greater than 5, got {num_removed}")
+
         else:
             num_removed = 0
     else:
@@ -151,10 +151,12 @@ def simulate_cpu(Current_Parameters, storage):
         "current_times", "P_musc_current", "V_current", "dV_dt_current",
     }
 
-    local_updates = {
-        key: value if key in list_keys else np.array(value, copy=True)
-        for key, value in storage.items()
-    }
+    # local_updates = {
+    #     key: value if key in list_keys else np.array(value, copy=True)
+    #     for key, value in storage.items()
+    # }
+
+    local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
 
     # Solve ODE
     ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
@@ -204,7 +206,7 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=10, save_path='Result_DGSM_chunked.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=5000, save_path='Result_DGSM_chunked.npy'):
     results_all = []
 
     # If file exists from previous run, remove it to start fresh
@@ -224,6 +226,42 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=10, save_pat
         np.save(save_path, np.array(results_all))  # full file overwritten
 
     return results_all
+#
+
+# def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_next_chunked1.npy'):
+#     results_all = []
+#
+#     if os.path.exists(save_path):
+#         os.remove(save_path)
+#
+#     # Break into blocks of 184 (1 base + 183 perturbations)
+#     block_size = 184
+#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+#
+#     for i, block in enumerate(param_blocks):
+#         base_sample = block[0]
+#         copy_of_storage = storage
+#
+#         # Run only the base sample first
+#         base_result = simulate_cpu(base_sample, copy_of_storage)
+#
+#         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
+#         if base_result[0] == 0:  # Adjust this condition to your failure criteria
+#             print(f"Skipping block {i + 1} due to base failure.")
+#             results_all.extend(np.zeros((184, 3)))
+#             np.save(save_path, np.array(results_all))
+#             continue
+#
+#         # Otherwise, run full block in parallel
+#         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
+#             results_block = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in block)
+#
+#         results_all.extend(results_block)
+#
+#         # Save after each block
+#         np.save(save_path, np.array(results_all))
+#
+#     return results_all
 
 
 if __name__ == "__main__":
@@ -328,23 +366,34 @@ if __name__ == "__main__":
         ],
     })
 
-    t_eval = np.linspace(0, t_span[1], t_span[1] * 1000)
+    t_eval = np.arange(0, t_span[1], 0.001)
 
     param_keys = list(sp["names"])
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 10)
-    # param_samples = [dict(zip(param_keys, row)) for row in X]
-    param_samples = [Para]
-    print(f"Number of samples created: {len(X)}")
+    # X = finite_diff.sample(sp, 5)
+    # X = X[0::184, :]
+    #
+    # X_3 = X[41375:,:]
+    # X_1 = X[:41374, :]
+    # X_2 = np.array([X[41375,:]])
+    # X = np.concatenate((X_1, X_2, X_3))
+
+    # np.save('DGSM_5_X_samples_HR_P_sys_P_dia_steady_remove.npy', X)
+    #
+    # X_fail = X_load[41374,:]
+    # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
+
+    X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+
+    param_samples = [dict(zip(param_keys, row)) for row in X]
+    param_samples = [Old_Parameters]
+    # print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
 
-    print(Result)
+    # print(Result)
 
-    # np.save('DGSM_100_X_samples_HR_P_sys_P_dia_steady.npy', X)
-    # np.save('DGSM_100_Result_HR_P_sys_P_dia_steady.npy', Result)
-    np.save('DGSM_test_X.npy', X)
-    np.save('DGSM_test_result.npy', Result)
+    np.save('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy', Result)
 

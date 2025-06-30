@@ -5,30 +5,50 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
-# X_original = np.load('DGSM_10_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-# Result_original = np.load('DGSM_10_Result_HR_P_sys_P_dia_steady_remove.npy')
+X = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+X1 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+
+# Result_2 =  np.array([[0.0,0.0,0.0]])
+Result = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')
+Result1 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
+
+
 #
-# mask = ~np.all(Result_original == 0, axis=1)
-#
-# X = X_original[mask]
-# Result = Result_original[mask]
+# Result_3 = np.concatenate((Result, Result_2))
+# np.save("Results_first_41375_chunk.npy", Result_3)
 
-X1 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result1 = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')
-X_orig_base = X1[0::184, :]
-Result_orig_base = Result1[0::184, :]
-A = list(X1)
+HR_load = Result1[:, 0]
+HR = HR_load[HR_load != 0]
 
-X_base = np.load('DGSM_500_base_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_base = np.load('DGSM_500_base_Result_HR_P_sys_P_dia_steady_remove.npy')
-AA = list(Result_base)
+# Assume your arrays are named
+first_array = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')   # shape (N, ...)
+second_array = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:,0]  # shape (N,)
 
-Result_base_success = Result_base[Result_base[:,0] != 0]
-X_base_success = X_base[Result_base[:,0] != 0]
-AA = list(X_base_success)
+# Total number of blocks
+block_size = 184
+num_blocks = len(second_array) // block_size
 
-HR = Result1[:, 0]
-A = list(HR)
+# Indices to keep
+indices_to_keep = np.ones(len(second_array), dtype=bool)
+
+for i in range(num_blocks):
+    base_idx = i * block_size
+    if second_array[base_idx] == 0:
+        indices_to_keep[base_idx:base_idx + block_size] = False
+
+# Apply filtering
+first_array_filtered = first_array[indices_to_keep]
+second_array_filtered = second_array[indices_to_keep]
+
+np.save("DGSM_500_X_samples_HR_P_sys_P_dia_filtered.npy", first_array_filtered)
+
+
+
+
+
+
+
+HR = Result[:, 0]
 
 lower = 0.8
 upper = 1.2

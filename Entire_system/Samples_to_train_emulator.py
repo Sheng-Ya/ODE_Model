@@ -327,14 +327,14 @@ if __name__ == "__main__":
         ],
     })
 
-    t_eval = np.linspace(0, t_span[1], t_span[1] * 1000)
+    t_eval = np.arange(0, t_span[1], 0.001)
 
     param_keys = list(sp["names"])
 
     # sample from a simulation (do this for initial training of emulator but use saltelli sampling for GSA)
     lhd = LatinHypercube(list(sp["bounds"]))
-    X = lhd.sample(1000)
-    # np.save('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy', X)
+    # X = lhd.sample(152000)
+    X = np.load('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy')
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
@@ -344,5 +344,5 @@ if __name__ == "__main__":
 
     print(Result)
 
-    np.save('LHCS_152000_Result_HR_P_sys_P_dia_rest.npy', Result)
+    np.save('LHCS_152000_Result_HR_P_sys_P_dia_rest_120.npy', Result)
 
