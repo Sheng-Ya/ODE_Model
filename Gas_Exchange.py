@@ -27,6 +27,9 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
             "Ta"
         ])
 
+    # if t>140:
+    #     beta1 = 0.006691097119140625
+
     if t == t_start:
         heart_index = i % BUFFER_LIMIT
         resp_control_index = i % BUFFER_LIMIT
@@ -172,9 +175,9 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     #     MRCO2 = 0.8/60 - 0.0009
     #     MRO2 = 0.85 / 60 - 0.000925
     #
-    if 120 < t:
-        MRCO2 = 1/60 - 0.0009
-        MRO2 = 1.05 / 60 - 0.000925
+    # if 120 < t:
+    #     MRCO2 = 1/60 - 0.0009
+    #     MRO2 = 1.05 / 60 - 0.000925
 
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure

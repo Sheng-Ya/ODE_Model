@@ -21,7 +21,7 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
             "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"
         ])
 
-    if t == t_start:
+    if t == 0:
         heart_index = i % BUFFER_LIMIT
         resp_control_index = i % BUFFER_LIMIT
     else:

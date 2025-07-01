@@ -98,11 +98,11 @@ def combined_system(t, Initial_Conditions_numpy, Current_Parameters, Initial_Con
     Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
 
-    # # Debugging check for progress
-    # if t != 0:
-    #     diff = np.abs(t - target_values)
-    #     if np.any(diff < 0.0001):
-    #         print(t)
+    # Debugging check for progress
+    if t != 0:
+        diff = np.abs(t - target_values)
+        if np.any(diff < 0.0001):
+            print(t)
 
     return d_combined
 
@@ -143,62 +143,106 @@ num_resp_control = len(required_resp_control_keys)
 
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
-def simulate_cpu(Current_Parameters, storage):
-    list_keys = {
-        'HR1', 'Vu_ev1', 'Vu_sv1', 'Vu_rmv1', 'Vu_amv1', 'Emax_lv1', 'Emax_rv1',
-        'Pa_O2_history', 'Pa_CO2_history', 'Pb_CO2_history',
-        'PamO2', 'PamCO2', 'PmbCO2', 'Nd', 'finish_breath_time',
-        "current_times", "P_musc_current", "V_current", "dV_dt_current",
-    }
+min_time = 60   # Minimum time in seconds before checking
+max_time = 240  # Maximum time limit to avoid infinite loops
+time_step = 10  # Chunk size per solve
 
-    # local_updates = {
-    #     key: value if key in list_keys else np.array(value, copy=True)
-    #     for key, value in storage.items()
-    # }
+def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
 
     local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
 
-    # Solve ODE
-    ODE_solution = solve_ivp(combined_system, t_span, IC_overall, t_eval=t_eval, max_step = 0.003, method="RK23", rtol=1e-3,
-                             atol=1e-6, args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters))
-
-    if ODE_solution.status == -1:
-        # Integration failed or early termination
-        return 0.0, 0.0, 0.0
+    if IC_initial is None:
+        IC_current = IC_overall.copy()
+    else:
+        IC_current = IC_initial.copy()
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
+    if i_buffer == 0:
+        t0 = 0
+        first_time = 0
+    else:
+        t0 = local_updates["all_time"][i_buffer - 1] % BUFFER_LIMIT
+        first_time =  local_updates["all_time"][i_buffer - 1] % BUFFER_LIMIT
 
-    P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
+    total_time = 0
 
-    peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
-    troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
+    while total_time < max_time:
+        t_span_local = (t0, t0 + time_step)
+        t_eval_local = np.arange(t0, (t0 + time_step), 0.001)
 
-    last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
-    last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
+        ODE_solution = solve_ivp(
+            combined_system,
+            t_span_local,
+            IC_current,
+            t_eval=t_eval_local,
+            max_step=0.003,
+            method="RK23",
+            rtol=1e-3,
+            atol=1e-6,
+            args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters)
+        )
 
-    last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
-    last_10_max = P_sa[last_10_peaks]  # Get actual max values
+
+        if ODE_solution.status == -1:
+            # Integration failed or early termination
+            return [0.0, 0.0, 0.0], None, None
+
+        i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
 
-    # Get past 10 HR
-    HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
+        P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
 
-    # Initialize list of segments
-    past_10_flat_segments = []
+        peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
+        troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
 
-    # Start from the end and track the current segment value
-    prev_value = None
-    for j in range(len(HR) - 1, -1, -1):
-        current_value = HR[j]
-        if current_value != prev_value:
-            # New segment found
-            past_10_flat_segments.append(current_value)
-            prev_value = current_value
-            if len(past_10_flat_segments) == 10:
+        last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
+        last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
+
+        last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
+        last_10_max = P_sa[last_10_peaks]  # Get actual max values
+
+
+        # Get past 10 HR
+        HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
+
+        # Initialize list of segments
+        past_10_flat_segments = []
+
+        # Start from the end and track the current segment value
+        prev_value = None
+        for j in range(len(HR) - 1, -1, -1):
+            current_value = HR[j]
+            if current_value != prev_value:
+                # New segment found
+                past_10_flat_segments.append(current_value)
+                prev_value = current_value
+                if len(past_10_flat_segments) == 10:
+                    break
+
+        # Update IC and time
+        IC_current = ODE_solution.y[:, -1]
+        t0 += time_step
+        total_time += time_step
+
+        # print(t0, total_time)
+
+        # Only check convergence after the minimum time has passed
+        if total_time >= (min_time+first_time) and len(past_10_flat_segments) >= 10:
+            minHR = np.min(past_10_flat_segments)
+            maxHR = np.max(past_10_flat_segments)
+
+            if abs(maxHR - minHR) < 0.03:
                 break
 
-    return np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)
+            if total_time == max_time:
+                return [0.0, 0.0, 0.0], None, None
+
+
+    return [np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)], IC_current, local_updates
+
+
+
 
 def chunked(iterable, n):
     """Yield successive n-sized chunks from iterable."""
@@ -206,27 +250,27 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=5000, save_path='Result_DGSM_chunked.npy'):
-    results_all = []
-
-    # If file exists from previous run, remove it to start fresh
-    if os.path.exists(save_path):
-        os.remove(save_path)
-
-    for i, chunk in enumerate(chunked(param_samples, chunk_size)):
-        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk))):
-            results_chunk = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in chunk)
-
-        results_all.extend(results_chunk)
-
-        # # Save chunk incrementally (appending)
-        # np.save(f'result_chunk_{i:03d}.npy', results_chunk)  # individual chunks
-
-        # Optional: also accumulate in a single array
-        np.save(save_path, np.array(results_all))  # full file overwritten
-
-    return results_all
+# def parallel_simulations(param_samples, storage, n_jobs, chunk_size=5000, save_path='Result_DGSM_chunked.npy'):
+#     results_all = []
 #
+#     # If file exists from previous run, remove it to start fresh
+#     if os.path.exists(save_path):
+#         os.remove(save_path)
+#
+#     for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+#         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk))):
+#             results_chunk = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in chunk)
+#
+#         results_all.extend(results_chunk)
+#
+#         # # Save chunk incrementally (appending)
+#         # np.save(f'result_chunk_{i:03d}.npy', results_chunk)  # individual chunks
+#
+#         # Optional: also accumulate in a single array
+#         np.save(save_path, np.array(results_all))  # full file overwritten
+#
+#     return results_all
+
 
 # def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_next_chunked1.npy'):
 #     results_all = []
@@ -240,10 +284,12 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=5000, save_p
 #
 #     for i, block in enumerate(param_blocks):
 #         base_sample = block[0]
-#         copy_of_storage = storage
+#         copy_of_storage = copy.deepcopy(storage)
 #
 #         # Run only the base sample first
-#         base_result = simulate_cpu(base_sample, copy_of_storage)
+#         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage)
+#
+#
 #
 #         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
 #         if base_result[0] == 0:  # Adjust this condition to your failure criteria
@@ -252,16 +298,70 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=5000, save_p
 #             np.save(save_path, np.array(results_all))
 #             continue
 #
+#         perturbations = block[1:]  # exclude the base sample
+#
 #         # Otherwise, run full block in parallel
 #         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-#             results_block = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, storage) for params in block)
+#             results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), IC_initial=IC_final) for params in perturbations)
 #
+#         results_block = [base_result] + results_perturbations
 #         results_all.extend(results_block)
+#
+#         # Save chunk incrementally (appending)
+#         np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
+#         np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
 #
 #         # Save after each block
 #         np.save(save_path, np.array(results_all))
 #
 #     return results_all
+
+
+def parallel_simulations(param_samples, storage, n_jobs=None, chunk_size=1000, save_path='Result_DGSM_next_chunked1.npy'):
+    results_all = []
+
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    block_size = 184
+    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+
+    for i, block in enumerate(param_blocks):
+        base_sample = block[0]
+        copy_of_storage = copy.deepcopy(storage)
+
+        print(f"Running base sample for block {i+1}...")
+
+        base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage)
+
+        print(f"Base sample result: {base_result}")
+
+        if base_result[0] == 0:
+            print(f"Skipping block {i + 1} due to base failure.")
+            results_all.extend(np.zeros((184, 3)))
+            np.save(save_path, np.array(results_all))
+            continue
+
+        perturbations = block[1:]  # exclude base sample
+
+        results_perturbations = []
+        for j, params in enumerate(perturbations):
+            print(f"Running perturbation {j+1}/{len(perturbations)} of block {i+1}...")
+            res = simulate_cpu(params, copy.deepcopy(storage_final), IC_initial=IC_final)
+            print(f"Perturbation result: {res[0]}")
+            results_perturbations.append(res)
+
+        results_block = [base_result] + results_perturbations
+        results_all.extend(results_block)
+
+        # Save checkpoint files for debugging
+        np.save(f'IC_final_{i:03d}.npy', IC_final)
+        np.save(f'Next_final_{i:03d}.npy', storage_final)
+
+        np.save(save_path, np.array(results_all))
+        print(f"Block {i+1} finished and results saved.")
+
+    return results_all
 
 
 if __name__ == "__main__":
@@ -372,7 +472,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    # X = finite_diff.sample(sp, 5)
+    X = finite_diff.sample(sp, 1)
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]
@@ -385,15 +485,15 @@ if __name__ == "__main__":
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
-    X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+    # X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_filtered.npy')
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
-    param_samples = [Old_Parameters]
-    # print(f"Number of samples created: {len(X)}")
+    # param_samples = [Old_Parameters]
+    print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
 
     # print(Result)
 
-    np.save('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy', Result)
+    np.save('DGSM_500_Result_HR_P_sys_P_dia_filtered_converge_no_bifur.npy', Result)
 
