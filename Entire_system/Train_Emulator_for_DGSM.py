@@ -14,7 +14,7 @@ from autoemulate.compare import AutoEmulate
 from sklearn.model_selection import KFold
 
 X = np.load('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy')
-Result = np.load('LHCS_152000_Result_HR_P_sys_P_dia_rest.npy')
+Result = np.load('LHCS_152000_Result_HR_P_sys_P_dia_rest_120.npy')
 
 X = X[Result[:,0] != 0]
 Result = Result[Result[:,0] != 0][:, 0]
@@ -31,7 +31,7 @@ Result = Result[idx]
 
 # compare emulators
 ae = AutoEmulate()
-ae.setup(X, Result,  param_search=True, param_search_iters=30, n_jobs=-1, models=["rbf"], cross_validator=KFold(n_splits=3))
+ae.setup(X, Result,  param_search=True, param_search_iters=30, n_jobs=30, models=["rbf"], cross_validator=KFold(n_splits=3))
 
 best_emulator = ae.compare()
 
@@ -47,7 +47,7 @@ ae.evaluate(rbf)
 ae.plot_eval(rbf)
 rbf_final = ae.refit(rbf)
 
-ae.save(rbf_final, "rbf_final_hyper_30000")
+ae.save(rbf_final, "rbf_final_hyper_30000_120s")
 
 
 # gp = ae.get_model("GaussianProcess")

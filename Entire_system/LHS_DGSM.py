@@ -12,7 +12,7 @@ import tqdm_joblib
 
 ae = AutoEmulate()
 ae.logger = _configure_logging()
-rbf_final_loaded = ae.load("rbf_final_hyper")
+rbf_final_loaded = ae.load("rbf_final_hyper_30000_120s")
 
 lower = 0.8
 upper = 1.2
@@ -137,4 +137,4 @@ with tqdm_joblib.tqdm_joblib(tqdm(total=len(chunks), desc="Predicting chunks")):
 Result = np.concatenate(Result_chunks, axis=0)
 
 
-np.save('LHC_hyper_emulator_DGSM_1000_result.npy', Result)
+np.save('LHC_hyper_emulator_DGSM_1000_result_120s.npy', Result)

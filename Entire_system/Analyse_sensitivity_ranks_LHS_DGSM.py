@@ -11,14 +11,17 @@ import dgsm_edited as dgsm
 # X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 # Result_500 = np.load('LHC_emulator_DGSM_500_result.npy')
 
-X_250 = np.load('DGSM_1000_X_samples_HR.npy')
-Result_250 = np.load('LHC_hyper_emulator_DGSM_1000_result.npy')
+X_500 = np.load('DGSM_1000_X_samples_HR.npy')
+Result_500 = np.load('LHC_hyper_emulator_DGSM_1000_result.npy')
 
-X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:, 0]
+# X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+# Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:, 0]
 
 # X_500 = np.load('DGSM_1000_X_samples_HR.npy')
 # Result_500 = np.load('LHC_emulator_DGSM_1000_result.npy')
+
+X_250 = np.load('DGSM_1000_X_samples_HR.npy')
+Result_250 = np.load('LHC_hyper_emulator_DGSM_1000_result_120s.npy')
 
 # X_250 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 # Result_250 = np.load('LHC_emulator_DGSM_250_result.npy')
@@ -208,8 +211,8 @@ width = 0.35
 fig, ax = plt.subplots(figsize=(8, 12))
 # ax.barh(x - width/2, np.log(si_250_top), width, label='DGSM_250', xerr=log_conf_250_top)
 # ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500', xerr=log_conf_500_top)
-ax.barh(x + width/2, si_500_top, width, label='DGSM_500', xerr=conf_500_top)
-ax.barh(x - width/2, si_250_top, width, label='DGSM_250', xerr=conf_250_top)
+ax.barh(x + width/2, si_500_top, width, label='LHC_hyper_emulator_DGSM_1000_60s', xerr=conf_500_top)
+ax.barh(x - width/2, si_250_top, width, label='LHC_hyper_emulator_DGSM_1000_120s', xerr=conf_250_top)
 # ax.barh(x - width/2, si_250_top, width, label='DGSM_250')
 # ax.barh(x + width/2, si_500_top, width, label='DGSM_500')
 
@@ -250,8 +253,8 @@ width = 0.35
 
 # Plot
 fig, ax = plt.subplots(figsize=(8, 12))
-ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500', xerr=conf_500_bottom)
-ax.barh(x - width/2, si_250_bottom, width, label='DGSM_250', xerr=conf_250_bottom)
+ax.barh(x + width/2, si_500_bottom, width, label='LHC_hyper_emulator_DGSM_1000_60s', xerr=conf_500_bottom)
+ax.barh(x - width/2, si_250_bottom, width, label='LHC_hyper_emulator_DGSM_1000_120s', xerr=conf_250_bottom)
 # ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500')
 # ax.barh(x - width/2, si_250_bottom, width, label='DGSM_250')
 
@@ -321,8 +324,8 @@ width = 0.2
 
 fig, ax = plt.subplots(figsize=(6, 12))
 # rects1 = ax.barh(x - 1.5*width, ranks_500, width, label='DGSM_500')
-rects2 = ax.barh(x - 0.5*width, ranks_500, width, label='DGSM_500')
-rects3 = ax.barh(x + 0.5*width, ranks_250, width, label='DGSM_250')
+rects2 = ax.barh(x - 0.5*width, ranks_500, width, label='LHC_hyper_emulator_DGSM_1000_60s')
+rects3 = ax.barh(x + 0.5*width, ranks_250, width, label='LHC_hyper_emulator_DGSM_1000_120s')
 
 ax.set_xlabel('Rank (lower = more important)')
 ax.set_title('Ranks of Most Influential DGSM_250 Parameters for HR at REST')
@@ -364,8 +367,8 @@ x = np.arange(len(labels))  # label locations
 width = 0.2
 
 fig, ax = plt.subplots(figsize=(6, 14))
-ax.barh(x - 0.5*width, ranks_500, width, label='DGSM_500', color='orange')
-ax.barh(x + 0.5*width, ranks_250, width, label='DGSM_250', color='steelblue')
+ax.barh(x - 0.5*width, ranks_500, width, label='LHC_hyper_emulator_DGSM_1000_60s', color='orange')
+ax.barh(x + 0.5*width, ranks_250, width, label='LHC_hyper_emulator_DGSM_1000_120s', color='steelblue')
 
 ax.set_xlabel('Rank (lower = more important)')
 ax.set_title('Ranks of Least Influential DGSM_250 Parameters for HR at REST')

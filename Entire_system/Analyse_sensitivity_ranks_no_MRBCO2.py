@@ -8,11 +8,11 @@ import dgsm_edited as dgsm
 # X_4 = np.load('DGSM_4_X_samples_HR_P_sys_P_dia_steady.npy')
 # Result_4 = np.load('DGSM_4_Result_HR_P_sys_P_dia_steady.npy')
 
-X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove.npy')
+X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')[:60970, :]
+Result_250 = np.load('Result_DGSM_next_chunked1.npy')
 
-X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
+# X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+# Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
 
 # X_250 = np.load('DGSM_250_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 # Result_250 = np.load('DGSM_250_Result_HR_P_sys_P_dia_steady_remove.npy')
@@ -23,7 +23,7 @@ Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
 #41374
 
 # HR_4 = Result_4[:, 0]
-HR_500 = Result_500[:, 0]
+# HR_500 = Result_500[:, 0]
 HR_250 = Result_250[:, 0]
 # HR_linear = Result_linear[:, 0]
 
@@ -34,14 +34,22 @@ sp = ProblemSpec({
     'outputs': ["HR"],
 
     'names': [
+        # gas
         "beta1", "beta2", "C2", "K1", "K2", "a2", "alpha1", "alpha2", "dc", "KCCO2",
-        "MRBCO2", "GV_dead", "Kbg", "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
-        "Pmax_dot", "E_rs", "R_rs", "C_sa", "L_sa", "R_sa", "C_amp", "C_amv", "C_bp", "C_bv",
+        # resp control
+        "GV_dead",
+        # "Kbg",
+        "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
+        "Pmax_dot", "E_rs", "R_rs",
+        # cardio
+        "C_sa", "L_sa", "R_sa", "C_amp", "C_amv", "C_bp", "C_bv",
         "C_ep", "C_ev", "C_hp", "C_hv", "C_rmp", "C_rmv", "C_sp", "C_sv", "R_amv_n", "R_bv_n",
         "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
         "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
         "P0_ra", "P0_lv", "P0_rv", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n",
-        "A_im", "Tc", "T_im", "s", "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf",
+        "A_im", "Tc", "T_im", "s",
+        # cardio control
+        "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf",
         "kes", "kev", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min",
         "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp",
         "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
@@ -60,9 +68,11 @@ sp = ProblemSpec({
         [0.008275 * lower, 0.008275 * upper], [0.03255 * lower, 0.03255 * upper], [40 * lower, 40 * upper],
         [13 * lower, 13 * upper], [25 * lower, 25 * upper], [1.219 * lower, 1.219 * upper],
         [0.03198 * lower, 0.03198 * upper], [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
-        [346000 * lower, 346000 * upper], [0.0009 * lower, 0.0009 * upper],
+        [346000 * lower, 346000 * upper],
         # resp control
-        [0.1698 * lower, 0.1698 * upper], [17.4 * lower, 17.4 * upper], [0.2332 * lower, 0.2332 * upper],
+        [0.1698 * lower, 0.1698 * upper],
+        # [17.4 * lower, 17.4 * upper],
+        [0.2332 * lower, 0.2332 * upper],
         [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [50 * lower, 50 * upper],
         [5000 * lower, 5000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
@@ -81,9 +91,9 @@ sp = ProblemSpec({
         [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
         [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [1.5 * lower, 1.5 * upper],
         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
-        [-1 * upper, 0 * lower], [-2.5 * upper, -2.5 * lower], [-1 * upper, 0.0 * lower],
-        [-3 * upper, 0.0 * lower], [0.45 * lower, 0.45 * upper], [50 * lower, 50 * upper],
-        [0.75 * lower, 0.75 * upper], [1 * lower, 1 * upper], [0.04 * lower, 0.04 * upper],
+        [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower], [-3 * upper, -3 * lower],
+        [-5 * upper, -5 * lower], [0.45 * lower, 0.45 * upper], [50 * lower, 50 * upper],
+        [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
         [25 * lower, 25 * upper],    [16.11 * lower, 16.11 * upper],
         [2.1 * lower, 2.1 * upper],    [80 * lower, 80 * upper],
@@ -99,7 +109,7 @@ sp = ProblemSpec({
         [-1.1375 * upper, -1.1375 * lower],    [-1.1375 * upper, -1.1375 * lower],
         [1 * lower, 1 * upper],    [1.716 * lower, 1.716 * upper],
         [1.716 * lower, 1.716 * upper],    [0.2 * lower, 0.2 * upper],
-        [0 * lower, 0.1 * upper],    [-0.3997 * upper, -0.3997 * lower],
+        [-0.2 * lower, -0.2 * upper],    [-0.3997 * upper, -0.3997 * lower],
         [-0.3997 * upper, -0.3997 * lower],    [-0.103 * upper, -0.103 * lower],
         [0.4 * lower, 0.4 * upper],    [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper],    [0.4 * lower, 0.4 * upper],
@@ -113,7 +123,7 @@ sp = ProblemSpec({
         [1.655 * lower, 1.655 * upper],    [5.27 * lower, 5.27 * upper],
         [2.49 * lower, 2.49 * upper],    [(1/60) * lower, (1/60) * upper],
         [1 * lower, 1 * upper],    [1.5 * lower, 1.5 * upper],
-        [0.1 * lower, 0 * upper],    [6 * lower, 6 * upper],
+        [0.2 * lower, 0.2 * upper],    [6 * lower, 6 * upper],
         [2 * lower, 2 * upper],    [2 * lower, 2 * upper],
         [45 * lower, 45 * upper],    [30 * lower, 30 * upper],
         [30 * lower, 30 * upper],    [3.6 * lower, 3.6 * upper],
@@ -144,16 +154,16 @@ sp = ProblemSpec({
 })
 
 # Si_4 = dgsm.analyze(sp, X_4, HR_4, print_to_console=True)
-Si_500 = dgsm.analyze(sp, X_500, HR_500, print_to_console=True)
+# Si_500 = dgsm.analyze(sp, X_500, HR_500, print_to_console=True)
 Si_250 = dgsm.analyze(sp, X_250, HR_250, print_to_console=True)
 
 
 ## Extract and sort
 # dgsm_4 = np.array(Si_4['dgsm'])
 # names_4 = np.array(Si_4['names'])
-dgsm_500 = np.array(Si_500['dgsm'])
-names_500 = np.array(Si_500['names'])
-conf_500 = np.array(Si_500['dgsm_conf'])
+# dgsm_500 = np.array(Si_500['dgsm'])
+# names_500 = np.array(Si_500['names'])
+# conf_500 = np.array(Si_500['dgsm_conf'])
 dgsm_250 = np.array(Si_250['dgsm'])
 names_250 = np.array(Si_250['names'])
 conf_250 = np.array(Si_250['dgsm_conf'])
@@ -162,15 +172,15 @@ conf_250 = np.array(Si_250['dgsm_conf'])
 # rank by most influential
 # dgsm_4_sorted = dgsm_4[np.argsort(dgsm_4)[::-1]]
 # names_4_sorted = names_4[np.argsort(dgsm_4)[::-1]]
-dgsm_500_sorted = dgsm_500[np.argsort(dgsm_500)[::-1]]
-names_500_sorted = names_500[np.argsort(dgsm_500)[::-1]]
-conf_500_sorted = conf_500[np.argsort(dgsm_500)[::-1]]
+# dgsm_500_sorted = dgsm_500[np.argsort(dgsm_500)[::-1]]
+# names_500_sorted = names_500[np.argsort(dgsm_500)[::-1]]
+# conf_500_sorted = conf_500[np.argsort(dgsm_500)[::-1]]
 dgsm_250_sorted = dgsm_250[np.argsort(dgsm_250)[::-1]]
 names_250_sorted = names_250[np.argsort(dgsm_250)[::-1]]
 conf_250_sorted = conf_250[np.argsort(dgsm_250)[::-1]]
 
 
-N = 100 # Change to how many variables to examine
+N = 150 # Change to how many variables to examine
 
 # Get top N names and their Si values at rest
 most_important_names = names_250_sorted[:N]
@@ -179,18 +189,18 @@ conf_250_top = conf_250_sorted[:N]
 
 # Get corresponding Si values for exercise (in the same order as rest's top N)
 # Make a dictionary for fast lookup
-dict_500 = dict(zip(names_500, dgsm_500))
-dict_conf_500 = dict(zip(names_500, conf_500))
-si_500_top = np.array([dict_500[name] for name in most_important_names])
-conf_500_top = np.array([dict_conf_500[name] for name in most_important_names])
+# dict_500 = dict(zip(names_500, dgsm_500))
+# dict_conf_500 = dict(zip(names_500, conf_500))
+# si_500_top = np.array([dict_500[name] for name in most_important_names])
+# conf_500_top = np.array([dict_conf_500[name] for name in most_important_names])
 
 # Log-transform
 log_si_250_top = np.log(si_250_top)
-log_si_500_top = np.log(si_500_top)
+# log_si_500_top = np.log(si_500_top)
 
 # Relative uncertainties for error bars (Δlog x ≈ Δx / x for small Δx)
 log_conf_250_top = conf_250_top / si_250_top
-log_conf_500_top = conf_500_top / si_500_top
+# log_conf_500_top = conf_500_top / si_500_top
 
 
 # X-axis labels
@@ -200,16 +210,16 @@ width = 0.35
 
 # Plot
 fig, ax = plt.subplots(figsize=(8, 12))
-ax.barh(x - width/2, np.log(si_250_top), width, label='DGSM_250', xerr=log_conf_250_top)
+# ax.barh(x, np.log(si_250_top), width, label='DGSM_500', xerr=log_conf_250_top)
 # ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500', xerr=log_conf_500_top)
 # ax.barh(x + width/2, si_500_top, width, label='DGSM_500', xerr=conf_500_top)
-# ax.barh(x - width/2, si_250_top, width, label='DGSM_250', xerr=conf_250_top)
+ax.barh(x, si_250_top, width, label='DGSM_500', xerr=conf_250_top)
 # ax.barh(x - width/2, np.log(si_250_top), width, label='DGSM_250')
-ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500')
+# ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500')
 
 
 ax.set_xlabel('log(Sensitivity Index (Si))')
-ax.set_title('Top DGSM Sensitivities for HR at 250 and 500 Base Points')
+ax.set_title('Top DGSM Sensitivities for HR at 500 Base Points')
 ax.set_yticks(x)
 ax.set_yticklabels(labels)
 ax.legend()
@@ -232,10 +242,10 @@ si_250_bottom = dgsm_250_sorted[-N:]
 conf_250_bottom = conf_250_sorted[-N:]
 
 # Get corresponding Si values for exercise (in the same order as rest's bottom N)
-dict_500 = dict(zip(names_500, dgsm_500))
-dict_conf_500 = dict(zip(names_500, conf_500))
-si_500_bottom = np.array([dict_500[name] for name in least_important_names])
-conf_500_bottom = np.array([dict_conf_500[name] for name in least_important_names])
+# dict_500 = dict(zip(names_500, dgsm_500))
+# dict_conf_500 = dict(zip(names_500, conf_500))
+# si_500_bottom = np.array([dict_500[name] for name in least_important_names])
+# conf_500_bottom = np.array([dict_conf_500[name] for name in least_important_names])
 
 # X-axis labels
 labels = least_important_names
@@ -245,12 +255,12 @@ width = 0.35
 # Plot
 fig, ax = plt.subplots(figsize=(8, 12))
 # ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500', xerr=conf_500_bottom)
-ax.barh(x - width/2, si_250_bottom, width, label='DGSM_250', xerr=conf_250_bottom)
+ax.barh(x, si_250_bottom, width, label='DGSM_500', xerr=conf_250_bottom)
 # ax.barh(x - width/2, np.log(si_250_bottom), width, label='DGSM_250')
-ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500')
+# ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500')
 
 ax.set_xlabel('Sensitivity Index (Si)')
-ax.set_title('Bottom 30 DGSM Sensitivities for HR at 250 and 500 Base Points')
+ax.set_title('Bottom 30 DGSM Sensitivities for HR at 500 Base Points')
 ax.set_yticks(x)
 ax.set_yticklabels(labels)
 ax.legend()
@@ -303,7 +313,7 @@ most_important_names_sorted = most_important_names
 
 # Update all relevant lists in the same order
 # ranks_4 = get_ranks(names_4_sorted, most_important_names_sorted)
-ranks_500 = get_ranks(names_500_sorted, most_important_names_sorted)
+# ranks_500 = get_ranks(names_500_sorted, most_important_names_sorted)
 ranks_250 = get_ranks(names_250_sorted, most_important_names_sorted)
 # ranks_linear = [ranks_linear_dict[name] for name in most_important_names_sorted]
 
@@ -316,11 +326,11 @@ width = 0.2
 
 fig, ax = plt.subplots(figsize=(6, 12))
 # rects1 = ax.barh(x - 1.5*width, ranks_500, width, label='DGSM_500')
-rects2 = ax.barh(x - 0.5*width, ranks_500, width, label='DGSM_500')
+# rects2 = ax.barh(x - 0.5*width, ranks_500, width, label='DGSM_500')
 rects3 = ax.barh(x + 0.5*width, ranks_250, width, label='DGSM_250')
 
 ax.set_xlabel('Rank (lower = more important)')
-ax.set_title('Ranks of Most Influential DGSM_250 Parameters for HR at REST')
+ax.set_title('Ranks of Most Influential DGSM_500 Parameters for HR at REST')
 ax.set_yticks(x)
 ax.set_yticklabels(labels)
 ax.legend()
@@ -348,7 +358,7 @@ dgsm_250_ranks = {name: rank + 1 for rank, name in enumerate(names_250_sorted)}
 least_important_names_sorted = least_important_names
 
 # Compute ranks from DGSM_500 and DGSM_250
-ranks_500 = get_ranks(names_500_sorted, least_important_names_sorted)
+# ranks_500 = get_ranks(names_500_sorted, least_important_names_sorted)
 ranks_250 = get_ranks(names_250_sorted, least_important_names_sorted)
 
 # X-axis labels with DGSM_250 rank
@@ -359,11 +369,11 @@ x = np.arange(len(labels))  # label locations
 width = 0.2
 
 fig, ax = plt.subplots(figsize=(6, 14))
-ax.barh(x - 0.5*width, ranks_500, width, label='DGSM_500', color='orange')
-ax.barh(x + 0.5*width, ranks_250, width, label='DGSM_250', color='steelblue')
+# ax.barh(x - 0.5*width, ranks_500, width, label='DGSM_500', color='orange')
+ax.barh(x + 0.5*width, ranks_250, width, label='DGSM_500', color='steelblue')
 
 ax.set_xlabel('Rank (lower = more important)')
-ax.set_title('Ranks of Least Influential DGSM_250 Parameters for HR at REST')
+ax.set_title('Ranks of Least Influential DGSM_500 Parameters for HR at REST')
 ax.set_yticks(x)
 ax.set_yticklabels(labels)
 ax.legend()

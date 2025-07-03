@@ -75,8 +75,8 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
 
     # VA_rest = 0.03
 
-    # VAflow = VA_rest * (KcCO2 * (PmbCO2 - params["PbCO2IC"])) + KpCO2 * PamCO2 + G3 + KcMRV * MRV + VA_rest - 8.29
-    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - Kbg)
+    # VAflow = VA_rest * (KcCO2 * (PmbCO2 - 45) + KpCO2 * (PamCO2 - 40) + G3 + KcMRV * MRV)
+    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * 40)
     # VAflow = VA_rest + VA_rest * (KcCO2 * (PmbCO2 - 44.87)) + G3 + KcMRV * MRV
     # VAflow = 0.0867
     # V0_dead = 0.13

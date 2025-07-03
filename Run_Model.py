@@ -38,7 +38,7 @@ from Next_Conditions_new_update import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 60) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
@@ -118,11 +118,11 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
+    # d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
-    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr))
     # A = list(d_combined)
 
 
@@ -174,7 +174,7 @@ num_resp_control = len(required_resp_control_keys)
 # IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
 # num_resp_mech = len(required_resp_mech_keys)
 
-IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 
 t_eval = np.arange(0, t_span[1], 0.001)
 def simulate():
@@ -247,6 +247,54 @@ if __name__ == "__main__":
     ax1.legend(loc="upper left")
     ax1.grid(True)
     plt.show()
+
+    # # Save as .npz file
+    # np.savez("HR_vs_time.npz",
+    #          time_history=Next_Conditions["time_history"][:index],
+    #          HR=Next_Conditions["HR"][:index])
+    #
+    # fig, ax1 = plt.subplots()
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
+    #
+    # # Add labels and legend
+    # plt.ylabel("")
+    # plt.xlabel("Time (s)")
+    # plt.title("Traces")
+    # plt.legend()
+    # plt.grid(True)
+    # plt.show()
+
+    # Save as .npz file
+    np.savez("Ts.npz",
+             time_history=Next_Conditions["time_history"][:index],
+             HR=Next_Conditions["Ts_change"][:index])
+
+    # Save as .npz file
+    np.savez("Tv.npz",
+             time_history=Next_Conditions["time_history"][:index],
+             HR=Next_Conditions["Tv_change"][:index])
+
+    fig, ax1 = plt.subplots()
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
+
+    # Add labels and legend
+    plt.ylabel("")
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change", color="b")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
 
 
 
@@ -575,28 +623,28 @@ if __name__ == "__main__":
     # ax1.grid(True)
     # plt.show()
 
-    # Number of state variables
-    num_variables = state_variables.shape[0]
-    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
-
-    # Plot all state variables
-    plt.figure(figsize=(14, 10))
-
-    for i, label in enumerate(required_gas_keys):
-        # if label == "Pd_2_O2":  # Skip "VT_sv"
-        #     continue
-        color = colors[
-            i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-        plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
-                 color=color, linestyle='-', markersize=4)
-
-    plt.xlabel("Time")
-    plt.ylabel("State Variables")
-    plt.title("Evolution of State Variables Over Time")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
+    # # Number of state variables
+    # num_variables = state_variables.shape[0]
+    # colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
+    #
+    # # Plot all state variables
+    # plt.figure(figsize=(14, 10))
+    #
+    # for i, label in enumerate(required_gas_keys):
+    #     # if label == "Pd_2_O2":  # Skip "VT_sv"
+    #     #     continue
+    #     color = colors[
+    #         i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
+    #     plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
+    #              color=color, linestyle='-', markersize=4)
+    #
+    # plt.xlabel("Time")
+    # plt.ylabel("State Variables")
+    # plt.title("Evolution of State Variables Over Time")
+    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
+    # plt.grid()
+    # plt.tight_layout()
+    # plt.show()
 
 
 

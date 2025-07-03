@@ -6,8 +6,14 @@ from SALib.analyze import dgsm
 import matplotlib.pyplot as plt
 
 
-X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
-Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:, 0]
+# X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
+# Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')[:, 0]
+
+# X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur.npy')
+# Result_500 = np.load('DGSM_500_Result_HR_P_sys_P_dia_converge_no_bifur.npy')[:,0]
+
+X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')[:60970, :]
+Result_500 = np.load('Result_DGSM_next_chunked1.npy')[:,0]
 #
 # X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 # Result_500 = np.load('LHC_emulator_DGSM_500_result.npy')
@@ -30,14 +36,22 @@ sp = ProblemSpec({
     'outputs': ["HR"],
 
     'names': [
+        # gas
         "beta1", "beta2", "C2", "K1", "K2", "a2", "alpha1", "alpha2", "dc", "KCCO2",
-        "MRBCO2", "GV_dead", "Kbg", "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
-        "Pmax_dot", "E_rs", "R_rs", "C_sa", "L_sa", "R_sa", "C_amp", "C_amv", "C_bp", "C_bv",
+        # resp control
+        "GV_dead",
+        # "Kbg",
+        "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
+        "Pmax_dot", "E_rs", "R_rs",
+        # cardio
+        "C_sa", "L_sa", "R_sa", "C_amp", "C_amv", "C_bp", "C_bv",
         "C_ep", "C_ev", "C_hp", "C_hv", "C_rmp", "C_rmv", "C_sp", "C_sv", "R_amv_n", "R_bv_n",
         "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
         "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
         "P0_ra", "P0_lv", "P0_rv", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n",
-        "A_im", "Tc", "T_im", "s", "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf",
+        "A_im", "Tc", "T_im", "s",
+        # cardio control
+        "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf",
         "kes", "kev", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min",
         "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp",
         "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
@@ -56,9 +70,11 @@ sp = ProblemSpec({
         [0.008275 * lower, 0.008275 * upper], [0.03255 * lower, 0.03255 * upper], [40 * lower, 40 * upper],
         [13 * lower, 13 * upper], [25 * lower, 25 * upper], [1.219 * lower, 1.219 * upper],
         [0.03198 * lower, 0.03198 * upper], [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
-        [346000 * lower, 346000 * upper], [0.0009 * lower, 0.0009 * upper],
+        [346000 * lower, 346000 * upper],
         # resp control
-        [0.1698 * lower, 0.1698 * upper], [17.4 * lower, 17.4 * upper], [0.2332 * lower, 0.2332 * upper],
+        [0.1698 * lower, 0.1698 * upper],
+        # [17.4 * lower, 17.4 * upper],
+        [0.2332 * lower, 0.2332 * upper],
         [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [50 * lower, 50 * upper],
         [5000 * lower, 5000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
@@ -77,9 +93,9 @@ sp = ProblemSpec({
         [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
         [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [1.5 * lower, 1.5 * upper],
         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
-        [-1 * upper, 0 * lower], [-2.5 * upper, -2.5 * lower], [-1 * upper, 0.0 * lower],
-        [-3 * upper, 0.0 * lower], [0.45 * lower, 0.45 * upper], [50 * lower, 50 * upper],
-        [0.75 * lower, 0.75 * upper], [1 * lower, 1 * upper], [0.04 * lower, 0.04 * upper],
+        [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower], [-3 * upper, -3 * lower],
+        [-5 * upper, -5 * lower], [0.45 * lower, 0.45 * upper], [50 * lower, 50 * upper],
+        [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
         [25 * lower, 25 * upper],    [16.11 * lower, 16.11 * upper],
         [2.1 * lower, 2.1 * upper],    [80 * lower, 80 * upper],
@@ -95,7 +111,7 @@ sp = ProblemSpec({
         [-1.1375 * upper, -1.1375 * lower],    [-1.1375 * upper, -1.1375 * lower],
         [1 * lower, 1 * upper],    [1.716 * lower, 1.716 * upper],
         [1.716 * lower, 1.716 * upper],    [0.2 * lower, 0.2 * upper],
-        [0 * lower, 0.1 * upper],    [-0.3997 * upper, -0.3997 * lower],
+        [-0.2 * lower, -0.2 * upper],    [-0.3997 * upper, -0.3997 * lower],
         [-0.3997 * upper, -0.3997 * lower],    [-0.103 * upper, -0.103 * lower],
         [0.4 * lower, 0.4 * upper],    [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper],    [0.4 * lower, 0.4 * upper],
@@ -109,7 +125,7 @@ sp = ProblemSpec({
         [1.655 * lower, 1.655 * upper],    [5.27 * lower, 5.27 * upper],
         [2.49 * lower, 2.49 * upper],    [(1/60) * lower, (1/60) * upper],
         [1 * lower, 1 * upper],    [1.5 * lower, 1.5 * upper],
-        [0.1 * lower, 0 * upper],    [6 * lower, 6 * upper],
+        [0.2 * lower, 0.2 * upper],    [6 * lower, 6 * upper],
         [2 * lower, 2 * upper],    [2 * lower, 2 * upper],
         [45 * lower, 45 * upper],    [30 * lower, 30 * upper],
         [30 * lower, 30 * upper],    [3.6 * lower, 3.6 * upper],
@@ -165,7 +181,7 @@ def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
     rows, cols = 4, 5  # 4x5 grid = 20 plots
 
     for i in range(0, D, plots_per_figure):
-        fig, axes = plt.subplots(rows, cols, figsize=(36, 12))
+        fig, axes = plt.subplots(rows, cols, figsize=(24, 9))
         # plt.get_current_fig_manager().full_screen_toggle()
         axes = axes.flatten()
 
@@ -176,7 +192,7 @@ def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
             X_base_param = X_base[:, j]
 
             # Remove zeros (optional filtering)
-            mask = (X_values != 0) & (Y_values != 0)
+            mask = (base != 0) & (Y_values != 0)
 
             x_base = X_base_param[mask]
             y_base = base[mask]
@@ -187,14 +203,14 @@ def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
             dfdx = ((y_pert - y_base) / (x_pert - x_base)) ** 2
 
             # Calculate mean and std of all values
-            mean_dfdx = np.mean(dfdx)
-            std_dfdx = np.std(dfdx)
-            # mean_dfdx = np.mean(((y_pert - y_base) ** 2))
-            # std_dfdx = np.std(((y_pert - y_base) ** 2))
+            # mean_dfdx = np.mean(dfdx)
+            # std_dfdx = np.std(dfdx)
+            mean_dfdx = np.mean(((y_pert - y_base) ** 2))
+            std_dfdx = np.std(((y_pert - y_base) ** 2))
 
             # Keep values within 2 standard deviations from the mean
-            mask2 = np.abs(dfdx - mean_dfdx) <= 2 * std_dfdx
-            # mask2 = np.abs(((y_pert - y_base) ** 2) - mean_dfdx) <= 2 * std_dfdx
+            # mask2 = np.abs(dfdx - mean_dfdx) <= 2 * std_dfdx
+            mask2 = np.abs(((y_pert - y_base) ** 2) - mean_dfdx) <= 2 * std_dfdx
 
             x_base1 = x_base[mask2]
             y_base1 = y_base[mask2]
