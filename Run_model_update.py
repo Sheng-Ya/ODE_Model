@@ -42,6 +42,10 @@ t_span = (0, 480) # Simulate for 30 seconds for just the cardiovascular system f
 time_saved = 0.005
 BUFFER_LIMIT = 10000
 
+min_time = 100   # Minimum time in seconds before checking
+max_time = 120  # Maximum time limit to avoid infinite loops
+time_step = 10  # Chunk size per solve
+
 # First iteration
 # get the first derivative and outputs from all the separated systems
 def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved):
@@ -118,11 +122,11 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
+    # d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
-    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr))
     # A = list(d_combined)
 
 
@@ -174,13 +178,9 @@ num_resp_control = len(required_resp_control_keys)
 # IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
 # num_resp_mech = len(required_resp_mech_keys)
 
-IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 
-t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
-
-min_time = 60   # Minimum time in seconds before checking
-max_time = 480  # Maximum time limit to avoid infinite loops
-time_step = 10  # Chunk size per solve
+# t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
 
 
 def simulate():
@@ -250,11 +250,13 @@ def simulate():
         total_time += time_step
 
         # Only check convergence after the minimum time has passed
-        if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>260:
+        if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>200:
             minHR = np.min(past_10_flat_segments)
             maxHR = np.max(past_10_flat_segments)
 
-            if abs(maxHR - minHR) < 0.02:
+            print(minHR, maxHR)
+
+            if abs(maxHR - minHR) < 0.05:
                 break
 
     return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions
