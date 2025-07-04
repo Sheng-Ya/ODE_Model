@@ -38,8 +38,11 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         gas_index = (i - num_removed - 1) % BUFFER_LIMIT
         resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
 
+    gas_index = 0
+    resp_control_index = 0
 
-    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
+
+    (MRBCO2, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
      Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv,
      Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp,
      GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv, tau_Emax_rv, tau_Ramp,
@@ -48,7 +51,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
      theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n, f_ac_max, f_ac_min, k_ac,
      K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D, Cvb_O2_n, gb_O2, MO2_bp, R_bpn,
      tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n,
-     gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = [params[k] if k in params else Parameters[k] for k in ["fab_o", "fes_o",
+     gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = [params[k] if k in params else Parameters[k] for k in ["MRBCO2", "fab_o", "fes_o",
     "fes_inf", "fes_max", "fev_o", "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv",
     "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh",
     "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv",
@@ -68,7 +71,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     Pa_CO2 = gas_exchange_inputs["Pa_CO2_store"][gas_index]
     Ca_O2 = gas_exchange_inputs["Ca_O2_store"][gas_index]
 
-    MRTCO2_basal = MRTCO2_basal - params["MRBCO2"]
+    MRTCO2_basal = MRTCO2_basal - MRBCO2
 
     VE_integral = resp_control_inputs["VE_integral_store"][resp_control_index]
 
@@ -351,7 +354,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     d_Tv_change_dt = (- Tv_change + sigma_Tv) / tau_Tv
     # d_Tv_change_dt = 0
 
-    T = Tv_change + Ts_change + T0
+    T = Ts_change + T0
 
     HR1 = 1 / T
 
