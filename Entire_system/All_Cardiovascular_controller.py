@@ -30,7 +30,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     ## Metabolic regulation
 
-    if t == t_start:
+    if t == 0:
         heart_index = i % BUFFER_LIMIT
         gas_index = i % BUFFER_LIMIT
         resp_control_index = i % BUFFER_LIMIT

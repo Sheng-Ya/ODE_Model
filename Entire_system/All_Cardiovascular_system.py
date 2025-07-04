@@ -37,7 +37,7 @@ def cardiovascular_system(t, state, params, heart_control_inputs, resp_control_i
     "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
 
     # Determine the correct index based on t
-    if t == t_start:
+    if t == 0:
         heart_control_index = i % BUFFER_LIMIT
         time_since_beat = updates["time_since_beat_store"][i % BUFFER_LIMIT]
         resp_control_index = i % BUFFER_LIMIT

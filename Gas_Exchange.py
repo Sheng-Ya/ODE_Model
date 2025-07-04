@@ -27,12 +27,17 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
             "Ta"
         ])
 
+    # if t>110:
+    #     beta1 = 0.006691097119140625
+
     if t == t_start:
         heart_index = i % BUFFER_LIMIT
         resp_control_index = i % BUFFER_LIMIT
     else:
         heart_index = (i - num_removed - 1) % BUFFER_LIMIT
         resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
+
+    resp_control_index = 0
 
     # inputs
     V_dead = resp_control_inputs["VD_store"][resp_control_index] # need to change once resp controller is added in
@@ -161,8 +166,8 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
     MRO2 = MRO2 - MO2_bp / 1000
 
     # if 300 < t <= 400:
-    #     MRCO2 = 0.4/60 - 0.0009
-    #     MRO2 = 0.45 / 60 - 0.000925
+    #     MRCO2 = 1/60 - 0.0009
+    #     MRO2 = 1.05 / 60 - 0.000925
 
     # if 1200 < t <= 1350:
     #     MRCO2 = 0.6/60 - 0.0009

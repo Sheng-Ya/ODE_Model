@@ -14,7 +14,7 @@ import Resp_Control_Breath_Optimiser
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
-from Parameters import Parameters
+from Parameters_test import Parameters
 from Resp_Control_Ventilation import resp_control_vent
 
 # from Respiratory_Mechanics import respiratory_mechanics
@@ -37,10 +37,14 @@ from Next_Conditions_new_update import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
+t_span = (0, 480) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 10000
+
+min_time = 100   # Minimum time in seconds before checking
+max_time = 120  # Maximum time limit to avoid infinite loops
+time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -118,11 +122,11 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
     d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
+    # d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
+    # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
-    d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
+    d_combined = np.concatenate((d_cardio, d_cardio_contr))
     # A = list(d_combined)
 
 
@@ -174,13 +178,9 @@ num_resp_control = len(required_resp_control_keys)
 # IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
 # num_resp_mech = len(required_resp_mech_keys)
 
-IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 
-t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
-
-min_time = 60   # Minimum time in seconds before checking
-max_time = 240  # Maximum time limit to avoid infinite loops
-time_step = 10  # Chunk size per solve
+# t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
 
 
 def simulate():
@@ -189,7 +189,6 @@ def simulate():
     #                          atol=1e-6, args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved))
 
     IC_current = IC_overall.copy()
-    satisfied = False
     t0 = 0
     total_time = 0
 
@@ -251,15 +250,16 @@ def simulate():
         total_time += time_step
 
         # Only check convergence after the minimum time has passed
-        if total_time >= min_time and len(past_10_flat_segments) >= 10:
+        if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>200:
             minHR = np.min(past_10_flat_segments)
             maxHR = np.max(past_10_flat_segments)
 
-            if abs(maxHR - minHR) < 0.02:
-                satisfied = True
+            print(minHR, maxHR)
+
+            if abs(maxHR - minHR) < 0.05:
                 break
 
-    return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)
+    return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions
 
 
 
@@ -274,11 +274,15 @@ if __name__ == "__main__":
     # lp.add_function(gas_exchange)
     # lp.add_function(resp_control_vent)
     # lp.enable()
-    solution, HR, Psys, Pdia = simulate()
+    solution, HR, Psys, Pdia, save_IC, save_Next = simulate()
     print("ODE Status:", solution.status)
     print("ODE Message:", solution.message)
     # lp.disable()
     # lp.print_stats()
+
+    # Save chunk incrementally (appending)
+    # np.save(f'IC_final.npy', save_IC)  # individual chunks
+    # np.save(f'Next_final.npy', save_Next)  # individual chunks
 
     time = solution.t
     state_variables = solution.y
@@ -452,8 +456,20 @@ if __name__ == "__main__":
 
 
 
-
-
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index], label="Emax_lv")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index], label="Emax_rv")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I")
+    #
+    #
+    #
+    # Add labels and legend
+    plt.ylabel("")
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 
@@ -884,22 +900,6 @@ if __name__ == "__main__":
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_bp"][:index], label="R_bp")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_hp"][:index], label="R_hp")
 
-    # Add labels and legend
-    plt.ylabel("")
-    plt.xlabel("Time (s)")
-    plt.title("Traces")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index], label="Emax_lv")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index], label="Emax_rv")
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I")
-    #
-    #
-    #
     # Add labels and legend
     plt.ylabel("")
     plt.xlabel("Time (s)")

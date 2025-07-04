@@ -21,7 +21,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"
         ])
 
-    if t == t_start:
+    if t == 0:
         gas_exchange_index = i % BUFFER_LIMIT
     else:
         gas_exchange_index = (i - num_removed - 1) % BUFFER_LIMIT
@@ -116,7 +116,7 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
             updates["finish_breath_time"].append(t)
 
             # check optimisation results
-            # print(f"guess: {updates["Nd"][-5:]}")
+            print(f"guess: {updates["Nd"][-5:]}")
     else:
         n_steps = int(np.round((t1 + t2) / dt)) + 1
         current_times = np.linspace(0, (t1 + t2), n_steps)
