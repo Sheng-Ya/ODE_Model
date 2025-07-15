@@ -1,4 +1,12 @@
 Initial_Conditions = {
+    "theta_ao": 0.0,
+    "dtheta_ao_dt": 0.0,
+    "theta_po": 0.0,
+    "dtheta_po_dt": 0.0,
+    "theta_mi": 0.0,
+    "dtheta_mi_dt": 0.0,
+    "theta_tr": 0.0,
+    "dtheta_tr_dt": 0.0,
     "VT_pa": 166.0423240560408,
     "VT_pp": 302.4159928942149,
     "VT_pv": 339.3957527854894,

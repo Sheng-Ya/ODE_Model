@@ -3,8 +3,8 @@ Parameters = {
     # Table 1. Systemic arteries
 # systemic_arteries = {
     "C_sa": 0.28,  # Systemic arterial compliance (decreasing C_sa allows Q_sa to match closer to Q_lv) # want to change to 1.13 (harry thesis
-    "L_sa": 0.00022,  # Systemic arterial inertance
-    "R_sa": 0.06,  # Systemic arterial hydraulic resistance (want to increase from 0.06 to 0.2 to increase Psys). This is because P_sa decreases at a slower rater (first order)
+    "L_sa": 0.00066,  # Systemic arterial inertance
+    "R_sa": 0.2,  # Systemic arterial hydraulic resistance (want to increase from 0.06 to 0.2 to increase Psys). This is because P_sa decreases at a slower rater (first order)
     "Vu_sa": 0, # Systemic arterial unstressed volume
 # }
 #
@@ -57,8 +57,8 @@ Parameters = {
 #
 #     # Table 4. Pulmonary Circulation Parameters
 # pulmonary_circulation = {
-    "C_pa": 8, # 0.76,           # Pulmonary arterial compliances want to change to 5
-    "C_pp": 10, # 5.8,            # Pulmonary peripheral compliances want to change to 10
+    "C_pa": 0.76, # 0.76,           # Pulmonary arterial compliances want to change to 5
+    "C_pp": 5.8, # 5.8,            # Pulmonary peripheral compliances want to change to 10
     "C_pv": 25.37, # 25.37,          # Pulmonary venous compliances want to change to 15
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
@@ -111,8 +111,8 @@ Parameters = {
     "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
     "P_abdmax_n": 0,        # Basal value of abdominal pressure at the end of expiration
     "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
-    "P_thormax_n": -4,      # Basal value of intrathoracic pressure at the end of expiration
-    "P_thormin_n": -9,      # Basal value of intrathoracic pressure at the end of inspiration
+    "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
+    "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
     "VT_n": 0.45,           # Basal value of tidal volume changed
 # }
 
@@ -272,8 +272,8 @@ Parameters = {
     "DV_ev": 5,           # Pure latency of the mechanism
     "DV_rmv": 5,           # Pure latency of the mechanism
     "DV_sv": 5,           # Pure latency of the mechanism
-    "Emax_lv0": 2.392,   # Basal level of maximum end-systolic elastance of the left ventricle # wnat to change to 5.2
-    "Emax_rv0": 1.412,   # Basal level of maximum end-systolic elastance of the right ventricle
+    "Emax_lv0": 1.412,   # Basal level of maximum end-systolic elastance of the left ventricle # wnat to change to 5.2
+    "Emax_rv0": 0.7,   # Basal level of maximum end-systolic elastance of the right ventricle
     "fes_min": 2.66,     # Threshold for sympathetic stimulation
     "GEmax_lv": 0.475,   # Constant gain factor
     "GEmax_rv": 0.282,   # Constant gain factor

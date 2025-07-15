@@ -103,78 +103,78 @@ def resp_control_vent(t, state, params, updates, gas_exchange_inputs, num_remove
     # Vt1 = VAflow * (t1 + t2) + VD
     dt = 0.001
 
-    if t != t_start or t == 0:
-        if resp_cycle < updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] and (updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] - resp_cycle) > 1 and num_removed == 0:
 
-            bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
-            tolerance = 0.001
+    if resp_cycle < updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] and (updates["resp_cycle_store"][(i - num_removed - 1) % BUFFER_LIMIT] - resp_cycle) > 1 and num_removed == 0:
 
-            # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
-            # nlc_tau = {
-            #     'type': 'ineq',
-            #     'fun': opt.tau_constraint
-            # }
-            # Optimize
-            # print((a1 * t1 + a2 * (t1 ** 2) - P_ao) - E_rs * (VAflow * (t1 + t2) + VD))
-            # print((-a2 * (t1) ** 2 - P_ao - E_rs * VAflow * t1 - E_rs * VD) / (E_rs * VAflow))
+        bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
+        tolerance = 0.001
 
-            required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
-            initial_guess = updates["Nd"][-2:]
-            result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
+        # nlc_tau = NonlinearConstraint(lambda x: opt.tau_constraint(x), lb=-0, ub=0.5) # tau constraint: at time (t1 + t2), P_musc is 0
+        # nlc_tau = {
+        #     'type': 'ineq',
+        #     'fun': opt.tau_constraint
+        # }
+        # Optimize
+        # print((a1 * t1 + a2 * (t1 ** 2) - P_ao) - E_rs * (VAflow * (t1 + t2) + VD))
+        # print((-a2 * (t1) ** 2 - P_ao - E_rs * VAflow * t1 - E_rs * VD) / (E_rs * VAflow))
 
-            a2 = (-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2) # VAflow constraint
-            a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
-            Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
-            tau = t2 / (-np.log(tolerance/Pt1))
+        required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+        initial_guess = updates["Nd"][-2:]
+        result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
 
-            updates["Nd"].append(a1)
-            updates["Nd"].append(a2)
-            updates["Nd"].append(tau)
-            updates["Nd"].extend(result.x)
-            # updates["J"].append(result.fun)
+        a2 = (-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2) # VAflow constraint
+        a1 = -2 * a2 * result.x[0] # dP_dt = 0 at t1
+        Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
+        tau = t2 / (-np.log(tolerance/Pt1))
 
-            # if 910.5 > t > 910:
-            #     a2 = (-P_ao - E_rs * VAflow * (0.5 + 0.8) - E_rs * VD) / (0.5 ** 2) # VAflow constraint
-            #     a1 = -2 * a2 * 0.5  # dP_dt = 0 at t1
-            #     Pt1 = a1 * 0.5 + a2 * (0.5 ** 2)
-            #     tau = 0.8 / (-np.log(tolerance/Pt1))
-            #     updates["Nd"].append(a1)
-            #     updates["Nd"].append(a2)
-            #     updates["Nd"].append(tau)
-            #     updates["Nd"].append(0.5)
-            #     updates["Nd"].append(0.8)
+        updates["Nd"].append(a1)
+        updates["Nd"].append(a2)
+        updates["Nd"].append(tau)
+        updates["Nd"].extend(result.x)
+        # updates["J"].append(result.fun)
 
-            t1, t2 = updates["Nd"][-2:]
-            n_steps = int(np.round((t1 + t2) / dt)) + 1
-            current_times = np.linspace(0, (t1 + t2), n_steps)
-            updates["current_times"] = current_times
+        # if 910.5 > t > 910:
+        #     a2 = (-P_ao - E_rs * VAflow * (0.5 + 0.8) - E_rs * VD) / (0.5 ** 2) # VAflow constraint
+        #     a1 = -2 * a2 * 0.5  # dP_dt = 0 at t1
+        #     Pt1 = a1 * 0.5 + a2 * (0.5 ** 2)
+        #     tau = 0.8 / (-np.log(tolerance/Pt1))
+        #     updates["Nd"].append(a1)
+        #     updates["Nd"].append(a2)
+        #     updates["Nd"].append(tau)
+        #     updates["Nd"].append(0.5)
+        #     updates["Nd"].append(0.8)
 
-            P_for_current_breath, dP_dt_for_current_breath = calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
-            V_for_current_breath, dV_dt_for_current_breath = calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
-
-            updates["P_musc_current"] = P_for_current_breath
-            updates["V_current"] = V_for_current_breath
-            updates["dV_dt_current"] = dV_dt_for_current_breath
-            updates["dP_dt_current"] = dP_dt_for_current_breath
-            updates["finish_breath_time"].append(t)
-
-            # check optimisation results
-            print(f"guess: {updates['Nd'][-5:]}")
-            # check whether pressure at time t1+t2 is 0
-            # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
-            # check whether dV_dt = 0 at t1
-            # print((a1 * t1 + a2 * (t1 ** 2) - P_ao) - E_rs * (VAflow * (t1 + t2) + VD))
-            # print(VAflow * (t1 + t2) + VD)
-            # plt.plot(current_times, V_for_current_breath, label="V")
-            # plt.plot(current_times, dV_dt_for_current_breath, label="dV_dt")
-            # plt.plot(current_times, VA_for_current_breath, label="VA")
-
-            # plt.legend()
-            # plt.show()
-    else:
+        t1, t2 = updates["Nd"][-2:]
         n_steps = int(np.round((t1 + t2) / dt)) + 1
         current_times = np.linspace(0, (t1 + t2), n_steps)
         updates["current_times"] = current_times
+
+        P_for_current_breath, dP_dt_for_current_breath = calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+        V_for_current_breath, dV_dt_for_current_breath = calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+
+        updates["P_musc_current"] = P_for_current_breath
+        updates["V_current"] = V_for_current_breath
+        updates["dV_dt_current"] = dV_dt_for_current_breath
+        updates["dP_dt_current"] = dP_dt_for_current_breath
+        updates["finish_breath_time"].append(t)
+
+        # check optimisation results
+        print(f"guess: {updates['Nd'][-5:]}")
+        # check whether pressure at time t1+t2 is 0
+        # print((a1 * t1 + a2 * (t1 ** 2)) * np.exp(-t2 / tau))
+        # check whether dV_dt = 0 at t1
+        # print((a1 * t1 + a2 * (t1 ** 2) - P_ao) - E_rs * (VAflow * (t1 + t2) + VD))
+        # print(VAflow * (t1 + t2) + VD)
+        # plt.plot(current_times, V_for_current_breath, label="V")
+        # plt.plot(current_times, dV_dt_for_current_breath, label="dV_dt")
+        # plt.plot(current_times, VA_for_current_breath, label="VA")
+
+        # plt.legend()
+        # plt.show()
+    # else:
+    #     n_steps = int(np.round((t1 + t2) / dt)) + 1
+    #     current_times = np.linspace(0, (t1 + t2), n_steps)
+    #     updates["current_times"] = current_times
 
 
     BF = 1 / (t1 + t2)

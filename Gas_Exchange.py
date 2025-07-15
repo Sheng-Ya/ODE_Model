@@ -37,7 +37,7 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
         heart_index = (i - num_removed - 1) % BUFFER_LIMIT
         resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
 
-    resp_control_index = 0
+    # resp_control_index = 0
 
     # inputs
     V_dead = resp_control_inputs["VD_store"][resp_control_index] # need to change once resp controller is added in
@@ -83,48 +83,26 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
         dPd_5_CO2_dt = constant * (PA_CO2 - Pd_5_CO2)
 
     # Ta = LCTV / Q_la
-    Ta = 8.8
+    Ta = 6
 
     t_minus_Ta = t - Ta
 
-    if t_minus_Ta >= t_start and t > abs(Ta) and Ta > 0:
-        # Find the index for delay_time in all_time
-        if i > BUFFER_LIMIT:
-            # Find index in wrapped all_time array (emulate np.concatenate with searchsorted)
-            if t_minus_Ta >= all_time[0]:
-                # No wrap-around
-                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], t_minus_Ta, side='right') - 1
-                delay_index = idx_in_sorted1 % BUFFER_LIMIT
-            else:
-                # Wrap-around
-                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], t_minus_Ta, side='right') - 1
-                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+    if t_minus_Ta >= t_start:
+        # Find index in wrapped all_time array (emulate np.concatenate with searchsorted)
+        if t_minus_Ta >= all_time[0]:
+            # No wrap-around
+            delay_index = np.searchsorted(all_time[:heart_index + 1], t_minus_Ta, side='right') - 1
         else:
-            delay_index = bisect.bisect_right(all_time, t_minus_Ta) - 1
+            # Wrap-around
+            idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], t_minus_Ta, side='right') - 1
+            delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
 
         PA_O2_old = updates["PA_O2_store"][delay_index]
         PA_CO2_old = updates["PA_CO2_store"][delay_index]
 
     else:
-        if t == 0:
-            PA_O2_old = PAO2_Delay_IC
-            PA_CO2_old = PACO2_Delay_IC
-        else:
-            if t_start != 0 and t > abs(Ta):
-                if t == t_start:
-                    PA_O2_old = previous_Selected_Conditions["PA_O2_store"][-1]
-                    PA_CO2_old = previous_Selected_Conditions["PA_CO2_store"][-1]
-                else:
-                    delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], t_minus_Ta) - 1
-                    PA_O2_old = previous_Selected_Conditions["PA_O2_store"][delay_index]
-                    PA_CO2_old = previous_Selected_Conditions["PA_CO2_store"][delay_index]
-            else:
-                if t == t_start:
-                    PA_O2_old = previous_Selected_Conditions["PA_O2_store"][-1]
-                    PA_CO2_old = previous_Selected_Conditions["PA_CO2_store"][-1]
-                else:
-                    PA_O2_old = updates["PA_O2_old_store"][(i - num_removed - 1) % BUFFER_LIMIT]
-                    PA_CO2_old = updates["PA_CO2_old_store"][(i - num_removed - 1) % BUFFER_LIMIT]
+        PA_O2_old = PAO2_Delay_IC
+        PA_CO2_old = PACO2_Delay_IC
 
     x1 = Pa_O2
     x2 = Pa_CO2

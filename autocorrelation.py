@@ -12,8 +12,25 @@ from scipy.interpolate import interp1d
 
 # Load data
 data = np.load("HR_vs_time.npz")
-time_history = data["time_history"][2000000:] - data["time_history"][2000000]
-HR = data["HR"][2000000:]
+time_history = data["time"][400000:] - data["time"][400000]
+HR = data["HR"][400000:]
+
+# # no need to reverse
+# HR_rev = HR[::-1]
+# time_rev = time_history[-1] - time_history[::-1]
+# # Full signal plot
+# plt.plot(time_rev, HR_rev, label="Full HR", color='blue')
+
+# wrong shift, comparing front of signal with signal after x seconds
+# # Overlay: HR after 2.2 seconds
+# mask = time_history > 326.3
+# time_shifted = time_history[mask] - 326.3
+# HR_shifted = HR[mask]
+#
+# # Plot shifted overlay
+# plt.plot(time_shifted, HR_shifted, label="HR after 2.2 s (shifted)", color='red', linestyle='--')
+
+
 
 # Step 1: Resample HR onto a uniform time grid
 fs = 10  # sampling frequency in Hz (1 sample/sec)
@@ -41,7 +58,7 @@ lags_sec = np.arange(len(autocorr_unbiased)) / fs
 
 # Step 5: Plot
 plt.figure(figsize=(16, 6))
-plt.plot(lags_sec, autocorr_unbiased, label='Autocorrelation')
+plt.plot(lags_sec, autocorr_unbiased)
 plt.xlabel('Lag (seconds)')
 plt.ylabel('Normalized Autocorrelation')
 plt.title('Autocorrelation of Stepwise HR')
@@ -51,6 +68,17 @@ plt.tight_layout()
 plt.show()
 
 
+# Full signal
+plt.plot(time_history, HR, label="Original HR", color='blue')
+# Shifted signal (lagged version of original)
+plt.plot(time_history + 150, HR, label="HR lagged by 150 s", color='red', linestyle='--', alpha=0.6)
+
+plt.xlabel("Time (s)")
+plt.ylabel("Heart Rate (bpm)")
+plt.legend()
+plt.title("HR and Lagged HR (150 s)")
+plt.grid(True)
+plt.show()
 
 
 # fig, ax1 = plt.subplots()
@@ -68,51 +96,51 @@ plt.show()
 
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Parameters
-fs = 2 * np.pi  # sampling frequency (samples per second)
-T = 500  # total duration in seconds
-period = 2 * np.pi  # true period of the signal in seconds
-
-# Time vector
-t = np.arange(0, T, 1/fs)
-
-# Generate a periodic signal (sine wave)
-signal = np.sin(2 * np.pi * t / period)
-
-# Mean subtraction
-signal_centered = signal - np.mean(signal)
-
-
+# import numpy as np
+# import matplotlib.pyplot as plt
+#
+# # Parameters
+# fs = 2 * np.pi  # sampling frequency (samples per second)
+# T = 500  # total duration in seconds
+# period = 2 * np.pi  # true period of the signal in seconds
+#
+# # Time vector
+# t = np.arange(0, T, 1/fs)
+#
+# # Generate a periodic signal (sine wave)
+# signal = np.sin(2 * np.pi * t / period)
+#
+# # Mean subtraction
+# signal_centered = signal - np.mean(signal)
+#
+#
+# # plt.figure(figsize=(10, 5))
+# # plt.plot(t, signal_centered)
+# # plt.show()
+#
+# # Max lag in seconds and samples
+# max_lag_sec = 5*np.pi
+# max_lag_samples = int(max_lag_sec * fs)
+#
+# # Compute autocorrelation (biased estimator)
+# n = len(signal_centered)
+# lags = np.arange(n)
+# autocorr_unbiased = np.correlate(signal_centered, signal_centered, mode='full')
+# autocorr_unbiased = autocorr_unbiased[n - 1:]  # Keep non-negative lags
+# autocorr_unbiased /= (n - lags)  # Unbias: divide by # of overlapping samples
+# autocorr_unbiased /= autocorr_unbiased[0]  # Normalize to 1 at lag 0
+#
+# # Prepare lag time axis
+# lags = np.arange(len(autocorr_unbiased)) / fs
+#
+# # Plot autocorrelation up to max lag
 # plt.figure(figsize=(10, 5))
-# plt.plot(t, signal_centered)
+# plt.plot(lags[:max_lag_samples], autocorr_unbiased[:max_lag_samples], label='Autocorrelation')
+#
+# # plt.axvline(period, color='r', linestyle='--', label='True period (30 s)')
+# plt.xlabel('Lag (seconds)')
+# plt.ylabel('Normalized Autocorrelation')
+# plt.title('Autocorrelation of Periodic Signal')
+# plt.legend()
+# plt.grid(True)
 # plt.show()
-
-# Max lag in seconds and samples
-max_lag_sec = 5*np.pi
-max_lag_samples = int(max_lag_sec * fs)
-
-# Compute autocorrelation (biased estimator)
-n = len(signal_centered)
-lags = np.arange(n)
-autocorr_unbiased = np.correlate(signal_centered, signal_centered, mode='full')
-autocorr_unbiased = autocorr_unbiased[n - 1:]  # Keep non-negative lags
-autocorr_unbiased /= (n - lags)  # Unbias: divide by # of overlapping samples
-autocorr_unbiased /= autocorr_unbiased[0]  # Normalize to 1 at lag 0
-
-# Prepare lag time axis
-lags = np.arange(len(autocorr_unbiased)) / fs
-
-# Plot autocorrelation up to max lag
-plt.figure(figsize=(10, 5))
-plt.plot(lags[:max_lag_samples], autocorr_unbiased[:max_lag_samples], label='Autocorrelation')
-
-# plt.axvline(period, color='r', linestyle='--', label='True period (30 s)')
-plt.xlabel('Lag (seconds)')
-plt.ylabel('Normalized Autocorrelation')
-plt.title('Autocorrelation of Periodic Signal')
-plt.legend()
-plt.grid(True)
-plt.show()

@@ -8,11 +8,11 @@ import dgsm_edited as dgsm
 # X_4 = np.load('DGSM_4_X_samples_HR_P_sys_P_dia_steady.npy')
 # Result_4 = np.load('DGSM_4_Result_HR_P_sys_P_dia_steady.npy')
 
-X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')[:60970, :]
-X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')
+X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg_noT0.npy')[:70409,:]
+Result_500 = np.load('Result_DGSM_next_chunked3.npy')
 
-Result_500 = np.load('DGSM_335_Result_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')
-Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')
+X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg_noT0.npy')
+Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg_noT0.npy')
 
 # X_250 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 # Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
@@ -24,23 +24,6 @@ Result_250 = np.load('DGSM_500_Result_HR_P_sys_P_dia_converge_no_bifur_updated_b
 # X_linear =  np.load('Linear_X_samples_HR_P_sys_P_dia_vary_by_20_steady.npy', allow_pickle=True)
 # Result_linear = np.load('Linear_Result_HR_P_sys_P_dia_vary_by_20_steady.npy', allow_pickle=True)
 #41374
-X_0 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur.npy')
-Result_0 = np.load('DGSM_500_Result_HR_P_sys_P_dia_converge_no_bifur.npy')
-
-failure_pattern = [0, 0, 0]
-
-# Get base indices
-base_indices_250 = np.arange(0, len(Result_250), 182)
-base_indices_0 = np.arange(0, len(Result_0), 183)
-base_indices_500 = np.arange(0, len(Result_500), 182)
-
-
-# Count failures in base point rows
-failures_250 = sum((Result_250[i] == failure_pattern).all() for i in base_indices_250)
-failures_0 = sum((Result_0[i] == failure_pattern).all() for i in base_indices_0)
-
-failures_500 = sum((Result_500[i] == failure_pattern).all() for i in base_indices_500)
-
 
 # HR_4 = Result_4[:, 0]
 HR_500 = Result_500[:, 0]
@@ -77,7 +60,9 @@ sp = ProblemSpec({
         "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "AT", "g_ccsh", "g_ccsp",
         "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn", "theta_spn", "theta_svn",
         "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "f_acCO2_n", "f_ac_max",
-        "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "G_ap", "GT_s", "GT_v", "T0", "A", "B",
+        "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "G_ap", "GT_s", "GT_v",
+        # "T0",
+        "A", "B",
         "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
         "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "kmet",
         "MO2_ampn", "phi_max", "phi_min"
@@ -156,7 +141,8 @@ sp = ProblemSpec({
         [0.835 * lower, 0.835 * upper],    [29.27 * lower, 29.27 * upper],
         [3 * lower, 3 * upper],    [45 * lower, 45 * upper],
         [11.76 * lower, 11.76 * upper],    [-0.13 * upper, -0.13 * lower],
-        [0.09 * lower, 0.09 * upper],    [0.58 * lower, 0.58 * upper],
+        [0.09 * lower, 0.09 * upper],
+        # [0.58 * lower, 0.58 * upper],
         [20.9 * lower, 20.9 * upper],    [92.8 * lower, 92.8 * upper],
         [10570 * lower, 10570 * upper],    [-5.251 * upper, -5.251 * lower],
         [0.14 * lower, 0.14 * upper],    [10 * lower, 10 * upper],
@@ -233,7 +219,7 @@ fig, ax = plt.subplots(figsize=(8, 12))
 # ax.barh(x, np.log(si_250_top), width, label='DGSM_500', xerr=log_conf_250_top)
 # ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500', xerr=log_conf_500_top)
 ax.barh(x + width/2, si_500_top, width, label='DGSM_500', xerr=conf_500_top)
-ax.barh(x - width/2, si_250_top, width, label='DGSM_250', xerr=conf_250_top)
+ax.barh(x - width/2, si_250_top, width, label='DGSM_500', xerr=conf_250_top)
 # ax.barh(x - width/2, np.log(si_250_top), width, label='DGSM_250')
 # ax.barh(x + width/2, np.log(si_500_top), width, label='DGSM_500')
 
@@ -275,7 +261,7 @@ width = 0.35
 # Plot
 fig, ax = plt.subplots(figsize=(8, 12))
 ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500', xerr=conf_500_bottom)
-ax.barh(x - width/2, si_250_bottom, width, label='DGSM_250', xerr=conf_250_bottom)
+ax.barh(x - width/2, si_250_bottom, width, label='DGSM_500', xerr=conf_250_bottom)
 # ax.barh(x - width/2, np.log(si_250_bottom), width, label='DGSM_250')
 # ax.barh(x + width/2, si_500_bottom, width, label='DGSM_500')
 
@@ -314,7 +300,7 @@ plt.show()
 def get_ranks(names_reference, target_names):
     return [np.where(names_reference == name)[0][0] + 1 for name in target_names]  # +1 for 1-based rank
 
-N = 50 # Change to how many variables to examine
+N = 100 # Change to how many variables to examine
 
 
 

@@ -1,4 +1,3 @@
-import bisect
 import math
 import numpy as np
 from Parameters import Parameters
@@ -8,7 +7,15 @@ def frac(x):
     return x - math.floor(x)
 
 
-def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT):
+def extract_mean(buffer, idx_in_2, idx_in_1):
+    if idx_in_2 <= idx_in_1:
+        values = buffer[idx_in_2:idx_in_1 + 1]
+    else:
+        values = np.concatenate([buffer[idx_in_2:], buffer[:idx_in_1 + 1]])
+    return np.mean(values)
+
+
+def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inputs, resp_control_inputs, gas_exchange_inputs, updates, num_removed, t_start, time_saved, i, BUFFER_LIMIT):
     """
     Afferent Pathways state variables:
     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv,
@@ -163,21 +170,15 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     Y_sh = (Ysh_min + Ysh_max * np.exp((I - Io_sh)/kcc_sh)) / (1 + np.exp((I - Io_sh)/kcc_sh))
     f_ash = Wt_sh * Nt + Wb_sh * f_ab + Wc_sh * f_ac + Wp_sh * f_ap - theta_sh
-    f_sh = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash) + Y_sh
-    if f_sh > fes_max:
-        f_sh = fes_max
+    f_sh = min(fes_max, (fes_inf + (fes_o - fes_inf) * np.exp(kes * f_ash) + Y_sh))
 
     Y_sp = (Ysp_min + Ysp_max * np.exp((I - Io_sp) / kcc_sp)) / (1 + np.exp((I - Io_sp) / kcc_sp))
     f_asp = Wt_sp * Nt + Wb_sp * f_ab + Wc_sp * f_ac + Wp_sp * f_ap - theta_sp
-    f_sp = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp) + Y_sp
-    if f_sp > fes_max:
-        f_sp = fes_max
+    f_sp = min(fes_max, (fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asp) + Y_sp))
 
     Y_sv = (Ysv_min + Ysv_max * np.exp((I - Io_sv) / kcc_sv)) / (1 + np.exp((I - Io_sv) / kcc_sv))
     f_asv = Wt_sv * Nt + Wb_sv * f_ab + Wc_sv * f_ac + Wp_sv * f_ap - theta_sv
-    f_sv = fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv) + Y_sv
-    if f_sv > fes_max:
-        f_sv = fes_max
+    f_sv = min(fes_max, (fes_inf + (fes_o - fes_inf) * np.exp(kes * f_asv) + Y_sv))
 
 
     Y_v = (Yv_min + Yv_max * np.exp((I - Io_v) / kcc_v)) / (1 + np.exp((I - Io_v) / kcc_v))
@@ -194,94 +195,54 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     # added the below to get f_sp_delay from previous iterations.
     delay_time2 = t - 2
     if delay_time2 >= t_start:
-        # Find the index for delay_time in all_time
-        if i > BUFFER_LIMIT:
-            # Find index in wrapped all_time array
-            if delay_time2 >= all_time[0]:
-                # No wrap-around
-                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time2, side='right') - 1
-                delay_index = idx_in_sorted1 % BUFFER_LIMIT
-            else:
-                # Wrap-around
-                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time2, side='right') - 1
-                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
+        # Find index in wrapped all_time array
+        if delay_time2 >= all_time[0]:
+            # No wrap-around
+            delay_index = np.searchsorted(all_time[:(heart_index + 1)], delay_time2, side='right') - 1
         else:
-            delay_index = bisect.bisect_right(all_time, delay_time2) - 1
+            # Wrap-around
+            idx_in_sorted2 = np.searchsorted(all_time[(heart_index + 1):], delay_time2, side='right') - 1
+            delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
 
         f_sp_delay2 = f_sp_history[delay_index]
         f_sh_delay2 = f_sh_history[delay_index]
     else:
-        if t == 0:
-            f_sp_delay2 = f_sp
-            f_sh_delay2 = f_sh
-        else:
-            if t_start != 0: # this is for the previous run with delays recorded to be used for the current run
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time2) - 1
-                f_sp_delay2 = previous_Selected_Conditions["f_sp"][delay_index]
-                f_sh_delay2 = previous_Selected_Conditions["f_sh"][delay_index]
-            else:
-                # f_sp_delay2 = np.mean(f_sp_history)
-                f_sp_delay2 = 3.97
-                f_sh_delay2 = 3.8576 #(f_shIC)
+        f_sp_delay2 = 3.97
+        f_sh_delay2 = 3.8576 #(f_shIC)
 
     delay_time5 = t - 5
     if delay_time5 >= t_start:
-        # Find the index for delay_time in all_time
-        if i > BUFFER_LIMIT:
-            if delay_time5 >= all_time[0]:
-                # No wrap-around
-                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time5, side='right') - 1
-                delay_index = idx_in_sorted1 % BUFFER_LIMIT
-            else:
-                # Wrap-around
-                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time5, side='right') - 1
-                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
+        if delay_time5 >= all_time[0]:
+            # No wrap-around
+            delay_index = np.searchsorted(all_time[:heart_index + 1], delay_time5, side='right') - 1
         else:
-            delay_index = bisect.bisect_right(all_time, delay_time5) - 1
+            # Wrap-around
+            idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time5, side='right') - 1
+            delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
 
         f_sv_delay5 = f_sv_history[delay_index]
 
     else:
-        if t == 0:
-            f_sv_delay5 = f_sv
-        else:
-            if t_start != 0:
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time5) - 1
-                f_sv_delay5 = previous_Selected_Conditions["f_sv"][delay_index]
-            else:
-                f_sv_delay5 = 3.97
-            # f_sv_delay5 = np.mean(f_sv_history)
+        f_sv_delay5 = 3.97
+        # f_sv_delay5 = np.mean(f_sv_history)
 
     # continue with equations
-    if f_sp < fes_min:
-        sigma_Rep = 0
-        sigma_Rsp = 0
-        sigma_Rrmp_n = 0
-        sigma_Ramp_n = 0
+    sigma_Rep = GR_ep * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
+    sigma_Rsp = GR_sp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
+    sigma_Rrmp_n = GR_rmp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
+    sigma_Ramp_n = GR_amp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
 
-    else:
-        sigma_Rep = GR_ep * np.log(f_sp_delay2 - fes_min + 1)
-        sigma_Rsp = GR_sp * np.log(f_sp_delay2 - fes_min + 1)
-        sigma_Rrmp_n = GR_rmp * np.log(f_sp_delay2 - fes_min + 1)
-        sigma_Ramp_n = GR_amp * np.log(f_sp_delay2 - fes_min + 1)
+    sigma_Vu_ev = GV_ev * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
+    sigma_Vu_sv = GV_sv * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
+    sigma_Vu_rmv = GV_rmv * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
+    sigma_Vu_amv = GV_amv * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
 
-    if f_sv < fes_min:
-        sigma_Vu_ev = 0
-        sigma_Vu_sv = 0
-        sigma_Vu_rmv = 0
-        sigma_Vu_amv = 0
-    else:
-        sigma_Vu_ev = GV_ev * np.log(f_sv_delay5 - fes_min + 1)
-        sigma_Vu_sv = GV_sv * np.log(f_sv_delay5 - fes_min + 1)
-        sigma_Vu_rmv = GV_rmv * np.log(f_sv_delay5 - fes_min + 1)
-        sigma_Vu_amv = GV_amv * np.log(f_sv_delay5 - fes_min + 1)
-
-    if f_sh < fes_min:
-        sigma_Emax_lv = 0
-        sigma_Emax_rv = 0
-    else:
-        sigma_Emax_lv = GEmax_lv * np.log(f_sh_delay2 - fes_min + 1)
-        sigma_Emax_rv = GEmax_rv * np.log(f_sh_delay2 - fes_min + 1)
+    sigma_Emax_lv = GEmax_lv * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
+    sigma_Emax_rv = GEmax_rv * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
 
     dR_ep_change_dt = (- R_ep_change + sigma_Rep) / tau_Rep
     dR_sp_change_dt = (- R_sp_change + sigma_Rsp) / tau_Rsp
@@ -306,46 +267,36 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     R_rmp_n = R_rmp_n_change + R_rmp0
     R_amp_n = R_amp_n_change + R_amp0
 
-    Vu_ev1 = max(Vu_ev_change + Vu_ev0, 0)
-    Vu_sv1 = max(Vu_sv_change + Vu_sv0, 0)
-    Vu_rmv1 = max(Vu_rmv_change + Vu_rmv0, 0)
-    Vu_amv1 = max(Vu_amv_change + Vu_amv0, 0)
+    Vu_ev_every = max(Vu_ev_change + Vu_ev0, 0)
+    Vu_sv_every = max(Vu_sv_change + Vu_sv0, 0)
+    Vu_rmv_every = max(Vu_rmv_change + Vu_rmv0, 0)
+    Vu_amv_every = max(Vu_amv_change + Vu_amv0, 0)
 
-
-    Emax_lv1 = Emax_lv_change + Emax_lv0
-    Emax_rv1 = Emax_rv_change + Emax_rv0
+    Emax_lv_every = Emax_lv_change + Emax_lv0
+    Emax_rv_every = Emax_rv_change + Emax_rv0
 
     # heart period constants
 
     delay_time0_2 = t - DT_v
     if delay_time0_2 >= t_start:
-        # Find the index for delay_time in all_time
-        if i > BUFFER_LIMIT:
-            if delay_time0_2 >= all_time[0]:
-                # No wrap-around
-                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time0_2, side='right') - 1
-                delay_index = idx_in_sorted1 % BUFFER_LIMIT
-            else:
-                # Wrap-around
-                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time0_2, side='right') - 1
-                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
+        if delay_time0_2 >= all_time[0]:
+            # No wrap-around
+            delay_index = np.searchsorted(all_time[:heart_index + 1], delay_time0_2, side='right') - 1
         else:
-            delay_index = bisect.bisect_right(all_time, delay_time0_2) - 1
+            # Wrap-around
+            idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time0_2, side='right') - 1
+            delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
         f_v_delay0_2 = f_v_history[delay_index]
     else:
         if t == 0:
             f_v_delay0_2 = f_v
         else:
-            if t_start != 0:
-                delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time0_2) - 1
-                f_v_delay0_2 = previous_Selected_Conditions["f_v"][delay_index]
-            else:
-                f_v_delay0_2 = 4.2748 # np.mean(f_v_history), f_v_IC
+            f_v_delay0_2 = 4.2748 # np.mean(f_v_history), f_v_IC
 
-    if f_sh < fes_min:
-        sigma_Ts = 0
-    else:
-        sigma_Ts = GT_s * np.log(f_sh_delay2 - fes_min + 1)
+
+    sigma_Ts = GT_s * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
 
     d_Ts_change_dt = (- Ts_change + sigma_Ts) / tau_Ts
     # d_Ts_change_dt = 0
@@ -354,9 +305,9 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     d_Tv_change_dt = (- Tv_change + sigma_Tv) / tau_Tv
     # d_Tv_change_dt = 0
 
-    T = Ts_change + T0
+    T = Ts_change + Tv_change + T0
 
-    HR1 = 1 / T
+    HR_every = 1 / T
 
     ## Blood Flow Local Control
     # Cerebral Blood Flow constant parameters
@@ -416,25 +367,18 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
 
     delay_time_met = t - 4
     if delay_time_met >= t_start:
-        # Find the index for delay_time in all_time
-        if i > BUFFER_LIMIT:
-            # Find index in wrapped all_time array
-            if delay_time_met >= all_time[0]:
-                # No wrap-around
-                idx_in_sorted1 = np.searchsorted(all_time[:heart_index + 1], delay_time_met, side='right') - 1
-                delay_index = idx_in_sorted1 % BUFFER_LIMIT
-            else:
-                # Wrap-around
-                idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time_met, side='right') - 1
-                delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
+        # Find index in wrapped all_time array
+        if delay_time_met >= all_time[0]:
+            # No wrap-around
+            delay_index = np.searchsorted(all_time[:heart_index + 1], delay_time_met, side='right') - 1
         else:
-            delay_index = bisect.bisect_right(all_time, delay_time_met) - 1
+            # Wrap-around
+            idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], delay_time_met, side='right') - 1
+            delay_index = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
+
 
         phi_met_delay = phi_met_history[delay_index]
-
-    elif t_start != 0:
-        delay_index = bisect.bisect_right(previous_Selected_Conditions["all_time"], delay_time_met) - 1
-        phi_met_delay = previous_Selected_Conditions["phi_met"][delay_index]
     else:
         phi_met_delay = phi_met
 
@@ -442,13 +386,14 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
     if t == 0:
-        HR = HR1
-        Vu_ev = Vu_ev1
-        Vu_sv = Vu_sv1
-        Vu_rmv = Vu_rmv1
-        Vu_amv = Vu_amv1
-        Emax_lv = Emax_lv1
-        Emax_rv = Emax_rv1
+        HR = HR_every
+        Vu_ev = Vu_ev_every
+        Vu_sv = Vu_sv_every
+        Vu_rmv = Vu_rmv_every
+        Vu_amv = Vu_amv_every
+        Emax_lv = Emax_lv_every
+        Emax_rv = Emax_rv_every
+        check = f_ab
     else:
         HR = updates["HR_store"][heart_index]
         Vu_ev = updates["Vu_ev_store"][heart_index]
@@ -457,7 +402,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         Vu_amv = updates["Vu_amv_store"][heart_index]
         Emax_lv = updates["Emax_lv_store"][heart_index]
         Emax_rv = updates["Emax_rv_store"][heart_index]
-
+        check = updates["check_store"][heart_index]
 
 
 
@@ -494,51 +439,31 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         time_since_beat1 = updates["time_since_beat_store"][heart_index]
         time_since_beat2 = updates["time_since_beat_store"][heart_index]
     else:
-        time_since_beat1 = updates["time_since_beat_store"][heart_index]
-        time_since_beat2 = updates["time_since_beat_store"][heart_index - 1]
-
-
-    if t == 0:
-        updates["HR1"].clear()
-        updates["Vu_ev1"].clear()
-        updates["Vu_sv1"].clear()
-        updates["Vu_rmv1"].clear()
-        updates["Vu_amv1"].clear()
-        updates["Emax_lv1"].clear()
-        updates["Emax_rv1"].clear()
+        time_since_beat1 = updates["time_since_beat_store"][(heart_index + 1) % BUFFER_LIMIT]
+        time_since_beat2 = updates["time_since_beat_store"][heart_index]
 
 
     # update after every heartbeat
-    if time_since_beat1 != time_since_beat2 and num_removed == 0:
-        HR = np.mean(updates["HR1"])
-        updates["HR1"].clear()
+    if time_since_beat1 != time_since_beat2:
+        if time_since_beat2 >= all_time[0]:
+            # No wrap-around
+            idx_in_2 = np.searchsorted(all_time[:heart_index + 1], time_since_beat2, side='right') - 1
+        else:
+            # Wrap-around
+            idx_in_sorted2 = np.searchsorted(all_time[heart_index + 1:], time_since_beat2, side='right') - 1
+            idx_in_2 = (idx_in_sorted2 + heart_index + 1) % BUFFER_LIMIT
 
-        Vu_ev = np.mean(updates["Vu_ev1"])
-        updates["Vu_ev1"].clear()
+        idx_in_1 = heart_index
 
-        Vu_sv = np.mean(updates["Vu_sv1"])
-        updates["Vu_sv1"].clear()
+        HR = extract_mean(updates["HR_every_store"], idx_in_2, idx_in_1)
+        Vu_ev = extract_mean(updates["Vu_ev_every_store"], idx_in_2, idx_in_1)
+        Vu_sv = extract_mean(updates["Vu_sv_every_store"], idx_in_2, idx_in_1)
+        Vu_rmv = extract_mean(updates["Vu_rmv_every_store"], idx_in_2, idx_in_1)
+        Vu_amv = extract_mean(updates["Vu_amv_every_store"], idx_in_2, idx_in_1)
+        Emax_lv = extract_mean(updates["Emax_lv_every_store"], idx_in_2, idx_in_1)
+        Emax_rv = extract_mean(updates["Emax_rv_every_store"], idx_in_2, idx_in_1)
+        check = extract_mean(updates["check_store_all"], idx_in_2, idx_in_1)
 
-        Vu_rmv = np.mean(updates["Vu_rmv1"])
-        updates["Vu_rmv1"].clear()
-
-        Vu_amv = np.mean(updates["Vu_amv1"])
-        updates["Vu_amv1"].clear()
-
-        Emax_lv = np.mean(updates["Emax_lv1"])
-        updates["Emax_lv1"].clear()
-
-        Emax_rv = np.mean(updates["Emax_rv1"])
-        updates["Emax_rv1"].clear()
-
-        # update history
-    updates["HR1"].append(HR1)
-    updates["Vu_ev1"].append(Vu_ev1)
-    updates["Vu_sv1"].append(Vu_sv1)
-    updates["Vu_rmv1"].append(Vu_rmv1)
-    updates["Vu_amv1"].append(Vu_amv1)
-    updates["Emax_lv1"].append(Emax_lv1)
-    updates["Emax_rv1"].append(Emax_rv1)
 
 
 
@@ -549,14 +474,19 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
                 "HR_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
                 "Emax_lv_store", "Emax_rv_store", "R_ep_store", "R_amp_store", "R_rmp_store",
                 "R_sp_store", "R_bp_store", "R_hp_store", "I_store", "f_sp_store", "f_sh_store",
-                "f_v_store", "f_sv_store", "phi_met_store",
+                "f_v_store", "f_sv_store", "phi_met_store", "HR_every_store", "Vu_ev_every_store",
+                "Vu_sv_every_store", "Vu_rmv_every_store", "Vu_amv_every_store", "Emax_lv_every_store",
+                "Emax_rv_every_store",
 
                 # Needed in cardio controller
-                "prev_flat_bit_store"],
+                "prev_flat_bit_store",
+                "check_store_all", "check_store"],
 
             [HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, R_ep, R_amp, R_rmp,
-             R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, phi_met, prev_flat_bit]
+             R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
+             Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
+             prev_flat_bit, f_ab, check]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
@@ -570,48 +500,17 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         [   # Cardio inputs
             "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
             "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "f_sp", "f_sh", "f_v", "f_sv", "Nt", "f_ab",
-            "f_ac", "f_ap", "Tv_change", "Ts_change"
-
+            "f_ac", "f_ap", "Tv_change", "Ts_change", "HR_check", "f_sh_delay2", "f_v_delay02", "sigma_Ts", "sigma_Tv",
+            "theta_sp", "theta_sh", "theta_sv", "theta_v", "check_store_all_time"
             ],
 
         [   # Corresponding values
             HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
-            R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, Nt, f_ab, f_ac, f_ap, Tv_change, Ts_change
-            ])
+            R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, Nt, f_ab, f_ac, f_ap, Tv_change, Ts_change, HR_every,
+            f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, P_sa, exp_arg, f_sv, f_v, check])
 
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value
-            # updates[key][updates["j"].item()] = value
-
-    # keys_and_values = zip(
-    #     [   # Cardio inputs
-    #         "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
-    #         "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I",
-    #
-    #         # Needed in cardio controller
-    #         "prev_flat_bit",
-    #
-    #         # Save for delay
-    #         "f_sp", "f_sh", "f_v", "f_sv", "phi_met",
-    #
-    #         # For plot
-    #         "f_ac", "f_ab", "f_ap", "Nt", "Cvb_O2", "Wh", "xamO2", "Cvam_O2",
-    #         "MO2_amp", "xM", "theta_change_O2_sp", "theta_change_CO2_sp",
-    #         "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
-    #         "theta_change_CO2_sh", "sigma_Tv", "sigma_Ts", "Y_v"],
-    #
-    #     [   # Corresponding values
-    #         HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
-    #         R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I,
-    #         prev_flat_bit,
-    #         f_sp, f_sh, f_v, f_sv, phi_met,
-    #         f_ac, f_ab, f_ap, Nt, Cvb_O2, Wh, xam_O2, Cvam_O2,
-    #         MO2_amp, xM, theta_change_O2_sp, theta_change_CO2_sp,
-    #         theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
-    #         theta_change_CO2_sh, sigma_Tv, sigma_Ts, Y_v])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item() - num_removed] = value
 
 
     return [dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
