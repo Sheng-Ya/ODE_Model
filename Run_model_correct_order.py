@@ -10,7 +10,7 @@ from line_profiler import LineProfiler
 from collections import deque
 
 import Resp_Control_Breath_Optimiser
-
+from Derivatives import model_derivatives
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
@@ -42,37 +42,23 @@ t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system f
 time_saved = 0.005
 BUFFER_LIMIT = 9000000
 
-min_time = 200 # Minimum time in seconds before checking
-max_time = 210 # Maximum time limit to avoid infinite loops
+min_time = 100 # Minimum time in seconds before checking
+max_time = 1000 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
 def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved):
-    """
-
-    """
-
-    # if t != 0:
-    #     latest_nonzero_value = Initial_Conditions_dict["all_time"][1]
-    #     if t < latest_nonzero_value:
-    #         num_removed = 1
-    #     else:
-    #         num_removed = 0
-    # else:
-    #     num_removed = 0
-    #
-    # Initial_Conditions_dict["all_time"][0], Initial_Conditions_dict["all_time"][1] = Initial_Conditions_dict["all_time"][1], t
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
 
-    if t != 0:
+    if i > 1: # t != 0:
         all_time = Initial_Conditions_dict["all_time"]
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = all_time[latest_nonzero_index]
         if t < latest_nonzero_value:
-
+            # num_removed = 6
             index = -1  # Set a default value for safety
 
             # Iterating through the buffer in circular order
@@ -84,58 +70,53 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
             num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
 
-            for j in range(num_removed + 1):
+            for j in range(num_removed):
                 Initial_Conditions_dict["all_time"][(index + j) % BUFFER_LIMIT] = 0
 
-            # if num_removed > 5:
-            #     raise ValueError(f"num_removed should not be greater than 5, got {num_removed}")
+            # if num_removed != 6:
+            #     print(f"num_removed should be 6, got {num_removed}")
+                # raise ValueError(f"num_removed should be 6, got {num_removed}")
         else:
             num_removed = 0
     else:
         num_removed = 0
 
-    # if t != 0:
-    #     latest_nonzero_value = Next_Conditions["all_time"][i - 1]
-    #     if t < latest_nonzero_value:
-    #         index = bisect.bisect_left(Next_Conditions["time_history"], t)
-    #         num_removed = i - index
-    #         Next_Conditions["time_history"][index:i + 1] = np.full((num_removed + 1,), 1e6)
-    #     else:
-    #         num_removed = 0
-    # else:
-    #     num_removed = 0
+
 
     # Indices for slicing
-    idx_cardio = num_cardio
-    idx_cardio_contr = idx_cardio + num_cardio_control
-    idx_gas = idx_cardio_contr + num_gas
-    idx_resp_contr = idx_gas + num_resp_control
+    idx_cardio_contr = num_cardio + num_cardio_control
+    # idx_gas = idx_cardio_contr + num_gas
+    # idx_resp_contr = idx_gas + num_resp_control
     # idx_resp_mech = idx_resp_contr + num_resp_mech
 
     # Extract each subsystem's state variables
-    cardio_state = Initial_Conditions_numpy[:idx_cardio]
-    cardio_contr_state = Initial_Conditions_numpy[idx_cardio:idx_cardio_contr]
-    gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
-    resp_contr_state = Initial_Conditions_numpy[idx_gas:idx_resp_contr]
+    cardio_state = Initial_Conditions_numpy[:idx_cardio_contr]
+    # gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
+    # resp_contr_state = Initial_Conditions_numpy[idx_gas:idx_resp_contr]
     # resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
-    d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
+    derivatives_all = model_derivatives(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, Initial_Conditions_dict["all_time"], BUFFER_LIMIT)
+
+    # d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
+    # d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
     # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
     # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
 
     # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
-    d_combined = np.concatenate((d_cardio, d_cardio_contr))
+    # d_combined = np.concatenate((d_cardio, d_cardio_contr))
     # A = list(d_combined)
 
-    # Initial_Conditions_dict["check_time"].append(t)
-    # A = list(Initial_Conditions_dict["check_time"])
+    Initial_Conditions_dict["check_time"].append(t)
+    # AAAAAA = list(Initial_Conditions_dict["f_sp_store"])
+    # AAAAAAAA = list(Initial_Conditions_dict["P_sa"])
     Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
-
     Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
+
+    # AA = list(Initial_Conditions_dict["all_time"])
+    # AAAAAAA = list(Initial_Conditions_dict["check_time"])
 
     # Debugging check for progress
     if t != 0:
@@ -143,7 +124,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
         if np.any(diff < 0.0001):
             print(t)
 
-    return d_combined
+    return derivatives_all
 
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
@@ -185,98 +166,147 @@ num_resp_control = len(required_resp_control_keys)
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 # IC_overall = IC_cardio
 
-# t_eval = np.linspace(0, t_span[1], t_span[1]*1000)
-
 
 def simulate():
-    # Solve ODE
-
+    # Initial setup
     IC_current = IC_overall.copy()
-    t0 = 0
-    total_time = 0
 
-    all_t = []
-    all_y = []
+    t_eval_full = np.arange(0, max_time, 0.001)
 
-    while total_time < max_time:
-        t_span_local = (t0, t0 + time_step)
-        t_eval_local = np.arange(t0, (t0 + time_step), 0.001)
+    # Solve ODE in one go
+    ODE_solution = solve_ivp(
+        combined_system,
+        (0, max_time),
+        IC_current,
+        t_eval=t_eval_full,
+        max_step=0.0001,
+        method="DOP853",
+        rtol=1e-8,
+        atol=1e-10,
+        args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved)
+    )
 
-        ODE_solution = solve_ivp(
-            combined_system,
-            t_span_local,
-            IC_current,
-            t_eval=t_eval_local,
-            max_step=0.003,
-            method="RK45",
-            rtol=1e-9,
-            atol=1e-6,
-            args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved)
-        )
+    if ODE_solution.status == -1:
+        return 0.0, 0.0, 0.0
 
-        if ODE_solution.status == -1:
-            return 0.0, 0.0, 0.0
+    # Post-processing: use buffer to get recent data
+    i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
 
+    P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_sa, distance=int(500))
+    troughs, _ = find_peaks(-P_sa, distance=int(500))
 
-        # Append to full history
-        all_t.append(ODE_solution.t)
-        all_y.append(ODE_solution.y)
+    last_10_troughs = troughs[-10:-1]
+    last_10_min = P_sa[last_10_troughs]
 
+    last_10_peaks = peaks[-10:-1]
+    last_10_max = P_sa[last_10_peaks]
 
-        i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
+    HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 
-        P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
-
-        peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
-        troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
-
-        last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
-        last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
-
-        last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
-        last_10_max = P_sa[last_10_peaks]  # Get actual max values
-
-        # Get past 10 HR
-        HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
-
-        # Initialize list of segments
-        past_10_flat_segments = []
-
-        # Start from the end and track the current segment value
-        prev_value = None
-        for j in range(len(HR) - 1, -1, -1):
-            current_value = HR[j]
-            if current_value != prev_value:
-                # New segment found
-                past_10_flat_segments.append(current_value)
-                prev_value = current_value
-                if len(past_10_flat_segments) == 10:
-                    break
-
-
-
-        # Update IC and time
-        IC_current = ODE_solution.y[:, -1]
-        t0 += time_step
-        total_time += time_step
-
-        # Only check convergence after the minimum time has passed
-        if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>200:
-            minHR = np.min(past_10_flat_segments)
-            maxHR = np.max(past_10_flat_segments)
-
-            print(minHR, maxHR)
-
-            if abs(maxHR - minHR) < 0.05:
+    past_10_flat_segments = []
+    prev_value = None
+    for j in range(len(HR) - 1, -1, -1):
+        current_value = HR[j]
+        if current_value != prev_value:
+            past_10_flat_segments.append(current_value)
+            prev_value = current_value
+            if len(past_10_flat_segments) == 10:
                 break
-
-    # Concatenate time and state arrays
-    t_full = np.concatenate(all_t)
-    y_full = np.hstack(all_y)
 
     np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"])
 
-    return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, t_full, y_full
+
+    return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y
+
+
+# def simulate():
+#     # Solve ODE
+#
+#     IC_current = IC_overall.copy()
+#     t0 = 0
+#     total_time = 0
+#
+#     all_t = []
+#     all_y = []
+#
+#     while total_time < max_time:
+#         t_span_local = (t0, t0 + time_step)
+#         t_eval_local = np.arange(t0, (t0 + time_step), 0.001)
+#
+#         ODE_solution = solve_ivp(
+#             combined_system,
+#             t_span_local,
+#             IC_current,
+#             t_eval=t_eval_local,
+#             max_step=0.003,
+#             method="RK45",
+#             rtol=1e-3,
+#             atol=1e-6,
+#             args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved)
+#         )
+#
+#         if ODE_solution.status == -1:
+#             return 0.0, 0.0, 0.0
+#
+#
+#         # Append to full history
+#         all_t.append(ODE_solution.t)
+#         all_y.append(ODE_solution.y)
+#
+#
+#         i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
+#
+#         P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
+#
+#         peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
+#         troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
+#
+#         last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
+#         last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
+#
+#         last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
+#         last_10_max = P_sa[last_10_peaks]  # Get actual max values
+#
+#         # Get past 10 HR
+#         HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
+#
+#         # Initialize list of segments
+#         past_10_flat_segments = []
+#
+#         # Start from the end and track the current segment value
+#         prev_value = None
+#         for j in range(len(HR) - 1, -1, -1):
+#             current_value = HR[j]
+#             if current_value != prev_value:
+#                 # New segment found
+#                 past_10_flat_segments.append(current_value)
+#                 prev_value = current_value
+#                 if len(past_10_flat_segments) == 10:
+#                     break
+#
+#
+#
+#         # Update IC and time
+#         IC_current = ODE_solution.y[:, -1]
+#         t0 += time_step
+#         total_time += time_step
+#
+#         # Only check convergence after the minimum time has passed
+#         if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>200:
+#             minHR = np.min(past_10_flat_segments)
+#             maxHR = np.max(past_10_flat_segments)
+#
+#             print(minHR, maxHR)
+#
+#             if abs(maxHR - minHR) < 0.05:
+#                 break
+#
+#     # Concatenate time and state arrays
+#     t_full = np.concatenate(all_t)
+#     y_full = np.hstack(all_y)
+#
+#     return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, t_full, y_full
 
 
 if __name__ == "__main__":
@@ -284,8 +314,7 @@ if __name__ == "__main__":
     # lp = LineProfiler()
     # lp.add_function(Resp_Control_Breath_Optimiser.objective)
     #
-    # lp.add_function(combined_system)
-    # lp.add_function(cardiovascular_controller)
+    # lp.add_function(model_derivatives)
     # lp.add_function(cardiovascular_system)
     # lp.add_function(gas_exchange)
     # lp.add_function(resp_control_vent)
