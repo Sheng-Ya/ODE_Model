@@ -104,12 +104,16 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
         PA_O2_old = PAO2_Delay_IC
         PA_CO2_old = PACO2_Delay_IC
 
-    x1 = Pa_O2
-    x2 = Pa_CO2
-    dx1_dt = dPa_O2_dt
-    dx2_dt = dPa_CO2_dt
-    d2Pa_O2_dt2 = (PA_O2_old - (T1 + T2) * dx1_dt - x1) / (T1 * T2)
-    d2Pa_CO2_dt2 = (PA_CO2_old - (T1 + T2) * dx2_dt - x2) / (T1 * T2)
+    PA_O2_old = PA_O2
+    PA_CO2_old = PA_CO2
+    # x1 = Pa_O2
+    # x2 = Pa_CO2
+    # dx1_dt = dPa_O2_dt
+    # dx2_dt = dPa_CO2_dt
+    # d2Pa_O2_dt2 = (PA_O2_old - (T1 + T2) * dx1_dt - x1) / (T1 * T2)
+    # d2Pa_CO2_dt2 = (PA_CO2_old - (T1 + T2) * dx2_dt - x2) / (T1 * T2)
+    d2Pa_O2_dt2 = (PA_O2_old - (T1 + T2) * dPa_O2_dt - Pa_O2) / (T1 * T2)
+    d2Pa_CO2_dt2 = (PA_CO2_old - (T1 + T2) * dPa_CO2_dt - Pa_CO2) / (T1 * T2)
 
     FCO2 = (PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2))
     CeCO2 = (C2 * Z) * (FCO2 ** (1 / a2)) / (1 + (FCO2 ** (1 / a2)))
@@ -297,5 +301,5 @@ def gas_exchange(t, state, params, all_time, resp_control_inputs, heart_system_i
 
 
     return [dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
-            dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dx1_dt, dx2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
+            dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
             dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt]

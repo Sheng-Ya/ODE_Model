@@ -11,9 +11,22 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 # Load data
-data = np.load("HR_vs_time.npz")
-time_history = data["time"][400000:] - data["time"][400000]
-HR = data["HR"][400000:]
+data = np.load("HR_vs_time_800s.npz")
+index = np.where(data["time"] == 1e6)[0][0] - 1
+time_history = data["time"][4000000:index] - data["time"][4000000]
+HR = data["HR"][4000000:index]
+HR_averaged = data["HR_average"][4000000:index]
+
+
+
+# Full signal
+plt.plot(time_history, HR_averaged, label="Original HR", color='blue')
+
+plt.xlabel("Time (s)")
+plt.ylabel("Heart Rate (bpm)")
+plt.legend()
+plt.grid(True)
+plt.show()
 
 # # no need to reverse
 # HR_rev = HR[::-1]
@@ -71,12 +84,12 @@ plt.show()
 # Full signal
 plt.plot(time_history, HR, label="Original HR", color='blue')
 # Shifted signal (lagged version of original)
-plt.plot(time_history + 150, HR, label="HR lagged by 150 s", color='red', linestyle='--', alpha=0.6)
+plt.plot(time_history + 165, HR, label="HR lagged by 165 s", color='red', linestyle='--', alpha=0.6)
 
 plt.xlabel("Time (s)")
 plt.ylabel("Heart Rate (bpm)")
 plt.legend()
-plt.title("HR and Lagged HR (150 s)")
+plt.title("HR and Lagged HR (165 s)")
 plt.grid(True)
 plt.show()
 

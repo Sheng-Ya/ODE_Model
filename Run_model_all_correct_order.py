@@ -10,7 +10,7 @@ from line_profiler import LineProfiler
 from collections import deque
 
 import Resp_Control_Breath_Optimiser
-from Derivatives import model_derivatives
+from All_derivatives import model_derivatives
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
@@ -29,7 +29,7 @@ from Selected_Conditions import Selected_Conditions as previous_Selected_Conditi
 # from Initial_Conditions import Initial_Conditions
 # from Next_Conditions import Next_Conditions
 from Initial_Conditions_after_running_again import Initial_Conditions
-from Next_Conditions_new_update import Next_Conditions
+from Next_Conditions_all_derivatives import Next_Conditions
 
 # output_file1 = "Selected_Conditions_new.py"
 # output_file2 = "Initial_Conditions_new.py"
@@ -40,9 +40,9 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
-BUFFER_LIMIT = 9000000
+BUFFER_LIMIT = 20000
 
-min_time = 100 # Minimum time in seconds before checking
+min_time = 10 # Minimum time in seconds before checking
 max_time = 800 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
@@ -53,8 +53,9 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
 
+    all_time = Initial_Conditions_dict["all_time"]
+
     if i > 1: # t != 0:
-        all_time = Initial_Conditions_dict["all_time"]
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = all_time[latest_nonzero_index]
         if t < latest_nonzero_value:
@@ -71,7 +72,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
             num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
 
             for j in range(num_removed):
-                Initial_Conditions_dict["all_time"][(index + j) % BUFFER_LIMIT] = 0
+                all_time[(index + j) % BUFFER_LIMIT] = 0
 
             # if num_removed != 6:
             #     print(f"num_removed should be 6, got {num_removed}")
@@ -84,34 +85,19 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
 
     # Indices for slicing
-    idx_cardio_contr = num_cardio + num_cardio_control
-    # idx_gas = idx_cardio_contr + num_gas
-    # idx_resp_contr = idx_gas + num_resp_control
-    # idx_resp_mech = idx_resp_contr + num_resp_mech
+    idx_resp_contr = num_cardio + num_cardio_control + num_gas + num_resp_control
 
     # Extract each subsystem's state variables
-    cardio_state = Initial_Conditions_numpy[:idx_cardio_contr]
-    # gas_state = Initial_Conditions_numpy[idx_cardio_contr:idx_gas]
-    # resp_contr_state = Initial_Conditions_numpy[idx_gas:idx_resp_contr]
-    # resp_mech_state = Initial_Conditions_numpy[idx_resp_contr:idx_resp_mech]
+    resp_contr_state = Initial_Conditions_numpy[:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    derivatives_all = model_derivatives(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, Initial_Conditions_dict["all_time"], BUFFER_LIMIT)
+    derivatives_all = model_derivatives(t, resp_contr_state, Parameters, Initial_Conditions_dict, num_removed, t_span[0], i, BUFFER_LIMIT, all_time)
 
-    # d_cardio = cardiovascular_system(t, cardio_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
-    # d_cardio_contr = cardiovascular_controller(t, cardio_contr_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
-    # d_gas = gas_exchange(t, gas_state, Parameters, Initial_Conditions_dict["all_time"], Initial_Conditions_dict, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], previous_Selected_Conditions, time_saved, i, BUFFER_LIMIT)
-    # d_resp_vent = resp_control_vent(t, resp_contr_state, Parameters, Initial_Conditions_dict, Initial_Conditions_dict, num_removed, t_span[0], time_saved, i, BUFFER_LIMIT)
-    # d_resp_mech = respiratory_mechanics(t, resp_mech_state, Parameters, Initial_Conditions_dict, num_removed, i)
-
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr, d_gas, d_resp_vent))
-    # d_combined = np.concatenate((d_cardio, d_cardio_contr))
-    # A = list(d_combined)
 
     # Initial_Conditions_dict["check_time"].append(t)
     # AAAAAA = list(Initial_Conditions_dict["f_sp_store"])
     # AAAAAAAA = list(Initial_Conditions_dict["P_sa"])
-    Initial_Conditions_dict["all_time"][(i - num_removed) % BUFFER_LIMIT] = t
+    all_time[(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
     Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
 
@@ -120,6 +106,8 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Debugging check for progress
     if t != 0:
+        if t > Initial_Conditions_dict["Nd"][-1] + Initial_Conditions_dict["Nd"][-2] - 0.001:
+            A =2
         diff = np.abs(t - target_values)
         if np.any(diff < 0.0001):
             print(t)
@@ -162,8 +150,8 @@ num_resp_control = len(required_resp_control_keys)
 # IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
 # num_resp_mech = len(required_resp_mech_keys)
 
-# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
-IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
+IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
+# IC_overall = np.concatenate((IC_cardio, IC_cardio_contr))
 # IC_overall = IC_cardio
 
 
@@ -352,26 +340,62 @@ if __name__ == "__main__":
     num_variables = state_variables.shape[0]
     colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
 
-    plt.figure(figsize=(12, 6))
-    for i, label in enumerate(required_cardio_keys):
-        plt.plot(t_full, y_full[i])
-        # color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-        # plt.plot(time, state_variables[i], label=label, color=color, linestyle='-', markersize=4)
+    # plt.figure(figsize=(12, 6))
+    # for i, label in enumerate(required_cardio_keys):
+    #     plt.plot(t_full, y_full[i])
+    #     # color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
+    #     # plt.plot(time, state_variables[i], label=label, color=color, linestyle='-', markersize=4)
+    #
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("State value")
+    # plt.title("State Variables Over Entire Simulation")
+    # plt.legend()
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.show()
+    variables_to_plot = [
+        # "f_sp_history", "f_sh_history", "f_v_history",
+        # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+        # "PamCO2", "VE_integral"
+        # "phi", "phi_atr"
+        # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
+        # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
+        # "Pd_5_O2"
+        "PACO2", "PAO2", "finish_breath_time_plot", "Ca_O2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "V", "dV_dt"
+        # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
+        # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
+        # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
+        # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
+        # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
+    ]
 
-    plt.xlabel("Time [s]")
-    plt.ylabel("State value")
-    plt.title("State Variables Over Entire Simulation")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    for key in variables_to_plot:
+        if key in Next_Conditions:  # Check if the key exists in updates
+            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+            plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
+            plt.xlabel("Time (s)")
+            plt.ylabel(key)
+            plt.title(f"Plot of {key} over Time")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
 
     # Plot all state variables
     plt.figure(figsize=(14, 10))
-    for i, label in enumerate(required_cardio_keys):
+    for i, label in enumerate(state_variable_names):
         # if label != "beta":
-        if label != "P_sa":  # Skip "Wh"
+        if label in ["VT_pa", "VT_pp", "VT_pv", "Q_pa",
+        "VT_la", "VT_lv", "VT_ra", "VT_rv",
+        "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_amv", "VT_ev", "P_sp", "P_sa", "Q_sa", 'VT_vc',
+        "theta_ao", "dtheta_ao_dt", "theta_po", 'dtheta_po_dt', "theta_mi", 'dtheta_mi_dt', "theta_tr", 'dtheta_tr_dt',
+
+     # Cardio controller state variables
+        "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
+        "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", 'R_ep_change', "R_sp_change",
+        "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change",
+        "Emax_rv_change", "Ts_change", "Tv_change", 'xb_O2', "xb_CO2", "xh_O2", 'xh_CO2', "Wh", 'xrm_O2', 'xrm_CO2', 'xam_O2', "xM", "x_met"]:  # Skip "Wh"
             continue
         color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
         plt.plot(time, state_variables[i], label=label, color=color, linestyle='-', markersize=4)

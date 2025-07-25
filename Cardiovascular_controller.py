@@ -45,8 +45,8 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         gas_index = (i - num_removed - 1) % BUFFER_LIMIT
         resp_control_index = (i - num_removed - 1) % BUFFER_LIMIT
 
-    gas_index = 0
-    resp_control_index = 0
+    # gas_index = 0
+    # resp_control_index = 0
 
 
     (MRBCO2, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
@@ -230,6 +230,10 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
         f_sv_delay5 = 3.97
         # f_sv_delay5 = np.mean(f_sv_history)
 
+    f_sp_delay2 = f_sp
+    f_sh_delay2 = f_sh
+    f_sv_delay5 = f_sv
+
     # continue with equations
     sigma_Rep = GR_ep * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
     sigma_Rsp = GR_sp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
@@ -301,6 +305,7 @@ def cardiovascular_controller(t, state, params, all_time, exp_inputs, heart_inpu
     d_Ts_change_dt = (- Ts_change + sigma_Ts) / tau_Ts
     # d_Ts_change_dt = 0
 
+    f_v_delay0_2 = f_v
     sigma_Tv = GT_v * f_v_delay0_2
     d_Tv_change_dt = (- Tv_change + sigma_Tv) / tau_Tv
     # d_Tv_change_dt = 0
