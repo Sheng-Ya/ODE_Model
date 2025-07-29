@@ -49,7 +49,7 @@ Parameters = {
     "K1_vc": 0.15,     # Parameter for P-V curve of vena cava
     "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
     "Kr_vc": 0.001,    # Gain for vena cava flow resistance
-    "Rvc_n": 0.0025,    # Nominal vena cava flow resistance (changed to 0.0025 from xxx for better left atrial pressures)
+    "Rvc_n": 0.075,    # Nominal vena cava flow resistance # edited (changed to 0.0025 from xxx for better left atrial pressures, changed back to 0.025)
     "Vu_vc": 123,      # Vena cava unstressed volume
     "Vvc_max": 350,     # Maximum volume of vena cava
     "Vvc_min": 50,      # Minimum volume of vena cava
@@ -59,11 +59,11 @@ Parameters = {
 # pulmonary_circulation = {
     "C_pa": 0.76, # 0.76,           # Pulmonary arterial compliances want to change to 5
     "C_pp": 5.8, # 5.8,            # Pulmonary peripheral compliances want to change to 10
-    "C_pv": 25.37, # 25.37,          # Pulmonary venous compliances want to change to 15
+    "C_pv": 20.5, # 25.37,          # Pulmonary venous compliances want to change to 15 # edited
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
     "R_pp": 0.0894,         # Pulmonary peripheral flow resistance
-    "R_pv": 0.0056,         # Pulmonary venous flow resistance
+    "R_pv": 0.006,         # Pulmonary venous flow resistance # edited
     "Vu_pa": 0,            # Pulmonary arterial unstressed volume
     "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
     "Vu_pv": 114,          # Pulmonary venous unstressed volume
@@ -80,12 +80,12 @@ Parameters = {
     # "KR_lv": 0.000375,     # Viscosity of left ventricle
     # "KR_rv": 0.00014,       # Viscosity of right ventricle (this parameter affects RA pressure) (changed from 0.0014. The removes the kink in the lv)
     # "ksys": 0.075,         # Duration of systole as function of heart rate (this parameter affects RA pressure)
-    "Emax_la": 0.45,
-    "P0_la": 0.45,
+    "Emax_la": 0.25,    # edited
+    "P0_la": 0.55,      # edited
     "KE_la": 0.05,
 
-    "Emax_ra": 0.45,
-    "P0_ra": 0.45,
+    "Emax_ra": 0.25,    # edited
+    "P0_ra": 0.55,      # edited
     "KE_ra": 0.05,
     "P0_lv": 1.5, # 1.5        # End-diastolic P-V relationship in left ventricle # another model use 1.0
     "P0_rv": 1.5, # 1.5         # End-diastolic P-V relationship in right ventricle (check this one first, has strong effect with the smallest change in volume)
@@ -403,7 +403,7 @@ Parameters = {
     "dc": 0.015,                    # Depth of central receptor below medulla surface (cm)
     "h": 0.0183/1000,                    # Cerebral blood flow constant (ml/(100g·s))
     "KCCO2": 346000,                # CO2 central receptor constant (s·cm^-2·l^-1)
-    "KCSFCO2": 320,                 # CO2 diffusion time constant in cerebrospinal fluid (s)
+    "KCSFCO2": 20,                 # CO2 diffusion time constant in cerebrospinal fluid (s), changed to be faster to see if limit cycle is reached
     "MRBCO2": 0.0009,               # Metabolic production rate of CO2 (1/s STPD)
     "MRBO2": 0.000925,              # Metabolic production rate of O2 (1/s STPD)
     "PbCO2IC": 48.5338,             # Initial condition for brain CO2 partial pressure (mmHg)

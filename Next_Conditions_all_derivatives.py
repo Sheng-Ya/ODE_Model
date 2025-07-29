@@ -71,7 +71,7 @@ Next_Conditions = {
     "Q_hp": np.pad(np.array([5.660768018224629]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "Q_rmp": np.pad(np.array([17.122080520211522]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "Q_amp": np.pad(np.array([19.74254952325074]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
-    "VT": np.pad(np.array([0.5244556146311226]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
+    "VT": np.pad(np.array([0.45]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "TI": np.pad(np.array([1.5]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "VE_flow": np.pad(np.array([0.14984446132317786]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "V": np.pad(np.array([0.15539008927528375]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
@@ -81,6 +81,10 @@ Next_Conditions = {
     "Pa_CO2": np.pad(np.array([37.73923378100724]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "MRTCO2": np.pad(np.array([0.0024333333333333334]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "Cv_O2": np.pad(np.array([0.15699289539129443]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
+    "CvtCO2": np.pad(np.array([0.0]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
+    "CvbCO2": np.pad(np.array([0.0]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
+    "QT": np.pad(np.array([0.0]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
+
     "Cv_CO2": np.pad(np.array([0.4850438353528567]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "Q_pp": np.pad(np.array([108.38375209632734]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "Q_bp": np.pad(np.array([15.055523288666429]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
@@ -127,6 +131,7 @@ Next_Conditions = {
     "check_store_all_time": np.pad(np.array([0.0]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
     "finish_breath_time_plot": np.pad(np.array([0.0]), (0, 30000000 - 1), mode="constant", constant_values=1e6),
 
+    "Nt_store": np.array([0.0] * 500000),
     "finish_breath_time": np.array([0.0] * 500000),
     "HR_every_store": np.array([0.9084331292138277] * 500000),
     "Vu_ev_every_store": np.array([544.1904702933099] * 500000),

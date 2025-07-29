@@ -37,19 +37,19 @@ def extract_mean(buffer, idx_in_2, idx_in_1):
     return np.mean(values)
 
 
-# def get_delayed_value(t, delay, t_start, all_time, last_index, buffer_limit, history_array, default_value):
-#     delay_time = t - delay
-#     if delay_time >= t_start:
-#         if delay_time >= all_time[0]:
-#             # No wrap-around
-#             delay_index = np.searchsorted(all_time[:last_index + 1], delay_time, side='right') - 1
-#         else:
-#             # Wrap-around
-#             idx_in_sorted = np.searchsorted(all_time[last_index + 1:], delay_time, side='right') - 1
-#             delay_index = (idx_in_sorted + last_index + 1) % buffer_limit
-#         return history_array[delay_index]
-#     else:
-#         return default_value
+def get_delayed_value(t, delay, t_start, all_time, last_index, buffer_limit, history_array, default_value):
+    delay_time = t - delay
+    if delay_time >= t_start:
+        if delay_time >= all_time[0]:
+            # No wrap-around
+            delay_index = np.searchsorted(all_time[:last_index + 1], delay_time, side='right') - 1
+        else:
+            # Wrap-around
+            idx_in_sorted = np.searchsorted(all_time[last_index + 1:], delay_time, side='right') - 1
+            delay_index = (idx_in_sorted + last_index + 1) % buffer_limit
+        return history_array[delay_index]
+    else:
+        return default_value
 
 
 
@@ -182,11 +182,13 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
         initial_guess = updates["Nd"][-2:]
         result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
+        result.x[0] = round(result.x[0], 2)
+        result.x[1] = round(result.x[1], 2)
 
-        a2 = (-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2)  # VAflow constraint
-        a1 = -2 * a2 * result.x[0]  # dP_dt = 0 at t1
-        Pt1 = a1 * result.x[0] + a2 * (result.x[0] ** 2)
-        tau = t2 / (-np.log(tolerance / Pt1))
+        a2 = round((-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2), 2)  # VAflow constraint
+        a1 = round(-2 * a2 * result.x[0], 2)  # dP_dt = 0 at t1
+        Pt1 = round(a1 * result.x[0] + a2 * (result.x[0] ** 2), 2)
+        tau = round(t2 / (-np.log(tolerance / Pt1)), 2)
 
         updates["Nd"].append(a1)
         updates["Nd"].append(a2)
@@ -316,7 +318,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     VT_change = VT - VT_n # units of L
     T_resp = t1 + t2
-    TE = T_resp - TI
+    TE = t2
     P_abdmax = P_abdmax_n + g_abd * VT_change
     P_thormax = P_thormax_n + g_thor * VT_change
     P_abdmin = P_abdmin_n + g_abd * VT_change
@@ -545,6 +547,9 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
             P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor # + source_values
         else:
             P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
+
+    # P_vc = V_vc / 10.5 + P_thor
+    # removed plots in slides had the above uncommented
 
 
     if V_vc > 0:
@@ -830,11 +835,11 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     MRBO2 = MO2_bp / 1000
 
     # Body Tissues Compartment
-    MRTO2_basal = MRTO2_basal - MO2_bp / 1000
+    MRTO2_basal = MRTO2_basal - MRBO2
 
     # exercise
     MRCO2 = MRCO2 - MRBCO2
-    MRO2 = MRO2 - MO2_bp / 1000
+    MRO2 = MRO2 - MRBO2
 
     # if 300 < t <= 400:
     #     MRCO2 = 1/60 - 0.0009
@@ -960,7 +965,12 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         prev_flat_bit = updates["prev_flat_bit_store"][last_index]
         Nt = VE_integral - prev_flat_bit  # Take value minus previous flat bit
     else:
-        Nt = 0  # Reset to zero
+        # Nt = 0  # Reset to zero
+        # tau_Nt = t2 / np.log(1000)  # Decay to ~1% over expiration
+        # decay_rate = np.exp(-dt / tau_Nt)
+        # Nt = VE_integral - prev_flat_bit
+        # removed abrubt Nt = 0
+        Nt = updates["Nt_store"][last_index] * np.exp(-(t - all_time[last_index]) / (t2 / np.log(1000)))
         prev_flat_bit = VE_integral
 
     ## CNS Ischemic Response
@@ -1081,8 +1091,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
 
     ## Blood Flow Local Control
-    Cvb_O2 = CaO2 - MO2_bp / Q_bp
-    dxb_O2_dt = (- xb_O2 - gb_O2 * (Cvb_O2 - Cvb_O2_n)) / tau_O2
+    # Cvb_O2 = CaO2 - MO2_bp / Q_bp
+    dxb_O2_dt = (- xb_O2 - gb_O2 * (CvbO2 - Cvb_O2_n)) / tau_O2
 
     numerator = A + (B / (1 + C * np.exp(D * np.log10(Pa_CO2))))
     denominator = A + (B / (1 + C * np.exp(D * np.log10(PaCO2_n))))
@@ -1156,11 +1166,13 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
             [   # Resp control inputs
                 "Pa_O2_every_store", "Pa_CO2_every_store", "Pb_CO2_every_store",
                 # Histories for gas
-                "PA_O2_every_store", "PA_CO2_every_store", "PA_O2_delay_store", "PA_CO2_delay_store"],
+                "PA_O2_every_store", "PA_CO2_every_store", "PA_O2_delay_store", "PA_CO2_delay_store",
+                "Nt_store"
+            ],
 
             [   # Corresponding values
                 Pa_O2, Pa_CO2, Pb_CO2,
-                PA_O2, PA_CO2, PA_O2_delay, PA_CO2_delay]
+                PA_O2, PA_CO2, PA_O2_delay, PA_CO2_delay, Nt]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
@@ -1243,11 +1255,12 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         [  # Cardio control inputs
             "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
             # Histories for gas
-            "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtCO2", "PvtO2"],
+            "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtCO2", "PvtO2",
+            "CvbCO2", "CvtCO2", "QT"],
 
         [  # Corresponding values
             MRTCO2, Pa_O2, Pa_CO2, CaO2,
-            Pb_CO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2])
+            Pb_CO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, CvbCO2, CvtCO2, QT])
 
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value

@@ -40,7 +40,7 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
-BUFFER_LIMIT = 20000
+BUFFER_LIMIT = 500000
 
 min_time = 10 # Minimum time in seconds before checking
 max_time = 800 # Maximum time limit to avoid infinite loops
@@ -106,8 +106,6 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
 
     # Debugging check for progress
     if t != 0:
-        if t > Initial_Conditions_dict["Nd"][-1] + Initial_Conditions_dict["Nd"][-2] - 0.001:
-            A =2
         diff = np.abs(t - target_values)
         if np.any(diff < 0.0001):
             print(t)
@@ -353,6 +351,121 @@ if __name__ == "__main__":
     # plt.grid(True)
     # plt.tight_layout()
     # plt.show()
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pa"][:index], label="Q_pa", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_rv"][:index], label="Q_rv", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc", color="b")
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_la"][:index], label="VT_la", color="r")
+
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color='g')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_pv"][:index], label="P_pv", color='k')
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    #
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+
+    plt.show()
+
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pa"][:index], label="Q_pa", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_rv"][:index], label="Q_rv", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ra"][:index], label="Q_ra", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
+
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    ax2 = ax1.twinx()
+    #
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_vc"][:index], label="P_vc", color='g')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ra"][:index], label="P_ra", color='k')
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    #
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+
+    plt.show()
+
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvtCO2"][:index], label="CvtCO2", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvbCO2"][:index], label="CvbCO2", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_CO2"][:index], label="Cv_CO2", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["QT"][:index], label="QT", color="r")
+
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ab"][:index], label="Baroreceptor firing", color="aquamarine")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["check_store_all_time"][:index], label="Mean baroreceptor firing", color="g")
+
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ap"][:index], label="Lung stretch receptor firing", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ac"][:index], label="Chemoreceptor firing", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Respiratory neuromuscular drive", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart sympathetic", color="m")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["prev_flat_bit_store"][:index], label="Heart sympathetic", color="r")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh_delay2"][:index],
+    #          label="Delay Heart sympathetic", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
+    #
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index],
+    #          label="Delay Vagal firing", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
+             color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
+             color='g')
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sv"][:index], label="theta_sv", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sp"][:index], label="theta_sp", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_v"][:index], label="theta_v", color="aquamarine")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+    #
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    #
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+    plt.show()
+
+
     variables_to_plot = [
         # "f_sp_history", "f_sh_history", "f_v_history",
         # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
@@ -361,7 +474,7 @@ if __name__ == "__main__":
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
         # "Pd_5_O2"
-        "PACO2", "PAO2", "finish_breath_time_plot", "Ca_O2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "V", "dV_dt"
+        "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "V", "dV_dt"
         # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
         # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
         # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
@@ -656,46 +769,7 @@ if __name__ == "__main__":
 
 
 
-    fig, ax1 = plt.subplots()
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ab"][:index], label="Baroreceptor firing", color="aquamarine")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["check_store_all_time"][:index], label="Mean baroreceptor firing", color="g")
 
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ap"][:index], label="Lung stretch receptor firing", color="b")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ac"][:index], label="Chemoreceptor firing", color="k")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Respiratory neuromuscular drive", color="g")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart sympathetic", color="m")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh_delay2"][:index], label="Delay Heart sympathetic", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
-
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index], label="Delay Vagal firing", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
-
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sv"][:index], label="theta_sv", color="g")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sp"][:index], label="theta_sp", color="r")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_v"][:index], label="theta_v", color="aquamarine")
-
-
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Firing rate (spikes/s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    # # plt.show()
-    ax2 = ax1.twinx()
-    #
-    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
-    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    #
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
-    plt.show()
 
 
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR Averaged")
