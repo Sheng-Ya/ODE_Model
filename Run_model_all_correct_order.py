@@ -40,15 +40,15 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
-BUFFER_LIMIT = 500000
+BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 800 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved):
+def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control):
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
@@ -157,19 +157,16 @@ def simulate():
     # Initial setup
     IC_current = IC_overall.copy()
 
-    t_eval_full = np.arange(0, max_time, 0.001)
-
     # Solve ODE in one go
     ODE_solution = solve_ivp(
         combined_system,
         (0, max_time),
         IC_current,
-        t_eval=t_eval_full,
-        max_step=0.0001,
+        max_step=0.001,
         method="RK23",
         rtol=1e-3,
-        atol=1e-3,
-        args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved)
+        atol=1e-6,
+        args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control)
     )
 
     if ODE_solution.status == -1:
