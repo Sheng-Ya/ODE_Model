@@ -61,6 +61,36 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     return V, dV_dt
 
 
+
+def calculate_single_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
+    """
+    Updated method for calculating V and dV/dt values
+    """
+    # Precompute constants
+    t1, t2 = initial_guess
+    a1, a2, Pt1, Vt1, tau, B = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
+
+    # Compute constants for solution
+    c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (
+                np.exp(-B * t1) - 1)
+
+    d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
+    c2 = (Vt1 - (Pt1 / R_rs) / (B - 1 / tau)) / np.exp(-B * t1)
+
+    if t <= t1:
+        V = ((a1 / E_rs) * t - (a1 * R_rs / (E_rs ** 2)) +
+                        (a2 / E_rs) * (t ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t +
+                        (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
+                        c1 * np.exp((-E_rs / R_rs) * t) + d1)
+        dV_dt = (1 / R_rs) * (a1 * t + a2 * (t ** 2) - E_rs * V)
+    else:
+        V = np.exp(-B * t) * ((Pt1 / R_rs) / (B - 1 / tau) *
+                                          np.exp((B - 1 / tau) * t + t1 / tau) + c2)
+        dV_dt = (1 / R_rs) * (Pt1 * np.exp(-(t - t1) / tau) - E_rs * V)
+
+    return dV_dt
+
+
 # @njit
 def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """

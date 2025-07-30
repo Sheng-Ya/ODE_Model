@@ -3,7 +3,7 @@ import math
 from Test_controller import source
 from Activation_Functions import activation_U, activation_H, activation_Naghavi, g_function, activation_H_derivative, \
     activation_conduit, activation_S
-from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
+from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt, calculate_single_dV_dt
 from scipy.optimize import minimize
 
 
@@ -167,6 +167,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * 40)
     VD = GV_dead * VAflow + V0_dead
     dt = 0.001
+    tolerance = 0.001
 
     if time_since_last_breath > (t1 + t2) or t == 0:
         finish_breath_time = finish_breath_time + (t1 + t2)  # update timestamp for the start of the next breath
@@ -177,7 +178,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         time_since_last_breath = t - finish_breath_time
 
         bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
-        tolerance = 0.001
 
         required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
         initial_guess = updates["Nd"][-2:]
@@ -198,19 +198,19 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         updates["Nd"].extend(result.x)
 
         t1, t2 = updates["Nd"][-2:]
-        n_steps = int(np.round((t1 + t2) / dt)) + 1
-        current_times = np.linspace(0, (t1 + t2), n_steps)
-        updates["current_times"] = current_times
-
-        P_for_current_breath, dP_dt_for_current_breath = \
-            calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
-        V_for_current_breath, dV_dt_for_current_breath = (
-            calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao))
-
-        updates["P_musc_current"] = P_for_current_breath
-        updates["V_current"] = V_for_current_breath
-        updates["dV_dt_current"] = dV_dt_for_current_breath
-        updates["dP_dt_current"] = dP_dt_for_current_breath
+        # n_steps = int(np.round((t1 + t2) / dt)) + 1
+        # current_times = np.linspace(0, (t1 + t2), n_steps)
+        # updates["current_times"] = current_times
+        #
+        # P_for_current_breath, dP_dt_for_current_breath = \
+        #     calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+        # V_for_current_breath, dV_dt_for_current_breath = (
+        #     calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao))
+        #
+        # updates["P_musc_current"] = P_for_current_breath
+        # updates["V_current"] = V_for_current_breath
+        # updates["dV_dt_current"] = dV_dt_for_current_breath
+        # updates["dP_dt_current"] = dP_dt_for_current_breath
 
         # check optimisation results
         # print(f"guess: {updates['Nd'][-5:]}")
@@ -224,9 +224,9 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # store ventilation variables
     resp_cycle = time_since_last_breath % (t1 + t2)  # determine time within the breath
 
-    V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
-    dV_dt = np.interp(resp_cycle, updates["current_times"], updates["dV_dt_current"])
-    P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
+    # V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
+    dV_dt = calculate_single_dV_dt(resp_cycle, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+    # P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
 
     # for cardiovascular controller
     if (resp_cycle % (t1 + t2)) <= TI:
