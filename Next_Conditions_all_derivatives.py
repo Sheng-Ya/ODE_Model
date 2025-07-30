@@ -5,7 +5,6 @@ Next_Conditions = {
     "Nd": [13.2818159, -3.7235, 0.25442073, 1.5, 2],
     "current_times": [],
     "check_time": [],
-    "time_since_beat_store_index": np.array([0]),
 
     "VT_pa": np.pad(np.array([166.0423240560408]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "VT_pp": np.pad(np.array([302.4159928942149]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
@@ -96,15 +95,8 @@ Next_Conditions = {
     "Pb_CO2": np.pad(np.array([48.22526495116809]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "VAflow": np.pad(np.array([0.09966636182656344]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "time_history": np.pad(np.array([0.0]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
-    "V_current": [],
-    "P_musc_current": [],
-    "dV_dt_current": [],
-    "dP_dt_current": [],
     "PvtCO2": np.pad(np.array([41.057521400376245]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "PvtO2": np.pad(np.array([100.057521400376245]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
-
-    "j": np.array([0]),
-
     "sigma_Ts": np.pad(np.array([0.0]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "sigma_Tv": np.pad(np.array([0.0]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "f_sh_delay2": np.pad(np.array([0.0]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
@@ -131,6 +123,11 @@ Next_Conditions = {
     "check_store_all_time": np.pad(np.array([0.0]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
     "finish_breath_time_plot": np.pad(np.array([0.0]), (0, 1000000 - 1), mode="constant", constant_values=1e6),
 
+    "j": np.array([0]),
+    "V_current": [],
+    "P_musc_current": [],
+    "dV_dt_current": [],
+    "dP_dt_current": [],
     "Nt_store": np.array([0.0] * 20000),
     "finish_breath_time": np.array([0.0] * 20000),
     "HR_every_store": np.array([0.9084331292138277] * 20000),

@@ -1,11 +1,11 @@
 import numpy as np
 import math
-from Parameters import Parameters
 from Test_controller import source
 from Activation_Functions import activation_U, activation_H, activation_Naghavi, g_function, activation_H_derivative, \
     activation_conduit, activation_S
 from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
 from scipy.optimize import minimize
+
 
 def frac(x):
     return x - math.floor(x)
@@ -52,87 +52,88 @@ def get_delayed_value(t, delay, t_start, all_time, last_index, buffer_limit, his
         return default_value
 
 
-
-def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER_LIMIT, all_time):
-
+def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER_LIMIT, all_time, Old_parameters):
     # # State variables
-    (# Cardio state variables
-     VT_pa, VT_pp, VT_pv, Q_pa,
-     VT_la, VT_lv, VT_ra, VT_rv,
-     VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc,
-     theta_ao, dtheta_ao_dt, theta_po, dtheta_po_dt, theta_mi, dtheta_mi_dt, theta_tr, dtheta_tr_dt,
+    (  # Cardio state variables
+        VT_pa, VT_pp, VT_pv, Q_pa,
+        VT_la, VT_lv, VT_ra, VT_rv,
+        VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc,
+        theta_ao, dtheta_ao_dt, theta_po, dtheta_po_dt, theta_mi, dtheta_mi_dt, theta_tr, dtheta_tr_dt,
 
-     # Cardio controller state variables
-     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
-     theta_change_CO2_sh, P_tilda, f_ac, f_ap, R_ep_change, R_sp_change,
-     R_rmp_n_change, R_amp_n_change, Vu_ev_change, Vu_sv_change, Vu_rmv_change, Vu_amv_change, Emax_lv_change,
-     Emax_rv_change, Ts_change, Tv_change, xb_O2, xb_CO2, xh_O2, xh_CO2, Wh, xrm_O2, xrm_CO2, xam_O2, xM, x_met,
+        # Cardio controller state variables
+        theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
+        theta_change_CO2_sh, P_tilda, f_ac, f_ap, R_ep_change, R_sp_change,
+        R_rmp_n_change, R_amp_n_change, Vu_ev_change, Vu_sv_change, Vu_rmv_change, Vu_amv_change, Emax_lv_change,
+        Emax_rv_change, Ts_change, Tv_change, xb_O2, xb_CO2, xh_O2, xh_CO2, Wh, xrm_O2, xrm_CO2, xam_O2, xM, x_met,
 
-     # Gas exchange state variables
-     Pd_1_O2, Pd_1_CO2, Pd_2_O2, Pd_2_CO2, Pd_3_O2, Pd_3_CO2, Pd_4_O2, Pd_4_CO2, Pd_5_O2, Pd_5_CO2, Pa_O2, Pa_CO2,
-     dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV,
+        # Gas exchange state variables
+        Pd_1_O2, Pd_1_CO2, Pd_2_O2, Pd_2_CO2, Pd_3_O2, Pd_3_CO2, Pd_4_O2, Pd_4_CO2, Pd_5_O2, Pd_5_CO2, Pa_O2, Pa_CO2,
+        dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV,
 
-     # Resp control state variable
-     VE_integral
+        # Resp control state variable
+        VE_integral
     ) = state
 
     # # Parameters
     # Cardio parameters
-    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa, R_pa,
-     R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la, Emax_ra,
-     P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min, C_ep, C_sp, C_bp,
-     C_hp, C_rmp, C_amp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv, Vu_ep,
-     Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (params[k] if k in params else Parameters[k] for k in ["A_im", "Tc", "T_im", "g_abd", "g_thor",
-    "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv",
-    "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv", "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la",
-    "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa", "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
-    "Vu_vc", "Vvc_max", "Vvc_min", "C_ep", "C_sp", "C_bp", "C_hp", "C_rmp", "C_amp", "V_tot", "R_ev_n", "R_sv_n", "R_bv_n",
-    "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv", "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp",
-    "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
+    (
+    A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa, R_pa,
+    R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
+    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min, C_ep, C_sp,
+    C_bp, C_hp, C_rmp, C_amp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+    Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (params[k] if k in params else Old_parameters[k] for k in
+     ["A_im", "Tc", "T_im", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa",
+      "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
+      "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
+      "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n", "Vu_vc", "Vvc_max", "Vvc_min", "C_ep", "C_sp",
+      "C_bp", "C_hp", "C_rmp", "C_amp", "V_tot", "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev",
+      "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv", "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp", "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv",
+      "Vu_hv"])
 
     # Cardio controller parameters
-    (MRBCO2, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v,
-     Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv,
-     Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp,
-     GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv, tau_Emax_rv, tau_Ramp,
-     tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, AT, MRTCO2_basal,
-     g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc, tau_isc, theta_shn, theta_spn,
-     theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n, f_ac_max, f_ac_min, k_ac,
-     K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D, Cvb_O2_n, gb_O2, MO2_bp, R_bpn,
-     tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n,
-     gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = [params[k] if k in params else Parameters[k] for k in ["MRBCO2", "fab_o", "fes_o",
-    "fes_inf", "fes_max", "fev_o", "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv",
-    "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh",
-    "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv",
-    "Wt_v", "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
-    "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp", "tau_Rep",
-    "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0", "Vu_rmv0", "Vu_sv0", "AT",
-    "MRTCO2_basal", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh", "PO2_sp", "PO2_sv", "tau_cc",
-    "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab",
-    "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap",
-    "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "tau_CO2",
-    "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2", "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w",
-    "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met", "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
+    (MRBCO2, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
+    kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
+    Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
+    GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
+    tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
+    Vu_sv0, AT, MRTCO2_basal, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc, tau_isc,
+    theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
+    f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
+    Cvb_O2_n, gb_O2, MO2_bp, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
+    MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = \
+    [params[k] if k in params else Old_parameters[k] for k in ["MRBCO2", "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o",
+        "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
+        "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp", "Wb_sv",
+        "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
+        "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
+        "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
+        "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0", "Vu_rmv0",
+        "Vu_sv0", "AT", "MRTCO2_basal", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
+        "PO2_sp", "PO2_sv", "tau_cc", "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n",
+        "f_ab_max", "f_ab_min", "k_ab", "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min", "k_ac", "K_H",
+        "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
+        "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "tau_CO2", "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
+        "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
+        "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
 
     # Gas exchange and mixing
     (a2_gas, alpha1, alpha2, beta1, beta2, C2, Fi_CO2, Fi_O2, K1, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
      P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
-     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (params[k] if k in params else Parameters[k] for k in [
-    "a2", "alpha1", "alpha2", "beta1", "beta2", "C2", "Fi_CO2", "Fi_O2", "K1", "K2", "PACO2_Delay_IC",
-    "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
-    "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"])
+     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (params[k] if k in params else Old_parameters[k] for k in [
+        "a2", "alpha1", "alpha2", "beta1", "beta2", "C2", "Fi_CO2", "Fi_O2", "K1", "K2", "PACO2_Delay_IC",
+        "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
+        "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"])
 
     # Resp control
     (GV_dead, Kbg, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
-    (params[k] if k in params else Parameters[k] for k in ["GV_dead", "Kbg", "KcCO2", "KcMRV", "KpCO2", "KpO2",
-    "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
+        (params[k] if k in params else Old_parameters[k] for k in ["GV_dead", "Kbg", "KcCO2", "KcMRV", "KpCO2", "KpO2",
+       "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
 
     # Determine the correct index based on t
     if t == t_start:
         last_index = i % BUFFER_LIMIT
     else:
         last_index = (i - num_removed - 1) % BUFFER_LIMIT
-
 
     # resp controller
     a1, a2, tau, t1, t2 = updates["Nd"][-5:]
@@ -141,14 +142,14 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     time_since_last_breath = t - finish_breath_time
 
     if time_since_last_breath > (t1 + t2):
-        if finish_breath_time >= all_time[0]: # No wrap-around
+        if finish_breath_time >= all_time[0]:  # No wrap-around
             idx_in_2 = np.searchsorted(all_time[:last_index + 1], finish_breath_time, side='right')
         else:  # Wrap-around
             idx_in_sorted2 = np.searchsorted(all_time[last_index + 1:], finish_breath_time, side='right')
             idx_in_2 = (idx_in_sorted2 + last_index + 1) % BUFFER_LIMIT
 
         idx_in_1 = last_index
-        accepted_indices = accept_index_evals(idx_in_2, idx_in_1, BUFFER_LIMIT, (i-num_removed))
+        accepted_indices = accept_index_evals(idx_in_2, idx_in_1, BUFFER_LIMIT, (i - num_removed))
 
         PamO2 = np.mean(updates["Pa_O2_every_store"][accepted_indices])
         PamCO2 = np.mean(updates["Pa_CO2_every_store"][accepted_indices])
@@ -161,7 +162,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         PamO2 = updates["PamO2"][last_index]  # previous mean value
         PamCO2 = updates["PamCO2"][last_index]  # previous mean value
         PmbCO2 = updates["PmbCO2"][last_index]  # previous mean value
-
 
     G3 = KpO2 * ((104 - PamO2) ** 4.9) if PamO2 < 104 else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * 40)
@@ -181,11 +181,13 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
         required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
         initial_guess = updates["Nd"][-2:]
-        result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
+        result = minimize(objective, initial_guess, args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA',
+                          bounds=bounds)
         result.x[0] = round(result.x[0], 2)
         result.x[1] = round(result.x[1], 2)
 
-        a2 = round((-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2), 2)  # VAflow constraint
+        a2 = round((-P_ao - E_rs * VAflow * (result.x[0] + result.x[1]) - E_rs * VD) / (result.x[0] ** 2),
+                   2)  # VAflow constraint
         a1 = round(-2 * a2 * result.x[0], 2)  # dP_dt = 0 at t1
         Pt1 = round(a1 * result.x[0] + a2 * (result.x[0] ** 2), 2)
         tau = round(t2 / (-np.log(tolerance / Pt1)), 2)
@@ -211,8 +213,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         updates["dP_dt_current"] = dP_dt_for_current_breath
 
         # check optimisation results
-        print(f"guess: {updates['Nd'][-5:]}")
-
+        # print(f"guess: {updates['Nd'][-5:]}")
 
     BF = 1 / (t1 + t2)
     TI = t1
@@ -232,14 +233,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         d_VE_integral_dt = VE_flow
     else:
         d_VE_integral_dt = VE_flow  # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
-
-
-
-
-
-
-
-
 
     # Cardiovascular Controller
     T = 1 / updates["HR_store"][last_index]  # heart period
@@ -265,7 +258,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     time_since_beat = updates["time_since_beat_store"][last_index]
     # Update after every heartbeat
     if t - time_since_beat > T:
-        if time_since_beat >= all_time[0]: # No wrap-around
+        if time_since_beat >= all_time[0]:  # No wrap-around
             idx_in_2 = np.searchsorted(all_time[:last_index + 1], time_since_beat, side='right') - 1
         else:  # Wrap-around
             idx_in_sorted2 = np.searchsorted(all_time[last_index + 1:], time_since_beat, side='right') - 1
@@ -294,13 +287,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         Emax_lv = updates["Emax_lv_store"][last_index]  # previous mean value
         Emax_rv = updates["Emax_rv_store"][last_index]  # previous mean value
 
-
-
-
-
-
-
-
     # # Cardiovascular System
     # Muscle Pump
     # alp ranges between 0 (corresponding to the beginning of muscle contraction) and 1
@@ -316,7 +302,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # p_im is 0 in resting conditions
     # P_im = 0
 
-    VT_change = VT - VT_n # units of L
+    VT_change = VT - VT_n  # units of L
     T_resp = t1 + t2
     TE = t2
     P_abdmax = P_abdmax_n + g_abd * VT_change
@@ -344,14 +330,13 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     elif first <= S <= second:
         P_abd = P_abdmax - (P_abdmax - P_abdmin) * ((TI + TE - T_resp * S) / TE)
 
-
     # added P_thor to only the pulmonary compartments
     if VT_pa > Vu_pa:
         V_pa = VT_pa - Vu_pa
     else:
         V_pa = 0
 
-    P_pa = V_pa / C_pa + P_thor # 6-16mmHg
+    P_pa = V_pa / C_pa + P_thor  # 6-16mmHg
 
     if VT_pp > Vu_pp:
         V_pp = VT_pp - Vu_pp
@@ -367,30 +352,27 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     P_pv = V_pv / C_pv + P_thor
 
-
-
     ## The Heart
-    if VT_la > Vu_la: # LA stressed volume is the total minus unstressed
+    if VT_la > Vu_la:  # LA stressed volume is the total minus unstressed
         V_la = VT_la - Vu_la
     else:
         V_la = 0
 
-    if VT_ra > Vu_ra: # RA stressed volume is the total minus unstressed
+    if VT_ra > Vu_ra:  # RA stressed volume is the total minus unstressed
         V_ra = VT_ra - Vu_ra
     else:
         V_ra = 0
 
-    if VT_rv > Vu_rv: # RV stressed volume is the total minus unstressed
+    if VT_rv > Vu_rv:  # RV stressed volume is the total minus unstressed
         V_rv = VT_rv - Vu_rv
     else:
         V_rv = 0
 
     # V_lv can be growing but there should not be any flow (Q) into the ventricles?
-    if VT_lv > Vu_lv: # LV stressed volume is the total minus unstressed
+    if VT_lv > Vu_lv:  # LV stressed volume is the total minus unstressed
         V_lv = VT_lv - Vu_lv
     else:
         V_lv = 0
-
 
     # activation function for contraction of the ventricle and atria
     phi = activation_H(t - time_since_beat, 0, T)
@@ -400,7 +382,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor
     Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1) + P_thor
     Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
-
 
     # aortic valve
     ####################################
@@ -463,7 +444,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     Kf_po = 800
     Kb_po = 2
     Kv_po = 7
-    theta_po_max = 1.309 # 75 degrees to radian
+    theta_po_max = 1.309  # 75 degrees to radian
 
     if Pmax_rv > P_pa:
         if theta_po > theta_po_max:
@@ -471,7 +452,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         AR_po = ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
         Q_rv = (math.sqrt(Pmax_rv - P_pa) * AR_po * 350)
 
-        d2theta_po_dt2 = (Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(theta_po) - Kv_po * Q_rv * np.sin(theta_po)
+        d2theta_po_dt2 = (Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(
+            theta_po) - Kv_po * Q_rv * np.sin(theta_po)
         P_rv = Pmax_rv
     else:
         Q_rv = 0
@@ -503,7 +485,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         P_ra = Pmax_ra
     ####################################
 
-
     Q_la = (P_pv - P_la) / R_pv
     Q_pp = (P_pp - P_pv) / R_pp
 
@@ -512,17 +493,15 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     dVT_pv_dt = Q_pp - Q_la
     dQ_pa_dt = (P_pa - R_pa * Q_pa - P_pp) / L_pa
 
-
     dVT_lv_dt = Qi_lv - Q_lv
     dVT_la_dt = Q_la - Qi_lv
 
     if VT_lv > Vu_lv:
-        dV_lv_dt = dVT_lv_dt   # Added this myself
+        dV_lv_dt = dVT_lv_dt  # Added this myself
     else:
-        dV_lv_dt = 0.0           # Added this myself
+        dV_lv_dt = 0.0  # Added this myself
 
     Wh_lv = (P_thor - P_lv) * dV_lv_dt
-
 
     if VT_vc > Vu_vc:
         V_vc = VT_vc - Vu_vc
@@ -536,21 +515,19 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     # source_values = source(t)
 
-
     if V_vc < Vu_vc:
         if t != 0:
-            P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor # + source_values
+            P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor  # + source_values
         else:
             P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor
     else:
         if t != 0:
-            P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor # + source_values
+            P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor  # + source_values
         else:
             P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
 
     # P_vc = V_vc / 10.5 + P_thor
     # removed plots in slides had the above uncommented
-
 
     if V_vc > 0:
         R_vc = Kr_vc * (Vvc_max / V_vc) ** 2 + Rvc_n
@@ -570,15 +547,13 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     Wh_rv = (P_thor - P_rv) * dV_rv_dt
 
-
-
     ## systemic peripheral and venous circulation
     # splanchnic
     V_sp = C_sp * P_sp
 
     if VT_sv >= Vu_sv:
         V_sv = VT_sv - Vu_sv
-        P_sv = V_sv/C_sv
+        P_sv = V_sv / C_sv
     else:
         V_sv = 0
         P_sv = 0
@@ -628,7 +603,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # coronary circulation
     V_hp = C_hp * P_sp
 
-
     if VT_hv >= Vu_hv:
         V_hv = VT_hv - Vu_hv
         P_hv = V_hv / C_hv
@@ -636,9 +610,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         V_hv = 0
         P_hv = 0
 
-
     Q_hp = (P_sp - P_hv) / R_hp
-
 
     P_h = 0
 
@@ -664,7 +636,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         V_rmv = 0
         P_rmv = 0
 
-
     Q_rmp = (P_sp - P_rmv) / R_rmp
 
     P_rm = 0
@@ -681,12 +652,10 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     dVT_rmv_dt = Q_rmp - Q_rmv
 
-
-
     # active muscle
     V_amp = C_amp * P_sp
 
-    P_0 = Vu_amv/ (C_amv * 10)
+    P_0 = Vu_amv / (C_amv * 10)
 
     if VT_amv >= Vu_amv:
         V_amv = VT_amv - Vu_amv
@@ -702,7 +671,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     Q_amp = (P_sp - P_amv) / R_amp
 
-
     P_am = 0
 
     if I > 0:
@@ -711,7 +679,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         R_amv = R_amv_n * ((P_amv - P_vc) / (P_amv - P_am))
     else:
         R_amv = R_amv_n
-
 
     if P_amv >= P_vc:
         Q_amv = (P_amv - P_vc) / R_amv
@@ -734,12 +701,11 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     multiplied = P_sp * C_jp
 
     left_over_volume = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
-            - V_hv - V_vc - V_u - multiplied)
+                        - V_hv - V_vc - V_u - multiplied)
 
-    P_ev = left_over_volume / C_ev # + source_values
+    P_ev = left_over_volume / C_ev  # + source_values
 
     Q_ep = (P_sp - P_ev) / R_ep
-
 
     P_e = 0
 
@@ -747,7 +713,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         R_ev = R_ev_n * ((P_ev - P_vc) / (P_ev - P_e))
     else:
         R_ev = R_ev_n
-
 
     if P_ev >= P_vc:
         Q_ev = (P_ev - P_vc) / R_ev
@@ -764,11 +729,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     dQ_sa_dt = (P_sa - P_thor - R_sa * Q_sa - P_sp) / L_sa
     # VT_sa = V_sa + Vu_sa
     # should be + ?, edit: removed P_thor from here. Ignore
-
-
-
-
-
 
     # Gas Exchange
     constant = (abs(dV_dt) / (0.2 * VD))
@@ -863,7 +823,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     # brain
     PvbO2 = CBO2 / alpha_O2  # henry
-    PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
+    PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (
+                1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
 
     # FbO2 = (PvbO2 * (1 + beta1 * PvbCO2)) / (K1 * (1 + alpha1 * PvbCO2))  # bohr curve
     # CvbO2_1 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
@@ -874,7 +835,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     # tissue
     PvtO2 = CTO2 / alpha_O2  # henry
-    PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
+    PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (
+                1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
 
     # serna and carlos
     # FtO2 = (PvtO2 * (1 + beta1 * PvtCO2)) / (K1 * (1 + alpha1 * PvtCO2))  # bohr curve
@@ -883,7 +845,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     PvtO2_virt = PvtO2 * (40 / PvtCO2) ** 0.3
     SvtO2 = (PvtO2_virt ** 2.6) / (PvtO2_virt ** 2.6 + 26.6 ** 2.6)
     CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
-    
+
     Q_pp_1000 = Q_pp / 1000
     Q_bp_1000 = Q_bp / 1000
 
@@ -917,47 +879,19 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     V_CO2 = VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
+        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (
+                    Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
         dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
 
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
         dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s)) / V_O2
         dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s)) / V_CO2
 
-
     # Metabolism Dynamic
     MRR = max((MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal), 1)
     MRV = 0 if MRV < 0 or MRR <= 1 else MRV
 
     dMRV_dt = ((MRR - 1) - MRV) / tau_MRV
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     # # Cardiovascular Controller
 
@@ -1030,7 +964,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     f_v = first_term - Wt_v * Nt - Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
-
     # f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history = [updates[key] for key in
     # ["f_sp_store", "f_sh_store", "f_v_store", "f_sv_store", "phi_met_store"]]
 
@@ -1054,7 +987,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     T = Ts_change + Tv_change + T0
     HR_every = 1 / T
-
 
     # continue with equations
     sigma_Rep = GR_ep * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
@@ -1088,7 +1020,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     dEmax_rv_change_dt = (- Emax_rv_change + sigma_Emax_rv) / tau_Emax_rv
     Emax_lv_every = Emax_lv_change + Emax_lv0
     Emax_rv_every = Emax_rv_change + Emax_rv0
-
 
     ## Blood Flow Local Control
     # Cvb_O2 = CaO2 - MO2_bp / Q_bp
@@ -1130,16 +1061,11 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
-
-
-
-
-
-
     # Cardiovascular Controller
     # update values needed in other systems
     for key, new_value in zip(
             [  # Cardio inputs
+                "P_sa_store",
                 "time_since_beat_store",
 
                 "HR_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
@@ -1151,7 +1077,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
                 # Needed in cardio controller
                 "prev_flat_bit_store"],
 
-            [time_since_beat,
+            [P_sa, time_since_beat,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
              Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
@@ -1159,43 +1085,32 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-
     # gas
     # update values needed in other systems
     for key, new_value in zip(
-            [   # Resp control inputs
+            [  # Resp control inputs
                 "Pa_O2_every_store", "Pa_CO2_every_store", "Pb_CO2_every_store",
                 # Histories for gas
                 "PA_O2_every_store", "PA_CO2_every_store", "PA_O2_delay_store", "PA_CO2_delay_store",
                 "Nt_store"
             ],
 
-            [   # Corresponding values
+            [  # Corresponding values
                 Pa_O2, Pa_CO2, Pb_CO2,
                 PA_O2, PA_CO2, PA_O2_delay, PA_CO2_delay, Nt]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-
-
-
     # resp control
     for key, new_value in zip(
-            [   "finish_breath_time",
-                "PamO2", "PamCO2", "PmbCO2"],
+            ["finish_breath_time",
+             "PamO2", "PamCO2", "PmbCO2"],
 
-            [   # Corresponding values
+            [  # Corresponding values
                 finish_breath_time,
                 PamO2, PamCO2, PmbCO2]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
-
-
-
-
-
-
-
 
         # # just for plotting purposes
     # keys_and_values = zip(
@@ -1283,26 +1198,25 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # for key, value in keys_and_values:
     #     updates[key][updates["j"].item() - num_removed] = value
 
+    return [  # cardio derivatives
+        dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
+        dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt,
+        dtheta_ao_dt, d2theta_ao_dt2, dtheta_po_dt, d2theta_po_dt2, dtheta_mi_dt, d2theta_mi_dt2, dtheta_tr_dt,
+        d2theta_tr_dt2,
 
+        # cardio controller derivatives
+        dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
+        dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,
+        dR_sp_change_dt, dR_rmp_n_change_dt, dR_amp_n_change_dt, dVu_ev_change_dt, dVu_sv_change_dt,
+        dVu_rmv_change_dt, dVu_amv_change_dt, dEmax_lv_change_dt, dEmax_rv_change_dt, d_Ts_change_dt,
+        d_Tv_change_dt, dxb_O2_dt, dxb_CO2_dt, dxh_O2_dt, dxh_CO2_dt, dWh_dt, dxrm_O2_dt, dxrm_CO2_dt, dxam_O2_dt,
+        dxM_dt, dx_met_dt,
 
-    return [# cardio derivatives
-            dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
-            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt,
-            dtheta_ao_dt, d2theta_ao_dt2, dtheta_po_dt, d2theta_po_dt2, dtheta_mi_dt, d2theta_mi_dt2, dtheta_tr_dt, d2theta_tr_dt2,
+        # gas exchange derivatives
+        dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
+        dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
+        dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
 
-            # cardio controller derivatives
-            dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
-            dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,
-            dR_sp_change_dt, dR_rmp_n_change_dt, dR_amp_n_change_dt, dVu_ev_change_dt, dVu_sv_change_dt,
-            dVu_rmv_change_dt, dVu_amv_change_dt, dEmax_lv_change_dt, dEmax_rv_change_dt, d_Ts_change_dt,
-            d_Tv_change_dt, dxb_O2_dt, dxb_CO2_dt, dxh_O2_dt, dxh_CO2_dt, dWh_dt, dxrm_O2_dt, dxrm_CO2_dt, dxam_O2_dt,
-            dxM_dt, dx_met_dt,
-
-            # gas exchange derivatives
-            dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
-            dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
-            dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
-
-            # resp control derivatives
-            d_VE_integral_dt
+        # resp control derivatives
+        d_VE_integral_dt
     ]
