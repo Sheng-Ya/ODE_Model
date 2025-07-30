@@ -224,7 +224,7 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_new.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_new1.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -434,7 +434,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur.npy', X)
+    np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur_next.npy', X)
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)

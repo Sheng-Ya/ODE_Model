@@ -154,8 +154,8 @@ def calc_vi_stats(base, perturbed, x_delta, variable):
 
 
     # return np.mean(dfdx_filtered), np.std(dfdx_filtered)
-    # return np.mean(dfdx), np.std(dfdx)
-    return np.median(dfdx), np.std(dfdx)
+    return np.mean(dfdx), np.std(dfdx)
+    # return np.median(dfdx), np.std(dfdx)
 
 
 def calc_vi_mean(base, perturbed, x_delta, variable):
@@ -184,8 +184,8 @@ def calc_vi_mean(base, perturbed, x_delta, variable):
     # dfdx_filtered = dfdx_filtered1[mask]
 
     # return np.mean(dfdx_filtered)
-    # return dfdx.mean()
-    return np.median(dfdx)
+    return dfdx.mean()
+    # return np.median(dfdx)
 
 
 def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level, variable):
