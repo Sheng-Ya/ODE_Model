@@ -130,7 +130,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
        "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
 
     # Determine the correct index based on t
-    if t == t_start:
+    if t == 0:
         last_index = i % BUFFER_LIMIT
     else:
         last_index = (i - num_removed - 1) % BUFFER_LIMIT
@@ -168,10 +168,10 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     VD = GV_dead * VAflow + V0_dead
     dt = 0.001
 
-    if time_since_last_breath > (t1 + t2) or t == t_start:
+    if time_since_last_breath > (t1 + t2) or t == 0:
         finish_breath_time = finish_breath_time + (t1 + t2)  # update timestamp for the start of the next breath
 
-        if t == t_start:
+        if t == 0:
             finish_breath_time = 0
 
         time_since_last_breath = t - finish_breath_time

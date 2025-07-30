@@ -30,18 +30,15 @@ from Parameters_test import Parameters as Para
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
-
 time_saved = 0.005
 BUFFER_LIMIT = 20000
 
-min_time = 10 # Minimum time in seconds before checking
 max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, old_parameters):
+def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, old_parameters, t_span):
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
@@ -144,19 +141,21 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
 
     if IC_initial is None:
         IC_current = IC_overall.copy()
+        t_span = [0, max_time]
     else:
         IC_current = IC_initial.copy()
+        t_span = [max_time, max_time + max_time]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
         combined_system,
-        (0, max_time),
+        t_span,
         IC_current,
         max_step=0.001,
         method="RK23",
         rtol=1e-3,
         atol=1e-6,
-        args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters)
+        args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters, t_span)
     )
 
 
@@ -242,8 +241,6 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         # Run only the base sample first
         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage)
 
-
-
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
@@ -294,11 +291,9 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #             np.save(save_path, np.array(results_all))
 #             continue
 #
-#         perturbations = block[1:]  # exclude base sample
-#
 #         results_perturbations = []
-#         for j, params in enumerate(perturbations):
-#             print(f"Running perturbation {j+1}/{len(perturbations)} of block {i+1}...")
+#         for j, params in enumerate(block):
+#             print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
 #             res = simulate_cpu(params, copy.deepcopy(storage_final), IC_initial=IC_final)
 #             print(f"Perturbation result: {res[0]}")
 #             results_perturbations.append(res)
