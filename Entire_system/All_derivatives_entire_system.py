@@ -1047,7 +1047,7 @@ def model_derivatives(t, state, params, updates, num_removed, i, BUFFER_LIMIT, a
     wh = Wh_lv + Wh_rv
     dWh_dt = (wh - Wh) / tau_w
 
-    # resting muscle
+    # resting muscleo
     Cvrm_O2 = CaO2 - MO2_rmp / Q_rmp
     dxrm_O2_dt = (- xrm_O2 - grm_O2 * (Cvrm_O2 - Cvrm_O2_n)) / tau_O2
 
