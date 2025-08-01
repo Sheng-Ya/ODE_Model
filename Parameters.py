@@ -63,7 +63,7 @@ Parameters = {
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
     "R_pp": 0.0894,         # Pulmonary peripheral flow resistance
-    "R_pv": 0.006,         # Pulmonary venous flow resistance # edited
+    "R_pv": 0.06,         # Pulmonary venous flow resistance # edited to remove the backflow
     "Vu_pa": 0,            # Pulmonary arterial unstressed volume
     "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
     "Vu_pv": 114,          # Pulmonary venous unstressed volume

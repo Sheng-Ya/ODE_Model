@@ -43,7 +43,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 1100 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
@@ -197,8 +197,7 @@ def simulate():
             if len(past_10_flat_segments) == 10:
                 break
 
-    np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
-
+    # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
 
     return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y
 
@@ -298,13 +297,13 @@ if __name__ == "__main__":
     # lp.add_function(Resp_Control_Breath_Optimiser.objective)
     #
     # lp.add_function(model_derivatives)
-    # lp.add_function(cardiovascular_system)
-    # lp.add_function(gas_exchange)
-    # lp.add_function(resp_control_vent)
     # lp.enable()
     solution, HR, Psys, Pdia, save_IC, save_Next, t_full, y_full = simulate()
     print("ODE Status:", solution.status)
     print("ODE Message:", solution.message)
+
+    np.save(f'IC_final.npy', save_IC)  # individual chunks
+    np.save(f'Next_final.npy', save_Next)  # individual chunks
     # lp.disable()
     # lp.print_stats()
 
@@ -348,6 +347,60 @@ if __name__ == "__main__":
     # plt.grid(True)
     # plt.tight_layout()
     # plt.show()
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart sympathetic", color="m")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh_delay2"][:index], label="Delay Heart sympathetic", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
+
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index], label="Delay Vagal firing", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+    #
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    #
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+    plt.show()
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_lv"][47500:index],
+             label="Q_lv (leaving LV)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_la"][47500:index], label="Q_la (into LA)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_ra"][47500:index], label="Q_ra (into RA)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_rv"][47500:index],
+             label="Q_rv (leaving RV/into pul art)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Qi_lv"][47500:index], label="Qi_lv")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Qi_rv"][47500:index], label="Qi_rv")
+
+    # Add labels and legend
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Flow (mL/s)")
+    ax1.legend(loc="upper left")
+    plt.grid(True)
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_mi"][47500:index], label="theta_mi",
+             color='c')
+    ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_tr"][47500:index], label="theta_tr",
+             color='y')
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+
+    plt.show()
+
+
     fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pa"][:index], label="Q_pa", color="g")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_rv"][:index], label="Q_rv", color="b")
@@ -471,7 +524,7 @@ if __name__ == "__main__":
         # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
         # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
         # "Pd_5_O2"
-        "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "V", "dV_dt"
+        "PA_O2", "PA_CO2", "PA_CO2_delay", "PA_O2_delay", "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "dV_dt"
         # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
         # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
         # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"

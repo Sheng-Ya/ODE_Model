@@ -40,10 +40,10 @@ target_values = np.arange(0, 10000, 10)
 t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
-BUFFER_LIMIT = 500000
+BUFFER_LIMIT = 20000
 
 min_time = 100 # Minimum time in seconds before checking
-max_time = 50 # Maximum time limit
+max_time = 200 # Maximum time limit
 time_step = 10  # Chunk size per solve
 
 # First iteration
@@ -599,6 +599,29 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.grid(True)
     # plt.show()
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_lv"][47500:index], label="Q_lv (leaving LV)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_la"][47500:index], label="Q_la (into LA)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_ra"][47500:index], label="Q_ra (into RA)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_rv"][47500:index], label="Q_rv (leaving RV/into pul art)")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Qi_lv"][47500:index], label="Qi_lv")
+    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Qi_rv"][47500:index], label="Qi_rv")
+
+    # Add labels and legend
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Flow (mL/s)")
+    ax1.legend(loc="upper left")
+    plt.grid(True)
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_po"][47500:index], label="theta_po", color='c')
+    ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_ao"][47500:index], label="theta_ao", color='y')
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+
+    plt.show()
+
+
     fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pa"][:index], label="Q_pa", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ra"][:index], label="Q_ra", color="r")
@@ -1280,20 +1303,7 @@ if __name__ == "__main__":
 
 
 
-    plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Q_lv"][7500:index], label="Q_lv (leaving LV)")
-    plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Q_la"][7500:index], label="Q_la (into LA)")
-    plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Q_ra"][7500:index], label="Q_ra (into RA)")
-    plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Q_rv"][7500:index], label="Q_rv (leaving RV/into pul art)")
-    plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Qi_lv"][7500:index], label="Qi_lv")
-    plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Qi_rv"][7500:index], label="Qi_rv")
 
-    # Add labels and legend
-    plt.xlabel("Time (s)")
-    plt.ylabel("Flow (mL/s)")
-    plt.title("Flow Traces")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
 
 
     plt.plot(Next_Conditions["time_history"][7500:index], Next_Conditions["Q_la"][7500:index], label="Q_la (into LA)")

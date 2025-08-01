@@ -9,7 +9,7 @@ X = np.load('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur.npy')[:1800,:]
 # X1 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 
 # Result_2 =  np.array([[0.0,0.0,0.0]])
-Result = np.load('Result_DGSM_new.npy')
+Result = np.load('Result_DGSM_new.npy')[:1800]
 # Result1 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
 
 

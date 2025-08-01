@@ -4,7 +4,7 @@ from Parameters import Parameters
 from Test_controller import source
 from Activation_Functions import activation_U, activation_H, activation_Naghavi, g_function, activation_H_derivative, \
     activation_conduit, activation_S
-from Resp_Control_Breath_Optimiser import objective, calculate_P_musc_dP_dt, calculate_V_dV_dt
+from Resp_Control_Breath_Optimiser import objective, calculate_single_dV_dt
 from scipy.optimize import minimize
 
 def frac(x):
@@ -17,7 +17,7 @@ def accept_index_evals(idx_in_2, idx_in_1, buffer_limit, i):
     else:
         indices = np.concatenate([np.arange(idx_in_2, buffer_limit), np.arange(0, idx_in_1 + 1)])
 
-    # Take every 6th step, rk45
+    # Take every 3th step, rk23
     accepted_index = []
     for j in range(len(indices)):
         if (i - 2 - j) % 3 == 0 and (i - 2 - j) > 0:
@@ -29,27 +29,35 @@ def accept_index_evals(idx_in_2, idx_in_1, buffer_limit, i):
     return accepted_index
 
 
-def extract_mean(buffer, idx_in_2, idx_in_1):
-    if idx_in_2 <= idx_in_1:
-        values = buffer[idx_in_2:idx_in_1 + 1]
-    else:
-        values = np.concatenate([buffer[idx_in_2:], buffer[:idx_in_1 + 1]])
-    return np.mean(values)
+# def extract_mean(buffer, idx_in_2, idx_in_1):
+#     if idx_in_2 <= idx_in_1:
+#         values = buffer[idx_in_2:idx_in_1 + 1]
+#     else:
+#         values = np.concatenate([buffer[idx_in_2:], buffer[:idx_in_1 + 1]])
+#     return np.mean(values)
 
 
-def get_delayed_value(t, delay, t_start, all_time, last_index, buffer_limit, history_array, default_value):
+def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, history_array, default_value):
     delay_time = t - delay
-    if delay_time >= t_start:
-        if delay_time >= all_time[0]:
-            # No wrap-around
-            delay_index = np.searchsorted(all_time[:last_index + 1], delay_time, side='right') - 1
-        else:
-            # Wrap-around
-            idx_in_sorted = np.searchsorted(all_time[last_index + 1:], delay_time, side='right') - 1
-            delay_index = (idx_in_sorted + last_index + 1) % buffer_limit
-        return history_array[delay_index]
-    else:
+
+    if delay_time < t_start:
         return default_value
+
+    if delay_time >= all_time[0]:
+        # No wrap-around
+        delay_index1 = np.searchsorted(all_time[:heart_index + 1], delay_time, side='right')
+    else:
+        # Wrap-around
+        idx_in_sorted = np.searchsorted(all_time[heart_index + 1:], delay_time, side='right')
+        delay_index1 = (idx_in_sorted + heart_index + 1) % buffer_limit
+
+    delay_index0 = (delay_index1 - 1) % buffer_limit
+    t1 = all_time[delay_index1]
+    t0 = all_time[delay_index0]
+    v1 = history_array[delay_index1]
+    v0 = history_array[delay_index0]
+
+    return float(v0 + (v1 - v0) * (delay_time - t0) / (t1 - t0))
 
 
 
@@ -167,6 +175,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * 40)
     VD = GV_dead * VAflow + V0_dead
     dt = 0.001
+    tolerance = 0.001
 
     if time_since_last_breath > (t1 + t2) or t == t_start:
         finish_breath_time = finish_breath_time + (t1 + t2)  # update timestamp for the start of the next breath
@@ -177,7 +186,6 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         time_since_last_breath = t - finish_breath_time
 
         bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2] bounds
-        tolerance = 0.001
 
         required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
         initial_guess = updates["Nd"][-2:]
@@ -196,19 +204,19 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         updates["Nd"].extend(result.x)
 
         t1, t2 = updates["Nd"][-2:]
-        n_steps = int(np.round((t1 + t2) / dt)) + 1
-        current_times = np.linspace(0, (t1 + t2), n_steps)
-        updates["current_times"] = current_times
-
-        P_for_current_breath, dP_dt_for_current_breath = \
-            calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
-        V_for_current_breath, dV_dt_for_current_breath = (
-            calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao))
-
-        updates["P_musc_current"] = P_for_current_breath
-        updates["V_current"] = V_for_current_breath
-        updates["dV_dt_current"] = dV_dt_for_current_breath
-        updates["dP_dt_current"] = dP_dt_for_current_breath
+        # n_steps = int(np.round((t1 + t2) / dt)) + 1
+        # current_times = np.linspace(0, (t1 + t2), n_steps)
+        # updates["current_times"] = current_times
+        #
+        # P_for_current_breath, dP_dt_for_current_breath = \
+        #     calculate_P_musc_dP_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+        # V_for_current_breath, dV_dt_for_current_breath = (
+        #     calculate_V_dV_dt(current_times, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao))
+        #
+        # updates["P_musc_current"] = P_for_current_breath
+        # updates["V_current"] = V_for_current_breath
+        # updates["dV_dt_current"] = dV_dt_for_current_breath
+        # updates["dP_dt_current"] = dP_dt_for_current_breath
 
         # check optimisation results
         print(f"guess: {updates['Nd'][-5:]}")
@@ -223,9 +231,11 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # store ventilation variables
     resp_cycle = time_since_last_breath % (t1 + t2)  # determine time within the breath
 
-    V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
-    dV_dt = np.interp(resp_cycle, updates["current_times"], updates["dV_dt_current"])
-    P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
+    # V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
+    dV_dt = calculate_single_dV_dt(resp_cycle, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+
+    # dV_dt = np.interp(resp_cycle, updates["current_times"], updates["dV_dt_current"])
+    # P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
 
     # for cardiovascular controller
     if (resp_cycle % (t1 + t2)) <= TI:
@@ -407,8 +417,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # parameters:
     Kp_ao = 800
     Kf_ao = 800
-    Kb_ao = 2
-    Kv_ao = 10
+    Kb_ao = 1
+    Kv_ao = 20
     theta_ao_max = 1.309  # 75 degrees to radian
     theta_ao_min = 0.0872665  # 5 degrees to radian
 
@@ -435,7 +445,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     ####################################
 
     ####################################
-    Kp_mi = 100
+    Kp_mi = 1000
     Kf_mi = 800
     Kb_mi = 2
     Kv_mi = 3.5
@@ -461,8 +471,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     ####################################
     Kp_po = 800
     Kf_po = 800
-    Kb_po = 2
-    Kv_po = 7
+    Kb_po = 1
+    Kv_po = 10
     theta_po_max = 1.309 # 75 degrees to radian
 
     if Pmax_rv > P_pa:
@@ -808,13 +818,13 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
         dPd_5_CO2_dt = constant * (PA_CO2 - Pd_5_CO2)
 
     # Ta = LCTV / Q_la
-    # Ta = 6
+    Ta = 6 # decreased to have a smaller circular buffer
 
-    # PA_O2_delay = get_delayed_value(t, Ta, t_start, all_time, last_index, BUFFER_LIMIT, updates["PA_O2_every_store"], PAO2_Delay_IC)
-    # PA_CO2_delay = get_delayed_value(t, Ta, t_start, all_time, last_index, BUFFER_LIMIT, updates["PA_CO2_every_store"], PACO2_Delay_IC)
+    PA_O2_delay = get_delayed_value(t, Ta, t_start, all_time, last_index, BUFFER_LIMIT, updates["PA_O2_every_store"], PAO2_Delay_IC)
+    PA_CO2_delay = get_delayed_value(t, Ta, t_start, all_time, last_index, BUFFER_LIMIT, updates["PA_CO2_every_store"], PACO2_Delay_IC)
 
-    PA_O2_delay = PA_O2
-    PA_CO2_delay = PA_CO2
+    # PA_O2_delay = PA_O2
+    # PA_CO2_delay = PA_CO2
 
     d2Pa_O2_dt2 = (PA_O2_delay - (T1 + T2) * dPa_O2_dt - Pa_O2) / (T1 * T2)
     d2Pa_CO2_dt2 = (PA_CO2_delay - (T1 + T2) * dPa_CO2_dt - Pa_CO2) / (T1 * T2)
@@ -837,25 +847,27 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # Body Tissues Compartment
     MRTO2_basal = MRTO2_basal - MRBO2
 
-    # exercise
     MRCO2 = MRCO2 - MRBCO2
     MRO2 = MRO2 - MRBO2
 
-    # if 300 < t <= 400:
-    #     MRCO2 = 1/60 - 0.0009
-    #     MRO2 = 1.05 / 60 - 0.000925
+    # exercise
+    if 300 < t <= 500:
+        MRCO2 = 0.4 / 60 - MRBCO2
+        MRO2 = 0.45 / 60 - MRBO2
 
-    # if 1200 < t <= 1350:
-    #     MRCO2 = 0.6/60 - 0.0009
-    #     MRO2 = 0.65 / 60 - 0.000925
-    #
-    # if 1350 < t <= 1500:
-    #     MRCO2 = 0.8/60 - 0.0009
-    #     MRO2 = 0.85 / 60 - 0.000925
-    #
-    # if 120 < t:
-    #     MRCO2 = 1/60 - 0.0009
-    #     MRO2 = 1.05 / 60 - 0.000925
+    if 500 < t <= 700:
+        MRCO2 = 0.6 / 60 - MRBCO2
+        MRO2 = 0.65 / 60 - MRBO2
+
+    if 700 < t <= 900:
+        MRCO2 = 0.8 / 60 - MRBCO2
+        MRO2 = 0.85 / 60 - MRBO2
+
+    if 900 < t:
+        MRCO2 = 1 / 60 - MRBCO2
+        MRO2 = 1.05 / 60 - MRBO2
+
+
 
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure
@@ -1031,19 +1043,19 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
 
-    # f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history = [updates[key] for key in
-    # ["f_sp_store", "f_sh_store", "f_v_store", "f_sv_store", "phi_met_store"]]
+    f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history = [updates[key] for key in
+    ["f_sp_store", "f_sh_store", "f_v_store", "f_sv_store", "phi_met_store"]]
 
     # Fetch delayed values
-    # f_sp_delay2 = get_delayed_value(t, 2, t_start, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    # f_sh_delay2 = get_delayed_value(t, 2, t_start, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
-    # f_sv_delay5 = get_delayed_value(t, 5, t_start, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
-    # f_v_delay0_2 = get_delayed_value(t, DT_v, t_start, all_time, last_index, BUFFER_LIMIT, f_v_history, 4.2748)
+    f_sp_delay2 = get_delayed_value(t, 2, t_start, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sh_delay2 = get_delayed_value(t, 2, t_start, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
+    f_sv_delay5 = get_delayed_value(t, 5, t_start, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_v_delay0_2 = get_delayed_value(t, DT_v, t_start, all_time, last_index, BUFFER_LIMIT, f_v_history, 4.2748)
 
-    f_sp_delay2 = f_sp
-    f_sh_delay2 = f_sh
-    f_sv_delay5 = f_sv
-    f_v_delay0_2 = f_v
+    # f_sp_delay2 = f_sp
+    # f_sh_delay2 = f_sh
+    # f_sv_delay5 = f_sv
+    # f_v_delay0_2 = f_v
 
     # heart period
     sigma_Ts = GT_s * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
@@ -1125,8 +1137,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     dxM_dt = (- xM + gM * I) / tau_M
 
     phi_met = (phi_min + phi_max * np.exp((I - Io_met) / kmet)) / (1 + np.exp((I - Io_met) / kmet))
-    # phi_met_delay = get_delayed_value(t, 4, t_start, all_time, last_index, BUFFER_LIMIT, phi_met_history, phi_met)
-    phi_met_delay = phi_met
+    phi_met_delay = get_delayed_value(t, 4, t_start, all_time, last_index, BUFFER_LIMIT, phi_met_history, phi_met)
+    # phi_met_delay = phi_met
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
@@ -1192,96 +1204,91 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
 
 
 
+        # just for plotting purposes
+    keys_and_values = zip(
+        [
+            # Cardio control inputs
+            "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp",
+
+            # Gas exchange inputs
+            "Q_pp", "Q_la",
+
+            # For plot
+            "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
+            "Pmax_la", "Pmax_ra", "VT_rv", "VT_ra",
+            "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "P_vc", "Qi_lv",
+            "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "V_u",
+            "P_sp", "Q_sa", "Q_vc", "VT_amv",
+            "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
+            "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
+            "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr"],
+
+        [  # Corresponding values
+            P_sa, Q_bp, Q_hp, Q_rmp, Q_amp,
+            Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
+            Pmax_la, Pmax_ra, VT_rv, VT_ra,
+            VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv,
+            Qi_rv, phi, phi_atr, P_amv, P_ev, V_u,
+            P_sp, Q_sa, Q_vc, VT_amv,
+            Q_amv, Q_pa, V_sa, P_bv, R_bv,
+            VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
+            VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr])
+
+    for key, value in keys_and_values:
+        updates[key][updates["j"].item() - num_removed] = value
+
+
+    # just for plotting purposes
+    keys_and_values = zip(
+        [  # Cardio inputs
+            "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
+            "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "f_sp", "f_sh", "f_v", "f_sv", "Nt", "f_ab",
+            "f_ac", "f_ap", "Tv_change", "Ts_change", "HR_check", "f_sh_delay2", "f_v_delay02", "sigma_Ts",
+            "sigma_Tv"
+        ],
+
+        [  # Corresponding values
+            HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
+            R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, Nt, f_ab, f_ac, f_ap, Tv_change,
+            Ts_change, HR_every,
+            f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv])
+
+    for key, value in keys_and_values:
+        updates[key][updates["j"].item() - num_removed] = value
 
 
 
+    keys_and_values = zip(
+        [  # Cardio control inputs
+            "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
+            # Histories for gas
+            "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtCO2", "PvtO2",
+            "CvbCO2", "CvtCO2", "QT", "PA_O2_delay", "PA_CO2_delay", "PA_O2", "PA_CO2"],
+
+        [  # Corresponding values
+            MRTCO2, Pa_O2, Pa_CO2, CaO2,
+            Pb_CO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, CvbCO2, CvtCO2, QT, PA_O2_delay, PA_CO2_delay, PA_O2, PA_CO2])
+
+    for key, value in keys_and_values:
+        updates[key][updates["j"].item() - num_removed] = value
 
 
-        # # just for plotting purposes
-    # keys_and_values = zip(
-    #     [
-    #         # Cardio control inputs
-    #         "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp",
-    #
-    #         # Gas exchange inputs
-    #         "Q_pp", "Q_la",
-    #
-    #         # For plot
-    #         "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
-    #         "Pmax_la", "Pmax_ra", "VT_rv", "VT_ra",
-    #         "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "P_vc", "Qi_lv",
-    #         "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "V_u",
-    #         "P_sp", "Q_sa", "Q_vc", "VT_amv",
-    #         "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
-    #         "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-    #         "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr"],
-    #
-    #     [  # Corresponding values
-    #         P_sa, Q_bp, Q_hp, Q_rmp, Q_amp,
-    #         Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
-    #         Pmax_la, Pmax_ra, VT_rv, VT_ra,
-    #         VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv,
-    #         Qi_rv, phi, phi_atr, P_amv, P_ev, V_u,
-    #         P_sp, Q_sa, Q_vc, VT_amv,
-    #         Q_amv, Q_pa, V_sa, P_bv, R_bv,
-    #         VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-    #         VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item() - num_removed] = value
-    #
-    #
-    # # just for plotting purposes
-    # keys_and_values = zip(
-    #     [  # Cardio inputs
-    #         "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
-    #         "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "f_sp", "f_sh", "f_v", "f_sv", "Nt", "f_ab",
-    #         "f_ac", "f_ap", "Tv_change", "Ts_change", "HR_check", "f_sh_delay2", "f_v_delay02", "sigma_Ts",
-    #         "sigma_Tv"
-    #     ],
-    #
-    #     [  # Corresponding values
-    #         HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
-    #         R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, Nt, f_ab, f_ac, f_ap, Tv_change,
-    #         Ts_change, HR_every,
-    #         f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item() - num_removed] = value
-    #
-    #
-    #
-    # keys_and_values = zip(
-    #     [  # Cardio control inputs
-    #         "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
-    #         # Histories for gas
-    #         "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtCO2", "PvtO2",
-    #         "CvbCO2", "CvtCO2", "QT"],
-    #
-    #     [  # Corresponding values
-    #         MRTCO2, Pa_O2, Pa_CO2, CaO2,
-    #         Pb_CO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, CvbCO2, CvtCO2, QT])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item() - num_removed] = value
-    #
-    #
-    #
-    # keys_and_values = zip(
-    #     [   # Cardio inputs
-    #         "BF", "TI", "VT",
-    #         # Gas inputs
-    #         "VD",
-    #         # Resp control vent
-    #         "VAflow", "VE_flow",
-    #         "P_musc", "dV_dt", "V", "finish_breath_time_plot"],
-    #
-    #     [   # Corresponding values
-    #         BF, TI, VT, VD,
-    #         VAflow, VE_flow, P_musc, dV_dt, V, finish_breath_time])
-    #
-    # for key, value in keys_and_values:
-    #     updates[key][updates["j"].item() - num_removed] = value
+
+    keys_and_values = zip(
+        [   # Cardio inputs
+            "BF", "TI", "VT",
+            # Gas inputs
+            "VD",
+            # Resp control vent
+            "VAflow", "VE_flow",
+            "dV_dt", "finish_breath_time_plot"],
+
+        [   # Corresponding values
+            BF, TI, VT, VD,
+            VAflow, VE_flow, dV_dt, finish_breath_time])
+
+    for key, value in keys_and_values:
+        updates[key][updates["j"].item() - num_removed] = value
 
 
 

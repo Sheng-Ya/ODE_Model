@@ -258,8 +258,8 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         results_all.extend(results_block)
 
         # Save chunk incrementally (appending)
-        np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-        np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
+        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
+        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
 
         # Save after each block
         np.save(save_path, np.array(results_all))
@@ -434,7 +434,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur_next.npy', X)
+    np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy', X)
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
@@ -450,5 +450,5 @@ if __name__ == "__main__":
 
     # print(Result)
 
-    np.save('New_DGSM_250_Result_HR_P_sys_P_dia_no_bifur.npy', Result)
+    np.save('New_DGSM_250_Result_HR_P_sys_P_dia_no_bifur_delay.npy', Result)
 

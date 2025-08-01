@@ -1,5 +1,8 @@
 import numpy as np
 import math
+
+from scipy.interpolate import interp1d
+
 from Parameters import Parameters
 from Test_controller import source
 from Activation_Functions import activation_U, activation_H, activation_Naghavi, g_function, activation_H_derivative, \
@@ -28,20 +31,79 @@ def accept_index_evals(idx_in_2, idx_in_1, buffer_limit, i):
     return accepted_index
 
 
+# def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, history_array, default_value):
+#     delay_time = t - delay
+#
+#     if delay_time < t_start:
+#         return default_value
+#
+#     if delay_time >= all_time[0]:
+#         # No wrap-around
+#         delay_index = np.searchsorted(all_time[:heart_index + 1], delay_time, side='right')
+#     else:
+#         # Wrap-around
+#         idx_in_sorted = np.searchsorted(all_time[heart_index + 1:], delay_time, side='right')
+#         delay_index = (idx_in_sorted + heart_index + 1) % buffer_limit
+#
+#     # if delay_index > 19997:
+#     #     A = 2
+#     # # Get 10 indices before and after (21 points total)
+#     # indices = [(delay_index + i) % buffer_limit for i in range(-20, 20)]
+#     # times = np.array([all_time[i] for i in indices])
+#     # values = np.array([history_array[i] for i in indices])
+#     #
+#     # # Compute Gaussian weights centered at delay_time
+#     # time_diffs = times - delay_time
+#     # weights = np.exp(-0.5 * (time_diffs / 0.2) ** 2)
+#     # weights_sum = np.sum(weights)
+#     # weights /= weights_sum
+#
+#     return history_array[delay_index]
+#     # return np.sum(weights * values)
+
+
+# def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, history_array, default_value):
+#     delay_time = t - delay
+#
+#     if delay_time < t_start:
+#         return default_value
+#
+#     if delay_time >= all_time[0]:
+#         # No wrap-around
+#         delay_index = np.searchsorted(all_time[:heart_index + 1], delay_time, side='right')
+#     else:
+#         # Wrap-around
+#         idx_in_sorted = np.searchsorted(all_time[heart_index + 1:], delay_time, side='right')
+#         delay_index = (idx_in_sorted + heart_index + 1) % buffer_limit
+#
+#     indices = [(delay_index + i) % buffer_limit for i in range(-1, 2)]
+#     times = np.array([all_time[i] for i in indices])
+#     values = np.array([history_array[i] for i in indices])
+#
+#     f_interp = interp1d(times, values, kind="linear")
+#     return float(f_interp(delay_time))
+
 def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, history_array, default_value):
     delay_time = t - delay
-    if delay_time >= t_start:
-        if delay_time >= all_time[0]:
-            # No wrap-around
-            delay_index = np.searchsorted(all_time[:heart_index + 1], delay_time, side='right')
-        else:
-            # Wrap-around
-            idx_in_sorted = np.searchsorted(all_time[heart_index + 1:], delay_time, side='right')
-            delay_index = (idx_in_sorted + heart_index + 1) % buffer_limit
-        return history_array[delay_index]
-    else:
+
+    if delay_time < t_start:
         return default_value
 
+    if delay_time >= all_time[0]:
+        # No wrap-around
+        delay_index1 = np.searchsorted(all_time[:heart_index + 1], delay_time, side='right')
+    else:
+        # Wrap-around
+        idx_in_sorted = np.searchsorted(all_time[heart_index + 1:], delay_time, side='right')
+        delay_index1 = (idx_in_sorted + heart_index + 1) % buffer_limit
+
+    delay_index0 = (delay_index1 - 1) % buffer_limit
+    t1 = all_time[delay_index1]
+    t0 = all_time[delay_index0]
+    v1 = history_array[delay_index1]
+    v0 = history_array[delay_index0]
+
+    return float(v0 + (v1 - v0) * (delay_time - t0) / (t1 - t0))
 
 
 def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_exchange_inputs, resp_control_inputs, updates, num_removed, t_start, time_saved, i, all_time, BUFFER_LIMIT):
@@ -293,8 +355,8 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     # parameters:
     Kp_ao = 800
     Kf_ao = 800
-    Kb_ao = 2
-    Kv_ao = 10
+    Kb_ao = 1
+    Kv_ao = 20
     theta_ao_max = 1.309  # 75 degrees to radian
     theta_ao_min = 0.0872665  # 5 degrees to radian
 
@@ -321,7 +383,7 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     ####################################
 
     ####################################
-    Kp_mi = 100
+    Kp_mi = 1000
     Kf_mi = 800
     Kb_mi = 2
     Kv_mi = 3.5
@@ -347,8 +409,8 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     ####################################
     Kp_po = 800
     Kf_po = 800
-    Kb_po = 2
-    Kv_po = 7
+    Kb_po = 1
+    Kv_po = 10
     theta_po_max = 1.309 # 75 degrees to radian
 
     if Pmax_rv > P_pa:
@@ -735,15 +797,15 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     ["f_sp_store", "f_sh_store", "f_v_store", "f_sv_store", "phi_met_store"]]
 
     # Fetch delayed values
-    # f_sp_delay2 = get_delayed_value(t, 2, t_start, all_time, heart_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    # f_sh_delay2 = get_delayed_value(t, 2, t_start, all_time, heart_index, BUFFER_LIMIT, f_sh_history, 3.8576)
-    # f_sv_delay5 = get_delayed_value(t, 5, t_start, all_time, heart_index, BUFFER_LIMIT, f_sv_history, 3.97)
-    # f_v_delay0_2 = get_delayed_value(t, DT_v, t_start, all_time, heart_index, BUFFER_LIMIT, f_v_history, 4.2748)
+    f_sp_delay2 = get_delayed_value(t, 2, t_start, all_time, heart_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sh_delay2 = get_delayed_value(t, 2, t_start, all_time, heart_index, BUFFER_LIMIT, f_sh_history, 3.8576)
+    f_sv_delay5 = get_delayed_value(t, 5, t_start, all_time, heart_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_v_delay0_2 = get_delayed_value(t, DT_v, t_start, all_time, heart_index, BUFFER_LIMIT, f_v_history, 4.2748)
 
-    f_sp_delay2 = f_sp
-    f_sh_delay2 = f_sh
-    f_sv_delay5 = f_sv
-    f_v_delay0_2 = f_v
+    # f_sp_delay2 = f_sp
+    # f_sh_delay2 = f_sh
+    # f_sv_delay5 = f_sv
+    # f_v_delay0_2 = f_v
 
     # heart period
     sigma_Ts = GT_s * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
@@ -825,8 +887,8 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     dxM_dt = (- xM + gM * I) / tau_M
 
     phi_met = (phi_min + phi_max * np.exp((I - Io_met) / kmet)) / (1 + np.exp((I - Io_met) / kmet))
-    # phi_met_delay = get_delayed_value(t, 4, t_start, all_time, heart_index, BUFFER_LIMIT, phi_met_history, phi_met)
-    phi_met_delay = phi_met
+    phi_met_delay = get_delayed_value(t, 4, t_start, all_time, heart_index, BUFFER_LIMIT, phi_met_history, phi_met)
+    # phi_met_delay = phi_met
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
