@@ -5,7 +5,7 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
-X = np.load('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur.npy')[:1800,:]
+X = np.load('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur.npy')
 # X1 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 
 # Result_2 =  np.array([[0.0,0.0,0.0]])
@@ -172,10 +172,12 @@ Si = dgsm.analyze(sp, X, HR, print_to_console=True)
 ## Extract and sort
 dgsm = np.array(Si['dgsm'])
 names = np.array(Si['names'])
+conf = np.array(Si['dgsm_conf'])
 
 dgsm_sorted = np.argsort(dgsm)[::-1]  # descending order
 top_dgsm = dgsm[dgsm_sorted]
 top_names = names[dgsm_sorted]
+top_conf = conf[dgsm_sorted]
 
 # top_dgsm = top_dgsm[7:]
 # top_names = top_names[7:]
@@ -184,12 +186,13 @@ top_names = names[dgsm_sorted]
 mid = len(top_dgsm) // 2
 dgsm_1, dgsm_2 = top_dgsm[:mid], top_dgsm[mid:]
 names_1, names_2 = top_names[:mid], top_names[mid:]
+conf_1, conf_2 = top_conf[:mid], top_conf[mid:]
 
 # Plot first half
 plt.figure(figsize=(10, 8))
-plt.bar(names_1, dgsm_1)
+plt.bar(names_1, dgsm_1, yerr=conf_1)
 plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM 10")
+plt.title("HR DGSM 147")
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(rotation=90)
 plt.tight_layout()
@@ -197,9 +200,9 @@ plt.show()
 
 # Plot second half
 plt.figure(figsize=(10, 8))
-plt.bar(names_2, dgsm_2)
+plt.bar(names_2, dgsm_2, yerr=conf_2)
 plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM 10")
+plt.title("HR DGSM 147")
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(rotation=90)
 plt.tight_layout()

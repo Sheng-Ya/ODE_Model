@@ -140,9 +140,11 @@ def calc_vi_stats(base, perturbed, x_delta, variable):
     std_dfdx = np.std(dfdx)
     # mean_dfdx1 = np.mean((perturbed - base)**2)
     # std_dfdx1 = np.std((perturbed - base)**2)
+    mean_delta = np.mean(x_delta)
+    std_delta = np.std(x_delta)
 
     # Keep values within 2 standard deviations from the mean
-    mask = np.abs(dfdx - mean_dfdx) <= 2* std_dfdx
+    mask = np.abs(x_delta - mean_delta) <= 3* std_delta
     # mask1 = np.abs(((perturbed - base)**2) - mean_dfdx1) <= 2*std_dfdx1
     dfdx_filtered = dfdx[mask]
 
@@ -153,8 +155,8 @@ def calc_vi_stats(base, perturbed, x_delta, variable):
     # dfdx_filtered = dfdx_filtered1[mask]
 
 
-    # return np.mean(dfdx_filtered), np.std(dfdx_filtered)
-    return np.mean(dfdx), np.std(dfdx)
+    return np.mean(dfdx_filtered), np.std(dfdx_filtered)
+    # return np.mean(dfdx), np.std(dfdx)
     # return np.median(dfdx), np.std(dfdx)
 
 
@@ -170,9 +172,14 @@ def calc_vi_mean(base, perturbed, x_delta, variable):
     std_dfdx = np.std(dfdx)
     # mean_dfdx1 = np.mean((perturbed - base) ** 2)
     # std_dfdx1 = np.std((perturbed - base) ** 2)
+    mean_delta = np.mean(x_delta)
+    std_delta = np.std(x_delta)
 
     # Keep values within 2 standard deviations from the mean
-    mask = np.abs(dfdx - mean_dfdx) <= 2* std_dfdx
+    mask = np.abs(x_delta - mean_delta) <= 3* std_delta
+
+    # Keep values within 2 standard deviations from the mean
+    # mask = np.abs(dfdx - mean_dfdx) <= 3 * std_dfdx
     # mask1 = np.abs(((perturbed - base)**2) - mean_dfdx1) <= 2*std_dfdx1
 
     dfdx_filtered = dfdx[mask]
@@ -183,8 +190,8 @@ def calc_vi_mean(base, perturbed, x_delta, variable):
     # mask = np.abs(dfdx_filtered1 - mean_dfdx) <= 3 * std_dfdx
     # dfdx_filtered = dfdx_filtered1[mask]
 
-    # return np.mean(dfdx_filtered)
-    return dfdx.mean()
+    return np.mean(dfdx_filtered)
+    # return dfdx.mean()
     # return np.median(dfdx)
 
 
