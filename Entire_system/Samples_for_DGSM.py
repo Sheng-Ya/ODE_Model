@@ -38,7 +38,7 @@ time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, old_parameters, t_span):
+def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, old_parameters):
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
@@ -80,8 +80,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     resp_contr_state = Initial_Conditions_numpy[:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    derivatives_all = model_derivatives(t, resp_contr_state, Parameters, Initial_Conditions_dict, num_removed, t_span[0], i, BUFFER_LIMIT, all_time, old_parameters)
-
+    derivatives_all = model_derivatives(t, resp_contr_state, Parameters, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT, all_time, old_parameters)
     all_time[(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
     Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
@@ -155,7 +154,7 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
         method="RK23",
         rtol=1e-3,
         atol=1e-6,
-        args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters, t_span)
+        args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters)
     )
 
 
@@ -224,14 +223,14 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_new1.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay.npy'):
     results_all = []
 
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    # Break into blocks of 180 (1 base + 179 perturbations)
-    block_size = 180
+    # Break into blocks of 174 (1 base + 173 perturbations)
+    block_size = 174
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     for i, block in enumerate(param_blocks):
@@ -244,7 +243,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((180, 3)))
+            results_all.extend(np.zeros((174, 3)))
             np.save(save_path, np.array(results_all))
             continue
 
@@ -273,7 +272,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
-#     block_size = 180
+#     block_size = 174
 #     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 #
 #     for i, block in enumerate(param_blocks):
@@ -287,7 +286,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #
 #         if base_result[0] == 0:
 #             print(f"Skipping block {i + 1} due to base failure.")
-#             results_all.extend(np.zeros((181, 3)))
+#             results_all.extend(np.zeros((174, 3)))
 #             np.save(save_path, np.array(results_all))
 #             continue
 #
@@ -325,8 +324,9 @@ if __name__ == "__main__":
             "GV_dead",
             # "Kbg",
             "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
-            "Pmax_dot", "E_rs", "R_rs", "C_sa", "L_sa", "R_sa", "C_amp", "C_amv", "C_bp", "C_bv",
-            "C_ep", "C_ev", "C_hp", "C_hv", "C_rmp", "C_rmv", "C_sp", "C_sv", "R_amv_n", "R_bv_n",
+            "Pmax_dot", "E_rs", "R_rs",
+            "C_sa", "L_sa", "R_sa", "C_amv", "C_bv",
+            "C_ev", "C_hv", "C_rmv", "C_sv", "R_amv_n", "R_bv_n",
             "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
             "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
             "P0_ra", "P0_lv", "P0_rv", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n",
@@ -362,18 +362,18 @@ if __name__ == "__main__":
             [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [50 * lower, 50 * upper],
             [1000 * lower, 1000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
             # cardio
-            [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
-            [0.315 * lower, 0.315 * upper], [9.4 * lower, 9.4 * upper], [0.358 * lower, 0.358 * upper],
-            [10.71 * lower, 10.71 * upper], [0.668 * lower, 0.668 * upper], [20 * lower, 20 * upper],
-            [0.119 * lower, 0.119 * upper], [3.57 * lower, 3.57 * upper], [0.21 * lower, 0.21 * upper],
-            [6.28 * lower, 6.28 * upper], [2.05 * lower, 2.05 * upper], [61.11 * lower, 61.11 * upper],
+            [0.28 * lower, 0.28 * upper], [0.00066 * lower, 0.00066 * upper], [0.2 * lower, 0.2 * upper],
+            [9.4 * lower, 9.4 * upper],
+            [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper],
+            [3.57 * lower, 3.57 * upper],
+            [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper],
             [0.224 * lower, 0.224 * upper], [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper],
             [0.3855 * lower, 0.3855 * upper], [-5 * upper, -5 * lower], [0.15 * lower, 0.15 * upper],
             [0.4 * lower, 0.4 * upper], [0.001 * lower, 0.001 * upper], [0.075 * lower, 0.075 * upper],
-            [8 * lower, 8 * upper], [10 * lower, 10 * upper], [20 * lower, 20 * upper],
+            [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper], [20.5 * lower, 20.5 * upper],
             [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
-            [0.006 * lower, 0.006 * upper], [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper],
+            [0.06 * lower, 0.06 * upper], [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper],
             [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper], [1.5 * lower, 1.5 * upper],
             [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
             [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
@@ -394,7 +394,7 @@ if __name__ == "__main__":
             [0.2 * lower, 0.2 * upper], [-0.2 * upper, -0.2 * lower], [-0.3997 * upper, -0.3997 * lower],
             [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower], [0.4 * lower, 0.4 * upper],
             [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-            [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper],
+            [1.412 * lower, 1.412 * upper], [0.7 * lower, 0.7 * upper], [2.66 * lower, 2.66 * upper],
             [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper],
             [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper], [0.695 * lower, 0.695 * upper],
             [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
@@ -426,7 +426,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 250)
+    X = finite_diff.sample(sp, 500)
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]
@@ -434,7 +434,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy', X)
+    # np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy', X)
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
@@ -442,6 +442,7 @@ if __name__ == "__main__":
     # X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_filtered.npy')
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
+    A = param_samples[0]
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
 

@@ -37,10 +37,10 @@ def accept_index_evals(idx_in_2, idx_in_1, buffer_limit, i):
 #     return np.mean(values)
 
 
-def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, history_array, default_value):
+def get_delayed_value(t, delay, all_time, heart_index, buffer_limit, history_array, default_value):
     delay_time = t - delay
 
-    if delay_time < t_start:
+    if delay_time < 0:
         return default_value
 
     if delay_time >= all_time[0]:
@@ -60,7 +60,7 @@ def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, hi
     return float(v0 + (v1 - v0) * (delay_time - t0) / (t1 - t0))
 
 
-def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER_LIMIT, all_time, Old_parameters):
+def model_derivatives(t, state, params, updates, num_removed, i, BUFFER_LIMIT, all_time, Old_parameters):
     # # State variables
     (  # Cardio state variables
         VT_pa, VT_pp, VT_pv, Q_pa,
@@ -776,8 +776,8 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # Ta = LCTV / Q_la
     Ta = 6
 
-    PA_O2_delay = get_delayed_value(t, Ta, t_start, all_time, last_index, BUFFER_LIMIT, updates["PA_O2_every_store"], PAO2_Delay_IC)
-    PA_CO2_delay = get_delayed_value(t, Ta, t_start, all_time, last_index, BUFFER_LIMIT, updates["PA_CO2_every_store"], PACO2_Delay_IC)
+    PA_O2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, updates["PA_O2_every_store"], PAO2_Delay_IC)
+    PA_CO2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, updates["PA_CO2_every_store"], PACO2_Delay_IC)
 
     # PA_O2_delay = PA_O2
     # PA_CO2_delay = PA_CO2
@@ -974,10 +974,10 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     ["f_sp_store", "f_sh_store", "f_v_store", "f_sv_store", "phi_met_store"]]
 
     # Fetch delayed values
-    f_sp_delay2 = get_delayed_value(t, 2, t_start, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    f_sh_delay2 = get_delayed_value(t, 2, t_start, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
-    f_sv_delay5 = get_delayed_value(t, 5, t_start, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
-    f_v_delay0_2 = get_delayed_value(t, DT_v, t_start, all_time, last_index, BUFFER_LIMIT, f_v_history, 4.2748)
+    f_sp_delay2 = get_delayed_value(t, 2, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sh_delay2 = get_delayed_value(t, 2, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
+    f_sv_delay5 = get_delayed_value(t, 5, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 4.2748)
 
     # f_sp_delay2 = f_sp
     # f_sh_delay2 = f_sh
@@ -1062,7 +1062,7 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     dxM_dt = (- xM + gM * I) / tau_M
 
     phi_met = (phi_min + phi_max * np.exp((I - Io_met) / kmet)) / (1 + np.exp((I - Io_met) / kmet))
-    phi_met_delay = get_delayed_value(t, 4, t_start, all_time, last_index, BUFFER_LIMIT, phi_met_history, phi_met)
+    phi_met_delay = get_delayed_value(t, 4, all_time, last_index, BUFFER_LIMIT, phi_met_history, phi_met)
     # phi_met_delay = phi_met
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met

@@ -40,7 +40,7 @@ def accept_index_evals(idx_in_2, idx_in_1, buffer_limit, i):
 def get_delayed_value(t, delay, t_start, all_time, heart_index, buffer_limit, history_array, default_value):
     delay_time = t - delay
 
-    if delay_time < t_start:
+    if delay_time < 0:
         return default_value
 
     if delay_time >= all_time[0]:

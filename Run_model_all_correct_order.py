@@ -43,7 +43,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 1100 # Maximum time limit to avoid infinite loops
+max_time = 100 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
@@ -214,18 +214,16 @@ def simulate():
 #
 #     while total_time < max_time:
 #         t_span_local = (t0, t0 + time_step)
-#         t_eval_local = np.arange(t0, (t0 + time_step), 0.001)
 #
 #         ODE_solution = solve_ivp(
 #             combined_system,
 #             t_span_local,
 #             IC_current,
-#             t_eval=t_eval_local,
-#             max_step=0.003,
-#             method="RK45",
+#             max_step=0.001,
+#             method="RK23",
 #             rtol=1e-3,
 #             atol=1e-6,
-#             args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, time_saved)
+#             args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control)
 #         )
 #
 #         if ODE_solution.status == -1:
