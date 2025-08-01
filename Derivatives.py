@@ -126,13 +126,13 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     # Cardio parameters
     (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa, R_pa,
      R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la, Emax_ra,
-     P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min, C_ep, C_sp, C_bp,
-     C_hp, C_rmp, C_amp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv, Vu_ep,
+     P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
+     C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv, Vu_ep,
      Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (params[k] if k in params else Parameters[k] for k in ["A_im", "Tc", "T_im", "g_abd", "g_thor",
     "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv",
     "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv", "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la",
     "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa", "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
-    "Vu_vc", "Vvc_max", "Vvc_min", "C_ep", "C_sp", "C_bp", "C_hp", "C_rmp", "C_amp", "V_tot", "R_ev_n", "R_sv_n", "R_bv_n",
+    "Vu_vc", "Vvc_max", "Vvc_min", "C_jp", "V_tot", "R_ev_n", "R_sv_n", "R_bv_n",
     "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv", "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp",
     "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
 
@@ -520,7 +520,7 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     ## systemic peripheral and venous circulation
 
     # splanchnic
-    V_sp = C_sp * P_sp
+    # V_sp = C_sp * P_sp
 
     if VT_sv >= Vu_sv:
         V_sv = VT_sv - Vu_sv
@@ -546,7 +546,7 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     dVT_sv_dt = Q_sp - Q_sv
 
     # brain
-    V_bp = C_bp * P_sp
+    # V_bp = C_bp * P_sp
 
     if VT_bv >= Vu_bv:
         V_bv = VT_bv - Vu_bv
@@ -572,7 +572,7 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     dVT_bv_dt = Q_bp - Q_bv
 
     # coronary circulation
-    V_hp = C_hp * P_sp
+    # V_hp = C_hp * P_sp
 
 
     if VT_hv >= Vu_hv:
@@ -601,7 +601,7 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
     dVT_hv_dt = Q_hp - Q_hv
 
     # resting muscle
-    V_rmp = C_rmp * P_sp
+    # V_rmp = C_rmp * P_sp
 
     if VT_rmv >= Vu_rmv:
         V_rmv = VT_rmv - Vu_rmv
@@ -630,7 +630,7 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
 
 
     # active muscle
-    V_amp = C_amp * P_sp
+    # V_amp = C_amp * P_sp
 
     P_0 = Vu_amv/ (C_amv * 10)
 
@@ -668,9 +668,9 @@ def model_derivatives(t, state, params, heart_inputs, heart_control_inputs, gas_
 
     ## systemic peripheral and venous circulation
     # extrasplanchnic
-    V_ep = C_ep * P_sp
+    # V_ep = C_ep * P_sp
 
-    C_jp = C_ep + C_sp + C_bp + C_hp + C_rmp + C_amp
+    # C_jp = C_ep + C_sp + C_bp + C_hp + C_rmp + C_amp
     Vu_jp = Vu_ep + Vu_sp + Vu_bp + Vu_hp + Vu_rmp + Vu_amp
     Vu_jv = Vu_ev + Vu_sv + Vu_bv + Vu_hv + Vu_rmv + Vu_amv
 

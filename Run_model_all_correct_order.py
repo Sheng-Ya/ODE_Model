@@ -329,10 +329,67 @@ if __name__ == "__main__":
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
+    #
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index],
+    #          label="Delay Vagal firing", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
+    #          color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
+    #          color='g')
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="r")
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+    plt.show()
+
+
+    # variables_to_plot = [
+    #     "Q_amp", "P_amv","P_sp", "Q_sa", "P_ev"
+    #     # "f_sp_history", "f_sh_history", "f_v_history",
+    #     # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+    #     # "PamCO2", "VE_integral"
+    #     # "phi", "phi_atr"
+    #     # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
+    #     # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
+    #     # "Pd_5_O2"
+    #     # "PA_O2", "PA_CO2", "PA_CO2_delay", "PA_O2_delay", "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2",
+    #     # "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "dV_dt"
+    #     # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+    #     # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
+    #     # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
+    #     # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
+    #     # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
+    #     # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
+    # ]
+    #
+    # for key in variables_to_plot:
+    #     if key in Next_Conditions:  # Check if the key exists in updates
+    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+    #         plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel(key)
+    #         plt.title(f"Plot of {key} over Time")
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
 
     # Number of state variables
     num_variables = state_variables.shape[0]
     colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
+
 
     # plt.figure(figsize=(12, 6))
     # for i, label in enumerate(required_cardio_keys):
@@ -374,6 +431,8 @@ if __name__ == "__main__":
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
     plt.show()
+
+
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_lv"][47500:index],
              label="Q_lv (leaving LV)")
@@ -514,35 +573,6 @@ if __name__ == "__main__":
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
     plt.show()
-
-
-    variables_to_plot = [
-        # "f_sp_history", "f_sh_history", "f_v_history",
-        # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
-        # "PamCO2", "VE_integral"
-        # "phi", "phi_atr"
-        # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
-        # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
-        # "Pd_5_O2"
-        "PA_O2", "PA_CO2", "PA_CO2_delay", "PA_O2_delay", "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "dV_dt"
-        # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
-        # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
-        # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
-        # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
-        # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
-        # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
-    ]
-
-    for key in variables_to_plot:
-        if key in Next_Conditions:  # Check if the key exists in updates
-            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
-            plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
-            plt.xlabel("Time (s)")
-            plt.ylabel(key)
-            plt.title(f"Plot of {key} over Time")
-            plt.legend()
-            plt.grid(True)
-            plt.show()
 
 
     # Plot all state variables
