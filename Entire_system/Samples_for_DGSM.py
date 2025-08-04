@@ -191,6 +191,9 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
             if len(past_10_flat_segments) == 10:
                 break
     print(np.mean(past_10_flat_segments))
+
+    IC_current = ODE_solution.y[:, -1]
+
     return [np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min)], IC_current, local_updates
 
 
@@ -427,7 +430,6 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     X = finite_diff.sample(sp, 500)
-    X = X[83172:,:]
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]
