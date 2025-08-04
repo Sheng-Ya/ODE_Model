@@ -223,7 +223,7 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay2.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -427,6 +427,7 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     X = finite_diff.sample(sp, 500)
+    X = X[83172:,:]
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]

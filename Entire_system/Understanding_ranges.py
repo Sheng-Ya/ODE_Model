@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 # X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_converge_no_bifur_updated_bounds_no_kbg.npy')[:60970, :]
 # Result_500 = np.load('Result_DGSM_next_chunked1.npy')[:,0]
 
-X_500 = np.load('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur.npy')
-Result_500 = np.load('Result_DGSM_new.npy')[:,0]
+X_500 = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy')[:83172, :]
+Result_500 = np.load('Result_DGSM_478_delay.npy')[:,0]
 #
 # X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
 # Result_500 = np.load('LHC_emulator_DGSM_500_result.npy')
@@ -44,8 +44,9 @@ sp = ProblemSpec({
             "GV_dead",
             # "Kbg",
             "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
-            "Pmax_dot", "E_rs", "R_rs", "C_sa", "L_sa", "R_sa", "C_amp", "C_amv", "C_bp", "C_bv",
-            "C_ep", "C_ev", "C_hp", "C_hv", "C_rmp", "C_rmv", "C_sp", "C_sv", "R_amv_n", "R_bv_n",
+            "Pmax_dot", "E_rs", "R_rs",
+            "C_sa", "L_sa", "R_sa", "C_amv", "C_bv",
+            "C_ev", "C_hv", "C_rmv", "C_sv", "R_amv_n", "R_bv_n",
             "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
             "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
             "P0_ra", "P0_lv", "P0_rv", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n",
@@ -81,18 +82,18 @@ sp = ProblemSpec({
             [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [50 * lower, 50 * upper],
             [1000 * lower, 1000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
             # cardio
-            [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
-            [0.315 * lower, 0.315 * upper], [9.4 * lower, 9.4 * upper], [0.358 * lower, 0.358 * upper],
-            [10.71 * lower, 10.71 * upper], [0.668 * lower, 0.668 * upper], [20 * lower, 20 * upper],
-            [0.119 * lower, 0.119 * upper], [3.57 * lower, 3.57 * upper], [0.21 * lower, 0.21 * upper],
-            [6.28 * lower, 6.28 * upper], [2.05 * lower, 2.05 * upper], [61.11 * lower, 61.11 * upper],
+            [0.28 * lower, 0.28 * upper], [0.00066 * lower, 0.00066 * upper], [0.2 * lower, 0.2 * upper],
+            [9.4 * lower, 9.4 * upper],
+            [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper],
+            [3.57 * lower, 3.57 * upper],
+            [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper],
             [0.224 * lower, 0.224 * upper], [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper],
             [0.3855 * lower, 0.3855 * upper], [-5 * upper, -5 * lower], [0.15 * lower, 0.15 * upper],
             [0.4 * lower, 0.4 * upper], [0.001 * lower, 0.001 * upper], [0.075 * lower, 0.075 * upper],
-            [8 * lower, 8 * upper], [10 * lower, 10 * upper], [20 * lower, 20 * upper],
+            [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper], [20.5 * lower, 20.5 * upper],
             [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
-            [0.006 * lower, 0.006 * upper], [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper],
+            [0.06 * lower, 0.06 * upper], [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper],
             [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper], [1.5 * lower, 1.5 * upper],
             [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
             [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
@@ -113,7 +114,7 @@ sp = ProblemSpec({
             [0.2 * lower, 0.2 * upper], [-0.2 * upper, -0.2 * lower], [-0.3997 * upper, -0.3997 * lower],
             [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower], [0.4 * lower, 0.4 * upper],
             [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-            [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper],
+            [1.412 * lower, 1.412 * upper], [0.7 * lower, 0.7 * upper], [2.66 * lower, 2.66 * upper],
             [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper],
             [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper], [0.695 * lower, 0.695 * upper],
             [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
