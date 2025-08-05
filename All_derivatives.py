@@ -275,9 +275,9 @@ def model_derivatives(t, state, params, updates, num_removed, t_start, i, BUFFER
     # Update after every heartbeat
     if t - time_since_beat > T:
         if time_since_beat >= all_time[0]: # No wrap-around
-            idx_in_2 = np.searchsorted(all_time[:last_index + 1], time_since_beat, side='right') - 1
+            idx_in_2 = np.searchsorted(all_time[:last_index + 1], time_since_beat, side='right')
         else:  # Wrap-around
-            idx_in_sorted2 = np.searchsorted(all_time[last_index + 1:], time_since_beat, side='right') - 1
+            idx_in_sorted2 = np.searchsorted(all_time[last_index + 1:], time_since_beat, side='right')
             idx_in_2 = (idx_in_sorted2 + last_index + 1) % BUFFER_LIMIT
 
         idx_in_1 = last_index
