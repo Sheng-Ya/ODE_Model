@@ -6,20 +6,6 @@ from Resp_Control_Breath_Optimiser import objective, calculate_single_dV_dt
 from scipy.optimize import minimize
 from numba import njit
 
-# ============================================================================
-# CONSTANTS AND CONFIGURATION
-# ============================================================================
-# Numerical tolerance for avoiding division by zero
-EPSILON = 1e-10
-
-# Valve parameters (could be moved to configuration)
-Kp_ao = 800.0
-Kf_ao = 800.0
-Kb_ao = 1.0
-Kv_ao = 20.0
-theta_ao_max = 1.309  # 75 degrees to radian
-theta_ao_min = 0.0872665  # 5 degrees to radian
-
 @njit
 def accept_index_evals(finish_time, all_time, last_index, buffer_limit, i):
     if finish_time >= all_time[0]:  # No wrap-around
