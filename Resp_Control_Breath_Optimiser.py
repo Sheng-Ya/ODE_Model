@@ -1,10 +1,10 @@
 import numpy as np
 # from matplotlib import pyplot as plt
 from scipy.integrate import simpson
-# from numba import njit
+from numba import njit
 
 
-# @njit
+@njit
 def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
 
     # Precompute key values
@@ -18,7 +18,7 @@ def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
     return a1, a2, Pt1, Vt1, tau, B
 
 
-# @njit
+@njit
 def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating V and dV/dt values
@@ -61,7 +61,7 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     return V, dV_dt
 
 
-
+@njit
 def calculate_single_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating V and dV/dt values
@@ -91,7 +91,7 @@ def calculate_single_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao
     return dV_dt
 
 
-# @njit
+@njit
 def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating P_musc and dP_musc/dt

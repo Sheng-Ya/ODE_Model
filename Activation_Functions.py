@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from numba import njit
 
 
 def frac(x):
@@ -53,7 +54,7 @@ def activation_U(beta, atr, T, Tsys):
 #     return phi
 
 
-
+@njit
 def activation_H(ti, atr, T):
     tr_atr = 0.05 * T
     td_atr = 0.1 * T

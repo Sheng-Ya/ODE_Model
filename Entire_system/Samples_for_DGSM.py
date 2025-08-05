@@ -38,7 +38,7 @@ time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, old_parameters):
+def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters):
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
@@ -63,7 +63,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
                         actual_index - index)
 
             for j in range(num_removed):
-                all_time[(index + j) % BUFFER_LIMIT] = 1e6
+                all_time[(index + j) % BUFFER_LIMIT] = 0
 
             # if num_removed != 6:
             #     print(f"num_removed should be 6, got {num_removed}")
@@ -80,7 +80,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     resp_contr_state = Initial_Conditions_numpy[:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    derivatives_all = model_derivatives(t, resp_contr_state, Parameters, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT, all_time, old_parameters)
+    derivatives_all = model_derivatives(t, resp_contr_state, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters)
     all_time[(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
     Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
@@ -135,7 +135,7 @@ num_resp_control = len(required_resp_control_keys)
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
 
-def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
+def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
 
     if IC_initial is None:
@@ -144,6 +144,82 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
     else:
         IC_current = IC_initial.copy()
         t_span = [max_time, max_time + max_time]
+
+    # Cardio parameters
+    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
+    R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
+    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
+    C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+    Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (
+    Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in
+    ["A_im", "Tc", "T_im", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa",
+     "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
+     "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
+     "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n", "Vu_vc", "Vvc_max", "Vvc_min", "C_jp", "V_tot",
+     "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv",
+     "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp", "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
+
+    # Cardio controller parameters
+    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
+    kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
+    Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
+    GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
+    tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
+    Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
+    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
+    f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
+    Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
+    MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = \
+    [Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in
+     ["fab_o", "fes_o", "fes_inf", "fes_max", "fev_o",
+      "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
+      "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp",
+      "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
+      "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
+      "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
+      "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0",
+      "Vu_rmv0", "Vu_sv0", "AT", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
+      "PO2_sp", "PO2_sv", "tau_cc", "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv",
+      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min", "k_ac", "K_H",
+      "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
+      "Cvb_O2_n", "gb_O2", "R_bpn", "tau_CO2", "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
+      "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
+      "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
+
+    # Gas exchange and mixing
+    (a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
+     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in [
+    "a2", "alpha2", "beta2", "C2", "Fi_CO2", "Fi_O2", "K2", "PACO2_Delay_IC",
+    "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
+    "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"])
+
+    # Resp control
+    (GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
+    (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
+   "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
+
+    Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
+    R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
+    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
+    C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+    Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv,
+    fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
+    kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
+    Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
+    GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
+    tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
+    Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
+    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
+    f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
+    Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
+    MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met,
+    a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+    P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
+    VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta,
+    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+
+
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -154,7 +230,7 @@ def simulate_cpu(Current_Parameters, storage,  IC_initial=None):
         method="RK23",
         rtol=1e-3,
         atol=1e-6,
-        args=(Current_Parameters, local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Old_Parameters)
+        args=(local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters)
     )
 
 
@@ -232,8 +308,8 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    # Break into blocks of 174 (1 base + 173 perturbations)
-    block_size = 174
+    # Break into blocks of 171 (1 base + 170 perturbations)
+    block_size = 171
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     for i, block in enumerate(param_blocks):
@@ -241,12 +317,12 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         copy_of_storage = copy.deepcopy(storage)
 
         # Run only the base sample first
-        base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage)
+        base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
 
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((174, 3)))
+            results_all.extend(np.zeros((171, 3)))
             np.save(save_path, np.array(results_all))
             continue
 
@@ -254,7 +330,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 
         # Otherwise, run full block in parallel
         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), IC_initial=IC_final) for params in block)
+            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final) for params in block)
 
         results_block = [res[0] for res in results_perturbations]
         results_all.extend(results_block)
@@ -275,7 +351,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
-#     block_size = 174
+#     block_size = 171
 #     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 #
 #     for i, block in enumerate(param_blocks):
@@ -283,7 +359,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #         copy_of_storage = copy.deepcopy(storage)
 #         print(f"Running base sample for block {i+1}...")
 #
-#         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage)
+#         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
 #
 #         print(f"Base sample result: {base_result}")
 #
@@ -296,7 +372,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #         results_perturbations = []
 #         for j, params in enumerate(block):
 #             print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
-#             res = simulate_cpu(params, copy.deepcopy(storage_final), IC_initial=IC_final)
+#             res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
 #             print(f"Perturbation result: {res[0]}")
 #             results_perturbations.append(res)
 #
@@ -322,7 +398,7 @@ if __name__ == "__main__":
         'outputs': ["HR"],
 
         'names': [
-            "beta1", "beta2", "C2", "K1", "K2", "a2", "alpha1", "alpha2", "dc", "KCCO2",
+            "beta2", "C2", "K2", "a2", "alpha2", "dc", "KCCO2",
             # "MRBCO2",
             "GV_dead",
             # "Kbg",
@@ -352,9 +428,9 @@ if __name__ == "__main__":
 
         'bounds': [
             # gas
-            [0.008275 * lower, 0.008275 * upper], [0.03255 * lower, 0.03255 * upper], [40 * lower, 40 * upper],
-            [13 * lower, 13 * upper], [25 * lower, 25 * upper], [1.219 * lower, 1.219 * upper],
-            [0.03198 * lower, 0.03198 * upper], [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+            [0.03255 * lower, 0.03255 * upper], [40 * lower, 40 * upper],
+            [25 * lower, 25 * upper], [1.219 * lower, 1.219 * upper],
+            [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
             [346000 * lower, 346000 * upper],
             # [0.0009 * lower, 0.0009 * upper],
             # resp control

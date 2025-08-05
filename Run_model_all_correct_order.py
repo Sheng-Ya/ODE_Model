@@ -15,6 +15,7 @@ from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
 from Parameters import Parameters
+from check import Parameters as new_params
 from Resp_Control_Ventilation import resp_control_vent
 
 # from Respiratory_Mechanics import respiratory_mechanics
@@ -43,12 +44,12 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 100 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control):
+def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters):
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
@@ -91,7 +92,7 @@ def combined_system(t, Initial_Conditions_numpy, Parameters, Initial_Conditions_
     resp_contr_state = Initial_Conditions_numpy[:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    derivatives_all = model_derivatives(t, resp_contr_state, Parameters, Initial_Conditions_dict, num_removed, t_span[0], i, BUFFER_LIMIT, all_time)
+    derivatives_all = model_derivatives(t, resp_contr_state, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters)
 
 
     # Initial_Conditions_dict["check_time"].append(t)
@@ -157,6 +158,79 @@ def simulate():
     # Initial setup
     IC_current = IC_overall.copy()
 
+    # Cardio parameters
+    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
+     R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la,
+     KE_la, Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
+     C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+     Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (new_params[k] if k in new_params else Parameters[k] for k in
+    ["A_im", "Tc", "T_im", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n",
+     "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
+     "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
+     "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n", "Vu_vc", "Vvc_max", "Vvc_min", "C_jp",
+     "V_tot", "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv",
+     "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp", "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
+
+    # Cardio controller parameters
+    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
+     kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
+     Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
+     GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
+     tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
+     Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
+     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z,
+     f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
+     Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
+     MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = \
+    [new_params[k] if k in new_params else Parameters[k] for k in
+     ["fab_o", "fes_o", "fes_inf", "fes_max", "fev_o",
+      "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
+      "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp",
+      "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv",
+      "Wt_v", "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
+      "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
+      "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0",
+      "Vu_rmv0", "Vu_sv0", "AT", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
+      "PO2_sp", "PO2_sv", "tau_cc", "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv",
+      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min",
+      "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
+      "Cvb_O2_n", "gb_O2", "R_bpn", "tau_CO2", "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
+      "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
+      "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
+
+    # Gas exchange and mixing
+    (a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
+     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (new_params[k] if k in new_params else Parameters[k] for k in [
+    "a2", "alpha2", "beta2", "C2", "Fi_CO2", "Fi_O2", "K2", "PACO2_Delay_IC",
+    "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
+    "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"])
+
+    # Resp control
+    (GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
+    (new_params[k] if k in new_params else Parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
+   "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
+
+    Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
+    R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
+    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
+    C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+    Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv,
+    fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
+    kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
+    Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
+    GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
+    tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
+    Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
+    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
+    f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
+    Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
+    MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met,
+    a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+    P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
+    VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta,
+    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+
     # Solve ODE in one go
     ODE_solution = solve_ivp(
         combined_system,
@@ -166,7 +240,7 @@ def simulate():
         method="RK23",
         rtol=1e-3,
         atol=1e-6,
-        args=(Parameters, Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control)
+        args=(Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters)
     )
 
     if ODE_solution.status == -1:

@@ -1,175 +1,603 @@
+# CARDIOVASCULAR SYSTEM
 Parameters = {
-    'A': 21.93275390625,
-    'AT': 0.015764973958333334,
-    'A_im': 41.025390625,
-    'B': 93.325625,
-    'C': 8796.634765625,
-    'C2': 39.1640625,
-    'C_amv': 10.5511328125,
-    'C_bv': 9.398443359375001,
-    'C_ev': 22.08203125,
-    'C_hv': 4.054599609375,
-    'C_pa': 0.8509921874999999,
-    'C_pp': 6.7096484375,
-    'C_pv': 19.74326171875,
-    'C_rmv': 5.815132812500001,
-    'C_sa': 0.23772656250000004,
-    'C_sv': 49.95026367187501,
-    'Cvam_O2_n': 0.18067763671874998,
-    'Cvb_O2_n': 0.16135546875,
-    'Cvh_O2_n': 0.106498046875,
-    'Cvrm_O2_n': 0.1524873046875,
-    'D': -4.2531048828125,
-    'D1': 0.43918388671874997,
-    'D2': -5.1025390625,
-    'E_rs': 20.552636718749998,
-    'Emax_la': 0.207666015625,
-    'Emax_lv0': 1.5110054687499999,
-    'Emax_ra': 0.276025390625,
-    'Emax_rv0': 0.56314453125,
-    'GEmax_lv': 0.5535791015625,
-    'GEmax_rv': 0.303976171875,
-    'GR_amp': 2.957728515625,
-    'GR_ep': 2.3139804687499996,
-    'GR_rmp': 2.401978515625,
-    'GR_sp': 0.6487119140625,
-    'GT_s': -0.145310546875,
-    'GT_v': 0.090931640625,
-    'GV_amv': -56.525361328125,
-    'GV_dead': 0.1916551171875,
-    'GV_ev': -80.83382226562499,
-    'GV_rmv': -56.206587890625,
-    'GV_sv': -243.88808593749997,
-    'G_ap': 10.090171875,
-    'K1': 12.9314453125,
-    'K1_vc': 0.133916015625,
-    'K2': 25.5712890625,
-    'K2_vc': 0.33992187500000004,
-    'KCCO2': 369719.921875,
-    'K_H': 2.9958984375,
-    'KcCO2': 0.27250695312499995,
-    'KcMRV': 1.0826171875,
-    'Kh_CO2': 10.929896484375,
-    'KpCO2': 0.18940869140625002,
-    'KpO2': 4.025828125e-09,
-    'Kr_vc': 0.0009677734375,
-    'Krm_CO2': 123.694921875,
-    'L_pa': 0.00015148828125,
-    'L_sa': 0.00074598046875,
-    'MO2_ampn': 0.61345546875,
-    'MO2_bp': 0.9331298828125001,
-    'MO2_hpn': 0.38007812500000004,
-    'MO2_rmp': 0.83026953125,
-    'P0_la': 0.5511816406250001,
-    'P0_lv': 1.75341796875,
-    'P0_ra': 0.47856445312500007,
-    'P0_rv': 1.39716796875,
-    'PO2_sh': 38.5927734375,
-    'PO2_sp': 33.533203125,
-    'PO2_sv': 26.431640625,
-    'P_abdmax_n': -0.9900390625,
-    'P_abdmin_n': -2.86962890625,
-    'P_n': 87.13046875,
-    'PaCO2_n': 37.2578125,
-    'PaO2_ac_n': 39.8759765625,
-    'Pmax': 43.955078125,
-    'Pmax_dot': 1015.4296875,
-    'R_amp0': 2.853931640625,
-    'R_amv_n': 0.09978103515625,
-    'R_bpn': 5.8680878906250005,
-    'R_bv_n': 0.0889892578125,
-    'R_ep0': 1.4762470703125001,
-    'R_ev_n': 0.0380546875,
-    'R_hpn': 17.504173828125,
-    'R_hv_n': 0.25029375,
-    'R_pa': 0.0198509765625,
-    'R_pp': 0.0722009765625,
-    'R_pv': 0.07175390625,
-    'R_rmp0': 6.182986328124999,
-    'R_rmv_n': 0.10983886718750001,
-    'R_rs': 3.05008203125,
-    'R_sa': 0.2002734375,
-    'R_sp0': 2.0985058593750003,
-    'R_sv_n': 0.04059023437499999,
-    'Rvc_n': 0.062475585937499994,
-    'T0': 0.48359765624999995,
-    'T_im': 1.1848632812500002,
-    'Tc': 0.79994140625,
-    'V0_dead': 0.18135814453125,
-    'VA_rest': 0.0765134765625,
-    'VT_n': 0.42846679687500006,
-    'W_hn': 12484.44140625,
-    'Wb_sh': -1.9930175781250001,
-    'Wb_sp': -1.15327392578125,
-    'Wb_sv': -1.27724365234375,
-    'Wc_sh': 0.8052734375,
-    'Wc_sp': 2.00993203125,
-    'Wc_sv': 1.7853773437499998,
-    'Wc_v': 0.1905078125,
-    'Wp_sh': -0.16847656250000004,
-    'Wp_sp': -0.39977806640625,
-    'Wp_sv': -0.35496794921875,
-    'Wp_v': -0.1158951171875,
-    'Wt_sh': 0.432265625,
-    'Wt_sp': 0.356171875,
-    'Wt_sv': 0.393046875,
-    'Wt_v': 0.37726562500000005,
-    'Ysh_max': 8.2740234375,
-    'Ysh_min': -0.02563029296875,
-    'Ysp_max': 5.46884765625,
-    'Ysp_min': -0.0359521484375,
-    'Ysv_max': 70.79423828125002,
-    'Ysv_min': -0.026332031250000002,
-    'Yv_max': 1.74970703125,
-    'Yv_min': -0.00071078125,
-    'a2': 1.3868505859375002,
-    'alpha1': 0.028675816406250002,
-    'alpha2': 0.057864666015625,
-    'beta1': 0.0066248486328125,
-    'beta2': 0.030941572265625005,
-    'dc': 0.0161806640625,
-    'f_ab_max': 48.53589453125,
-    'f_ab_min': 2.3236171875,
-    'f_acCO2_n': 1.3083984375,
-    'f_ac_max': 10.053808593750002,
-    'f_ac_min': 0.9173583984375,
-    'fab_o': 23.5888671875,
-    'fes_inf': 2.48349609375,
-    'fes_max': 79.109375,
-    'fes_min': 2.93379296875,
-    'fes_o': 14.369994140625,
-    'fev_inf': 6.91892578125,
-    'fev_o': 3.773125,
-    'gM': 41.9765625,
-    'g_abd': 3.317830078125,
-    'g_ccsh': 0.9685546875,
-    'g_ccsp': 1.7809570312499998,
-    'g_ccsv': 0.2024609375,
-    'g_thor': 7.247578125,
-    'gam_O2': 28.283203125,
-    'gb_O2': 9.587890625,
-    'gh_O2': 36.0185546875,
-    'grm_O2': 25.810546875,
-    'k_ab': 13.269046875,
-    'k_ac': 25.571232421875,
-    'kcc_sh': 0.130899609375,
-    'kcc_sp': 0.12266210937500001,
-    'kcc_sv': 0.074935546875,
-    'kcc_v': 0.013792148437499999,
-    'kes': 0.08001123046875,
-    'kev': 5.74590234375,
-    'kisc_sh': 7.119140625,
-    'kisc_sp': 1.6746093750000002,
-    'kisc_sv': 2.360546875,
-    'kmet': 0.14544140625,
-    'phi_max': 22.69921875,
-    'phi_min': -2.141369140625,
-    's': 0.0474609375,
-    'theta_shn': 3.9086718750000005,
-    'theta_spn': 12.6930234375,
-    'theta_svn': 12.0062109375,
-    'theta_v': -0.5470546875,
-    'x_sh': 45.722851562500004,
-    'x_sp': 6.376171875,
-    'x_sv': 5.3636718750000005
+    # Table 1. Systemic arteries
+# systemic_arteries = {
+    "C_sa": 0.28,  # Systemic arterial compliance (decreasing C_sa allows Q_sa to match closer to Q_lv) # want to change to 1.13 (harry thesis
+    "L_sa": 0.00066,  # Systemic arterial inertance
+    "R_sa": 0.2,  # Systemic arterial hydraulic resistance (want to increase from 0.06 to 0.2 to increase Psys). This is because P_sa decreases at a slower rater (first order)
+    "Vu_sa": 0, # Systemic arterial unstressed volume
+# }
+#
+#     # Systemic peripheral and venous circulation
+#     # Table 2. Compliance values
+# systemic_peripheral_and_venous = {
+    "C_jp": 3.72, # 3.72
+    "C_amp": 0.315,  # Active skeletal muscle peripheral compliance
+    "C_amv": 9.4,    # Active skeletal muscle venous compliance
+    "C_bp": 0.358,   # Brain peripheral compliance
+    "C_bv": 10.71,   # Brain venous compliance
+    "C_ep": 0.668,   # Extra-splanchnic peripheral compliance
+    "C_ev": 20,      # Extra-splanchnic venous compliance
+    "C_hp": 0.119,   # Coronary peripheral compliance
+    "C_hv": 3.57,    # Coronary venous compliance
+    "C_rmp": 0.21,   # Resting skeletal muscle peripheral compliance
+    "C_rmv": 6.28,   # Resting skeletal muscle venous compliance
+    "C_sp": 2.05,    # Splanchnic peripheral compliance
+    "C_sv": 61.11,   # Splanchnic venous compliance
+    "kr_am": 24.17,  # Constant parameter
+    "P_0": 3.93,     # Constant parameter
+    "R_amv_n": 0.0833,  # Active skeletal muscle venous resistance
+    "R_bv_n": 0.075,    # Brain venous resistance
+    "R_ev_n": 0.04,     # Extra-splanchnic venous resistance
+    "R_hv_n": 0.224,    # Coronary venous resistance
+    "R_rmv_n": 0.125,   # Resting skeletal muscle venous resistance
+    "R_sv_n": 0.038,    # Splanchnic venous resistance
+    "V_tot": 5027.6,    # Total blood volume
+    "Vu_amp": 60.22,   # Active skeletal muscle peripheral unstressed volume
+    "Vu_bp": 68.42,    # Brain peripheral unstressed volume
+    "Vu_bv": 279.49,   # Brain venous unstressed volume
+    "Vu_ep": 127.72,   # Extra-splanchnic peripheral unstressed volume
+    "Vu_hp": 23,       # Coronary peripheral unstressed volume
+    "Vu_hv": 93.16,    # Coronary venous unstressed volume
+    "Vu_rmp": 40.1,    # Resting skeletal muscle peripheral unstressed volume
+    "Vu_sp": 260.3,    # Splanchnic peripheral unstressed volume
+# }
+#
+#     # Table 3. Vena Cava Parameters
+# vena_cava = {
+    "D1": 0.3855,      # Parameter for P-V curve of vena cava
+    "D2": -5,          # Parameter for P-V curve of vena cava
+    "K1_vc": 0.15,     # Parameter for P-V curve of vena cava
+    "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
+    "Kr_vc": 0.001,    # Gain for vena cava flow resistance
+    "Rvc_n": 0.075,    # Nominal vena cava flow resistance # edited (changed to 0.0025 from xxx for better left atrial pressures, changed back to 0.025)
+    "Vu_vc": 123,      # Vena cava unstressed volume
+    "Vvc_max": 350,     # Maximum volume of vena cava
+    "Vvc_min": 50,      # Minimum volume of vena cava
+# }
+#
+#     # Table 4. Pulmonary Circulation Parameters
+# pulmonary_circulation = {
+    "C_pa": 0.76, # 0.76,           # Pulmonary arterial compliances want to change to 5
+    "C_pp": 5.8, # 5.8,            # Pulmonary peripheral compliances want to change to 10
+    "C_pv": 20.5, # 25.37,          # Pulmonary venous compliances want to change to 15 # edited
+    "L_pa": 0.00018,        # Pulmonary arterial inertance
+    "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
+    "R_pp": 0.0894,         # Pulmonary peripheral flow resistance
+    "R_pv": 0.06,         # Pulmonary venous flow resistance # edited to remove the backflow
+    "Vu_pa": 0,            # Pulmonary arterial unstressed volume
+    "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
+    "Vu_pv": 114,          # Pulmonary venous unstressed volume
+# }
+
+    # Table 5. Heart Parameters
+# heart = {
+#     "C_la": 4, # 19.23,          # Left atrial compliances changed
+#     "C_ra": 5, # 31.25,          # Right atrial compliances changed
+    "s": 0.04,
+    "Ta": 8.8,
+    "KE_lv": 0.014, # 0.014      # End-diastolic P-V relationship in left ventricle # adjusted (changes a lot depending on whether it is 0.06 or 0.05)
+    "KE_rv": 0.011, # 0.011       # End-diastolic P-V relationship in right ventricle Another model use 0.027
+    # "KR_lv": 0.000375,     # Viscosity of left ventricle
+    # "KR_rv": 0.00014,       # Viscosity of right ventricle (this parameter affects RA pressure) (changed from 0.0014. The removes the kink in the lv)
+    # "ksys": 0.075,         # Duration of systole as function of heart rate (this parameter affects RA pressure)
+    "Emax_la": 0.25,    # edited
+    "P0_la": 0.55,      # edited
+    "KE_la": 0.05,
+
+    "Emax_ra": 0.25,    # edited
+    "P0_ra": 0.55,      # edited
+    "KE_ra": 0.05,
+    "P0_lv": 1.5, # 1.5        # End-diastolic P-V relationship in left ventricle # another model use 1.0
+    "P0_rv": 1.5, # 1.5         # End-diastolic P-V relationship in right ventricle (check this one first, has strong effect with the smallest change in volume)
+    # "R_la": 0.0025,         # Left atrial flow resistance
+    # "R_ra": 0.0025,         # Right atrial flow resistance
+    # "Tsys_0": 0.4,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
+    "Vu_la": 4,           # Left atrial unstressed volume # adjusted to the shi paper Increasing these heart unstressed volumes decreases the maximum flow and pressures
+    "Vu_lv": 5,       # Left ventricular unstressed volume # adjusted to the shi paper
+    "Vu_ra": 4,           # Right atrial unstressed volume # adjusted to the shi paper
+    "Vu_rv": 10,       # Right ventricular unstressed volume # adjusted to the shi paper
+# }
+
+    # Table 6. Muscle Pump
+# muscle_pump = {
+    "A_im": 50,            # Peak value of intramuscular pressure
+    "Tc": 0.75,            # The overall duration of muscular contraction
+    "T_im": 1,             # Duration of the muscular contraction-relaxation cycle
+# }
+
+    # Table 7. Respiratory Pump
+# respiratory_pump = {
+    "g_abd": 3.39,          # Constant gain factor linking tidal volume changes to abdominal pressure variations
+    "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
+    "P_abdmax_n": 0,        # Basal value of abdominal pressure at the end of expiration
+    "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
+    "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
+    "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
+    "VT_n": 0.45,           # Basal value of tidal volume changed
+# }
+
+    # Table 8. Afferent Baroreflex Pathway
+# afferent_baroreflex = {
+    "f_ab_max": 47.78,      # Upper saturation level of the frequency discharge in the baroreceptor afferent fibers
+    "f_ab_min": 2.52,       # Lower saturation level of the frequency discharge in the baroreceptor afferent fibers
+    "k_ab": 11.76,          # Parameter related to the slope of the static function at the central point
+    "P_n": 92,              # Value of baroreceptor pressure at the central point of the sigmoidal function
+    "tau_p": 2.076,         # Time constant for the real pole
+    "tau_z": 6.37,          # Time constant for the real zero
+# }
+
+    # Table 9. Afferent Chemoreflex Pathway
+# afferent_chemoreflex = {
+    "f_ac_IC": 8.0807,      # Initial condition for the afferent activity from chemoreceptors
+    "f_acCO2_n": 1.4,       # Constant parameter tuned to reproduce the CO2 static response
+    "f_ac_max": 12.3,       # Upper saturation level of the frequency discharge in the chemoreceptor afferent fibers
+    "f_ac_min": 0.835,      # Lower saturation level of the frequency discharge in the chemoreceptor afferent fibers
+    "k_ac": 29.27,          # Parameter related to the slope of the sigmoid at the central point
+    "K_H": 3,               # Constant parameter tuned to reproduce the CO2 static response
+    "PaO2_ac_n": 45,        # Arterial PO2 at the central point of the sigmoid
+    "PaCO2_n": 40,          # PaCO2 basal value
+    "tau_ac": 2,            # Time constant of the chemoreceptor mechanism
+# }
+
+    # Table 10. Afferent activity from Pulmonary Stretch Receptors
+# afferent_pulmonary_stretch_receptors = {
+    "f_ap_IC": 4.4492,  # Initial condition for the afferent activity from pulmonary stretch receptors, spikes/s
+    "G_ap": 11.76,      # Constant gain factor, spikes/s/l
+    "tau_ap": 2,       # Time constant of the lung inflation afferent response, seconds
+# }
+
+    # Table 11.  Cerebral Blood Flow (Blood flow local control)
+# cerebral_blood_flow = {
+    "A": 20.9,        # Constant parameter for cerebral blood flow regulation, dimensionless
+    "B": 92.8,        # Constant parameter for cerebral blood flow regulation, dimensionless
+    "C": 10570,       # Constant parameter for cerebral blood flow regulation, dimensionless
+    "D": -5.251,      # Constant parameter for cerebral blood flow regulation, dimensionless
+    "Cvb_O2_n": 0.14, # O2 concentration in venous blood leaving the brain under normal conditions
+    "gb_O2": 10,      # Constant gain factor
+    "MO2_bp": 0.925, # Oxygen consumption rate in the brain compartment # changed
+    "R_bpn": 6.57,    # Constant parameter denoting the basal value of peripheral cerebrovascular conductance
+    "tau_CO2": 20,    # Time constant of the effect of CO2 on cerebral circulation, seconds
+    "tau_O2": 10,     # Time constant of the effect of O2 on cerebral circulation, seconds
+# }
+
+    # Table 12. Coronary and Resting Muscle Blood FLow (Blood flow local control)
+# coronary_resting_muscle_blood_flow = {
+    "Cvh_O2_n": 0.11,   # O2 concentration in venous blood leaving the heart under normal conditions
+    "Cvrm_O2_n": 0.155, # O2 concentration in venous blood leaving the skeletal resting muscle under normal conditions
+    "gh_O2": 35,        # Constant gain factor
+    "grm_O2": 30,       # Constant gain factor
+    "Kh_CO2": 11.11,    # Parameter related to the slope of the sigmoidal function at the central point
+    "Krm_CO2": 142.8,   # Parameter related to the slope of the sigmoidal function at the central point
+    "MO2_hpn": 0.4,     # Nominal value of O2 consumption rate in the heart
+    "MO2_rmp": 0.86,    # Consumption rate in the resting muscle
+    "R_hpn": 19.71,      # Normal peripheral resistance in coronary compartment
+    "tau_w": 5,         # Time constant of the filter
+    "W_hn": 12660,       # Nominal value of the average power of the cardiac pump
+# }
+
+    # Table 13. Active Muscle Blood Flow (Blood Flow Local Control)
+# active_muscle_blood_flow = {
+    "Cvam_O2_n": 0.1555,       # O2 concentration in venous blood leaving the active skeletal muscle under normal conditions
+    "Dmet": 4,                 # Pure delay
+    "gam_O2": 30,              # Constant gain factor
+    "gM": 40,                  # Static gain
+    "Io_met": 0.4266,          # Is I at the central point of the sigmoid
+    "kmet": 0.18,              # Parameter related to the slope of the sigmoid at the central point
+    "MO2_ampn": 0.516,         # Nominal oxygen consumption rate
+    "phi_max": 20,             # Upper saturation of the static sigmoidal characteristic
+    "phi_min": -1.87,          # Lower saturation of the static sigmoidal characteristic
+    "tau_M": 40,               # Time constant
+    "tau_met": 10,             # Time constant
+# }
+
+    # Table 14. CNS Ischemic Response
+# cns_ischemic_response = {
+    "g_ccsh": 1,                # Constant gain factor tuned to reproduce experimental results
+    "g_ccsp": 1.5,              # Constant gain factor tuned to reproduce experimental results
+    "g_ccsv": 0,                # Constant gain factor tuned to reproduce experimental results
+    "kisc_sh": 6,              # Parameter related to the slope of the static function at the central point for heart
+    "kisc_sp": 2,              # Parameter related to the slope of the static function at the central point for peripheral resistance
+    "kisc_sv": 2,              # Parameter related to the slope of the static function at the central point for unstressed volume of veins
+    "PO2_sh": 45,              # Value of PO2 at the central point of the sigmoidal function for heart
+    "PO2_sp": 30,              # Value of PO2 at the central point of the sigmoidal function for peripheral resistance
+    "PO2_sv": 30,              # Value of PO2 at the central point of the sigmoidal function for unstressed volume of veins
+    "tau_cc": 20,              # Time constant
+    "tau_isc": 30,             # Time constant of the mechanism
+    "theta_shn": 3.6,           # Offset term in basal condition for heart
+    "theta_spn": 13.32,        # Offset term in basal condition for peripheral resistance
+    "theta_svn": 13.32,        # Offset term in basal condition for unstressed volume of veins
+    "x_sh": 53,                # Saturation of the hypoxic response for heart
+    "x_sp": 6,                 # Saturation of the hypoxic response for peripheral resistance
+    "x_sv": 6,                 # Saturation of the hypoxic response for unstressed volume of veins
+# }
+
+    # Table 15. Metabolic Regulation
+# metabolic_regulation = {
+    "AT": 1/60,                   # Anaerobic threshold
+# }
+
+    # Table 16: Parameters of Efferent Pathways
+# efferent_pathways = {
+    "fab_o": 25,               # Central value in the curve of fab
+    "fes_o": 16.11,            # Constant parameter
+    "fes_inf": 2.1,            # Constant parameter
+    "fes_max": 80,             # Saturation level above which the sympathetic activity cannot increase # changed
+    "fev_o": 3.2,              # Constant parameter
+    "fev_inf": 6.3,            # Constant parameter
+    "kes": 0.0675,             # Constant parameter
+    "kev": 7.06,               # Constant parameter
+    "Io_sh": 0.658,            # Value of exercise intensity at the central point of the sigmoid (heart)
+    "Io_sp": 0.65,             # Value of exercise intensity at the central point of the sigmoid (peripheral resistance)
+    "Io_sv": 0.45,             # Value of exercise intensity at the central point of the sigmoid (unstressed volume of veins)
+    "Io_v": 0.126,             # Value of exercise intensity at the central point of the sigmoid
+    "kcc_sh": 0.114,           # Parameter related to the slope of the characteristic at the central point (heart)
+    "kcc_sp": 0.13,            # Parameter related to the slope of the characteristic at the central point (peripheral resistance)
+    "kcc_sv": 0.09,            # Parameter related to the slope of the characteristic at the central point (unstressed volume of veins)
+    "kcc_v": 0.0162,           # Parameter related to the slope of the characteristic at the central point
+    "Ysh_max": 9,              # Upper saturation of the central command response (heart)
+    "Ysh_min": -0.0283,        # Lower saturation of the central command response (heart)
+    "Ysp_max": 5.5,            # Upper saturation of the central command response (peripheral resistance)
+    "Ysp_min": -0.037,         # Lower saturation of the central command response (peripheral resistance)
+    "Ysv_max": 64.9,           # Upper saturation of the central command response (unstressed volume of veins)
+    "Ysv_min": -0.028,         # Lower saturation of the central command response (unstressed volume of veins)
+    "Yv_max": 1.9,             # Upper saturation of the central command response
+    "Yv_min": -0.0008,         # Lower saturation of the central command response
+    "theta_v": -0.68,          # Offset term
+    "Wb_sh": -1.75,            # Synaptic weight tuned to reproduce physiological results (heart)
+    "Wb_sp": -1.1375,          # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
+    "Wb_sv": -1.1375,          # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
+    "Wc_sh": 1,                # Synaptic weight tuned to reproduce physiological results (heart)
+    "Wc_sp": 1.716,            # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
+    "Wc_sv": 1.716,            # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
+    "Wc_v": 0.2,               # Synaptic weight tuned to reproduce physiological results
+    "Wp_sh": 0,                # Synaptic weight tuned to reproduce physiological results (heart)
+    "Wp_sp": -0.3997,          # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
+    "Wp_sv": -0.3997,          # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
+    "Wp_v": -0.103,            # Synaptic weight tuned to reproduce physiological results
+    "Wt_sh": 0.4,              # Synaptic weight tuned to reproduce physiological results (heart)
+    "Wt_sp": 0.4,              # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
+    "Wt_sv": 0.4,              # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
+    "Wt_v": 0.4,
+# }
+
+    # Table 17: Effectors for Reflex Control: Resistances, Unstressed Volumes, and Cardiac Elastances
+# parameters_reflex_control = {
+    "DEmax,lv": 2,       # Pure latency of the mechanism
+    "DEmax,rv": 2,       # Pure latency of the mechanism
+    "DR_amp": 2,          # Pure latency of the mechanism
+    "DR_ep": 2,           # Pure latency of the mechanism
+    "DR_rmp": 2,           # Pure latency of the mechanism
+    "DR_sp": 2,           # Pure latency of the mechanism
+    "DV_amv": 5,        # Pure latency of the mechanism
+    "DV_ev": 5,           # Pure latency of the mechanism
+    "DV_rmv": 5,           # Pure latency of the mechanism
+    "DV_sv": 5,           # Pure latency of the mechanism
+    "Emax_lv0": 1.412,   # Basal level of maximum end-systolic elastance of the left ventricle # wnat to change to 5.2
+    "Emax_rv0": 0.7,   # Basal level of maximum end-systolic elastance of the right ventricle
+    "fes_min": 2.66,     # Threshold for sympathetic stimulation
+    "GEmax_lv": 0.475,   # Constant gain factor
+    "GEmax_rv": 0.282,   # Constant gain factor
+    "GR_amp": 2.47,       # Constant gain factor
+    "GR_ep": 1.94,        # Constant gain factor
+    "GR_rmp": 2.47,        # Constant gain factor
+    "GR_sp": 0.695,       # Constant gain factor
+    "GV_amv": -58.29,     # Constant gain factor
+    "GV_ev": -74.21,      # Constant gain factor
+    "GV_rmv": -58.29,      # Constant gain factor
+    "GV_sv": -265.4,      # Constant gain factor
+    "R_amp0": 3.510,     # Basal level of active skeletal peripheral resistance
+    "R_ep0": 1.655,      # Basal level of extra-splanchnic peripheral resistance
+    "R_rmp0": 5.270,      # Basal level of resting skeletal peripheral resistance
+    "R_sp0": 2.49,       # Basal level of splanchnic peripheral resistance
+    "tau_Emax_lv": 8,       # Time constant
+    "tau_Emax_rv": 8,       # Time constant
+    "tau_Ramp": 2,          # Time constant
+    "tau_Rep": 2,           # Time constant
+    "tau_Rrmp": 2,           # Time constant
+    "tau_Rsp": 2,           # Time constant
+    "tau_Vamv": 20,         # Time constant
+    "tau_Vev": 20,          # Time constant
+    "tau_Vrmv": 20,          # Time constant
+    "tau_Vsv": 20,          # Time constant
+    "Vu_amv0": 286.4,    # Basal level of active skeletal muscle venous unstressed volume
+    "Vu_ev0": 607.8,     # Basal level of extra-splanchnic venous unstressed volume
+    "Vu_rmv0": 190.95,    # Basal level of resting skeletal muscle venous unstressed volume
+    "Vu_sv0": 1361.6,    # Basal level of splanchnic venous unstressed volume
+# }
+
+# Table 18: Parameters of Effectors for Reflex Control: Heart Period
+# parameters_heart_period = {
+    "DT_s": 2,              # Pure latency of the mechanism
+    "DT_v": 0.2,            # Pure latency of the mechanism
+    "fsh_IC": 3.8576,         # Initial condition for the efferent sympathetic cardiac activity
+    "fv_IC": 4.2748,         # Initial condition for the efferent vagal activity
+    "GT_s": -0.13,          # Constant gain factor
+    "GT_v": 0.09,           # Constant gain factor
+    "T0": 0.58,              # Heart period in the absence of cardiac innervation # want to change to 0.83333 from 0.58
+    "tau_Ts": 2,              # Time constant
+    "tau_Tv": 1.5,            # Time constant
+# }
+
+# Table 19: Parameters of the Upper Airways
+# parameters_upper_airways = {
+    "A0_ua": 1,               # Maximum area of opening in upper airway
+    "b_ua": 1,                 # Upper airway mechanics constant
+    "C_ua": 0.001,             # Upper airway compliance
+    "K_ua": 1,                 # Proportionality coefficient
+    "Pcrit_min": -40,         # Critical upper airway pressure
+    "R_AW": 0.82128,           # Airway wall resistance
+    "R_CW": 0.8326,            # Chest wall resistance
+    "R_L": 1.3661,             # Lung transmural resistance
+    "R_trachea": 1000000,      # Upper airway wall resistance
+    "R_rs": 3.02,              # Overall resistance # changed
+# }
+
+# Table 20: Parameters of the Pulmonary Mechanics
+# parameters_pulmonary_mechanics = {
+    "E_CW": 10.5,           # Chest wall elastance (cmH2O/l) # changed
+    "E_L": 10.5,            # Lung transmural elastance (cmH2O/l) # changed
+    "E_rs": 21.9, # 21.9,             # Overall elastance (cmH2O/l) # changed
+    "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
+    "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
+    "P_ao": 0,                # Airway pressure (cmH2O)
+# }
+
+# Table 21: Parameters of Ventilation Controller
+# parameters_ventilation_controller = {
+    "GV_dead": 0.1698,        # Constant gain for dead space volume
+    "Kbg": 17.4,             # Blood gas dissociation constant
+    "KcCO2": 0.2332,         # Constant gain of CO2 central chemoreceptors
+    "KcMRV": 1,              # Constant gain of central response to exercise (neural drive)
+    "KpCO2": 0.2025,         # Constant gain of CO2 peripheral chemoreceptors
+    "KpO2": 4.72e-9,         # Constant gain of O2 peripheral chemoreceptors
+    "V0_dead": 0.1587,        # Offset value of dead space volume
+    "VA_rest": 0.067,        # Basal value of alveolar ventilation
+# }
+
+# Table 22: Parameters of Breathing Pattern Optimizer
+# parameters_breathing_pattern_optimizer = {
+    "lambda1": 0.4,         # Weighting factor (Dimensionless) changed
+    "lambda2": 0.05,        # Weighting factor (Dimensionless) changed
+    "n": 1.101,              # Power index of efficiency factor (Dimensionless)
+    "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
+    "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
+# }
+
+# Table 23: Parameters of the Gas Exchange and Mixing
+# parameters_gas_exchange_mixing = {
+    "a1": 0.3836,           # Parameter for O2 dissociation in blood (Dimensionless)
+    "a2": 1.219,            # Parameter for CO2 dissociation in blood (Dimensionless) # changed
+    "alpha1": 0.03198,      # O2 dissociation constant (mmHg^-1)
+    "alpha2": 0.05591,      # CO2 dissociation constant (mmHg^-1)
+    "beta1": 0.008275,      # O2 Bohr-Haldane parameter (mmHg^-1)
+    "beta2": 0.03255,       # CO2 Bohr-Haldane parameter (mmHg^-1)
+    "C1": 9,                # Max concentration of hemoglobin-bound oxygen (mmol/l)
+    "C2": 40,               # Max carbon dioxide concentration (mmol/l) # changed
+    "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359], # Initial CO2 dead space conditions (mmHg)
+    "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579], # Initial O2 dead space conditions (mmHg)
+    "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
+    "Fi_O2": 21.0379,       # Inspired fraction of O2 (%)
+    "K1": 13,               # Parameter for O2 dissociation equation (mmHg)
+    "K2": 25,            # Parameter for CO2 dissociation equation (mmHg) # Changed
+    "LCTV": 0.588,          # Lung to chemoreceptor vascular volume constant (l)
+    "PACO2_Delay_IC": 40.4448,      # Initial CO2 convection delay (mmHg)
+    "dPa_CO2_dt_IC": -0.2465,       # Initial CO2 rate of change (mmHg/s)
+    "PACO2_IC": 40.9432,            # Initial Condition for CO2 convection (mmHg)
+    "d2Pa_CO2_dt2_IC": 40.3928,   # Second order CO2 rate of change (mmHg/s^2)
+    "PAO2_Delay_IC": 103.1223,      # Initial O2 convection delay (mmHg)
+    "dPa_O2_dt_IC": 0.3557,         # Initial O2 rate of change (mmHg/s)
+    "PAO2_IC": 102.5153,            # Initial Condition for O2 convection (mmHg)
+    "d2Pa_O2_dt2_IC": 103.1435,   # Second order O2 rate of change (mmHg/s^2)
+    "P_atm": 760,                    # Atmospheric pressure (mmHg) # CHANGED
+    "P_ws": 47,                      # Water vapor pressure (mmHg)
+    "T1": 1,                        # Time constant for cardiovascular mixing (s)
+    "T2": 2,                        # Time constant for cardiovascular mixing (s)
+    "VL_CO2": 3,                    # Lungs storage volume for CO2 (l)
+    "VL_O2": 2.5,                   # Lungs storage volume for O2 (l)
+    "Z": 0.0227,                    # Molar conversion factor (l/mmol)
+    "VB": 0.9,                      # Gas volume in brain (L)
+# }
+
+# Table 24: Parameters of the Brain Compartment
+# parameters_brain_compartment = {
+    "dc": 0.015,                    # Depth of central receptor below medulla surface (cm)
+    "h": 0.0183/1000,                    # Cerebral blood flow constant (ml/(100g·s))
+    "KCCO2": 346000,                # CO2 central receptor constant (s·cm^-2·l^-1)
+    "KCSFCO2": 20,                 # CO2 diffusion time constant in cerebrospinal fluid (s), changed to be faster to see if limit cycle is reached
+    "MRBCO2": 0.0009,               # Metabolic production rate of CO2 (1/s STPD)
+    "MRBO2": 0.000925,              # Metabolic production rate of O2 (1/s STPD)
+    "PbCO2IC": 48.5338,             # Initial condition for brain CO2 partial pressure (mmHg)
+    "SbCO2": 0.36/1000,                  # Dissociation slope for CO2 in the brain (ml·(100g·y)/mmHg) # convert to L
+    "SCO2": 0.0043,                 # Dissociation slope for CO2 in blood (mmHg^-1)
+# }
+
+# Table 25: Parameters of the Gas Transport: Body Tissues Compartment
+# parameters_body_tissues_compartment = {
+    "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
+    "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
+    "MRCO2": 0.2/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
+    "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD) brain O2 minused in gas exchange
+    "MRTCO2_basal": 0.2/60,            # Basal metabolic production rate for CO2 (l/min STPD)
+    "MRTO2_basal": 0.25/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
+    "tauMR": 50,                    # Metabolic rate time constant (s)
+    "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l) # changed from 15
+    "VTO2": 0.25,                      # Body tissue storage volume for O2 (l) # changed from 6
+# }
+
+# Table 26: Gas Transport: Metabolism Dynamic
+# gas_transport = {
+    "tau_MRV": 50,            # Metabolic rate time constant (s)
 }
+# Parameters = {
+#     'A': 18.438535156249998,
+#     'AT': 0.014866536458333334,
+#     'A_im': 50.498046875,
+#     'B': 93.760625,
+#     'C': 8813.150390625,
+#     'C2': 38.0234375,
+#     'C_amv': 7.980820312500001,
+#     'C_bv': 12.105228515625,
+#     'C_ev': 20.02734375,
+#     'C_hv': 4.007185546875,
+#     'C_pa': 0.6458515625000001,
+#     'C_pp': 5.6130859375,
+#     'C_pv': 17.07666015625,
+#     'C_rmv': 5.5109453125000005,
+#     'C_sa': 0.2843203125,
+#     'C_sv': 67.471646484375,
+#     'Cvam_O2_n': 0.15012431640625,
+#     'Cvb_O2_n': 0.14079296875000002,
+#     'Cvh_O2_n': 0.105466796875,
+#     'Cvrm_O2_n': 0.1563623046875,
+#     'D': -4.9915267578125,
+#     'D1': 0.43075107421875003,
+#     'D2': -5.6064453125,
+#     'E_rs': 25.009628906249997,
+#     'Emax_la': 0.21577148437500002,
+#     'Emax_lv0': 1.2572867187499999,
+#     'Emax_ra': 0.298974609375,
+#     'Emax_rv0': 0.6878320312499999,
+#     'GEmax_lv': 0.5083056640625,
+#     'GEmax_rv': 0.226866796875,
+#     'GR_amp': 2.724236328125,
+#     'GR_ep': 2.26093359375,
+#     'GR_rmp': 2.662486328125,
+#     'GR_sp': 0.8322353515625,
+#     'GT_s': -0.130177734375,
+#     'GT_v': 0.079751953125,
+#     'GV_amv': -47.05323632812501,
+#     'GV_dead': 0.17573636718750002,
+#     'GV_ev': -76.25367382812499,
+#     'GV_rmv': -62.172205078124996,
+#     'GV_sv': -257.36542968749995,
+#     'G_ap': 10.273921875,
+#     'K1_vc': 0.160224609375,
+#     'K2': 24.4775390625,
+#     'K2_vc': 0.455703125,
+#     'KCCO2': 310251.171875,
+#     'K_H': 2.4521484375000004,
+#     'KcCO2': 0.251555390625,
+#     'KcMRV': 1.0685546875,
+#     'Kh_CO2': 10.929896484375,
+#     'KpCO2': 0.22856396484375,
+#     'KpO2': 5.515578125e-09,
+#     'Kr_vc': 0.0009794921875,
+#     'Krm_CO2': 146.955703125,
+#     'L_pa': 0.00020155078125000002,
+#     'L_sa': 0.00061939453125,
+#     'MO2_ampn': 0.48647109375,
+#     'MO2_bp': 1.1007861328125002,
+#     'MO2_hpn': 0.34414062500000003,
+#     'MO2_rmp': 0.84605859375,
+#     'P0_la': 0.4441894531250001,
+#     'P0_lv': 1.50322265625,
+#     'P0_ra': 0.45686523437500004,
+#     'P0_rv': 1.6561523437499999,
+#     'PO2_sh': 53.3935546875,
+#     'PO2_sp': 25.119140625,
+#     'PO2_sv': 35.408203125,
+#     'P_abdmax_n': -1.0685546875,
+#     'P_abdmin_n': -2.55322265625,
+#     'P_n': 93.45546875,
+#     'PaCO2_n': 34.5078125,
+#     'PaO2_ac_n': 49.4384765625,
+#     'Pmax': 42.646484375,
+#     'Pmax_dot': 1142.7734375,
+#     'R_amp0': 3.196705078125,
+#     'R_amv_n': 0.09460732421875,
+#     'R_bpn': 7.572181640625001,
+#     'R_bv_n': 0.0694482421875,
+#     'R_ep0': 1.7141533203125001,
+#     'R_ev_n': 0.032695312500000004,
+#     'R_hpn': 17.073017578125,
+#     'R_hv_n': 0.26831875,
+#     'R_pa': 0.0266072265625,
+#     'R_pp': 0.0860998828125,
+#     'R_pv': 0.05049609375,
+#     'R_rmp0': 5.697158203124999,
+#     'R_rmv_n': 0.1483154296875,
+#     'R_rs': 2.6548867187500003,
+#     'R_sa': 0.2019921875,
+#     'R_sp0': 2.0245839843750004,
+#     'R_sv_n': 0.036151953125,
+#     'Rvc_n': 0.0669580078125,
+#     'T0': 0.49764453124999997,
+#     'T_im': 1.04736328125,
+#     'Tc': 0.5965039062499999,
+#     'V0_dead': 0.17181134765625,
+#     'VA_rest': 0.0626685546875,
+#     'VT_n': 0.47961914062500005,
+#     'W_hn': 12029.47265625,
+#     'Wb_sh': -1.888427734375,
+#     'Wb_sp': -1.01064208984375,
+#     'Wb_sv': -0.91510986328125,
+#     'Wc_sh': 0.8611328125000001,
+#     'Wc_sp': 1.6922039062499998,
+#     'Wc_sv': 1.5051867187499999,
+#     'Wc_v': 0.16105468750000004,
+#     'Wp_sh': -0.16574218750000003,
+#     'Wp_sp': -0.38354025390625,
+#     'Wp_sv': -0.41867013671875,
+#     'Wp_v': -0.0867654296875,
+#     'Wt_sh': 0.39992187500000004,
+#     'Wt_sp': 0.444765625,
+#     'Wt_sv': 0.34992187500000005,
+#     'Wt_v': 0.432265625,
+#     'Ysh_max': 8.4919921875,
+#     'Ysh_min': -0.03303693359375,
+#     'Ysp_max': 4.6825195312500005,
+#     'Ysp_min': -0.039984570312499995,
+#     'Ysv_max': 71.02240234375,
+#     'Ysv_min': -0.028158593750000002,
+#     'Yv_max': 1.9538085937499998,
+#     'Yv_min': -0.00072734375,
+#     'a2': 1.2125716796875001,
+#     'alpha2': 0.057187630859375005,
+#     'beta2': 0.026059072265625004,
+#     'dc': 0.017065429687499998,
+#     'f_ab_max': 50.775582031249996,
+#     'f_ab_min': 2.2527421875,
+#     'f_acCO2_n': 1.2908984374999999,
+#     'f_ac_max': 13.87833984375,
+#     'f_ac_min': 0.7908037109375,
+#     'fab_o': 28.5693359375,
+#     'fes_inf': 2.49169921875,
+#     'fes_max': 75.484375,
+#     'fes_min': 2.5088164062500002,
+#     'fes_o': 17.352861328124998,
+#     'fev_inf': 7.450488281249999,
+#     'fev_o': 2.854375,
+#     'gM': 39.4453125,
+#     'g_abd': 2.9496972656250002,
+#     'g_ccsh': 1.1732421875,
+#     'g_ccsp': 1.2641601562500002,
+#     'g_ccsv': 0.18917968750000003,
+#     'g_thor': 7.948828125,
+#     'gam_O2': 26.642578125,
+#     'gb_O2': 8.322265625,
+#     'gh_O2': 31.2607421875,
+#     'grm_O2': 29.044921875,
+#     'k_ab': 10.953796875,
+#     'k_ac': 27.354873046875,
+#     'kcc_sh': 0.12519960937500002,
+#     'kcc_sp': 0.15409570312499998,
+#     'kcc_sv': 0.073248046875,
+#     'kcc_v': 0.0186015234375,
+#     'kes': 0.06674853515625001,
+#     'kev': 8.324457031249999,
+#     'kisc_sh': 5.811328125,
+#     'kisc_sp': 2.374609375,
+#     'kisc_sv': 2.024609375,
+#     'kmet': 0.20914453125,
+#     'phi_max': 20.98828125,
+#     'phi_min': -2.2290253906250004,
+#     's': 0.032820312500000004,
+#     'theta_shn': 3.0874218750000004,
+#     'theta_spn': 14.8887421875,
+#     'theta_svn': 11.7356484375,
+#     'theta_v': -0.6394921875,
+#     'x_sh': 57.544335937499994,
+#     'x_sp': 5.717578125,
+#     'x_sv': 5.408203125
+# }
