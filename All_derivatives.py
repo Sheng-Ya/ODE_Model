@@ -6,7 +6,7 @@ from Resp_Control_Breath_Optimiser import objective, calculate_single_dV_dt
 from scipy.optimize import minimize
 from numba import njit
 
-# @njit
+@njit
 def accept_index_evals(finish_time, all_time, last_index, buffer_limit, i):
     if finish_time >= all_time[0]:  # No wrap-around
         idx_in_2 = np.searchsorted(all_time[:last_index + 1], finish_time, side='right')
@@ -32,7 +32,7 @@ def accept_index_evals(finish_time, all_time, last_index, buffer_limit, i):
 
 
 
-# @njit
+@njit
 def get_delayed_value(t, delay, all_time, heart_index, buffer_limit, history_array, default_value):
     delay_time = t - delay
 
@@ -55,7 +55,7 @@ def get_delayed_value(t, delay, all_time, heart_index, buffer_limit, history_arr
 
     return float(v0 + (v1 - v0) * (delay_time - t0) / (t1 - t0))
 
-# @njit
+@njit
 def compute_mean_selected(HR_store, indices):
     total = 0.0
     count = 0
@@ -64,7 +64,7 @@ def compute_mean_selected(HR_store, indices):
         count += 1
     return total / count if count > 0 else 0.0
 
-# @njit
+@njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, Nd, VD, VAflow,
     time_since_last_breath, HR_store, time_since_beat_store, HR_every_store, Vu_ev_every_store,
     Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store, Emax_rv_every_store,
@@ -175,14 +175,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
         time_since_beat = time_since_beat + T
 
-        HR = np.mean(HR_every_store[accepted_indices])
+        HR = compute_mean_selected(HR_every_store, accepted_indices)
         T = 1 / HR
-        Vu_ev = np.mean(Vu_ev_every_store[accepted_indices])
-        Vu_sv = np.mean(Vu_sv_every_store[accepted_indices])
-        Vu_rmv = np.mean(Vu_rmv_every_store[accepted_indices])
-        Vu_amv = np.mean(Vu_amv_every_store[accepted_indices])
-        Emax_lv = np.mean(Emax_lv_every_store[accepted_indices])
-        Emax_rv = np.mean(Emax_rv_every_store[accepted_indices])
+        Vu_ev = compute_mean_selected(Vu_ev_every_store, accepted_indices)
+        Vu_sv = compute_mean_selected(Vu_sv_every_store, accepted_indices)
+        Vu_rmv = compute_mean_selected(Vu_rmv_every_store, accepted_indices)
+        Vu_amv = compute_mean_selected(Vu_amv_every_store, accepted_indices)
+        Emax_lv = compute_mean_selected(Emax_lv_every_store, accepted_indices)
+        Emax_rv = compute_mean_selected(Emax_rv_every_store, accepted_indices)
 
     else:
         HR = HR_store[last_index]

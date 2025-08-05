@@ -4,8 +4,16 @@ from scipy.integrate import simpson
 from numba import njit
 
 
-# @njit
+@njit
 def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
+    """
+    Compute constants for the respiratory model
+    """
+    # Ensure consistent floating-point precision
+    t1, t2 = np.float64(t1), np.float64(t2)
+    VA, VD = np.float64(VA), np.float64(VD)
+    E_rs, R_rs = np.float64(E_rs), np.float64(R_rs)
+    P_ao, tolerance = np.float64(P_ao), np.float64(tolerance)
 
     # Precompute key values
     a2 = (-P_ao - E_rs * VA * (t1 + t2) - E_rs * VD) / (t1 ** 2)
@@ -15,10 +23,10 @@ def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
     tau = t2 / (-np.log(tolerance / Pt1))
     B = E_rs / R_rs
 
-    return a1, a2, Pt1, Vt1, tau, B
+    return np.float64(a1), np.float64(a2), np.float64(Pt1), np.float64(Vt1), np.float64(tau), np.float64(B)
 
 
-# @njit
+@njit
 def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating V and dV/dt values
@@ -26,9 +34,15 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     # Precompute constants
     t1, t2 = initial_guess
     a1, a2, Pt1, Vt1, tau, B = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
-
-    V = np.zeros(len(times))
-    dV_dt = np.zeros(len(times))
+    
+    # Ensure all inputs are float64 for consistency
+    times = np.asarray(times, dtype=np.float64)
+    t1, t2 = np.float64(t1), np.float64(t2)
+    a1, a2, Pt1, Vt1, tau, B = np.float64(a1), np.float64(a2), np.float64(Pt1), np.float64(Vt1), np.float64(tau), np.float64(B)
+    E_rs, R_rs, tolerance, P_ao = np.float64(E_rs), np.float64(R_rs), np.float64(tolerance), np.float64(P_ao)
+    
+    V = np.zeros(len(times), dtype=np.float64)
+    dV_dt = np.zeros(len(times), dtype=np.float64)
 
     # Breathing cycle patterns
     breath = times % (t1 + t2)
@@ -61,7 +75,7 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     return V, dV_dt
 
 
-# @njit
+@njit
 def calculate_single_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating V and dV/dt values
@@ -91,7 +105,7 @@ def calculate_single_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao
     return dV_dt
 
 
-# @njit
+@njit
 def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating P_musc and dP_musc/dt
