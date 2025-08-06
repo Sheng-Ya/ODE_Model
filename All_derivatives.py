@@ -20,12 +20,9 @@ def accept_index_evals(finish_time, all_time, last_index, buffer_limit, i):
         indices = np.concatenate((np.arange(idx_in_2, buffer_limit), np.arange(0, last_index + 1)))
 
     # Take every 3rd step, rk23 - optimized loop
-    accepted_index = []
     indices_len = len(indices)
-    for j in range(indices_len):
-        if (i - 2 - j) % 3 == 0 and (i - 2 - j) > 0:
-            s = indices[indices_len - 1 - j]
-            accepted_index.append(s)
+    mask = np.array([(i - 2 - j) % 3 == 0 and (i - 2 - j) > 0 for j in range(indices_len)])
+    accepted_index = [indices[indices_len - 1 - j] for j in range(indices_len) if mask[j]]
 
     return accepted_index
 
