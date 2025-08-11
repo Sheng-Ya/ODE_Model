@@ -13,90 +13,92 @@ t2 = data["t2"]
 
 
 
-# Define VAflow range
-VAflow_vals = np.linspace(0.06, 0.4, 1000)
-
-# Coefficients for t1 and t2 best-fit polynomials (highest degree to constant)
-coeffs_t1 = [6328, -9812, 6219, -2081, 397.1, -44.14, 3.544]
-coeffs_t2 = [7645, -12330, 8109, -2804, 550.2, -62.43, 4.724]
-
-# Define polynomial functions
-t1_poly = np.poly1d(coeffs_t1)
-t2_poly = np.poly1d(coeffs_t2)
-
-# Evaluate the fitted curves
-t1_fitted = t1_poly(VAflow_vals)
-t2_fitted = t2_poly(VAflow_vals)
-
-# Plot both best-fit curves
-plt.figure(figsize=(12, 5))
-plt.scatter(VAflow, t1, color='blue', s=10, label='t1 (Inspiration)')
-plt.scatter(VAflow, t2, color='red', s=10, label='t2 (Expiration)')
-plt.plot(VAflow_vals, t1_fitted, 'b-', label='Best Fit for t1 (Inspiration)')
-plt.plot(VAflow_vals, t2_fitted, 'r--', label='Best Fit for t2 (Expiration)')
-plt.xlabel('VAflow (L/s)')
-plt.ylabel('Time (s)')
-plt.title('Best Fit Curves for t1 and t2 vs VAflow')
-plt.grid(True)
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-
-# repeats = 5
-# VAflow_unique = VAflow[::repeats]  # Grab every 5th (first of each group)
+# # Define VAflow range
+# VAflow_vals = np.linspace(0.06, 1, 1000)
+#
+# # Coefficients for t1 and t2 best-fit polynomials (highest degree to constant)
+# coeffs_t1 = [6328, -9812, 6219, -2081, 397.1, -44.14, 3.544]
+# coeffs_t2 = [7645, -12330, 8109, -2804, 550.2, -62.43, 4.724]
+#
+# # Define polynomial functions
+# t1_poly = np.poly1d(coeffs_t1)
+# t2_poly = np.poly1d(coeffs_t2)
+#
+# # Evaluate the fitted curves
+# t1_fitted = t1_poly(VAflow_vals)
+# t2_fitted = t2_poly(VAflow_vals)
+#
+# # Plot both best-fit curves
+# plt.figure(figsize=(12, 5))
+# plt.scatter(VAflow, t1, color='blue', s=10, label='t1 (Inspiration)')
+# plt.scatter(VAflow, t2, color='red', s=10, label='t2 (Expiration)')
+# plt.plot(VAflow_vals, t1_fitted, 'b-', label='Best Fit for t1 (Inspiration)')
+# plt.plot(VAflow_vals, t2_fitted, 'r--', label='Best Fit for t2 (Expiration)')
+# plt.xlabel('VAflow (L/s)')
+# plt.ylabel('Time (s)')
+# plt.title('Best Fit Curves for t1 and t2 vs VAflow')
+# plt.grid(True)
+# plt.legend()
+# plt.tight_layout()
+# plt.show()
+#
+#
+# repeats = 3
+VAflow_unique = VAflow  # Grab every 5th (first of each group)
 # t1_mean = np.mean(t1.reshape(-1, repeats), axis=1)
 # t2_mean = np.mean(t2.reshape(-1, repeats), axis=1)
+t1_mean = t1
+t2_mean = t2
+
+# Fit a polynomial (or linear)
+t1_poly = np.poly1d(np.polyfit(VAflow_unique, t1_mean, deg=6))
+t2_poly = np.poly1d(np.polyfit(VAflow_unique, t2_mean, deg=6))
+
+VAflow_fit = np.linspace(min(VAflow_unique), max(VAflow_unique), 200)
+
+print("Best fit equation for t1:", t1_poly)
+print("Best fit equation for t2:", t2_poly)
+
+plt.figure(figsize=(14, 6))
+plt.plot(VAflow_unique, t1_mean, 'bo', markersize=3, label='Mean t1')
+plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Fit t1')
+plt.plot(VAflow_unique, t2_mean, 'ro', markersize=3, label='Mean t2')
+plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Fit t2')
+plt.xlabel("VAflow (L/s)")
+plt.ylabel("Time (s)")
+plt.title("Average t1 and t2 vs VAflow with Best-Fit Curves")
+plt.legend()
+plt.grid(True)
+plt.show()
+# #
 #
-# # Fit a polynomial (or linear)
-# t1_poly = np.poly1d(np.polyfit(VAflow_unique, t1_mean, deg=6))
-# t2_poly = np.poly1d(np.polyfit(VAflow_unique, t2_mean, deg=6))
 #
-# VAflow_fit = np.linspace(min(VAflow_unique), max(VAflow_unique), 1000)
+# coeffs_t1 = np.polyfit(VAflow, t1, deg=5)
+# coeffs_t2 = np.polyfit(VAflow, t2, deg=5)
 #
-# print("Best fit equation for t1:", t1_poly)
-# print("Best fit equation for t2:", t2_poly)
+# fit_t1 = np.poly1d(coeffs_t1)
+# fit_t2 = np.poly1d(coeffs_t2)
 #
-# plt.figure(figsize=(14, 6))
-# plt.plot(VAflow_unique, t1_mean, 'bo', markersize=3, label='Mean t1')
-# plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Fit t1')
-# plt.plot(VAflow_unique, t2_mean, 'ro', markersize=3, label='Mean t2')
-# plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Fit t2')
+# print("Best fit equation for t1:", fit_t1)
+# print("Best fit equation for t2:", fit_t2)
+#
+# plt.figure(figsize=(16, 6))
+#
+# # Scatter plot
+# plt.scatter(VAflow, t1, color='blue', s=10, label='t1 (Inspiration)')
+# plt.scatter(VAflow, t2, color='red', s=10, label='t2 (Expiration)')
+#
+# # Fitted lines
+# # VAflow_sorted = np.linspace(min(VAflow), max(VAflow), 1000)
+# plt.plot(VAflow, fit_t1(VAflow), color='navy', linewidth=2, label='Best Fit t1')
+# plt.plot(VAflow, fit_t2(VAflow), color='darkred', linewidth=2, label='Best Fit t2')
+#
 # plt.xlabel("VAflow (L/s)")
 # plt.ylabel("Time (s)")
-# plt.title("Average t1 and t2 vs VAflow with Best-Fit Curves")
+# plt.title("Optimal t1 and t2 with a Fitted 6 Degree Polynomial")
 # plt.legend()
 # plt.grid(True)
 # plt.show()
-
-
-
-coeffs_t1 = np.polyfit(VAflow, t1, deg=6)
-coeffs_t2 = np.polyfit(VAflow, t2, deg=6)
-
-fit_t1 = np.poly1d(coeffs_t1)
-fit_t2 = np.poly1d(coeffs_t2)
-
-print("Best fit equation for t1:", fit_t1)
-print("Best fit equation for t2:", fit_t2)
-
-plt.figure(figsize=(16, 6))
-
-# Scatter plot
-plt.scatter(VAflow, t1, color='blue', s=10, label='t1 (Inspiration)')
-plt.scatter(VAflow, t2, color='red', s=10, label='t2 (Expiration)')
-
-# Fitted lines
-# VAflow_sorted = np.linspace(min(VAflow), max(VAflow), 1000)
-plt.plot(VAflow, fit_t1(VAflow), color='navy', linewidth=2, label='Best Fit t1')
-plt.plot(VAflow, fit_t2(VAflow), color='darkred', linewidth=2, label='Best Fit t2')
-
-plt.xlabel("VAflow (L/s)")
-plt.ylabel("Time (s)")
-plt.title("Optimal t1 and t2 with a Fitted 6 Degree Polynomial")
-plt.legend()
-plt.grid(True)
-plt.show()
 
 
 
@@ -110,29 +112,30 @@ dt = 0.001
 
 
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-tolerance = 0.001
+tolerance = 0.0001
 
-VAflow_vals = np.linspace(0.06, 0.4, 1000)
-VAflow_repeated = np.repeat(VAflow_vals, 5)
+VAflow_vals = np.linspace(0.06, 1.2, 200)
+VAflow_repeated = np.repeat(VAflow_vals, 3)
 
 VD = GV_dead * VAflow_repeated + V0_dead
 
 optimal_t1 = []
 optimal_t2 = []
 failed_indices = []
+initial_guess = [1.5, 1.85]
 
 for idx, VAflow in enumerate(VAflow_repeated):
     VD_volume = VD[idx]
     required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"], params["E_rs"], params["R_rs"], params["P_ao"]]
-
     try:
-        res = minimize(objective, x0=Next_Conditions["Nd"][-2:], args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
+        A = initial_guess[-2:]
+        res = minimize(objective, x0=np.array(initial_guess[-2:]), args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
         # res = minimize(objective, x0=Next_Conditions["Nd"][-2:], method='COBYLA', bounds=bounds)
         if res.success:
             t1_opt, t2_opt = res.x
             optimal_t1.append(t1_opt)
             optimal_t2.append(t2_opt)
-            Next_Conditions["Nd"].extend(res.x)
+            initial_guess.extend(res.x)
             print(f"VAflow = {VAflow:.4f} → optimal t1 = {t1_opt:.4f}, t2 = {t2_opt:.4f}")
         else:
             print(f"VAflow = {VAflow:.4f} → optimization failed")
@@ -152,25 +155,26 @@ VD_clean = np.array(VD)
 t1_clean = np.array(optimal_t1)
 t2_clean = np.array(optimal_t2)
 
-# Mask out NaNs
-valid_mask = ~np.isnan(t1_clean) & ~np.isnan(t2_clean)
-VAflow_clean = VAflow_clean[valid_mask]
-VD_clean = VD_clean[valid_mask]
-t1_clean = t1_clean[valid_mask]
-t2_clean = t2_clean[valid_mask]
+# # Mask out NaNs
+# valid_mask = ~np.isnan(t1_clean) & ~np.isnan(t2_clean)
+# VAflow_clean = VAflow_clean[valid_mask]
+# VD_clean = VD_clean[valid_mask]
+# t1_clean = t1_clean[valid_mask]
+# t2_clean = t2_clean[valid_mask]
+A = initial_guess
 
 VEflow = 60 * (VAflow_clean + VD_clean / (t1_clean + t2_clean))
 
 
-# plt.figure(figsize=(10, 5))
-# plt.scatter(VEflow, t1_clean, label='Optimal t1 (Inspiration Time)', color='blue', alpha=0.6)
-# plt.scatter(VEflow, t2_clean, label='Optimal t2 (Expiration Time)', color='red', alpha=0.6)
-# plt.xlabel('VE_Flow (L/s)')
-# plt.ylabel('Time (s)')
-# plt.title('Optimal t1 and t2 vs VEflow Using COBYLA')
-# plt.legend()
-# plt.grid(True)
-# plt.show()
+plt.figure(figsize=(10, 5))
+plt.scatter(VEflow, t1_clean, label='Optimal t1 (Inspiration Time)', color='blue', alpha=0.6)
+plt.scatter(VEflow, t2_clean, label='Optimal t2 (Expiration Time)', color='red', alpha=0.6)
+plt.xlabel('VE_Flow (L/min)')
+plt.ylabel('Time (s)')
+plt.title('Optimal t1 and t2 vs VEflow Using COBYLA')
+plt.legend()
+plt.grid(True)
+plt.show()
 np.savez("t1_t2_vs_VAflow.npz", VAflow=VAflow_clean, t1=t1_clean, t2=t2_clean)
 
 plt.figure(figsize=(10, 5))
@@ -188,7 +192,7 @@ plt.show()
 
 # dt = 0.001
 # bounds = [(1, 3), (1.5, 6)]  # [t1, t2] bounds
-# tolerance = 0.001
+# tolerance = 0.0001
 # opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
 #
 # t1_vals = np.linspace(1, 3, 30)

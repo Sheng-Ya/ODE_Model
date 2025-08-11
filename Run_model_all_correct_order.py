@@ -4,6 +4,8 @@ import bisect
 import pandas as pd
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from Resp_Control_Breath_Optimiser import objective
 from scipy.signal import find_peaks
 
 from line_profiler import LineProfiler
@@ -38,13 +40,12 @@ from Next_Conditions_all_derivatives import Next_Conditions
 
 
 target_values = np.arange(0, 10000, 10)
-t_span = (0, 100) # Simulate for 30 seconds for just the cardiovascular system for global sensitivity
 
 time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 500 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
@@ -133,7 +134,7 @@ required_cardio_control_keys = ["theta_change_O2_sp", "theta_change_CO2_sp", "th
                          "R_sp_change", "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change",
                          "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change", "Emax_rv_change", "Ts_change",
                          "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2", "xam_O2",
-                         "xM", "x_met"]
+                         "xM", "x_met", "P_n_current"]
 
 IC_cardio_contr = np.array([Initial_Conditions[key] for key in required_cardio_control_keys], dtype=float)
 num_cardio_control = len(required_cardio_control_keys)
@@ -154,6 +155,51 @@ IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 # IC_overall = IC_cardio
 
 
+def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
+    dt = 0.001
+    bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
+    tolerance = 0.0001
+
+    VAflow_vals = np.linspace(0.06, 1.2, 200)
+    VAflow_repeated = np.repeat(VAflow_vals, 3)
+
+    VD = GV_dead * VAflow_repeated + V0_dead
+
+    optimal_t1 = []
+    optimal_t2 = []
+    initial_guess = [t1, t2]
+
+    for idx, VAflow in enumerate(VAflow_repeated):
+        VD_volume = VD[idx]
+        required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+
+        res = minimize(objective, x0= np.array(initial_guess[-2:]),
+                       args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
+        t1_opt, t2_opt = res.x
+        optimal_t1.append(t1_opt)
+        optimal_t2.append(t2_opt)
+        initial_guess.extend(res.x)
+
+
+    # Convert to arrays for indexing
+    VAflow_clean = np.array(VAflow_repeated)
+    t1_clean = np.array(optimal_t1)
+    t2_clean = np.array(optimal_t2)
+
+    # Fit a polynomial (or linear)
+    t1_poly = np.poly1d(np.polyfit(VAflow_clean, t1_clean, deg=6))
+    t2_poly = np.poly1d(np.polyfit(VAflow_clean, t2_clean, deg=6))
+
+    c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
+    d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
+
+    print("Best fit equation for t1:", t1_poly)
+    print("Best fit equation for t2:", t2_poly)
+
+    return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
+
+
+
 def simulate():
     # Initial setup
     IC_current = IC_overall.copy()
@@ -163,7 +209,7 @@ def simulate():
      R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la,
      KE_la, Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
      C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
-     Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (new_params[k] if k in new_params else Parameters[k] for k in
+     Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (Parameters[k] if k in Parameters else new_params[k] for k in
     ["A_im", "Tc", "T_im", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n",
      "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
      "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
@@ -178,11 +224,11 @@ def simulate():
      GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
      tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
      Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z,
+     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p, tau_z,
      f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
      Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
      MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = \
-    [new_params[k] if k in new_params else Parameters[k] for k in
+    [Parameters[k] if k in Parameters else new_params[k] for k in
      ["fab_o", "fes_o", "fes_inf", "fes_max", "fev_o",
       "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
       "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp",
@@ -192,7 +238,7 @@ def simulate():
       "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0",
       "Vu_rmv0", "Vu_sv0", "AT", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
       "PO2_sp", "PO2_sv", "tau_cc", "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv",
-      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min",
+      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min",
       "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
       "Cvb_O2_n", "gb_O2", "R_bpn", "tau_CO2", "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
       "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
@@ -201,15 +247,19 @@ def simulate():
     # Gas exchange and mixing
     (a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
      P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
-     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (new_params[k] if k in new_params else Parameters[k] for k in [
+     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (Parameters[k] if k in Parameters else new_params[k] for k in [
     "a2", "alpha2", "beta2", "C2", "Fi_CO2", "Fi_O2", "K2", "PACO2_Delay_IC",
     "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
     "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"])
 
     # Resp control
     (GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
-    (new_params[k] if k in new_params else Parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
+    (Parameters[k] if k in Parameters else new_params[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
    "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
+
+    # determine the correct breathing profile
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(Next_Conditions["t1_store"][0],
+    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
     R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
@@ -222,14 +272,15 @@ def simulate():
     GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
     tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
     Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
+    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p, tau_z, f_acCO2_n,
     f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
     Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
     MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met,
     a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta,
-    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -402,18 +453,25 @@ if __name__ == "__main__":
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="g")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
-    #
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index],
-    #          label="Delay Vagal firing", color="b")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
-    #          color="k")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
-    #          color='g')
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_n_current"][:index], label="P_n_current", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_thor"][:index], label="P_thor", color="b")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # # plt.show()
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="g")
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Firing rate (spikes/s)")
@@ -422,41 +480,104 @@ if __name__ == "__main__":
     ax1.grid(True)
     # # plt.show()
     ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="r")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
     plt.show()
 
 
-    # variables_to_plot = [
-    #     "Q_amp", "P_amv","P_sp", "Q_sa", "P_ev"
-    #     # "f_sp_history", "f_sh_history", "f_v_history",
-    #     # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
-    #     # "PamCO2", "VE_integral"
-    #     # "phi", "phi_atr"
-    #     # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
-    #     # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
-    #     # "Pd_5_O2"
-    #     # "PA_O2", "PA_CO2", "PA_CO2_delay", "PA_O2_delay", "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2",
-    #     # "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtO2", "VAflow", "f_ac_history", "Q_pp", "PvtCO2", "dV_dt"
-    #     # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
-    #     # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
-    #     # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
-    #     # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
-    #     # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
-    #     # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
-    # ]
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR Averaged")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
+
+    # Add labels and legend
+    plt.ylabel("")
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="r")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="b")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="g")
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ca_O2"][:index], label="Ca_O2", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvtO2"][:index], label="CvtO2", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_O2"][:index], label="Cv_O2", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["MRTO2"][:index], label="MRTO2", color="m")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvbO2"][:index], label="CvbO2", color="y")
+
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["QT"][:index], label="QT", color="g")
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+    plt.show()
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sp"][:index],
+             label="Peripheral Resistances SA", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sv"][:index], label="Veins SA", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart SA", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal Activity", color="g")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
     #
-    # for key in variables_to_plot:
-    #     if key in Next_Conditions:  # Check if the key exists in updates
-    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
-    #         plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
-    #         plt.xlabel("Time (s)")
-    #         plt.ylabel(key)
-    #         plt.title(f"Plot of {key} over Time")
-    #         plt.legend()
-    #         plt.grid(True)
-    #         plt.show()
+    variables_to_plot = [
+        # "QT", "CTO2", "Ca_O2", "PvtO2", "VT_amv", "Q_amv", "P_ev"
+        # "f_sp_history", "f_sh_history", "f_v_history",
+        # "xb_CO2", "P_sp", "P_bv", "Q_bp", "beta","U2", "T", "xb_O2", "Cvb_O2"
+        # "PamCO2", "VE_integral"
+        # "phi", "phi_atr"
+        # "f_sp_history", "f_sh_history", "f_v_history", "phi_met_history", "f_sv_history",
+        # "Vflow_ua", "P_ua", "P_musc", "dV_dt", "V",
+        # "Pd_5_O2"
+        # "PA_O2", "PA_CO2", "PA_CO2_delay", "PA_O2_delay", "Pa_O2", "Pa_CO2", "finish_breath_time_plot", "Ca_O2",
+        "VAflow", "V", "Q_pp", "PvtCO2", "dV_dt"
+        # , "VT", "VE_flow", "VAflow", "Q_pp", "V", "PA_O2_old", "PA_CO2_old","Cv_CO2", "Ca_CO2", "Cv_O2",
+        # "Ca_O2", "dPA_CO2_dt", "dPA_O2_dt",
+        # "dCvO2_dt", "dCvCO2_dt", "PA_CO2", "QT", "PA_O2",  # "V", "Cv_O2", "Ca_O2"
+        # "Vu_ev", "Vu_amv", "Vu_rmv", "Vu_sv", "R_ep", "R_amp", "R_rmp", "R_sp",
+        # "R_bp", "R_hp", "Emax_lv", "Emax_rv", "I", "phi_met", "Nt",
+        # "Vu_sv_change", "prev_flat_bit", "Pa_O2", "HR"
+    ]
+
+    for key in variables_to_plot:
+        if key in Next_Conditions:  # Check if the key exists in updates
+            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+            plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
+            plt.xlabel("Time (s)")
+            plt.ylabel(key)
+            plt.title(f"Plot of {key} over Time")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
     # Number of state variables
     num_variables = state_variables.shape[0]
@@ -521,13 +642,13 @@ if __name__ == "__main__":
     ax1.legend(loc="upper left")
     plt.grid(True)
 
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_mi"][47500:index], label="theta_mi",
-             color='c')
-    ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_tr"][47500:index], label="theta_tr",
-             color='y')
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_mi"][47500:index], label="theta_mi",
+    #          color='c')
+    # ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_tr"][47500:index], label="theta_tr",
+    #          color='y')
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
 
     plt.show()
 
@@ -601,7 +722,7 @@ if __name__ == "__main__":
 
 
     fig, ax1 = plt.subplots()
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ab"][:index], label="Baroreceptor firing", color="aquamarine")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ab"][:index], label="Baroreceptor firing", color="r")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["check_store_all_time"][:index], label="Mean baroreceptor firing", color="g")
 
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ap"][:index], label="Lung stretch receptor firing", color="b")
@@ -619,7 +740,7 @@ if __name__ == "__main__":
     #          label="Delay Vagal firing", color="b")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
              color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="aquamarine")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
              color='g')
@@ -660,7 +781,7 @@ if __name__ == "__main__":
         "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
         "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", 'R_ep_change', "R_sp_change",
         "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change",
-        "Emax_rv_change", "Ts_change", "Tv_change", 'xb_O2', "xb_CO2", "xh_O2", 'xh_CO2', "Wh", 'xrm_O2', 'xrm_CO2', 'xam_O2', "xM", "x_met"]:  # Skip "Wh"
+        "Emax_rv_change", "Ts_change", "Tv_change", 'xb_O2', "xb_CO2", "xh_O2", 'xh_CO2', "Wh", 'xrm_O2', 'xrm_CO2', 'xam_O2', "xM", "x_met", "P_n_current"]:  # Skip "Wh"
             continue
         color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
         plt.plot(time, state_variables[i], label=label, color=color, linestyle='-', markersize=4)

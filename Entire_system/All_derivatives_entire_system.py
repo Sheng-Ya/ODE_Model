@@ -1,7 +1,7 @@
 import numpy as np
 import math
 from Activation_Functions import activation_H
-from Resp_Control_Breath_Optimiser import objective, calculate_single_dV_dt
+from Resp_Control_Breath_Optimiser import objective, calculate_single_V_dV_dt
 from scipy.optimize import minimize
 from numba import njit
 
@@ -168,7 +168,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
     resp_cycle = time_since_last_breath % (t1 + t2)  # determine time within the breath
 
     # V = np.interp(resp_cycle, updates["current_times"], updates["V_current"])
-    dV_dt = calculate_single_dV_dt(resp_cycle, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+    dV_dt = calculate_single_V_dV_dt(resp_cycle, updates["Nd"][-2:], VAflow, VD, tolerance, E_rs, R_rs, P_ao)
     # P_musc = np.interp(resp_cycle, updates["current_times"], updates["P_musc_current"])
 
     # for cardiovascular controller

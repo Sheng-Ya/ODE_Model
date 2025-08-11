@@ -63,7 +63,7 @@ Parameters = {
     "C_pv": 20.5, # 25.37,          # Pulmonary venous compliances want to change to 15 # edited
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
-    "R_pp": 0.0894,         # Pulmonary peripheral flow resistance
+    "R_pp": 0.3,         # Pulmonary peripheral flow resistance # edited to reduce CvtO2 oscillation # edited from 0.0894
     "R_pv": 0.06,         # Pulmonary venous flow resistance # edited to remove the backflow
     "Vu_pa": 0,            # Pulmonary arterial unstressed volume
     "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
@@ -101,7 +101,7 @@ Parameters = {
 
     # Table 6. Muscle Pump
 # muscle_pump = {
-    "A_im": 50,            # Peak value of intramuscular pressure
+    "A_im": 30,            # Peak value of intramuscular pressure # edited from 50
     "Tc": 0.75,            # The overall duration of muscular contraction
     "T_im": 1,             # Duration of the muscular contraction-relaxation cycle
 # }
@@ -123,8 +123,9 @@ Parameters = {
     "f_ab_min": 2.52,       # Lower saturation level of the frequency discharge in the baroreceptor afferent fibers
     "k_ab": 11.76,          # Parameter related to the slope of the static function at the central point
     "P_n": 92,              # Value of baroreceptor pressure at the central point of the sigmoidal function
+    "P_n_max": 112,
     "tau_p": 2.076,         # Time constant for the real pole
-    "tau_z": 6.37,          # Time constant for the real zero
+    "tau_z": 1,          # Time constant for the real zero
 # }
 
     # Table 9. Afferent Chemoreflex Pathway
@@ -156,7 +157,7 @@ Parameters = {
     "Cvb_O2_n": 0.14, # O2 concentration in venous blood leaving the brain under normal conditions
     "gb_O2": 10,      # Constant gain factor
     "MO2_bp": 0.925, # Oxygen consumption rate in the brain compartment # changed
-    "R_bpn": 6.57,    # Constant parameter denoting the basal value of peripheral cerebrovascular conductance
+    "R_bpn": 10.57,    # Constant parameter denoting the basal value of peripheral cerebrovascular conductance # edited from 6.57
     "tau_CO2": 20,    # Time constant of the effect of CO2 on cerebral circulation, seconds
     "tau_O2": 10,     # Time constant of the effect of O2 on cerebral circulation, seconds
 # }
@@ -171,7 +172,7 @@ Parameters = {
     "Krm_CO2": 142.8,   # Parameter related to the slope of the sigmoidal function at the central point
     "MO2_hpn": 0.4,     # Nominal value of O2 consumption rate in the heart
     "MO2_rmp": 0.86,    # Consumption rate in the resting muscle
-    "R_hpn": 19.71,      # Normal peripheral resistance in coronary compartment
+    "R_hpn": 25.71,      # Normal peripheral resistance in coronary compartment # edited from 19.71
     "tau_w": 5,         # Time constant of the filter
     "W_hn": 12660,       # Nominal value of the average power of the cardiac pump
 # }
@@ -230,12 +231,12 @@ Parameters = {
     "Io_sh": 0.658,            # Value of exercise intensity at the central point of the sigmoid (heart)
     "Io_sp": 0.65,             # Value of exercise intensity at the central point of the sigmoid (peripheral resistance)
     "Io_sv": 0.45,             # Value of exercise intensity at the central point of the sigmoid (unstressed volume of veins)
-    "Io_v": 0.126,             # Value of exercise intensity at the central point of the sigmoid
+    "Io_v": 0.2,             # Value of exercise intensity at the central point of the sigmoid
     "kcc_sh": 0.114,           # Parameter related to the slope of the characteristic at the central point (heart)
     "kcc_sp": 0.13,            # Parameter related to the slope of the characteristic at the central point (peripheral resistance)
     "kcc_sv": 0.09,            # Parameter related to the slope of the characteristic at the central point (unstressed volume of veins)
     "kcc_v": 0.0162,           # Parameter related to the slope of the characteristic at the central point
-    "Ysh_max": 9,              # Upper saturation of the central command response (heart)
+    "Ysh_max": 20,              # Upper saturation of the central command response (heart) # edited from 9
     "Ysh_min": -0.0283,        # Lower saturation of the central command response (heart)
     "Ysp_max": 5.5,            # Upper saturation of the central command response (peripheral resistance)
     "Ysp_min": -0.037,         # Lower saturation of the central command response (peripheral resistance)
@@ -287,9 +288,9 @@ Parameters = {
     "GV_rmv": -58.29,      # Constant gain factor
     "GV_sv": -265.4,      # Constant gain factor
     "R_amp0": 3.510,     # Basal level of active skeletal peripheral resistance
-    "R_ep0": 1.655,      # Basal level of extra-splanchnic peripheral resistance
-    "R_rmp0": 5.270,      # Basal level of resting skeletal peripheral resistance
-    "R_sp0": 2.49,       # Basal level of splanchnic peripheral resistance
+    "R_ep0": 5.655,      # Basal level of extra-splanchnic peripheral resistance # edited from 1.655
+    "R_rmp0": 10.270,      # Basal level of resting skeletal peripheral resistance # edited from 5.270
+    "R_sp0": 5.49,       # Basal level of splanchnic peripheral resistance # edited from 2.49
     "tau_Emax_lv": 8,       # Time constant
     "tau_Emax_rv": 8,       # Time constant
     "tau_Ramp": 2,          # Time constant
@@ -357,10 +358,10 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 0.4,         # Weighting factor (Dimensionless) changed
-    "lambda2": 0.05,        # Weighting factor (Dimensionless) changed
+    "lambda1": 0.3,         # Weighting factor (Dimensionless) edited
+    "lambda2": 0.05,        # Weighting factor (Dimensionless) edited
     "n": 1.101,              # Power index of efficiency factor (Dimensionless)
-    "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
+    "Pmax": 100,              # Maximum inspiratory pressure (cmH2O) edited
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }
 
