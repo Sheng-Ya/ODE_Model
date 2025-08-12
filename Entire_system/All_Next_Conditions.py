@@ -3,7 +3,6 @@ import numpy as np
 Next_Conditions = {
     "all_time": np.array([100000.0] * 20000),
     "i": np.array([0]),
-    "Nd": [15.03, -5.01, 0.2, 1.5, 1.85],
     "j": np.array([0]),
 
     "finish_breath_time": np.array([0.0] * 20000),
@@ -41,6 +40,8 @@ Next_Conditions = {
     "Emax_lv_every_store": np.array([2.11232935] * 20000),
     "Emax_rv_every_store": np.array([1.1157744] * 20000),
     "prev_flat_bit_store": np.array([0.0] * 20000),
+    "t1_store": np.array([1.5] * 20000),
+    "t2_store": np.array([1.85] * 20000),
 
     "P_sa_store": np.array([89.94924015] * 20000),
 }

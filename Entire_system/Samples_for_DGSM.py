@@ -4,6 +4,8 @@ import copy
 import numpy as np
 from SALib import ProblemSpec
 from SALib.sample import finite_diff
+from scipy.optimize import minimize
+from Resp_Control_Breath_Optimiser import objective
 
 from tqdm import tqdm
 import tqdm_joblib
@@ -13,7 +15,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from All_Parameter_ranges import parameters as parameters_change
-from All_derivatives_entire_system import model_derivatives
+from All_derivatives_njit import model_derivatives
 from All_Cardiovascular_controller import cardiovascular_controller
 from All_Cardiovascular_system import cardiovascular_system
 from All_Gas_exchange import gas_exchange
@@ -33,7 +35,7 @@ target_values = np.arange(0, 10000, 10)
 time_saved = 0.005
 BUFFER_LIMIT = 20000
 
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 400 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration
@@ -116,7 +118,7 @@ required_cardio_control_keys = ["theta_change_O2_sp", "theta_change_CO2_sp", "th
                          "R_sp_change", "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change",
                          "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change", "Emax_rv_change", "Ts_change",
                          "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2", "xam_O2",
-                         "xM", "x_met"]
+                         "xM", "x_met", "P_n_current"]
 
 IC_cardio_contr = np.array([Initial_Conditions[key] for key in required_cardio_control_keys], dtype=float)
 num_cardio_control = len(required_cardio_control_keys)
@@ -134,6 +136,49 @@ num_resp_control = len(required_resp_control_keys)
 
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
+def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
+    dt = 0.001
+    bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
+    tolerance = 0.0001
+
+    VAflow_vals = np.linspace(0.06, 1.2, 200)
+    VAflow_repeated = np.repeat(VAflow_vals, 3)
+
+    VD = GV_dead * VAflow_repeated + V0_dead
+
+    optimal_t1 = []
+    optimal_t2 = []
+    initial_guess = [t1, t2]
+
+    for idx, VAflow in enumerate(VAflow_repeated):
+        VD_volume = VD[idx]
+        required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+
+        res = minimize(objective, x0= np.array(initial_guess[-2:]),
+                       args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
+        t1_opt, t2_opt = res.x
+        optimal_t1.append(t1_opt)
+        optimal_t2.append(t2_opt)
+        initial_guess.extend(res.x)
+
+
+    # Convert to arrays for indexing
+    VAflow_clean = np.array(VAflow_repeated)
+    t1_clean = np.array(optimal_t1)
+    t2_clean = np.array(optimal_t2)
+
+    # Fit a polynomial (or linear)
+    t1_poly = np.poly1d(np.polyfit(VAflow_clean, t1_clean, deg=6))
+    t2_poly = np.poly1d(np.polyfit(VAflow_clean, t2_clean, deg=6))
+
+    c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
+    d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
+
+    # print("Best fit equation for t1:", t1_poly)
+    # print("Best fit equation for t2:", t2_poly)
+
+    return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
+
 
 def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
@@ -143,7 +188,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
         t_span = [0, max_time]
     else:
         IC_current = IC_initial.copy()
-        t_span = [max_time, max_time + max_time]
+        t_span = [max_time, max_time + 200]
 
     # Cardio parameters
     (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
@@ -166,8 +211,8 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
     tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
     Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
-    f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
+    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p, tau_z,
+    f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
     Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
     MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = \
     [Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in
@@ -180,8 +225,8 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
       "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0",
       "Vu_rmv0", "Vu_sv0", "AT", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
       "PO2_sp", "PO2_sv", "tau_cc", "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv",
-      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min", "k_ac", "K_H",
-      "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
+      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min",
+      "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
       "Cvb_O2_n", "gb_O2", "R_bpn", "tau_CO2", "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
       "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
       "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
@@ -199,6 +244,10 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
    "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
 
+    # determine the correct breathing profile
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(Next_Conditions["t1_store"][0],
+    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
+
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
     R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
     Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
@@ -210,14 +259,15 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
     tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
     Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, tau_p, tau_z, f_acCO2_n,
+    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n,  P_n_max, tau_p, tau_z, f_acCO2_n,
     f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
     Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
     MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met,
     a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta,
-    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]
 
 
 
@@ -302,14 +352,14 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay2.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay3.npy'):
     results_all = []
 
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    # Break into blocks of 171 (1 base + 170 perturbations)
-    block_size = 171
+    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
+    block_size = 174
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     for i, block in enumerate(param_blocks):
@@ -322,7 +372,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((171, 3)))
+            results_all.extend(np.zeros((block_size, 3)))
             np.save(save_path, np.array(results_all))
             continue
 
@@ -351,7 +401,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
-#     block_size = 171
+#     block_size = 170
 #     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 #
 #     for i, block in enumerate(param_blocks):
@@ -404,9 +454,10 @@ if __name__ == "__main__":
             # "Kbg",
             "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
             "Pmax_dot", "E_rs", "R_rs",
+            # cardio
             "C_sa", "L_sa", "R_sa", "C_amv", "C_bv",
             "C_ev", "C_hv", "C_rmv", "C_sv", "R_amv_n", "R_bv_n",
-            "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n",
+            "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "K1_vc", "Kr_vc", "Rvc_n",
             "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
             "P0_ra", "P0_lv", "P0_rv", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n",
             # "P_thormax_n", "P_thormin_n",
@@ -419,11 +470,13 @@ if __name__ == "__main__":
             "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
             "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "AT", "g_ccsh", "g_ccsp",
             "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn", "theta_spn",
-            "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "f_acCO2_n", "f_ac_max",
+            "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "f_acCO2_n", "f_ac_max",
             "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "G_ap", "GT_s", "GT_v", "T0", "A", "B",
             "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
             "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "kmet",
-            "MO2_ampn", "phi_max", "phi_min"
+            "MO2_ampn", "phi_max", "phi_min",
+            # exercise added parameters
+            "Io_sh", "Io_sp", "Io_sv", "Io_v"
         ],
 
         'bounds': [
@@ -448,24 +501,24 @@ if __name__ == "__main__":
             [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper],
             [0.224 * lower, 0.224 * upper], [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper],
-            [0.3855 * lower, 0.3855 * upper], [-5 * upper, -5 * lower], [0.15 * lower, 0.15 * upper],
-            [0.4 * lower, 0.4 * upper], [0.001 * lower, 0.001 * upper], [0.075 * lower, 0.075 * upper],
+            [0.3855 * lower, 0.3855 * upper], [0.15 * lower, 0.15 * upper],
+            [0.001 * lower, 0.001 * upper], [0.075 * lower, 0.075 * upper],
             [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper], [20.5 * lower, 20.5 * upper],
-            [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
+            [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.3 * lower, 0.3 * upper],
             [0.06 * lower, 0.06 * upper], [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper],
             [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper], [1.5 * lower, 1.5 * upper],
             [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
             [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
             # [-1 * upper, -1 * lower],
             # [-2 * upper, -2 * lower],
-            [0.45 * lower, 0.45 * upper], [50 * lower, 50 * upper],
+            [0.45 * lower, 0.45 * upper], [30 * lower, 30 * upper],
             [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
             # cardio control
             [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper],
             [80 * lower, 80 * upper], [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper],
             [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper], [0.114 * lower, 0.114 * upper],
             [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
-            [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper],
+            [20 * lower, 20 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper],
             [-0.037 * upper, -0.037 * lower], [64.9 * lower, 64.9 * upper], [-0.028 * upper, -0.028 * lower],
             [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower], [-0.68 * upper, -0.68 * lower],
             [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower], [-1.1375 * upper, -1.1375 * lower],
@@ -477,27 +530,29 @@ if __name__ == "__main__":
             [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper],
             [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper], [0.695 * lower, 0.695 * upper],
             [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
-            [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper],
-            [5.27 * lower, 5.27 * upper], [2.49 * lower, 2.49 * upper], [(1 / 60) * lower, (1 / 60) * upper],
+            [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [5.655 * lower, 5.655 * upper],
+            [10.27 * lower, 10.27 * upper], [5.49 * lower, 5.49 * upper], [(1 / 60) * lower, (1 / 60) * upper],
             [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper], [0.2 * lower, 0.2 * upper],
             [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper],
             [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
             [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
             [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [1.4 * lower, 1.4 * upper],
+            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [122 * lower, 122 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
             [3 * lower, 3 * upper], [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper],
             [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper], [0.58 * lower, 0.58 * upper],
             [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
             [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper],
-            [0.925 * lower, 0.925 * upper], [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper],
+            [0.925 * lower, 0.925 * upper], [10.57 * lower, 10.57 * upper], [0.11 * lower, 0.11 * upper],
             [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper], [30 * lower, 30 * upper],
             [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
-            [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper],
+            [0.86 * lower, 0.86 * upper], [25.71 * lower, 25.71 * upper], [12660 * lower, 12660 * upper],
             [0.1555 * lower, 0.1555 * upper], [30 * lower, 30 * upper], [40 * lower, 40 * upper],
             [0.18 * lower, 0.18 * upper], [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper],
             [-1.87 * upper, -1.87 * lower],
+            # exercise added parameters
+            [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper], [0.22 * lower, 0.22 * upper]
         ],
     })
 
@@ -521,7 +576,6 @@ if __name__ == "__main__":
     # X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_filtered.npy')
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
-    A = param_samples[0]
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
 
@@ -530,5 +584,5 @@ if __name__ == "__main__":
 
     # print(Result)
 
-    np.save('New_DGSM_250_Result_HR_P_sys_P_dia_no_bifur_delay.npy', Result)
+    np.save('New_DGSM_500_Result_HR_P_sys_P_dia_no_bifur_delay_exericise.npy', Result)
 

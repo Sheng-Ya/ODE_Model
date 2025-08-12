@@ -63,7 +63,7 @@ Parameters = {
     "C_pv": 20.5, # 25.37,          # Pulmonary venous compliances want to change to 15 # edited
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
-    "R_pp": 0.0894,         # Pulmonary peripheral flow resistance
+    "R_pp": 0.3,         # Pulmonary peripheral flow resistance # edited to reduce CvtO2 oscillation # edited from 0.0894
     "R_pv": 0.06,         # Pulmonary venous flow resistance # edited to remove the backflow
     "Vu_pa": 0,            # Pulmonary arterial unstressed volume
     "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
@@ -101,7 +101,7 @@ Parameters = {
 
     # Table 6. Muscle Pump
 # muscle_pump = {
-    "A_im": 50,            # Peak value of intramuscular pressure
+    "A_im": 30,            # Peak value of intramuscular pressure # edited from 50
     "Tc": 0.75,            # The overall duration of muscular contraction
     "T_im": 1,             # Duration of the muscular contraction-relaxation cycle
 # }
@@ -123,8 +123,9 @@ Parameters = {
     "f_ab_min": 2.52,       # Lower saturation level of the frequency discharge in the baroreceptor afferent fibers
     "k_ab": 11.76,          # Parameter related to the slope of the static function at the central point
     "P_n": 92,              # Value of baroreceptor pressure at the central point of the sigmoidal function
+    "P_n_max": 122,
     "tau_p": 2.076,         # Time constant for the real pole
-    "tau_z": 6.37,          # Time constant for the real zero
+    "tau_z": 0.8,          # Time constant for the real zero
 # }
 
     # Table 9. Afferent Chemoreflex Pathway
@@ -156,7 +157,7 @@ Parameters = {
     "Cvb_O2_n": 0.14, # O2 concentration in venous blood leaving the brain under normal conditions
     "gb_O2": 10,      # Constant gain factor
     "MO2_bp": 0.925, # Oxygen consumption rate in the brain compartment # changed
-    "R_bpn": 6.57,    # Constant parameter denoting the basal value of peripheral cerebrovascular conductance
+    "R_bpn": 10.57,    # Constant parameter denoting the basal value of peripheral cerebrovascular conductance # edited from 6.57
     "tau_CO2": 20,    # Time constant of the effect of CO2 on cerebral circulation, seconds
     "tau_O2": 10,     # Time constant of the effect of O2 on cerebral circulation, seconds
 # }
@@ -171,7 +172,7 @@ Parameters = {
     "Krm_CO2": 142.8,   # Parameter related to the slope of the sigmoidal function at the central point
     "MO2_hpn": 0.4,     # Nominal value of O2 consumption rate in the heart
     "MO2_rmp": 0.86,    # Consumption rate in the resting muscle
-    "R_hpn": 19.71,      # Normal peripheral resistance in coronary compartment
+    "R_hpn": 25.71,      # Normal peripheral resistance in coronary compartment # edited from 19.71
     "tau_w": 5,         # Time constant of the filter
     "W_hn": 12660,       # Nominal value of the average power of the cardiac pump
 # }
@@ -230,12 +231,12 @@ Parameters = {
     "Io_sh": 0.658,            # Value of exercise intensity at the central point of the sigmoid (heart)
     "Io_sp": 0.65,             # Value of exercise intensity at the central point of the sigmoid (peripheral resistance)
     "Io_sv": 0.45,             # Value of exercise intensity at the central point of the sigmoid (unstressed volume of veins)
-    "Io_v": 0.126,             # Value of exercise intensity at the central point of the sigmoid
+    "Io_v": 0.22,             # Value of exercise intensity at the central point of the sigmoid
     "kcc_sh": 0.114,           # Parameter related to the slope of the characteristic at the central point (heart)
     "kcc_sp": 0.13,            # Parameter related to the slope of the characteristic at the central point (peripheral resistance)
     "kcc_sv": 0.09,            # Parameter related to the slope of the characteristic at the central point (unstressed volume of veins)
     "kcc_v": 0.0162,           # Parameter related to the slope of the characteristic at the central point
-    "Ysh_max": 9,              # Upper saturation of the central command response (heart)
+    "Ysh_max": 20,              # Upper saturation of the central command response (heart) # edited from 9
     "Ysh_min": -0.0283,        # Lower saturation of the central command response (heart)
     "Ysp_max": 5.5,            # Upper saturation of the central command response (peripheral resistance)
     "Ysp_min": -0.037,         # Lower saturation of the central command response (peripheral resistance)
@@ -287,9 +288,9 @@ Parameters = {
     "GV_rmv": -58.29,      # Constant gain factor
     "GV_sv": -265.4,      # Constant gain factor
     "R_amp0": 3.510,     # Basal level of active skeletal peripheral resistance
-    "R_ep0": 1.655,      # Basal level of extra-splanchnic peripheral resistance
-    "R_rmp0": 5.270,      # Basal level of resting skeletal peripheral resistance
-    "R_sp0": 2.49,       # Basal level of splanchnic peripheral resistance
+    "R_ep0": 5.655,      # Basal level of extra-splanchnic peripheral resistance # edited from 1.655
+    "R_rmp0": 10.270,      # Basal level of resting skeletal peripheral resistance # edited from 5.270
+    "R_sp0": 5.49,       # Basal level of splanchnic peripheral resistance # edited from 2.49
     "tau_Emax_lv": 8,       # Time constant
     "tau_Emax_rv": 8,       # Time constant
     "tau_Ramp": 2,          # Time constant
@@ -357,10 +358,10 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 0.4,         # Weighting factor (Dimensionless) changed
-    "lambda2": 0.05,        # Weighting factor (Dimensionless) changed
+    "lambda1": 0.3,         # Weighting factor (Dimensionless) edited
+    "lambda2": 0.05,        # Weighting factor (Dimensionless) edited
     "n": 1.101,              # Power index of efficiency factor (Dimensionless)
-    "Pmax": 50,              # Maximum inspiratory pressure (cmH2O)
+    "Pmax": 100,              # Maximum inspiratory pressure (cmH2O) edited
     "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }
 
@@ -429,175 +430,3 @@ Parameters = {
 # gas_transport = {
     "tau_MRV": 50,            # Metabolic rate time constant (s)
 }
-# Parameters = {
-#     'A': 18.438535156249998,
-#     'AT': 0.014866536458333334,
-#     'A_im': 50.498046875,
-#     'B': 93.760625,
-#     'C': 8813.150390625,
-#     'C2': 38.0234375,
-#     'C_amv': 7.980820312500001,
-#     'C_bv': 12.105228515625,
-#     'C_ev': 20.02734375,
-#     'C_hv': 4.007185546875,
-#     'C_pa': 0.6458515625000001,
-#     'C_pp': 5.6130859375,
-#     'C_pv': 17.07666015625,
-#     'C_rmv': 5.5109453125000005,
-#     'C_sa': 0.2843203125,
-#     'C_sv': 67.471646484375,
-#     'Cvam_O2_n': 0.15012431640625,
-#     'Cvb_O2_n': 0.14079296875000002,
-#     'Cvh_O2_n': 0.105466796875,
-#     'Cvrm_O2_n': 0.1563623046875,
-#     'D': -4.9915267578125,
-#     'D1': 0.43075107421875003,
-#     'D2': -5.6064453125,
-#     'E_rs': 25.009628906249997,
-#     'Emax_la': 0.21577148437500002,
-#     'Emax_lv0': 1.2572867187499999,
-#     'Emax_ra': 0.298974609375,
-#     'Emax_rv0': 0.6878320312499999,
-#     'GEmax_lv': 0.5083056640625,
-#     'GEmax_rv': 0.226866796875,
-#     'GR_amp': 2.724236328125,
-#     'GR_ep': 2.26093359375,
-#     'GR_rmp': 2.662486328125,
-#     'GR_sp': 0.8322353515625,
-#     'GT_s': -0.130177734375,
-#     'GT_v': 0.079751953125,
-#     'GV_amv': -47.05323632812501,
-#     'GV_dead': 0.17573636718750002,
-#     'GV_ev': -76.25367382812499,
-#     'GV_rmv': -62.172205078124996,
-#     'GV_sv': -257.36542968749995,
-#     'G_ap': 10.273921875,
-#     'K1_vc': 0.160224609375,
-#     'K2': 24.4775390625,
-#     'K2_vc': 0.455703125,
-#     'KCCO2': 310251.171875,
-#     'K_H': 2.4521484375000004,
-#     'KcCO2': 0.251555390625,
-#     'KcMRV': 1.0685546875,
-#     'Kh_CO2': 10.929896484375,
-#     'KpCO2': 0.22856396484375,
-#     'KpO2': 5.515578125e-09,
-#     'Kr_vc': 0.0009794921875,
-#     'Krm_CO2': 146.955703125,
-#     'L_pa': 0.00020155078125000002,
-#     'L_sa': 0.00061939453125,
-#     'MO2_ampn': 0.48647109375,
-#     'MO2_bp': 1.1007861328125002,
-#     'MO2_hpn': 0.34414062500000003,
-#     'MO2_rmp': 0.84605859375,
-#     'P0_la': 0.4441894531250001,
-#     'P0_lv': 1.50322265625,
-#     'P0_ra': 0.45686523437500004,
-#     'P0_rv': 1.6561523437499999,
-#     'PO2_sh': 53.3935546875,
-#     'PO2_sp': 25.119140625,
-#     'PO2_sv': 35.408203125,
-#     'P_abdmax_n': -1.0685546875,
-#     'P_abdmin_n': -2.55322265625,
-#     'P_n': 93.45546875,
-#     'PaCO2_n': 34.5078125,
-#     'PaO2_ac_n': 49.4384765625,
-#     'Pmax': 42.646484375,
-#     'Pmax_dot': 1142.7734375,
-#     'R_amp0': 3.196705078125,
-#     'R_amv_n': 0.09460732421875,
-#     'R_bpn': 7.572181640625001,
-#     'R_bv_n': 0.0694482421875,
-#     'R_ep0': 1.7141533203125001,
-#     'R_ev_n': 0.032695312500000004,
-#     'R_hpn': 17.073017578125,
-#     'R_hv_n': 0.26831875,
-#     'R_pa': 0.0266072265625,
-#     'R_pp': 0.0860998828125,
-#     'R_pv': 0.05049609375,
-#     'R_rmp0': 5.697158203124999,
-#     'R_rmv_n': 0.1483154296875,
-#     'R_rs': 2.6548867187500003,
-#     'R_sa': 0.2019921875,
-#     'R_sp0': 2.0245839843750004,
-#     'R_sv_n': 0.036151953125,
-#     'Rvc_n': 0.0669580078125,
-#     'T0': 0.49764453124999997,
-#     'T_im': 1.04736328125,
-#     'Tc': 0.5965039062499999,
-#     'V0_dead': 0.17181134765625,
-#     'VA_rest': 0.0626685546875,
-#     'VT_n': 0.47961914062500005,
-#     'W_hn': 12029.47265625,
-#     'Wb_sh': -1.888427734375,
-#     'Wb_sp': -1.01064208984375,
-#     'Wb_sv': -0.91510986328125,
-#     'Wc_sh': 0.8611328125000001,
-#     'Wc_sp': 1.6922039062499998,
-#     'Wc_sv': 1.5051867187499999,
-#     'Wc_v': 0.16105468750000004,
-#     'Wp_sh': -0.16574218750000003,
-#     'Wp_sp': -0.38354025390625,
-#     'Wp_sv': -0.41867013671875,
-#     'Wp_v': -0.0867654296875,
-#     'Wt_sh': 0.39992187500000004,
-#     'Wt_sp': 0.444765625,
-#     'Wt_sv': 0.34992187500000005,
-#     'Wt_v': 0.432265625,
-#     'Ysh_max': 8.4919921875,
-#     'Ysh_min': -0.03303693359375,
-#     'Ysp_max': 4.6825195312500005,
-#     'Ysp_min': -0.039984570312499995,
-#     'Ysv_max': 71.02240234375,
-#     'Ysv_min': -0.028158593750000002,
-#     'Yv_max': 1.9538085937499998,
-#     'Yv_min': -0.00072734375,
-#     'a2': 1.2125716796875001,
-#     'alpha2': 0.057187630859375005,
-#     'beta2': 0.026059072265625004,
-#     'dc': 0.017065429687499998,
-#     'f_ab_max': 50.775582031249996,
-#     'f_ab_min': 2.2527421875,
-#     'f_acCO2_n': 1.2908984374999999,
-#     'f_ac_max': 13.87833984375,
-#     'f_ac_min': 0.7908037109375,
-#     'fab_o': 28.5693359375,
-#     'fes_inf': 2.49169921875,
-#     'fes_max': 75.484375,
-#     'fes_min': 2.5088164062500002,
-#     'fes_o': 17.352861328124998,
-#     'fev_inf': 7.450488281249999,
-#     'fev_o': 2.854375,
-#     'gM': 39.4453125,
-#     'g_abd': 2.9496972656250002,
-#     'g_ccsh': 1.1732421875,
-#     'g_ccsp': 1.2641601562500002,
-#     'g_ccsv': 0.18917968750000003,
-#     'g_thor': 7.948828125,
-#     'gam_O2': 26.642578125,
-#     'gb_O2': 8.322265625,
-#     'gh_O2': 31.2607421875,
-#     'grm_O2': 29.044921875,
-#     'k_ab': 10.953796875,
-#     'k_ac': 27.354873046875,
-#     'kcc_sh': 0.12519960937500002,
-#     'kcc_sp': 0.15409570312499998,
-#     'kcc_sv': 0.073248046875,
-#     'kcc_v': 0.0186015234375,
-#     'kes': 0.06674853515625001,
-#     'kev': 8.324457031249999,
-#     'kisc_sh': 5.811328125,
-#     'kisc_sp': 2.374609375,
-#     'kisc_sv': 2.024609375,
-#     'kmet': 0.20914453125,
-#     'phi_max': 20.98828125,
-#     'phi_min': -2.2290253906250004,
-#     's': 0.032820312500000004,
-#     'theta_shn': 3.0874218750000004,
-#     'theta_spn': 14.8887421875,
-#     'theta_svn': 11.7356484375,
-#     'theta_v': -0.6394921875,
-#     'x_sh': 57.544335937499994,
-#     'x_sp': 5.717578125,
-#     'x_sv': 5.408203125
-# }

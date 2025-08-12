@@ -45,7 +45,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 500 # Maximum time limit to avoid infinite loops
+max_time = 400 # Maximum time limit to avoid infinite loops
 time_step = 10  # Chunk size per solve
 
 # First iteration

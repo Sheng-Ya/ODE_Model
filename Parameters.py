@@ -123,9 +123,9 @@ Parameters = {
     "f_ab_min": 2.52,       # Lower saturation level of the frequency discharge in the baroreceptor afferent fibers
     "k_ab": 11.76,          # Parameter related to the slope of the static function at the central point
     "P_n": 92,              # Value of baroreceptor pressure at the central point of the sigmoidal function
-    "P_n_max": 112,
+    "P_n_max": 122,
     "tau_p": 2.076,         # Time constant for the real pole
-    "tau_z": 1,          # Time constant for the real zero
+    "tau_z": 0.8,          # Time constant for the real zero
 # }
 
     # Table 9. Afferent Chemoreflex Pathway
@@ -231,7 +231,7 @@ Parameters = {
     "Io_sh": 0.658,            # Value of exercise intensity at the central point of the sigmoid (heart)
     "Io_sp": 0.65,             # Value of exercise intensity at the central point of the sigmoid (peripheral resistance)
     "Io_sv": 0.45,             # Value of exercise intensity at the central point of the sigmoid (unstressed volume of veins)
-    "Io_v": 0.2,             # Value of exercise intensity at the central point of the sigmoid
+    "Io_v": 0.22,             # Value of exercise intensity at the central point of the sigmoid
     "kcc_sh": 0.114,           # Parameter related to the slope of the characteristic at the central point (heart)
     "kcc_sp": 0.13,            # Parameter related to the slope of the characteristic at the central point (peripheral resistance)
     "kcc_sv": 0.09,            # Parameter related to the slope of the characteristic at the central point (unstressed volume of veins)

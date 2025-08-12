@@ -1,8 +1,7 @@
 import numpy as np
 import math
-from Test_controller import source
 from Activation_Functions import activation_H
-from Resp_Control_Breath_Optimiser import calculate_single_V_dV_dt #, calculate_single_P_musc_dP_dt
+from Resp_Control_Breath_Optimiser import calculate_single_V_dV_dt
 from numba import njit
 
 @njit
@@ -18,13 +17,12 @@ def accept_index_evals(finish_time, all_time, last_index, buffer_limit, i):
     else:
         indices = np.concatenate((np.arange(idx_in_2, buffer_limit), np.arange(0, last_index + 1)))
 
-    # Take every 3rd step, rk23 - optimized loop
+    # Take every 3rd step, rk23
     indices_len = len(indices)
     mask = np.array([(i - 2 - j) % 3 == 0 and (i - 2 - j) > 0 for j in range(indices_len)])
     accepted_index = [indices[indices_len - 1 - j] for j in range(indices_len) if mask[j]]
 
     return accepted_index
-
 
 
 @njit
@@ -50,13 +48,15 @@ def get_delayed_value(t, delay, all_time, heart_index, buffer_limit, history_arr
 
     return float(v0 + (v1 - v0) * (delay_time - t0) / (t1 - t0))
 
+
 @njit
 def compute_mean_selected(HR_store, indices):
     total = 0.0
     for idx in indices:
         total += HR_store[idx]
-    
+
     return total / len(indices)
+
 
 @njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
@@ -69,7 +69,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Main derivative computation function with improved organization
     Computes all system derivatives in a single optimized function
     """
-
     # # State variables
     (  # Cardio state variables
         VT_pa, VT_pp, VT_pv, Q_pa,
@@ -107,7 +106,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
      tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
      Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p, tau_z,
+     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p,
+     tau_z,
      f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A,
      B, C, D,
      Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
@@ -169,8 +169,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         # t2 = result.x[1]
         # t1 = 0.72
         # t2 = 0.72
-        t1 = c0 * VAflow**6 + c1 * VAflow**5 + c2 * VAflow**4 + c3 * VAflow**3 + c4 * VAflow**2 + c5 * VAflow + c6
-        t2 = d0 * VAflow**6 + d1 * VAflow**5 + d2 * VAflow**4 + d3 * VAflow**3 + d4 * VAflow**2 + d5 * VAflow + d6
+        t1 = c0 * VAflow ** 6 + c1 * VAflow ** 5 + c2 * VAflow ** 4 + c3 * VAflow ** 3 + c4 * VAflow ** 2 + c5 * VAflow + c6
+        t2 = d0 * VAflow ** 6 + d1 * VAflow ** 5 + d2 * VAflow ** 4 + d3 * VAflow ** 3 + d4 * VAflow ** 2 + d5 * VAflow + d6
 
         # a2 = (-P_ao - E_rs * VAflow * (t1 + t2) - E_rs * VD) / (t1 ** 2)  # VAflow constraint
         # a1 = -2 * a2 * t1  # dP_dt = 0 at t1
@@ -186,10 +186,10 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Respiratory timing constants
     BF = 1 / (t1 + t2)  # Breathing frequency
-    TI = t1              # Inspiratory time
-    VD_flow = BF * VD    # Dead space flow
+    TI = t1  # Inspiratory time
+    VD_flow = BF * VD  # Dead space flow
     VE_flow = VAflow + VD_flow  # Total ventilation flow
-    VT = VE_flow * (t1 + t2)    # Tidal volume
+    VT = VE_flow * (t1 + t2)  # Tidal volume
 
     # V = np.interp(time_since_last_breath, updates["current_times"], updates["V_current"])
     tolerance = 1e-3
@@ -780,7 +780,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     MRO2 = MRO2 - MRBO2
 
     # exercise
-    # if 100 < t <= 600:
+    # if 150 < t <= 600:
     #     MRCO2 = 0.4 / 60 - MRBCO2
     #     MRO2 = 0.45 / 60 - MRBO2
 
@@ -789,11 +789,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    if 100 < t:
+    if 200 < t:
         MRCO2 = 0.8 / 60 - MRBCO2
         MRO2 = 0.85 / 60 - MRBO2
-    #
-    # if 100 < t:
+
+    # if 0 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
     #     MRO2 = 1.05 / 60 - MRBO2
 
@@ -804,7 +804,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # brain
     PvbO2 = CBO2 / alpha_O2  # henry
     PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (
-                1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
+            1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
 
     # FbO2 = (PvbO2 * (1 + beta1 * PvbCO2)) / (K1 * (1 + alpha1 * PvbCO2))  # bohr curve
     # CvbO2_1 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
@@ -816,7 +816,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # tissue
     PvtO2 = CTO2 / alpha_O2  # henry
     PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (
-                1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
+            1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
 
     # serna and carlos
     # FtO2 = (PvtO2 * (1 + beta1 * PvtCO2)) / (K1 * (1 + alpha1 * PvtCO2))  # bohr curve
@@ -860,7 +860,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
         dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (
-                    Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
+                Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
         dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
 
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
@@ -906,8 +906,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     ## Afferent Pathways
     # exp_arg = np.clip((P_tilda - P_n) / k_ab, -40, 40)  # Prevent overflow
     P_n_resultant = P_n + I * (P_n_max - P_n)
-    dP_n_current_dt = (-P_n_current + P_n_resultant)  / tau_p
-    
+    dP_n_current_dt = (-P_n_current + P_n_resultant) / tau_p
+
     exp_arg = (P_tilda - P_n_current) / k_ab
     f_ab = (f_ab_min + f_ab_max * np.exp(exp_arg)) / (1 + np.exp(exp_arg))
     dP_tilda_dt = (P_sa + tau_z * dP_sa_dt - P_tilda) / tau_p
@@ -1041,15 +1041,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
-
     # ============================================================================
     # RETURN ALL COMPUTED VALUES
     # ============================================================================
     return (time_since_beat,
-             HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
-             Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
-             Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
-             prev_flat_bit,
+            HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
+            Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
+            Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
+            prev_flat_bit,
 
             # Gas exchange outputs
             Pa_O2, Pa_CO2, Pb_CO2,
@@ -1076,44 +1075,36 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
 
             # resp control derivatives
-            d_VE_integral_dt,
-
-            # just for plotting purposes
-            Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv, Pmax_la,
-            Pmax_ra, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa,
-            P_bv, R_bv, Q_ev, R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts,
-            sigma_Tv, CaO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt,
-            CTO2, CvtO2, MRTO2, CvbO2, P_n_current, V, VD, VAflow, V_shift1, theta_tr, Q_bv, Q_hv, Q_rmv, Q_sv
-            )
+            d_VE_integral_dt)
 
 
 def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters):
     """
-    Main model derivatives function with improved organization
-    Coordinates all system computations and updates
-    """
+        Main model derivatives function with improved organization
+        Coordinates all system computations and updates
+        """
     # ============================================================================
     # STATE VARIABLE EXTRACTION
     # ============================================================================
-    (# Cardio state variables
-     VT_pa, VT_pp, VT_pv, Q_pa,
-     VT_la, VT_lv, VT_ra, VT_rv,
-     VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc,
-     theta_ao, dtheta_ao_dt, theta_po, dtheta_po_dt, theta_mi, dtheta_mi_dt, theta_tr, dtheta_tr_dt,
+    (  # Cardio state variables
+        VT_pa, VT_pp, VT_pv, Q_pa,
+        VT_la, VT_lv, VT_ra, VT_rv,
+        VT_sv, VT_bv, VT_hv, VT_rmv, VT_amv, VT_ev, P_sp, P_sa, Q_sa, VT_vc,
+        theta_ao, dtheta_ao_dt, theta_po, dtheta_po_dt, theta_mi, dtheta_mi_dt, theta_tr, dtheta_tr_dt,
 
-     # Cardio controller state variables
-     theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
-     theta_change_CO2_sh, P_tilda, f_ac, f_ap, R_ep_change, R_sp_change,
-     R_rmp_n_change, R_amp_n_change, Vu_ev_change, Vu_sv_change, Vu_rmv_change, Vu_amv_change, Emax_lv_change,
-     Emax_rv_change, Ts_change, Tv_change, xb_O2, xb_CO2, xh_O2, xh_CO2, Wh, xrm_O2, xrm_CO2, xam_O2, xM, x_met,
-     P_n_current,
+        # Cardio controller state variables
+        theta_change_O2_sp, theta_change_CO2_sp, theta_change_O2_sv, theta_change_CO2_sv, theta_change_O2_sh,
+        theta_change_CO2_sh, P_tilda, f_ac, f_ap, R_ep_change, R_sp_change,
+        R_rmp_n_change, R_amp_n_change, Vu_ev_change, Vu_sv_change, Vu_rmv_change, Vu_amv_change, Emax_lv_change,
+        Emax_rv_change, Ts_change, Tv_change, xb_O2, xb_CO2, xh_O2, xh_CO2, Wh, xrm_O2, xrm_CO2, xam_O2, xM, x_met,
+        P_n_current,
 
-     # Gas exchange state variables
-     Pd_1_O2, Pd_1_CO2, Pd_2_O2, Pd_2_CO2, Pd_3_O2, Pd_3_CO2, Pd_4_O2, Pd_4_CO2, Pd_5_O2, Pd_5_CO2, Pa_O2, Pa_CO2,
-     dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV,
+        # Gas exchange state variables
+        Pd_1_O2, Pd_1_CO2, Pd_2_O2, Pd_2_CO2, Pd_3_O2, Pd_3_CO2, Pd_4_O2, Pd_4_CO2, Pd_5_O2, Pd_5_CO2, Pa_O2, Pa_CO2,
+        dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV,
 
-     # Resp control state variable
-     VE_integral
+        # Resp control state variable
+        VE_integral,
     ) = state
 
     Input_Parameters = np.array(Input_Parameters)
@@ -1122,12 +1113,14 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      Vu_amv_every_store, Emax_lv_every_store, Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store,
      Emax_lv_store, Emax_rv_store, f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
      PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store,
-     Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store) = [updates[key] for key in
-    ["HR_store", "time_since_beat_store", "HR_every_store", "Vu_ev_every_store", "Vu_sv_every_store", "Vu_rmv_every_store",
-     "Vu_amv_every_store", "Emax_lv_every_store", "Emax_rv_every_store", "Vu_ev_store", "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store",
-     "Emax_lv_store", "Emax_rv_store", "f_sp_store", "f_sh_store", "f_v_store", "f_sv_store", "phi_met_store",
-     "PA_O2_every_store", "PA_CO2_every_store", "Nt_store", "prev_flat_bit_store", "finish_breath_time", "Pa_O2_every_store",
-     "Pa_CO2_every_store", "Pb_CO2_every_store", "PamO2", "PamCO2", "PmbCO2", "t1_store", "t2_store"]]
+     Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store) = [
+        updates[key] for key in
+        ["HR_store", "time_since_beat_store", "HR_every_store", "Vu_ev_every_store", "Vu_sv_every_store",
+         "Vu_rmv_every_store", "Vu_amv_every_store", "Emax_lv_every_store", "Emax_rv_every_store", "Vu_ev_store",
+         "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store", "Emax_lv_store", "Emax_rv_store", "f_sp_store", "f_sh_store",
+         "f_v_store", "f_sv_store", "phi_met_store", "PA_O2_every_store", "PA_CO2_every_store", "Nt_store",
+         "prev_flat_bit_store", "finish_breath_time", "Pa_O2_every_store", "Pa_CO2_every_store", "Pb_CO2_every_store",
+         "PamO2", "PamCO2", "PmbCO2", "t1_store", "t2_store"]]
 
     (time_since_beat,
      HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
@@ -1159,23 +1152,19 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
 
      # resp control derivatives
-     d_VE_integral_dt,
-
-     # just for plotting purposes
-     Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv, Pmax_la, Pmax_ra,
-     P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa, P_bv, R_bv, Q_ev,
-     R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, CaO2, CvO2, CaCO2,
-     CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt, CTO2, CvtO2, MRTO2, CvbO2,
-     P_n_current, V, VD, VAflow, V_shift1, theta_tr, Q_bv, Q_hv, Q_rmv, Q_sv
+     d_VE_integral_dt
 
 
-     ) = njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store, HR_every_store, Vu_ev_every_store,
-                    Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store, Emax_rv_every_store,
-                    Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
-                    f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
-                    PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store,
-                    Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store)
-
+     ) = njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store,
+                      time_since_beat_store, HR_every_store, Vu_ev_every_store,
+                      Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
+                      Emax_rv_every_store,
+                      Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
+                      f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
+                      PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store,
+                      Pa_O2_every_store,
+                      Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store,
+                      t2_store)
 
     # Cardiovascular Controller
     # update values needed in other systems
@@ -1200,144 +1189,52 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-
     # gas
     # update values needed in other systems
     for key, new_value in zip(
-            [   # Resp control inputs
+            [  # Resp control inputs
                 "Pa_O2_every_store", "Pa_CO2_every_store", "Pb_CO2_every_store",
                 # Histories for gas
                 "PA_O2_every_store", "PA_CO2_every_store", "Nt_store"
             ],
 
-            [   # Corresponding values
+            [  # Corresponding values
                 Pa_O2, Pa_CO2, Pb_CO2,
                 PA_O2, PA_CO2, Nt]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
-
-
-
     # resp control
     for key, new_value in zip(
-            [   "finish_breath_time",
-                "PamO2", "PamCO2", "PmbCO2"],
+            ["finish_breath_time",
+             "PamO2", "PamCO2", "PmbCO2"],
 
-            [   # Corresponding values
+            [  # Corresponding values
                 finish_breath_time,
                 PamO2, PamCO2, PmbCO2]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
 
+    return [  # cardio derivatives
+        dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
+        dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt,
+        dtheta_ao_dt, d2theta_ao_dt2, dtheta_po_dt, d2theta_po_dt2, dtheta_mi_dt, d2theta_mi_dt2, dtheta_tr_dt,
+        d2theta_tr_dt2,
 
-        # just for plotting purposes
-    keys_and_values = zip(
-        [
-            # Cardio control inputs
-            "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp",
+        # cardio controller derivatives
+        dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
+        dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,
+        dR_sp_change_dt, dR_rmp_n_change_dt, dR_amp_n_change_dt, dVu_ev_change_dt, dVu_sv_change_dt,
+        dVu_rmv_change_dt, dVu_amv_change_dt, dEmax_lv_change_dt, dEmax_rv_change_dt, d_Ts_change_dt,
+        d_Tv_change_dt, dxb_O2_dt, dxb_CO2_dt, dxh_O2_dt, dxh_CO2_dt, dWh_dt, dxrm_O2_dt, dxrm_CO2_dt, dxam_O2_dt,
+        dxM_dt, dx_met_dt, dP_n_current_dt,
 
-            # Gas exchange inputs
-            "Q_pp", "Q_la",
+        # gas exchange derivatives
+        dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
+        dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
+        dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
 
-            # For plot
-            "Q_lv", "Q_ra", "Q_rv", "P_ra", "P_la", "P_lv", "P_rv", "Pmax_lv", "Pmax_rv",
-            "Pmax_la", "Pmax_ra", "VT_rv", "VT_ra",
-            "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "P_vc", "Qi_lv",
-            "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "V_u",
-            "P_sp", "Q_sa", "Q_vc", "VT_amv",
-            "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
-            "VT_ev", "Q_ev", "Q_bv", "Q_hv", "Q_rmv", "Q_sv", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-            "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr", "V_shift1"],
-
-        [  # Corresponding values
-            P_sa, Q_bp, Q_hp, Q_rmp, Q_amp,
-            Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
-            Pmax_la, Pmax_ra, VT_rv, VT_ra,
-            VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv,
-            Qi_rv, phi, phi_atr, P_amv, P_ev, V_u,
-            P_sp, Q_sa, Q_vc, VT_amv,
-            Q_amv, Q_pa, V_sa, P_bv, R_bv,
-            VT_ev, Q_ev, Q_bv, Q_hv, Q_rmv, Q_sv, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-            VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr, V_shift1])
-
-    for key, value in keys_and_values:
-        updates[key][updates["j"].item() - num_removed] = value
-
-
-    # just for plotting purposes
-    keys_and_values = zip(
-        [  # Cardio inputs
-            "HR", "Vu_ev", "Vu_sv", "Vu_rmv", "Vu_amv", "Emax_lv", "Emax_rv",
-            "R_ep", "R_amp", "R_rmp", "R_sp", "R_bp", "R_hp", "I", "f_sp", "f_sh", "f_v", "f_sv", "Nt", "f_ab",
-            "f_ac", "f_ap", "Tv_change", "Ts_change", "HR_check", "f_sh_delay2", "f_v_delay02", "sigma_Ts",
-            "sigma_Tv", "P_n_current", "V"
-        ],
-
-        [  # Corresponding values
-            HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
-            R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, Nt, f_ab, f_ac, f_ap, Tv_change,
-            Ts_change, HR_every,
-            f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, P_n_current, V])
-
-    for key, value in keys_and_values:
-        updates[key][updates["j"].item() - num_removed] = value
-
-
-
-    keys_and_values = zip(
-        [  # Cardio control inputs
-            "MRTCO2", "Pa_O2", "Pa_CO2", "Ca_O2",
-            # Histories for gas
-            "Pb_CO2", "Cv_O2", "Ca_CO2", "Cv_CO2", "PvtCO2", "PvtO2",
-            "CvbCO2", "CvtCO2", "QT", "PA_O2_delay", "PA_CO2_delay", "PA_O2", "PA_CO2", "CTO2", "CvtO2", "MRTO2", "CvbO2"],
-
-        [  # Corresponding values
-            MRTCO2, Pa_O2, Pa_CO2, CaO2,
-            Pb_CO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, CvbCO2, CvtCO2, QT, PA_O2_delay, PA_CO2_delay, PA_O2, PA_CO2, CTO2, CvtO2, MRTO2, CvbO2])
-
-    for key, value in keys_and_values:
-        updates[key][updates["j"].item() - num_removed] = value
-
-
-
-    keys_and_values = zip(
-        [   # Cardio inputs
-            "BF", "TI", "VT",
-            # Gas inputs
-            "VD",
-            # Resp control vent
-            "VAflow", "VE_flow",
-            "dV_dt", "finish_breath_time_plot"],
-
-        [   # Corresponding values
-            BF, TI, VT, VD,
-            VAflow, VE_flow, dV_dt, finish_breath_time])
-
-    for key, value in keys_and_values:
-        updates[key][updates["j"].item() - num_removed] = value
-
-
-
-    return [# cardio derivatives
-            dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
-            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dVT_ev_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt,
-            dtheta_ao_dt, d2theta_ao_dt2, dtheta_po_dt, d2theta_po_dt2, dtheta_mi_dt, d2theta_mi_dt2, dtheta_tr_dt, d2theta_tr_dt2,
-
-            # cardio controller derivatives
-            dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
-            dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,
-            dR_sp_change_dt, dR_rmp_n_change_dt, dR_amp_n_change_dt, dVu_ev_change_dt, dVu_sv_change_dt,
-            dVu_rmv_change_dt, dVu_amv_change_dt, dEmax_lv_change_dt, dEmax_rv_change_dt, d_Ts_change_dt,
-            d_Tv_change_dt, dxb_O2_dt, dxb_CO2_dt, dxh_O2_dt, dxh_CO2_dt, dWh_dt, dxrm_O2_dt, dxrm_CO2_dt, dxam_O2_dt,
-            dxM_dt, dx_met_dt, dP_n_current_dt,
-
-            # gas exchange derivatives
-            dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
-            dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
-            dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
-
-            # resp control derivatives
-            d_VE_integral_dt
+        # resp control derivatives
+        d_VE_integral_dt
     ]

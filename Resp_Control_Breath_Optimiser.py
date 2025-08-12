@@ -107,7 +107,7 @@ def calculate_single_V_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_
 #     return P_musc, dP_musc_dt
 
 @njit
-def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
+def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao, Pmax):
     """
     Updated method for calculating P_musc and dP_musc/dt
     """
@@ -127,6 +127,8 @@ def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, 
 
     # Calculate P_musc for t1 <= times <= t1 + t2
     P_musc[mask_t1_t2] = Pt1 * np.exp(-(times[mask_t1_t2] - t1) / tau)
+    P_musc = np.minimum(P_musc, Pmax)
+
     dP_musc_dt[mask_t1_t2] = P_musc[mask_t1_t2] * (-1 / tau)
 
     return P_musc, dP_musc_dt
@@ -143,7 +145,7 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao = required_params
 
-    P_musc, dP_musc_dt = calculate_P_musc_dP_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+    P_musc, dP_musc_dt = calculate_P_musc_dP_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax)
     volume_signal, dV_dt_values = calculate_V_dV_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
 
     # print((-2 * a2 * t1), a2, tau, t1, t2)
