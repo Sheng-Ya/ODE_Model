@@ -347,10 +347,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     phi = activation_H(t - time_since_beat, 0, T)
     phi_atr = activation_H(t - time_since_beat, 1, T)
 
+    # V_shift1 = -(5 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
+    # V_shift1 = - 20 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra)))
+    # V_shift2 = -(1 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + 25 * (phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
+    V_shift1 = 0
+
     Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1) + P_thor
-    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor
+    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - 0)) - 1) + P_thor
     Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1) + P_thor
-    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor
+    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - 0)) - 1) + P_thor
 
     # aortic valve
     ####################################
@@ -1078,7 +1083,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             Pmax_ra, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa,
             P_bv, R_bv, Q_ev, R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts,
             sigma_Tv, CaO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt,
-            CTO2, CvtO2, MRTO2, CvbO2, P_n_current, V, VD, VAflow
+            CTO2, CvtO2, MRTO2, CvbO2, P_n_current, V, VD, VAflow, V_shift1, theta_tr, Q_bv, Q_hv, Q_rmv, Q_sv
             )
 
 
@@ -1161,7 +1166,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa, P_bv, R_bv, Q_ev,
      R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, CaO2, CvO2, CaCO2,
      CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt, CTO2, CvtO2, MRTO2, CvbO2,
-     P_n_current, V, VD, VAflow
+     P_n_current, V, VD, VAflow, V_shift1, theta_tr, Q_bv, Q_hv, Q_rmv, Q_sv
 
 
      ) = njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store, HR_every_store, Vu_ev_every_store,
@@ -1243,8 +1248,8 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "V_u",
             "P_sp", "Q_sa", "Q_vc", "VT_amv",
             "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
-            "VT_ev", "Q_ev", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-            "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr"],
+            "VT_ev", "Q_ev", "Q_bv", "Q_hv", "Q_rmv", "Q_sv", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
+            "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr", "V_shift1"],
 
         [  # Corresponding values
             P_sa, Q_bp, Q_hp, Q_rmp, Q_amp,
@@ -1254,8 +1259,8 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             Qi_rv, phi, phi_atr, P_amv, P_ev, V_u,
             P_sp, Q_sa, Q_vc, VT_amv,
             Q_amv, Q_pa, V_sa, P_bv, R_bv,
-            VT_ev, Q_ev, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-            VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr])
+            VT_ev, Q_ev, Q_bv, Q_hv, Q_rmv, Q_sv, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
+            VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr, V_shift1])
 
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value

@@ -453,6 +453,83 @@ if __name__ == "__main__":
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
     fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_rv"][:index], label="Qi_rv", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ra"][:index], label="Q_ra", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc", color="b")
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ev"][:index], label="Q_ev", color="r")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_hv"][:index], label="Q_hv", color='aquamarine')
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sv"][:index], label="Q_sv", color='m')
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_bv"][:index], label="Q_bv", color='k')
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_rmv"][:index], label="Q_rmv", color="y")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amv"][:index], label="Q_amv", color='c')
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
+    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    #
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+
+    plt.show()
+
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_shift1"][:index], label="V_shift1")  #
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+    plt.plot(Next_Conditions["VT_ra"][(index - 100000):index], Next_Conditions["P_ra"][(index - 100000):index], label="RA")  #
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+
+    # get max's plot with Pmax_la instead of P_la
+    plt.plot(Next_Conditions["VT_la"][(index - 100000):index], Next_Conditions["P_la"][(index - 100000):index], label="LA")
+    # plt.plot(Next_Conditions["VT_ra"][:index], Next_Conditions["P_ra"][:index], label="LA")
+
+    # # Add labels and legend
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_ra"][:index], label="VT_ra", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ra"][:index], label="P_ra", color='k')
+
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    ax2 = ax1.twinx()
+    #
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_vc"][:index], label="P_vc", color='g')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_shift1"][:index], label="V_shift1")  #
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="phi_atr", color='b')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_tr"][:index], label="theta_tr", color='g')
+
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+
+    plt.show()
+
+    fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I", color="r")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_n_current"][:index], label="P_n_current", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_thor"][:index], label="P_thor", color="b")

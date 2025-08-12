@@ -46,8 +46,7 @@ Next_Conditions = {
 
     "P_sa_store": np.array([89.94924015] * 20000),
 
-
-
+    "V_shift1": np.pad(np.array([0.0]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "VT_pa": np.pad(np.array([166.0423240560408]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "VT_pp": np.pad(np.array([302.4159928942149]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "VT_pv": np.pad(np.array([339.3957527854894]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
@@ -109,6 +108,10 @@ Next_Conditions = {
     "Ca_O2": np.pad(np.array([0.19666618065357133]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "Ca_CO2": np.pad(np.array([0.45480451388304766]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "Q_ev": np.pad(np.array([18.452229911049177]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
+    "Q_hv": np.pad(np.array([18.452229911049177]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
+    "Q_rmv": np.pad(np.array([18.452229911049177]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
+    "Q_sv": np.pad(np.array([18.452229911049177]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
+    "Q_bv": np.pad(np.array([18.452229911049177]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "Q_hp": np.pad(np.array([5.660768018224629]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "Q_rmp": np.pad(np.array([17.122080520211522]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "Q_amp": np.pad(np.array([19.74254952325074]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
