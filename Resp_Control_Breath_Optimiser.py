@@ -161,8 +161,10 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     E2_n = (1 - dP_musc_dt / Pmax_dot) ** n
 
     # Compute inspiratory and expiratory integrals
-    integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / (
-            E1_n[:inspire_index] * E2_n[:inspire_index]) + lambda1 * dV2_dt2_values_squared[:inspire_index]
+    with np.errstate(divide='ignore', invalid='ignore'):
+        integrand_inspire = (P_musc[:inspire_index] * dV_dt_values[:inspire_index]) / (
+                E1_n[:inspire_index] * E2_n[:inspire_index]) + lambda1 * dV2_dt2_values_squared[:inspire_index]
+
     integrand_expire = dV2_dt2_values_squared[inspire_index:]
 
     integral_inspire = simpson(integrand_inspire)
