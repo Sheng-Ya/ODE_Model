@@ -137,45 +137,48 @@ num_resp_control = len(required_resp_control_keys)
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
 def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
-    dt = 0.001
-    bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-    tolerance = 0.0001
+    try:
+        dt = 0.001
+        bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
+        tolerance = 0.0001
 
-    VAflow_vals = np.linspace(0.06, 1.2, 200)
-    VAflow_repeated = np.repeat(VAflow_vals, 3)
+        VAflow_vals = np.linspace(0.06, 1, 200)
+        VAflow_repeated = np.repeat(VAflow_vals, 3)
 
-    VD = GV_dead * VAflow_repeated + V0_dead
+        VD = GV_dead * VAflow_repeated + V0_dead
 
-    optimal_t1 = []
-    optimal_t2 = []
-    initial_guess = [t1, t2]
+        optimal_t1 = []
+        optimal_t2 = []
+        initial_guess = [t1, t2]
 
-    for idx, VAflow in enumerate(VAflow_repeated):
-        VD_volume = VD[idx]
-        required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+        for idx, VAflow in enumerate(VAflow_repeated):
+            VD_volume = VD[idx]
+            required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
 
-        res = minimize(objective, x0= np.array(initial_guess[-2:]),
-                       args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
-        t1_opt, t2_opt = res.x
-        optimal_t1.append(t1_opt)
-        optimal_t2.append(t2_opt)
-        initial_guess.extend(res.x)
+            res = minimize(objective, x0= np.array(initial_guess[-2:]),
+                           args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
+            t1_opt, t2_opt = res.x
+            optimal_t1.append(t1_opt)
+            optimal_t2.append(t2_opt)
+            initial_guess.extend(res.x)
 
 
-    # Convert to arrays for indexing
-    VAflow_clean = np.array(VAflow_repeated)
-    t1_clean = np.array(optimal_t1)
-    t2_clean = np.array(optimal_t2)
+        # Convert to arrays for indexing
+        VAflow_clean = np.array(VAflow_repeated)
+        t1_clean = np.array(optimal_t1)
+        t2_clean = np.array(optimal_t2)
 
-    # Fit a polynomial (or linear)
-    t1_poly = np.poly1d(np.polyfit(VAflow_clean, t1_clean, deg=6))
-    t2_poly = np.poly1d(np.polyfit(VAflow_clean, t2_clean, deg=6))
+        # Fit a polynomial (or linear)
+        t1_poly = np.poly1d(np.polyfit(VAflow_clean, t1_clean, deg=6))
+        t2_poly = np.poly1d(np.polyfit(VAflow_clean, t2_clean, deg=6))
 
-    c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
-    d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
+        c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
+        d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
 
     # print("Best fit equation for t1:", t1_poly)
     # print("Best fit equation for t2:", t2_poly)
+    except:
+        return 0,0,0,0,0,0,0,0,0,0,0,0
 
     return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
 
@@ -247,6 +250,10 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     # determine the correct breathing profile
     c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(Next_Conditions["t1_store"][0],
     Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
+
+    if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
+        # Integration failed or early termination
+        return [0.0, 0.0, 0.0], None, None
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
     R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
@@ -491,7 +498,7 @@ if __name__ == "__main__":
             # [17.4 * lower, 17.4 * upper],
             [0.2332 * lower, 0.2332 * upper],
             [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
-            [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [50 * lower, 50 * upper],
+            [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [100 * lower, 100 * upper],
             [1000 * lower, 1000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
             # cardio
             [0.28 * lower, 0.28 * upper], [0.00066 * lower, 0.00066 * upper], [0.2 * lower, 0.2 * upper],

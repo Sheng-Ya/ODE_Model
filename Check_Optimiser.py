@@ -114,7 +114,7 @@ dt = 0.001
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
 tolerance = 0.0001
 
-VAflow_vals = np.linspace(0.06, 1.2, 200)
+VAflow_vals = np.linspace(0.06, 1, 200)
 VAflow_repeated = np.repeat(VAflow_vals, 3)
 
 VD = GV_dead * VAflow_repeated + V0_dead

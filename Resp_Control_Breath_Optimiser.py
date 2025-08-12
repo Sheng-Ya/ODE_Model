@@ -14,7 +14,7 @@ def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
     a1 = -2 * a2 * t1
     Pt1 = a1 * t1 + a2 * (t1 ** 2)
     Vt1 = VA * (t1 + t2) + VD
-    tau = t2 / (-np.log(tolerance * R_rs / Pt1))
+    tau = max((t2 / (-np.log(tolerance * R_rs / Pt1))), 0.01)
     B = E_rs / R_rs
 
     return a1, a2, Pt1, Vt1, tau, B
