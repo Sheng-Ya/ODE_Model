@@ -196,7 +196,7 @@ Parameters = {
 # cns_ischemic_response = {
     "g_ccsh": 1,                # Constant gain factor tuned to reproduce experimental results
     "g_ccsp": 1.5,              # Constant gain factor tuned to reproduce experimental results
-    "g_ccsv": 0,                # Constant gain factor tuned to reproduce experimental results
+    "g_ccsv": 0.2,                # Constant gain factor tuned to reproduce experimental results # edited to match dgsm
     "kisc_sh": 6,              # Parameter related to the slope of the static function at the central point for heart
     "kisc_sp": 2,              # Parameter related to the slope of the static function at the central point for peripheral resistance
     "kisc_sv": 2,              # Parameter related to the slope of the static function at the central point for unstressed volume of veins
