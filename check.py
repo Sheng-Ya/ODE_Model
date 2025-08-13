@@ -102,8 +102,8 @@ Parameters = {
     # Table 6. Muscle Pump
 # muscle_pump = {
     "A_im": 30,            # Peak value of intramuscular pressure # edited from 50
-    "Tc": 0.75,            # The overall duration of muscular contraction
-    "T_im": 1,             # Duration of the muscular contraction-relaxation cycle
+    "Tc": 0.7,            # The overall duration of muscular contraction # edited to match dgsm
+    "T_im": 1.1,             # Duration of the muscular contraction-relaxation cycle # edited to match dgsm
 # }
 
     # Table 7. Respiratory Pump
