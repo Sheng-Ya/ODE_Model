@@ -32,11 +32,9 @@ from Parameters_test import Parameters as Para
 
 
 target_values = np.arange(0, 10000, 10)
-time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 max_time = 400 # Maximum time limit to avoid infinite loops
-time_step = 10  # Chunk size per solve
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -90,11 +88,13 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
     # AA = list(Initial_Conditions_dict["all_time"])
     # AAAAAAA = list(Initial_Conditions_dict["check_time"])
 
-    # Debugging check for progress
-    if t != 0:
-        diff = np.abs(t - target_values)
-        if np.any(diff < 0.0001):
-            print(t)
+    # # Debugging check for progress
+    # if t != 0:
+    #     if t > 430:
+    #         A = 2
+    #     diff = np.abs(t - target_values)
+    #     if np.any(diff < 0.0001):
+    #         print(t)
 
     return derivatives_all
 
@@ -175,10 +175,9 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
         c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
         d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
 
-    # print("Best fit equation for t1:", t1_poly)
-    # print("Best fit equation for t2:", t2_poly)
-    except Exception:
-        # print("error")
+        # print("Best fit equation for t1:", t1_poly)
+        # print("Best fit equation for t2:", t2_poly)
+    except:
         return 0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
     return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
@@ -248,14 +247,11 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
     (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
    "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
 
-    i_buffer = local_updates["i"].item() % BUFFER_LIMIT
-
     # determine the correct breathing profile
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(local_updates["t1_store"][i_buffer],
-    local_updates["t2_store"][i_buffer], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(1.5,
+    1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
 
     if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
-        # print("error")
         # Integration failed or early termination
         return [0.0, 0.0, 0.0], None, None
 
@@ -296,11 +292,10 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
 
 
     if ODE_solution.status == -1:
-        print("error")
         # Integration failed or early termination
         return [0.0, 0.0, 0.0], None, None
 
-    # i_buffer = local_updates["i"].item() % BUFFER_LIMIT
+    i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
 
     P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
@@ -329,6 +324,8 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
             if len(past_10_flat_segments) == 10:
                 break
     print(np.mean(past_10_flat_segments))
+
+    # A = IC_overall.copy()
 
     IC_current = ODE_solution.y[:, -1]
 
@@ -364,91 +361,94 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
 #     return results_all
 
 
-# def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay3.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-#     block_size = 174
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for i, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#
-#         # Run only the base sample first
-#         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#
-#         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
-#         if base_result[0] == 0:  # Adjust this condition to your failure criteria
-#             print(f"Skipping block {i + 1} due to base failure.")
-#             results_all.extend(np.zeros((block_size, 3)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         # perturbations = block[1:]  # exclude the base sample
-#
-#         # Otherwise, run full block in parallel
-#         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-#             results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final) for params in block)
-#
-#         results_block = [res[0] for res in results_perturbations]
-#         results_all.extend(results_block)
-#
-#         # Save chunk incrementally (appending)
-#         # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-#         # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
-#
-#         # Save after each block
-#         np.save(save_path, np.array(results_all))
-#
-#     return results_all
-
-
-def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay3.npy'):
     results_all = []
 
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    block_size = 170
+    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
+    block_size = 175
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     for i, block in enumerate(param_blocks):
         base_sample = block[0]
         copy_of_storage = copy.deepcopy(storage)
-        print(f"Running base sample for block {i+1}...")
 
+        # Run only the base sample first
         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
 
-        print(f"Base sample result: {base_result}")
-
-        if base_result[0] == 0:
+        # If base sample fails (e.g. returns 0 or some error code), skip the whole block
+        if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((174, 3)))
+            results_all.extend(np.zeros((block_size, 3)))
             np.save(save_path, np.array(results_all))
             continue
 
-        results_perturbations = []
-        for j, params in enumerate(block):
-            print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
-            res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
-            print(f"Perturbation result: {res[0]}")
-            results_perturbations.append(res)
+        # perturbations = block[1:]  # exclude the base sample
 
-        results_block = [base_result] + results_perturbations
+        # Otherwise, run full block in parallel
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
+            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final) for params in block)
+
+        results_block = [res[0] for res in results_perturbations]
         results_all.extend(results_block)
 
-        # Save checkpoint files for debugging
-        np.save(f'IC_final_{i:03d}.npy', IC_final)
-        np.save(f'Next_final_{i:03d}.npy', storage_final)
+        # Save chunk incrementally (appending)
+        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
+        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
 
+        # Save after each block
         np.save(save_path, np.array(results_all))
-        print(f"Block {i+1} finished and results saved.")
 
     return results_all
+
+
+# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+#     results_all = []
+#
+#     if os.path.exists(save_path):
+#         os.remove(save_path)
+#
+#     block_size = 175
+#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+#
+#     for i, block in enumerate(param_blocks):
+#         base_sample = block[0]
+#         copy_of_storage = copy.deepcopy(storage)
+#         print(f"Running base sample for block {i+1}...")
+#
+#         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+#
+#         print(f"Base sample result: {base_result}")
+#
+#         if base_result[0] == 0:
+#             print(f"Skipping block {i + 1} due to base failure.")
+#             results_all.extend(np.zeros((174, 3)))
+#             np.save(save_path, np.array(results_all))
+#             continue
+#
+#         results_perturbations = []
+#         for j, params in enumerate(block):
+#             print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
+#             res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
+#
+#             i = storage_final["i"].item() % BUFFER_LIMIT
+#
+#             print(f"Perturbation result: {res[0]}")
+#             results_perturbations.append(res)
+#
+#         results_block = [base_result] + results_perturbations
+#         results_all.extend(results_block)
+#
+#         # Save checkpoint files for debugging
+#         np.save(f'IC_final_{i:03d}.npy', IC_final)
+#         np.save(f'Next_final_{i:03d}.npy', storage_final)
+#
+#         np.save(save_path, np.array(results_all))
+#         print(f"Block {i+1} finished and results saved.")
+#
+#     return results_all
 
 
 if __name__ == "__main__":
@@ -467,7 +467,7 @@ if __name__ == "__main__":
             "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
             "Pmax_dot", "E_rs", "R_rs",
             # cardio
-            "C_sa", "L_sa", "R_sa", "C_amv", "C_bv",
+            "C_jp", "C_sa", "L_sa", "R_sa", "C_amv", "C_bv",
             "C_ev", "C_hv", "C_rmv", "C_sv", "R_amv_n", "R_bv_n",
             "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "K1_vc", "Kr_vc", "Rvc_n",
             "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
@@ -506,6 +506,7 @@ if __name__ == "__main__":
             [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [100 * lower, 100 * upper],
             [1000 * lower, 1000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
             # cardio
+            [3.72 * lower, 3.72 * upper],
             [0.28 * lower, 0.28 * upper], [0.00066 * lower, 0.00066 * upper], [0.2 * lower, 0.2 * upper],
             [9.4 * lower, 9.4 * upper],
             [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper],
@@ -539,9 +540,9 @@ if __name__ == "__main__":
             [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower], [0.4 * lower, 0.4 * upper],
             [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
             [1.412 * lower, 1.412 * upper], [0.7 * lower, 0.7 * upper], [2.66 * lower, 2.66 * upper],
-            [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper],
+            [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [3.47 * lower, 3.47 * upper],
             [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper], [0.695 * lower, 0.695 * upper],
-            [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
+            [-35.29 * upper, -35.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
             [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [5.655 * lower, 5.655 * upper],
             [10.27 * lower, 10.27 * upper], [5.49 * lower, 5.49 * upper], [(1 / 60) * lower, (1 / 60) * upper],
             [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper], [0.2 * lower, 0.2 * upper],
@@ -580,10 +581,10 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    # np.save('New_DGSM_250_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy', X)
+    np.save('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy', X)
     #
     # X_fail = X_load[41374,:]
-    np.save('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exericise.npy', X)
+    # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
     # X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_filtered.npy')
 
@@ -591,8 +592,8 @@ if __name__ == "__main__":
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
 
-    # Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
-    Result = parallel_simulations(param_samples, Next_Conditions)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
 
