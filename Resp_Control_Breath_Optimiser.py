@@ -20,7 +20,7 @@ def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
     return a1, a2, Pt1, Vt1, tau, B
 
 
-@njit
+# @njit
 def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating V and dV/dt values
@@ -32,30 +32,36 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     V = np.zeros(len(times))
     dV_dt = np.zeros(len(times))
 
-    # Breathing cycle patterns
-    mask_0_t1 = times <= t1
-    mask_t1_t2 = ~mask_0_t1
+    try:
 
-    x = times[mask_0_t1]
-    z = times[mask_t1_t2]
+        # Breathing cycle patterns
+        mask_0_t1 = times <= t1
+        mask_t1_t2 = ~mask_0_t1
 
-    # Compute constants for solution
-    c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (np.exp(-B * t1) - 1)
+        x = times[mask_0_t1]
+        z = times[mask_t1_t2]
 
-    d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
-    c2 = (Vt1 - (Pt1 / R_rs) / (B - 1 / tau)) / np.exp(-B * t1)
+        # Compute constants for solution
+        c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (np.exp(-B * t1) - 1)
 
-    # Calculate for 0 <= times <= t1
-    V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
-                    (a2 / E_rs) * (x ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * x +
-                    (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
-                    c1 * np.exp((-E_rs / R_rs) * x) + d1)
-    dV_dt[mask_0_t1] = (1 / R_rs) * (a1 * x + a2 * (x ** 2) - E_rs * V[mask_0_t1])
+        d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
+        c2 = (Vt1 - (Pt1 / R_rs) / (B - 1 / tau)) / np.exp(-B * t1)
 
-    # Calculate for t1 <= times <= t1 + t2
-    constant = (Pt1 / (R_rs * (B - 1 / tau))) * np.exp(t1/tau)
-    V[mask_t1_t2] = constant * np.exp(-z/tau) + np.exp(-B * z) * c2
-    dV_dt[mask_t1_t2] = (1 / R_rs) * (Pt1 * np.exp(-(z - t1) / tau) - E_rs * V[mask_t1_t2])
+        # Calculate for 0 <= times <= t1
+        V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
+                        (a2 / E_rs) * (x ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * x +
+                        (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
+                        c1 * np.exp((-E_rs / R_rs) * x) + d1)
+        dV_dt[mask_0_t1] = (1 / R_rs) * (a1 * x + a2 * (x ** 2) - E_rs * V[mask_0_t1])
+
+        # Calculate for t1 <= times <= t1 + t2
+        constant = (Pt1 / (R_rs * (B - 1 / tau))) * np.exp(t1/tau)
+        V[mask_t1_t2] = constant * np.exp(-z/tau) + np.exp(-B * z) * c2
+        dV_dt[mask_t1_t2] = (1 / R_rs) * (Pt1 * np.exp(-(z - t1) / tau) - E_rs * V[mask_t1_t2])
+
+    except:
+        print(f"calculate_V_dV_dt failed")
+        return np.full(len(times), np.nan), np.full(len(times), np.nan)
 
     return V, dV_dt
 
@@ -114,22 +120,27 @@ def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, 
     t1, t2 = initial_guess
     a1, a2, Pt1, _, tau, _ = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
 
-    P_musc = np.zeros(len(times))
-    dP_musc_dt = np.zeros(len(times))
+    try:
+        P_musc = np.zeros(len(times))
+        dP_musc_dt = np.zeros(len(times))
 
-    # Breathing cycle patterns
-    mask_0_t1 = times <= t1
-    mask_t1_t2 = ~mask_0_t1
+        # Breathing cycle patterns
+        mask_0_t1 = times <= t1
+        mask_t1_t2 = ~mask_0_t1
 
-    # Calculate P_musc for 0 <= times <= t1
-    P_musc[mask_0_t1] = a1 * times[mask_0_t1] + a2 * (times[mask_0_t1] ** 2)
-    dP_musc_dt[mask_0_t1] = a1 + 2 * a2 * times[mask_0_t1]
+        # Calculate P_musc for 0 <= times <= t1
+        P_musc[mask_0_t1] = a1 * times[mask_0_t1] + a2 * (times[mask_0_t1] ** 2)
+        dP_musc_dt[mask_0_t1] = a1 + 2 * a2 * times[mask_0_t1]
 
-    # Calculate P_musc for t1 <= times <= t1 + t2
-    P_musc[mask_t1_t2] = Pt1 * np.exp(-(times[mask_t1_t2] - t1) / tau)
-    P_musc = np.minimum(P_musc, Pmax)
+        # Calculate P_musc for t1 <= times <= t1 + t2
+        P_musc[mask_t1_t2] = Pt1 * np.exp(-(times[mask_t1_t2] - t1) / tau)
+        P_musc = np.minimum(P_musc, Pmax)
 
-    dP_musc_dt[mask_t1_t2] = P_musc[mask_t1_t2] * (-1 / tau)
+        dP_musc_dt[mask_t1_t2] = P_musc[mask_t1_t2] * (-1 / tau)
+
+    except:
+        print(f"calculate_V_dV_dt failed")
+        return np.full(len(times), np.nan), np.full(len(times), np.nan)
 
     return P_musc, dP_musc_dt
 
@@ -147,6 +158,9 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     P_musc, dP_musc_dt = calculate_P_musc_dP_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax)
     volume_signal, dV_dt_values = calculate_V_dV_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
+
+    if np.any(np.isnan(volume_signal)) or np.any(np.isnan(dV_dt_values)):
+        return np.inf
 
     # print((-2 * a2 * t1), a2, tau, t1, t2)
     # plt.plot(volume_signal)
@@ -175,58 +189,4 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     # Return cost function value
     return WI + lambda2 * WE
-
-# didn't do ln. Original paper has ln, but the Carlos paper does not
-
-
-# @njit
-# def simpson_numba(y, dx):
-#     N = len(y)
-#
-#     result = 0.0
-#
-#     # Uniform spacing
-#     if N % 2 == 0:
-#         # Simpson's rule on N-1 points, trapezoid for last
-#         for i in range(0, N - 2, 2):
-#             result += dx / 3 * (y[i] + 4 * y[i+1] + y[i+2])
-#         result += 0.5 * dx * (y[-2] + y[-1])
-#     else:
-#         for i in range(0, N - 2, 2):
-#             result += dx / 3 * (y[i] + 4 * y[i+1] + y[i+2])
-#
-#     return float(result)
-
-# @njit
-# def simpson_numba(y, x):
-#
-#     N = len(y)
-#     result = 0.0
-#
-#     # Non-uniform spacing
-#     if N % 2 == 0:
-#         # Apply Simpson's rule on N-1 points, trapezoid for last interval
-#         for i in range(0, N - 2, 2):
-#             h0 = x[i+1] - x[i]
-#             h1 = x[i+2] - x[i+1]
-#             h = h0 + h1
-#             a = -h1 / (h0 * h)
-#             b = (h1 - h0) / (h0 * h1)
-#             c = h0 / (h1 * h)
-#             result += (a * y[i] + b * y[i+1] + c * y[i+2]) * (h0 + h1)
-#
-#         # Trapezoid for last interval
-#         i = N - 2
-#         result += 0.5 * (x[i+1] - x[i]) * (y[i] + y[i+1])
-#     else:
-#         for i in range(0, N - 2, 2):
-#             h0 = x[i+1] - x[i]
-#             h1 = x[i+2] - x[i+1]
-#             h = h0 + h1
-#             a = -h1 / (h0 * h)
-#             b = (h1 - h0) / (h0 * h1)
-#             c = h0 / (h1 * h)
-#             result += (a * y[i] + b * y[i+1] + c * y[i+2]) * (h0 + h1)
-#
-#     return result
 
