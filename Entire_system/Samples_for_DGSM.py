@@ -89,12 +89,12 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
     # AAAAAAA = list(Initial_Conditions_dict["check_time"])
 
     # # Debugging check for progress
-    # if t != 0:
-    #     if t > 430:
-    #         A = 2
-    #     diff = np.abs(t - target_values)
-    #     if np.any(diff < 0.0001):
-    #         print(t)
+    if t != 0:
+        if t > 159.9997:
+            A = 2
+        diff = np.abs(t - target_values)
+        if np.any(diff < 0.0001):
+            print(t)
 
     return derivatives_all
 
@@ -361,94 +361,94 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None):
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay3.npy'):
-    results_all = []
-
-    if os.path.exists(save_path):
-        os.remove(save_path)
-
-    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-    block_size = 175
-    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-
-    for i, block in enumerate(param_blocks):
-        base_sample = block[0]
-        copy_of_storage = copy.deepcopy(storage)
-
-        # Run only the base sample first
-        base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-
-        # If base sample fails (e.g. returns 0 or some error code), skip the whole block
-        if base_result[0] == 0:  # Adjust this condition to your failure criteria
-            print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((block_size, 3)))
-            np.save(save_path, np.array(results_all))
-            continue
-
-        # perturbations = block[1:]  # exclude the base sample
-
-        # Otherwise, run full block in parallel
-        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final) for params in block)
-
-        results_block = [res[0] for res in results_perturbations]
-        results_all.extend(results_block)
-
-        # Save chunk incrementally (appending)
-        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
-
-        # Save after each block
-        np.save(save_path, np.array(results_all))
-
-    return results_all
-
-
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+# def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay3.npy'):
 #     results_all = []
 #
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
+#     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
 #     block_size = 175
 #     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 #
 #     for i, block in enumerate(param_blocks):
 #         base_sample = block[0]
 #         copy_of_storage = copy.deepcopy(storage)
-#         print(f"Running base sample for block {i+1}...")
 #
+#         # Run only the base sample first
 #         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
 #
-#         print(f"Base sample result: {base_result}")
-#
-#         if base_result[0] == 0:
+#         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
+#         if base_result[0] == 0:  # Adjust this condition to your failure criteria
 #             print(f"Skipping block {i + 1} due to base failure.")
-#             results_all.extend(np.zeros((174, 3)))
+#             results_all.extend(np.zeros((block_size, 3)))
 #             np.save(save_path, np.array(results_all))
 #             continue
 #
-#         results_perturbations = []
-#         for j, params in enumerate(block):
-#             print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
-#             res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
+#         # perturbations = block[1:]  # exclude the base sample
 #
-#             i = storage_final["i"].item() % BUFFER_LIMIT
+#         # Otherwise, run full block in parallel
+#         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
+#             results_perturbations = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final) for params in block)
 #
-#             print(f"Perturbation result: {res[0]}")
-#             results_perturbations.append(res)
-#
-#         results_block = [base_result] + results_perturbations
+#         results_block = [res[0] for res in results_perturbations]
 #         results_all.extend(results_block)
 #
-#         # Save checkpoint files for debugging
-#         np.save(f'IC_final_{i:03d}.npy', IC_final)
-#         np.save(f'Next_final_{i:03d}.npy', storage_final)
+#         # Save chunk incrementally (appending)
+#         # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
+#         # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
 #
+#         # Save after each block
 #         np.save(save_path, np.array(results_all))
-#         print(f"Block {i+1} finished and results saved.")
 #
 #     return results_all
+
+
+def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+    results_all = []
+
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    block_size = 175
+    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+
+    for i, block in enumerate(param_blocks):
+        base_sample = block[0]
+        copy_of_storage = copy.deepcopy(storage)
+        print(f"Running base sample for block {i+1}...")
+
+        base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+
+        print(f"Base sample result: {base_result}")
+
+        if base_result[0] == 0:
+            print(f"Skipping block {i + 1} due to base failure.")
+            results_all.extend(np.zeros((174, 3)))
+            np.save(save_path, np.array(results_all))
+            continue
+
+        results_perturbations = []
+        for j, params in enumerate(block):
+            print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
+            res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
+
+            i = storage_final["i"].item() % BUFFER_LIMIT
+
+            print(f"Perturbation result: {res[0]}")
+            results_perturbations.append(res)
+
+        results_block = [base_result] + results_perturbations
+        results_all.extend(results_block)
+
+        # Save checkpoint files for debugging
+        np.save(f'IC_final_{i:03d}.npy', IC_final)
+        np.save(f'Next_final_{i:03d}.npy', storage_final)
+
+        np.save(save_path, np.array(results_all))
+        print(f"Block {i+1} finished and results saved.")
+
+    return results_all
 
 
 if __name__ == "__main__":
@@ -581,7 +581,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    np.save('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy', X)
+    X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')[3500:, :]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
@@ -592,8 +592,8 @@ if __name__ == "__main__":
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
-    # Result = parallel_simulations(param_samples, Next_Conditions)
+    # Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
 

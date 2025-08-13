@@ -58,7 +58,7 @@ def compute_mean_selected(HR_store, indices):
     return total / len(indices)
 
 
-@njit
+# @njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
     HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
     Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
@@ -631,6 +631,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     P_0 = Vu_amv / (C_amv * 10)
 
+    if abs(VT_amv) < 1e-8:
+        return (np.nan,) * 116
+
     if VT_amv >= Vu_amv:
         V_amv = VT_amv - Vu_amv
         P_amv = V_amv / C_amv + P_im
@@ -644,6 +647,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         # P_amv = P_0 + P_im
 
     Q_amp = (P_sp - P_amv) / R_amp
+
+    if abs(Q_amp) < 1e-8:
+        return (np.nan,) * 116
 
     P_am = 0
 
@@ -823,6 +829,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # CvtO2_1 = (C1 * Z) * (FtO2 ** (1 / a1)) / (1 + (FtO2 ** (1 / a1)))  # bohr curve
     # ursino model 1997
     PvtO2_virt = PvtO2 * (40 / PvtCO2) ** 0.3
+
+    if PvtO2_virt < 0:
+        return (np.nan,) * 116
     SvtO2 = (PvtO2_virt ** 2.6) / (PvtO2_virt ** 2.6 + 26.6 ** 2.6)
     CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
 
