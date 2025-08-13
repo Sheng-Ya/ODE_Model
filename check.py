@@ -231,7 +231,7 @@ Parameters = {
     "Io_sh": 0.658,            # Value of exercise intensity at the central point of the sigmoid (heart)
     "Io_sp": 0.65,             # Value of exercise intensity at the central point of the sigmoid (peripheral resistance)
     "Io_sv": 0.45,             # Value of exercise intensity at the central point of the sigmoid (unstressed volume of veins)
-    "Io_v": 0.22,             # Value of exercise intensity at the central point of the sigmoid
+    "Io_v": 0.22,             # Value of exercise intensity at the central point of the sigmoid (edited)
     "kcc_sh": 0.114,           # Parameter related to the slope of the characteristic at the central point (heart)
     "kcc_sp": 0.13,            # Parameter related to the slope of the characteristic at the central point (peripheral resistance)
     "kcc_sv": 0.09,            # Parameter related to the slope of the characteristic at the central point (unstressed volume of veins)
