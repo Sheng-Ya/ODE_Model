@@ -252,7 +252,7 @@ Parameters = {
     "Wc_sp": 1.716,            # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
     "Wc_sv": 1.716,            # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
     "Wc_v": 0.2,               # Synaptic weight tuned to reproduce physiological results
-    "Wp_sh": 0,                # Synaptic weight tuned to reproduce physiological results (heart)
+    "Wp_sh": -0.2,                # Synaptic weight tuned to reproduce physiological results (heart) # edited to match DGSM
     "Wp_sp": -0.3997,          # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
     "Wp_sv": -0.3997,          # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
     "Wp_v": -0.103,            # Synaptic weight tuned to reproduce physiological results
