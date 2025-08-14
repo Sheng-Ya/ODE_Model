@@ -89,12 +89,10 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
     # AAAAAAA = list(Initial_Conditions_dict["check_time"])
 
     # # Debugging check for progress
-    if t != 0:
-        if t > 159.9997:
-            A = 2
-        diff = np.abs(t - target_values)
-        if np.any(diff < 0.0001):
-            print(t)
+    # if t != 0:
+    #     diff = np.abs(t - target_values)
+    #     if np.any(diff < 0.0001):
+    #         print(t)
 
     return derivatives_all
 
@@ -581,7 +579,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')[3500:, :]
+    X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')[6825:, :]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)

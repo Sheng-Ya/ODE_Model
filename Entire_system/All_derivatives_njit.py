@@ -122,6 +122,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if t == 0:
         last_index = i % BUFFER_LIMIT
     else:
+        if time_since_beat_store[(i - 1) % BUFFER_LIMIT] == np.nan:
+            return np.full(116, np.nan)
         last_index = (i - num_removed - 1) % BUFFER_LIMIT
 
     # ============================================================================
@@ -290,7 +292,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     elif TI <= time_since_last_breath <= T_resp:
         P_thor = P_thormax - (P_thormax - P_thormin) * ((TI + TE - T_resp * S) / TE)
     else:
-        return (np.nan,) * 116
+        return np.full(116, np.nan) 
 
     if 0 <= time_since_last_breath < (TI / 2):
         P_abd = P_abdmax - (P_abdmax - P_abdmin) * (T_resp / (TI / 2)) * S
@@ -633,25 +635,20 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     P_0 = Vu_amv / (C_amv * 10)
 
-    if abs(VT_amv) < 1e-8:
-        return (np.nan,) * 116
-
     if VT_amv >= Vu_amv:
         V_amv = VT_amv - Vu_amv
         P_amv = V_amv / C_amv + P_im
     else:
-        V_amv = 0
         if VT_amv > 0:
             P_amv = P_im + P_0 * (1 - (VT_amv / Vu_amv) ** -1.5)
         else:
-            P_amv = P_im + P_0
-            VT_amv = 0
+            return np.full(116, np.nan)
         # P_amv = P_0 + P_im
 
     Q_amp = (P_sp - P_amv) / R_amp
 
     if abs(Q_amp) < 1e-8:
-        return (np.nan,) * 116
+        return np.full(116, np.nan) 
 
     P_am = 0
 
@@ -818,6 +815,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # CvbO2_1 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
 
     PvbO2_virt = PvbO2 * (40 / PvbCO2) ** 0.3
+    if PvbO2_virt < 0:
+        return np.full(116, np.nan)
     SvbO2 = (PvbO2_virt ** 2.6) / (PvbO2_virt ** 2.6 + 26.6 ** 2.6)
     CvbO2 = 0.00134 * 150 * SvbO2 + 3.03e-5 * PvbO2
 
@@ -833,7 +832,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     PvtO2_virt = PvtO2 * (40 / PvtCO2) ** 0.3
 
     if PvtO2_virt < 0:
-        return (np.nan,) * 116
+        return np.full(116, np.nan) 
     SvtO2 = (PvtO2_virt ** 2.6) / (PvtO2_virt ** 2.6 + 26.6 ** 2.6)
     CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
 
@@ -1055,7 +1054,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     # RETURN ALL COMPUTED VALUES
     # ============================================================================
-    return (time_since_beat,
+    return np.array([time_since_beat,
             HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
             Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
             Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
@@ -1086,7 +1085,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
 
             # resp control derivatives
-            d_VE_integral_dt)
+            d_VE_integral_dt])
 
 
 def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters):
