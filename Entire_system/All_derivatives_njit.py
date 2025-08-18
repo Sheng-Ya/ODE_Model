@@ -148,7 +148,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         PamCO2 = PamCO2_store[last_index]  # previous mean value
         PmbCO2 = PmbCO2_store[last_index]  # previous mean value
 
-    G3 = KpO2 * ((104 - PamO2) ** 4.9) if PamO2 < 104 else 0
+    G3 = KpO2 * ((PAMO2_nominal - PamO2) ** 4.9) if PamO2 < 104 else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * 40)
     VD = GV_dead * VAflow + V0_dead
 
@@ -354,7 +354,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_shift1 = -(5 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
     # V_shift1 = - 20 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra)))
     # V_shift2 = -(1 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + 25 * (phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
-    V_shift1 = 0
+    # V_shift1 = 0
 
     Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1) + P_thor
     Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - 0)) - 1) + P_thor
@@ -364,12 +364,12 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # aortic valve
     ####################################
     # parameters:
-    Kp_ao = 800
-    Kf_ao = 800
-    Kb_ao = 1
-    Kv_ao = 20
-    theta_ao_max = 1.309  # 75 degrees to radian
-    theta_ao_min = 0.0872665  # 5 degrees to radian
+    # Kp_ao = 800
+    # Kf_ao = 800
+    # Kb_ao = 1
+    # Kv_ao = 20
+    # theta_ao_max = 1.309  # 75 degrees to radian
+    # theta_ao_min = 0.0872665  # 5 degrees to radian
 
     if Pmax_lv - P_sa > 0:
         if theta_ao > theta_ao_max:
@@ -377,7 +377,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
         # AR_ao = 1
 
-        Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * 350)
+        Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * R_ao)
 
         d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
             theta_ao) - Kv_ao * Q_lv * np.sin(theta_ao)
@@ -385,7 +385,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         Q_lv = 0.0
         # if theta_ao < theta_ao_min:
-        theta_ao = theta_ao_min
+        # theta_ao = theta_ao_min
         # theta_ao = 0.0872665  # theta_ao_min
         # dtheta_ao_dt = 0.0
         d2theta_ao_dt2 = 0.0
@@ -394,71 +394,71 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     ####################################
 
     ####################################
-    Kp_mi = 1000
-    Kf_mi = 800
-    Kb_mi = 2
-    Kv_mi = 3.5
-    theta_mi_max = 1.309  # 75 degrees to radian
-    theta_mi_min = 0.0872665  # 5 degrees to radian
+    # Kp_mi = 1000
+    # Kf_mi = 800
+    # Kb_mi = 2
+    # Kv_mi = 3.5
+    # theta_mi_max = 1.309  # 75 degrees to radian
+    # theta_mi_min = 0.0872665  # 5 degrees to radian
 
     if Pmax_la > P_lv:
         if theta_mi > theta_mi_max:
             theta_mi = theta_mi_max
         AR_mi = ((1 - np.cos(theta_mi)) ** 2) / ((1 - np.cos(theta_mi_max)) ** 2)
-        Qi_lv = math.sqrt(Pmax_la - P_lv) * AR_mi * 350
+        Qi_lv = math.sqrt(Pmax_la - P_lv) * AR_mi * R_mi
 
         d2theta_mi_dt2 = (Pmax_la - P_lv) * Kp_mi * np.cos(theta_mi) - Kf_mi * dtheta_mi_dt + Kb_mi * Qi_lv * np.cos(
             theta_mi) - Kv_mi * Qi_lv * np.sin(theta_mi)
         P_la = Pmax_la
     else:
         Qi_lv = 0
-        theta_mi = theta_mi_min
+        # theta_mi = theta_mi_min
         d2theta_mi_dt2 = 0.0
         P_la = Pmax_la
     ####################################
 
     ####################################
-    Kp_po = 800
-    Kf_po = 800
-    Kb_po = 1
-    Kv_po = 10
-    theta_po_max = 1.309  # 75 degrees to radian
+    # Kp_po = 800
+    # Kf_po = 800
+    # Kb_po = 1
+    # Kv_po = 10
+    # theta_po_max = 1.309  # 75 degrees to radian
 
     if Pmax_rv > P_pa:
         if theta_po > theta_po_max:
             theta_po = theta_po_max
         AR_po = ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
-        Q_rv = (math.sqrt(Pmax_rv - P_pa) * AR_po * 350)
+        Q_rv = (math.sqrt(Pmax_rv - P_pa) * AR_po * R_po)
 
         d2theta_po_dt2 = (Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(
             theta_po) - Kv_po * Q_rv * np.sin(theta_po)
         P_rv = Pmax_rv
     else:
         Q_rv = 0
-        theta_po = 0.0872665
+        # theta_po = 0.0872665
         d2theta_po_dt2 = 0.0
         P_rv = Pmax_rv
     ####################################
 
     ####################################
-    Kp_tr = 2000
-    Kf_tr = 800
-    Kb_tr = 2
-    Kv_tr = 7
-    theta_tr_max = 1.309  # 75 degrees to radian
+    # Kp_tr = 2000
+    # Kf_tr = 800
+    # Kb_tr = 2
+    # Kv_tr = 7
+    # theta_tr_max = 1.309  # 75 degrees to radian
 
     if Pmax_ra > P_rv:
         if theta_tr > theta_tr_max:
             theta_tr = theta_tr_max
         AR_tr = ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
-        Qi_rv = math.sqrt(Pmax_ra - P_rv) * AR_tr * 350
+        Qi_rv = math.sqrt(Pmax_ra - P_rv) * AR_tr * R_tr
 
         d2theta_tr_dt2 = (Pmax_ra - P_rv) * Kp_tr * np.cos(theta_tr) - Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(
             theta_tr) - Kv_tr * Qi_rv * np.sin(theta_tr)
         P_ra = Pmax_ra
     else:
         Qi_rv = 0
-        theta_tr = 0.0872665
+        # theta_tr = 0.0872665
         d2theta_tr_dt2 = 0.0
         P_ra = Pmax_ra
     ####################################
@@ -766,13 +766,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     FCO2 = (PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2))
     CeCO2 = (C2 * Z) * (FCO2 ** (1 / a2_gas)) / (1 + (FCO2 ** (1 / a2_gas)))
 
-    alpha_O2 = 0.0000317
-    alpha_CO2 = 0.000667
+    # alpha_O2 = 0.0000317
+    # alpha_CO2 = 0.000667
 
     # FO2 = (PA_O2 * (1 + beta1 * PA_CO2)) / (K1 * (1 + alpha1 * PA_CO2))
-    PAO2_virt = PA_O2 * (40 / PA_CO2) ** 0.3
+    PAO2_virt = PA_O2 * (PCO2_nominal / PA_CO2) ** 0.3
     SaO2 = (PAO2_virt ** 2.6) / (PAO2_virt ** 2.6 + 26.6 ** 2.6)
-    CeO2 = (0.00134 * 150 * SaO2) + 3.03e-5 * PA_O2
+    CeO2 = (CO2_param1 * CO2_param2 * SaO2) + CO2_param3 * PA_O2
 
     # Gas transport
     # Brain
@@ -818,7 +818,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if PvbO2_virt < 0:
         return np.full(116, np.nan)
     SvbO2 = (PvbO2_virt ** 2.6) / (PvbO2_virt ** 2.6 + 26.6 ** 2.6)
-    CvbO2 = 0.00134 * 150 * SvbO2 + 3.03e-5 * PvbO2
+    CvbO2 = CO2_param1 * CO2_param2 * SvbO2 + CO2_param3 * PvbO2
 
     # tissue
     PvtO2 = CTO2 / alpha_O2  # henry
@@ -834,7 +834,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if PvtO2_virt < 0:
         return np.full(116, np.nan) 
     SvtO2 = (PvtO2_virt ** 2.6) / (PvtO2_virt ** 2.6 + 26.6 ** 2.6)
-    CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
+    # CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
+    CvtO2 = CO2_param1 * CO2_param2 * SvtO2 + CO2_param3 * PvtO2
 
     Q_pp_1000 = Q_pp / 1000
     Q_bp_1000 = Q_bp / 1000

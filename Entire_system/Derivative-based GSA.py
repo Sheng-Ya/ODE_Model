@@ -14,10 +14,12 @@ import numpy as np
 # X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy')[:83172, :]
 # Result = np.load('Result_DGSM_478_delay.npy')[:,0]
 
-X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')[:6825, :]
+X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')
 Result1 = np.load('Result_DGSM_delay_20_basepoints.npy')
 Result2 = np.load('Result_DGSM_delay_21_39.npy')
-Result = np.vstack((Result1, Result2))
+Result3 = np.load('Result_DGSM_delay_40_to_500.npy')
+
+Result = np.vstack((Result1, Result2, Result3))
 # Result1 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
 
 
@@ -25,7 +27,7 @@ Result = np.vstack((Result1, Result2))
 # Result_3 = np.concatenate((Result, Result_2))
 # np.save("Results_first_41375_chunk.npy", Result_3)
 
-HR = Result[:, 2]
+HR = Result[:, 0]
 # HR = HR_load[HR_load != 0]
 
 # # Assume your arrays are named
