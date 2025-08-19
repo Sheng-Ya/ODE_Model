@@ -629,7 +629,7 @@ if __name__ == "__main__":
             [5 * lower, 5 * upper], [1 * lower, 1 * upper], [2 * lower, 2 * upper],
             [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper], [20 * lower, 20 * upper],
             [0.9 * lower, 0.9 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
-            [50 * lower, 50 * upper]
+            [0.25 * lower, 0.25 * upper], [50 * lower, 50 * upper]
         ],
     })
 
