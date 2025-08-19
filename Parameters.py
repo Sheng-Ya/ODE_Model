@@ -5,7 +5,7 @@ Parameters = {
     "C_sa": 0.28,  # Systemic arterial compliance (decreasing C_sa allows Q_sa to match closer to Q_lv) # want to change to 1.13 (harry thesis
     "L_sa": 0.00066,  # Systemic arterial inertance
     "R_sa": 0.2,  # Systemic arterial hydraulic resistance (want to increase from 0.06 to 0.2 to increase Psys). This is because P_sa decreases at a slower rater (first order)
-    "Vu_sa": 0, # Systemic arterial unstressed volume
+    "Vu_sa": 1, # Systemic arterial unstressed volume (edited for DGSM)
 # }
 #
 #     # Systemic peripheral and venous circulation
@@ -65,7 +65,7 @@ Parameters = {
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
     "R_pp": 0.3,         # Pulmonary peripheral flow resistance # edited to reduce CvtO2 oscillation # edited from 0.0894
     "R_pv": 0.06,         # Pulmonary venous flow resistance # edited to remove the backflow
-    "Vu_pa": 0,            # Pulmonary arterial unstressed volume
+    "Vu_pa": 1,            # Pulmonary arterial unstressed volume # edited for dgsm
     "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
     "Vu_pv": 114,          # Pulmonary venous unstressed volume
 # }
@@ -102,8 +102,8 @@ Parameters = {
     # Table 6. Muscle Pump
 # muscle_pump = {
     "A_im": 30,            # Peak value of intramuscular pressure # edited from 50
-    "Tc": 0.75,            # The overall duration of muscular contraction
-    "T_im": 1,             # Duration of the muscular contraction-relaxation cycle
+    "Tc": 0.7,            # The overall duration of muscular contraction # edited to match dgsm
+    "T_im": 1.1,             # Duration of the muscular contraction-relaxation cycle # edited to match dgsm
 # }
 
     # Table 7. Respiratory Pump
@@ -196,7 +196,7 @@ Parameters = {
 # cns_ischemic_response = {
     "g_ccsh": 1,                # Constant gain factor tuned to reproduce experimental results
     "g_ccsp": 1.5,              # Constant gain factor tuned to reproduce experimental results
-    "g_ccsv": 0,                # Constant gain factor tuned to reproduce experimental results
+    "g_ccsv": 0.2,                # Constant gain factor tuned to reproduce experimental results # edited to match dgsm
     "kisc_sh": 6,              # Parameter related to the slope of the static function at the central point for heart
     "kisc_sp": 2,              # Parameter related to the slope of the static function at the central point for peripheral resistance
     "kisc_sv": 2,              # Parameter related to the slope of the static function at the central point for unstressed volume of veins
@@ -252,7 +252,7 @@ Parameters = {
     "Wc_sp": 1.716,            # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
     "Wc_sv": 1.716,            # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
     "Wc_v": 0.2,               # Synaptic weight tuned to reproduce physiological results
-    "Wp_sh": 0,                # Synaptic weight tuned to reproduce physiological results (heart)
+    "Wp_sh": -0.2,                # Synaptic weight tuned to reproduce physiological results (heart) # edited to match DGSM
     "Wp_sp": -0.3997,          # Synaptic weight tuned to reproduce physiological results (peripheral resistance)
     "Wp_sv": -0.3997,          # Synaptic weight tuned to reproduce physiological results (unstressed volume of veins)
     "Wp_v": -0.103,            # Synaptic weight tuned to reproduce physiological results
@@ -264,8 +264,8 @@ Parameters = {
 
     # Table 17: Effectors for Reflex Control: Resistances, Unstressed Volumes, and Cardiac Elastances
 # parameters_reflex_control = {
-    "DEmax,lv": 2,       # Pure latency of the mechanism
-    "DEmax,rv": 2,       # Pure latency of the mechanism
+    "DEmax_lv": 2,       # Pure latency of the mechanism
+    "DEmax_rv": 2,       # Pure latency of the mechanism
     "DR_amp": 2,          # Pure latency of the mechanism
     "DR_ep": 2,           # Pure latency of the mechanism
     "DR_rmp": 2,           # Pure latency of the mechanism
@@ -274,16 +274,16 @@ Parameters = {
     "DV_ev": 5,           # Pure latency of the mechanism
     "DV_rmv": 5,           # Pure latency of the mechanism
     "DV_sv": 5,           # Pure latency of the mechanism
-    "Emax_lv0": 1.412,   # Basal level of maximum end-systolic elastance of the left ventricle # wnat to change to 5.2
-    "Emax_rv0": 0.7,   # Basal level of maximum end-systolic elastance of the right ventricle
+    "Emax_lv0": 2.392,   # Basal level of maximum end-systolic elastance of the left ventricle # wnat to change to 5.2
+    "Emax_rv0": 1.412,   # Basal level of maximum end-systolic elastance of the right ventricle
     "fes_min": 2.66,     # Threshold for sympathetic stimulation
     "GEmax_lv": 0.475,   # Constant gain factor
     "GEmax_rv": 0.282,   # Constant gain factor
-    "GR_amp": 2.47,       # Constant gain factor
+    "GR_amp": 3.47,       # Constant gain factor # edited
     "GR_ep": 1.94,        # Constant gain factor
     "GR_rmp": 2.47,        # Constant gain factor
     "GR_sp": 0.695,       # Constant gain factor
-    "GV_amv": -58.29,     # Constant gain factor
+    "GV_amv": -35.29,     # Constant gain factor # edited
     "GV_ev": -74.21,      # Constant gain factor
     "GV_rmv": -58.29,      # Constant gain factor
     "GV_sv": -265.4,      # Constant gain factor
@@ -429,4 +429,35 @@ Parameters = {
 # Table 26: Gas Transport: Metabolism Dynamic
 # gas_transport = {
     "tau_MRV": 50,            # Metabolic rate time constant (s)
+
+# added params
+    "Kp_ao": 800,
+    "Kf_ao": 800,
+    "Kb_ao": 1,
+    "Kv_ao": 20,
+    "theta_ao_max": 1.309,
+    "Kp_mi": 1000,
+    "Kf_mi": 800,
+    "Kb_mi": 2,
+    "Kv_mi": 3.5,
+    "theta_mi_max": 1.309,
+    "Kp_po": 800,
+    "Kf_po": 800,
+    "Kb_po": 1,
+    "Kv_po": 10,
+    "theta_po_max": 1.309,
+    "Kp_tr": 2000,
+    "Kf_tr": 800,
+    "Kb_tr": 2,
+    "Kv_tr": 7,
+    "theta_tr_max": 1.309,
+    "alpha_O2": 0.0000317,
+    "R_po": 350,
+    "R_mi": 350,
+    "R_tr": 350,
+    "R_ao": 350,
+    "C_O2_param1": 0.00134,
+    "C_O2_param2": 150,
+    "C_O2_param3": 3.03e-5,
+    "PAMO2_nominal": 104
 }

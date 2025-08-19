@@ -17,7 +17,7 @@ def accept_index_evals(finish_time, all_time, last_index, buffer_limit, i):
     else:
         indices = np.concatenate((np.arange(idx_in_2, buffer_limit), np.arange(0, last_index + 1)))
 
-    # Take every 3rd step, rk23
+    # Take every 3rd step, rk23  - optimized loop
     indices_len = len(indices)
     mask = np.array([(i - 2 - j) % 3 == 0 and (i - 2 - j) > 0 for j in range(indices_len)])
     accepted_index = [indices[indices_len - 1 - j] for j in range(indices_len) if mask[j]]
@@ -94,29 +94,30 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     # PARAMETER EXTRACTION
     # ============================================================================
-    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
-     R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la,
-     KE_la, Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
-     C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
-     Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv,
-     fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp,
-     kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv,
-     Wc_sh,
-     Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
-     GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
-     tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
-     Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p,
-     tau_z,
-     f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A,
-     B, C, D,
-     Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
-     MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met,
-     a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
-     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
-     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta,
-     GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs,
-     P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6) = Input_Parameters
+    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
+    C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
+    L_sa, R_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
+    C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
+    Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
+    Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
+    Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0,
+    R_rmp0, R_sp0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, theta_shn, theta_spn,
+    theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n,  P_n_max, f_acCO2_n, f_ac_max, f_ac_min,
+    k_ac, K_H, PaO2_ac_n, G_ap, DT_v, GT_s, GT_v, T0, A, B, C, D, Cvb_O2_n, gb_O2, R_bpn, Cvh_O2_n, Cvrm_O2_n, gh_O2,
+    grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
+    phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
+    MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
+    n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6,
+    # added params
+    Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
+    Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
+    R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
+    Vu_sa, V_tot, Vu_amp, Vu_bp, Vu_bv, Vu_ep, Vu_hp, Vu_hv, Vu_rmp, Vu_sp, Vu_vc, Vvc_max, Vvc_min, Vu_pa, Vu_pp,
+    Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
+    tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
+    tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
+    DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV
+    ) = Input_Parameters
 
     # Determine the correct index based on t
     if t == 0:
@@ -148,11 +149,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         PamCO2 = PamCO2_store[last_index]  # previous mean value
         PmbCO2 = PmbCO2_store[last_index]  # previous mean value
 
-    G3 = KpO2 * ((PAMO2_nominal - PamO2) ** 4.9) if PamO2 < 104 else 0
-    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * 40)
+    G3 = KpO2 * ((PAMO2_nominal - PamO2) ** 4.9) if PamO2 < PAMO2_nominal else 0
+    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
     VD = GV_dead * VAflow + V0_dead
-
-    tolerance = 1e-3
 
     if time_since_last_breath > (t1 + t2) or t == 0:
         finish_breath_time = finish_breath_time + (t1 + t2)  # update timestamp for the start of the next breath
@@ -752,7 +751,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         dPd_5_CO2_dt = constant * (PA_CO2 - Pd_5_CO2)
 
     # Ta = LCTV / Q_la
-    Ta = 6  # decreased to have a smaller circular buffer
+    # Ta = 6  # decreased to have a smaller circular buffer
 
     PA_O2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_O2_every_store, PAO2_Delay_IC)
     PA_CO2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_CO2_every_store, PACO2_Delay_IC)
@@ -770,9 +769,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # alpha_CO2 = 0.000667
 
     # FO2 = (PA_O2 * (1 + beta1 * PA_CO2)) / (K1 * (1 + alpha1 * PA_CO2))
-    PAO2_virt = PA_O2 * (PCO2_nominal / PA_CO2) ** 0.3
+    PAO2_virt = PA_O2 * (PaCO2_n / PA_CO2) ** 0.3
     SaO2 = (PAO2_virt ** 2.6) / (PAO2_virt ** 2.6 + 26.6 ** 2.6)
-    CeO2 = (CO2_param1 * CO2_param2 * SaO2) + CO2_param3 * PA_O2
+    CeO2 = (C_O2_param1 * C_O2_param2 * SaO2) + C_O2_param3 * PA_O2
 
     # Gas transport
     # Brain
@@ -794,9 +793,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    if 200 < t:
-        MRCO2 = 0.8 / 60 - MRBCO2
-        MRO2 = 0.85 / 60 - MRBO2
+    # if 200 < t:
+    #     MRCO2 = 0.8 / 60 - MRBCO2
+    #     MRO2 = 0.85 / 60 - MRBO2
 
     # if 0 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
@@ -814,11 +813,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # FbO2 = (PvbO2 * (1 + beta1 * PvbCO2)) / (K1 * (1 + alpha1 * PvbCO2))  # bohr curve
     # CvbO2_1 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
 
-    PvbO2_virt = PvbO2 * (40 / PvbCO2) ** 0.3
+    PvbO2_virt = PvbO2 * (PaCO2_n / PvbCO2) ** 0.3
     if PvbO2_virt < 0:
         return np.full(116, np.nan)
     SvbO2 = (PvbO2_virt ** 2.6) / (PvbO2_virt ** 2.6 + 26.6 ** 2.6)
-    CvbO2 = CO2_param1 * CO2_param2 * SvbO2 + CO2_param3 * PvbO2
+    CvbO2 = C_O2_param1 * C_O2_param2 * SvbO2 + C_O2_param3 * PvbO2
 
     # tissue
     PvtO2 = CTO2 / alpha_O2  # henry
@@ -829,13 +828,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # FtO2 = (PvtO2 * (1 + beta1 * PvtCO2)) / (K1 * (1 + alpha1 * PvtCO2))  # bohr curve
     # CvtO2_1 = (C1 * Z) * (FtO2 ** (1 / a1)) / (1 + (FtO2 ** (1 / a1)))  # bohr curve
     # ursino model 1997
-    PvtO2_virt = PvtO2 * (40 / PvtCO2) ** 0.3
+    PvtO2_virt = PvtO2 * (PaCO2_n / PvtCO2) ** 0.3
 
     if PvtO2_virt < 0:
         return np.full(116, np.nan) 
     SvtO2 = (PvtO2_virt ** 2.6) / (PvtO2_virt ** 2.6 + 26.6 ** 2.6)
     # CvtO2 = 0.00134 * 150 * SvtO2 + 3.03e-5 * PvtO2
-    CvtO2 = CO2_param1 * CO2_param2 * SvtO2 + CO2_param3 * PvtO2
+    CvtO2 = C_O2_param1 * C_O2_param2 * SvtO2 + C_O2_param3 * PvtO2
 
     Q_pp_1000 = Q_pp / 1000
     Q_bp_1000 = Q_bp / 1000
@@ -926,7 +925,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # afferent chemoreflex pathway constant parameters
     if Pa_O2 >= 80:
         K = K_H
-    elif 40 <= Pa_O2 < 80:
+    elif PaO2_ac_n <= Pa_O2 < 80:
         K = K_H - (1.2 * (Pa_O2 - 80) / 30)
     else:
         K = K_H - 1.6
@@ -959,18 +958,25 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
     # Fetch delayed values
-    f_sp_delay2 = get_delayed_value(t, 2, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    f_sh_delay2 = get_delayed_value(t, 2, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
-    f_sv_delay5 = get_delayed_value(t, 5, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+
+    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+
+
+    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
+    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
+
+    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
     f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 4.2748)
 
-    # f_sp_delay2 = f_sp
-    # f_sh_delay2 = f_sh
-    # f_sv_delay5 = f_sv
-    # f_v_delay0_2 = f_v
-
     # heart period
-    sigma_Ts = GT_s * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
+    sigma_Ts = GT_s * np.log(max(f_sh_delay2_s, fes_min) - fes_min + 1)
     d_Ts_change_dt = (- Ts_change + sigma_Ts) / tau_Ts
 
     sigma_Tv = GT_v * f_v_delay0_2
@@ -980,18 +986,18 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     HR_every = 1 / T
 
     # continue with equations
-    sigma_Rep = GR_ep * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
-    sigma_Rsp = GR_sp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
-    sigma_Rrmp_n = GR_rmp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
-    sigma_Ramp_n = GR_amp * np.log(max(f_sp_delay2, fes_min) - fes_min + 1)
+    sigma_Rep = GR_ep * np.log(max(f_sp_delay2_Rep, fes_min) - fes_min + 1)
+    sigma_Rsp = GR_sp * np.log(max(f_sp_delay2_Rsp, fes_min) - fes_min + 1)
+    sigma_Rrmp_n = GR_rmp * np.log(max(f_sp_delay2_Rrmp, fes_min) - fes_min + 1)
+    sigma_Ramp_n = GR_amp * np.log(max(f_sp_delay2_Ramp, fes_min) - fes_min + 1)
 
-    sigma_Vu_ev = GV_ev * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
-    sigma_Vu_sv = GV_sv * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
-    sigma_Vu_rmv = GV_rmv * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
-    sigma_Vu_amv = GV_amv * np.log(max(f_sv_delay5, fes_min) - fes_min + 1)
+    sigma_Vu_ev = GV_ev * np.log(max(f_sv_delay5_Vu_ev, fes_min) - fes_min + 1)
+    sigma_Vu_sv = GV_sv * np.log(max(f_sv_delay5_Vu_sv, fes_min) - fes_min + 1)
+    sigma_Vu_rmv = GV_rmv * np.log(max(f_sv_delay5_Vu_rmv, fes_min) - fes_min + 1)
+    sigma_Vu_amv = GV_amv * np.log(max(f_sv_delay5_Vu_amv, fes_min) - fes_min + 1)
 
-    sigma_Emax_lv = GEmax_lv * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
-    sigma_Emax_rv = GEmax_rv * np.log(max(f_sh_delay2, fes_min) - fes_min + 1)
+    sigma_Emax_lv = GEmax_lv * np.log(max(f_sh_delay2_Emax_lv, fes_min) - fes_min + 1)
+    sigma_Emax_rv = GEmax_rv * np.log(max(f_sh_delay2_Emax_rv, fes_min) - fes_min + 1)
 
     dR_ep_change_dt = (- R_ep_change + sigma_Rep) / tau_Rep
     dR_sp_change_dt = (- R_sp_change + sigma_Rsp) / tau_Rsp
@@ -1047,7 +1053,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dxM_dt = (- xM + gM * I) / tau_M
 
     phi_met = (phi_min + phi_max * np.exp((I - Io_met) / kmet)) / (1 + np.exp((I - Io_met) / kmet))
-    phi_met_delay = get_delayed_value(t, 4, all_time, last_index, BUFFER_LIMIT, phi_met_history, phi_met)
+    phi_met_delay = get_delayed_value(t, Dmet, all_time, last_index, BUFFER_LIMIT, phi_met_history, phi_met)
     # phi_met_delay = phi_met
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met

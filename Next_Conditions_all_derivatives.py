@@ -46,6 +46,8 @@ Next_Conditions = {
 
     "P_sa_store": np.array([89.94924015] * 20000),
 
+    "AR_mi": np.pad(np.array([0.0]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
+    "AR_tr": np.pad(np.array([0.0]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "V_shift1": np.pad(np.array([0.0]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "VT_pa": np.pad(np.array([166.0423240560408]), (0, 2500000 - 1), mode="constant", constant_values=1e6),
     "VT_pp": np.pad(np.array([302.4159928942149]), (0, 2500000 - 1), mode="constant", constant_values=1e6),

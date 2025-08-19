@@ -49,7 +49,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 500 # Maximum time limit to avoid infinite loops
+max_time = 150 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -164,7 +164,7 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
     tolerance = 0.0001
 
-    VAflow_vals = np.linspace(0.06, 1.2, 200)
+    VAflow_vals = np.linspace(0.06, 1, 200)
     VAflow_repeated = np.repeat(VAflow_vals, 3)
 
     VD = GV_dead * VAflow_repeated + V0_dead
@@ -204,9 +204,158 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
 
 
+def simulate():
+    # Initial setup
+    IC_current = IC_overall.copy()
+
+    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
+    R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la,
+    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n,
+    C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+    kr_am) = (
+    new_params[k] if k in new_params else Parameters[k] for k in
+    ["A_im", "Tc", "T_im", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa",
+     "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
+     "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
+     "R_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n", "C_jp",
+     "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv",
+     "kr_am"])
+
+    # Cardio controller parameters
+    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
+    kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
+    Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
+    GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv,
+    theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max,
+    f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, G_ap, DT_v, GT_s, GT_v, T0, A, B, C, D,
+    Cvb_O2_n, gb_O2, R_bpn, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
+    MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min) = \
+    [new_params[k] if k in new_params else Parameters[k] for k in
+     ["fab_o", "fes_o", "fes_inf", "fes_max", "fev_o",
+      "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
+      "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp",
+      "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
+      "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
+      "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "AT", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
+      "PO2_sp", "PO2_sv", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv",
+      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "f_acCO2_n", "f_ac_max", "f_ac_min",
+      "k_ac", "K_H", "PaO2_ac_n", "G_ap", "DT_v", "GT_s", "GT_v", "T0", "A", "B", "C", "D",
+      "Cvb_O2_n", "gb_O2", "R_bpn", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
+      "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
+      "kmet", "MO2_ampn", "phi_max", "phi_min"]]
+
+    # Gas exchange and mixing
+    (a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
+     P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp, MRTCO2_basal, MRTO2_basal,
+     MRCO2, MRO2, s) = (new_params[k] if k in new_params else Parameters[k] for k in [
+    "a2", "alpha2", "beta2", "C2", "K2", "PACO2_Delay_IC",
+    "PAO2_Delay_IC", "P_atm", "P_ws", "Z", "dc", "KCCO2", "MRBCO2",
+    "MO2_bp", "MRTCO2_basal", "MRTO2_basal", "MRCO2", "MRO2", "s"])
+
+    # Resp control
+    (GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
+    (new_params[k] if k in new_params else Parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
+   "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
+
+    # added params
+    (Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
+    Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
+    R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
+    Vu_sa, V_tot, Vu_amp, Vu_bp, Vu_bv, Vu_ep, Vu_hp, Vu_hv, Vu_rmp, Vu_sp, Vu_vc, Vvc_max, Vvc_min, Vu_pa, Vu_pp,
+    Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
+    tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
+    tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
+    DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV) = \
+    (new_params[k] if k in new_params else Parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
+    "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
+    "theta_po_max", "Kp_tr", "Kf_tr", "Kb_tr", "Kv_tr", "theta_tr_max", "alpha_O2", "R_po", "R_mi", "R_tr", "R_ao",
+    "C_O2_param1", "C_O2_param2", "C_O2_param3", "PAMO2_nominal", "Vu_sa", "V_tot", "Vu_amp", "Vu_bp",
+    "Vu_bv", "Vu_ep", "Vu_hp", "Vu_hv", "Vu_rmp", "Vu_sp", "Vu_vc", "Vvc_max", "Vvc_min", "Vu_pa", "Vu_pp", "Vu_pv",
+    "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp", "tau_Rep", "tau_Rrmp", "tau_Rsp",
+    "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0", "Vu_rmv0", "Vu_sv0", "tau_cc", "tau_isc",
+    "tau_p", "tau_z", "tau_ac", "tau_ap", "tau_Ts", "tau_Tv", "tau_CO2", "tau_O2", "tau_w", "tau_M", "tau_met",
+    "DEmax_lv", "DEmax_rv", "DR_amp", "DR_ep", "DR_rmp", "DR_sp", "DV_amv", "DV_ev", "DV_rmv", "DV_sv", "DT_s", "DT_v",
+    "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV"])
+
+    # determine the correct breathing profile
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(Next_Conditions["t1_store"][0],
+    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
+
+    Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
+    C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
+    L_sa, R_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
+    C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
+    Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
+    Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
+    Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0,
+    R_rmp0, R_sp0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, theta_shn, theta_spn,
+    theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n,  P_n_max, f_acCO2_n, f_ac_max, f_ac_min,
+    k_ac, K_H, PaO2_ac_n, G_ap, DT_v, GT_s, GT_v, T0, A, B, C, D, Cvb_O2_n, gb_O2, R_bpn, Cvh_O2_n, Cvrm_O2_n, gh_O2,
+    grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
+    phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
+    MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
+    n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6,
+    # added params
+    Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
+    Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
+    R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
+    Vu_sa, V_tot, Vu_amp, Vu_bp, Vu_bv, Vu_ep, Vu_hp, Vu_hv, Vu_rmp, Vu_sp, Vu_vc, Vvc_max, Vvc_min, Vu_pa, Vu_pp,
+    Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
+    tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
+    tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
+    DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV]
+
+    # Solve ODE in one go
+    ODE_solution = solve_ivp(
+        combined_system,
+        (0, max_time),
+        IC_current,
+        max_step=0.001,
+        method="RK23",
+        rtol=1e-3,
+        atol=1e-6,
+        args=(Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters)
+    )
+
+    if ODE_solution.status == -1:
+        return 0.0, 0.0, 0.0
+
+    # Post-processing: use buffer to get recent data
+    i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
+
+    P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_sa, distance=int(500))
+    troughs, _ = find_peaks(-P_sa, distance=int(500))
+
+    last_10_troughs = troughs[-10:-1]
+    last_10_min = P_sa[last_10_troughs]
+
+    last_10_peaks = peaks[-10:-1]
+    last_10_max = P_sa[last_10_peaks]
+
+    HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
+
+    past_10_flat_segments = []
+    prev_value = None
+    for j in range(len(HR) - 1, -1, -1):
+        current_value = HR[j]
+        if current_value != prev_value:
+            past_10_flat_segments.append(current_value)
+            prev_value = current_value
+            if len(past_10_flat_segments) == 10:
+                break
+
+    # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
+
+    return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y
+
+
 # def simulate():
-#     # Initial setup
+#     # Solve ODE
+#
 #     IC_current = IC_overall.copy()
+#     t0 = 0
+#     total_time = 0
 #
 #     # Cardio parameters
 #     (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
@@ -286,214 +435,84 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 #     GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
 #     c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]
 #
-#     # Solve ODE in one go
-#     ODE_solution = solve_ivp(
-#         combined_system,
-#         (0, max_time),
-#         IC_current,
-#         max_step=0.001,
-#         method="RK23",
-#         rtol=1e-3,
-#         atol=1e-6,
-#         args=(Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters)
-#     )
+#     all_t = []
+#     all_y = []
 #
-#     if ODE_solution.status == -1:
-#         return 0.0, 0.0, 0.0
+#     while total_time < max_time:
+#         t_span_local = (t0, t0 + time_step)
 #
-#     # Post-processing: use buffer to get recent data
-#     i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
+#         ODE_solution = solve_ivp(
+#             combined_system,
+#             t_span_local,
+#             IC_current,
+#             max_step=0.001,
+#             method="RK23",
+#             rtol=1e-3,
+#             atol=1e-6,
+#             args=(Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters)
+#         )
 #
-#     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
-#     peaks, _ = find_peaks(P_sa, distance=int(500))
-#     troughs, _ = find_peaks(-P_sa, distance=int(500))
+#         if ODE_solution.status == -1:
+#             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 #
-#     last_10_troughs = troughs[-10:-1]
-#     last_10_min = P_sa[last_10_troughs]
 #
-#     last_10_peaks = peaks[-10:-1]
-#     last_10_max = P_sa[last_10_peaks]
+#         # Append to full history
+#         all_t.append(ODE_solution.t)
+#         all_y.append(ODE_solution.y)
 #
-#     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 #
-#     past_10_flat_segments = []
-#     prev_value = None
-#     for j in range(len(HR) - 1, -1, -1):
-#         current_value = HR[j]
-#         if current_value != prev_value:
-#             past_10_flat_segments.append(current_value)
-#             prev_value = current_value
-#             if len(past_10_flat_segments) == 10:
+#         i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
+#
+#         P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
+#
+#         peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
+#         troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
+#
+#         last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
+#         last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
+#
+#         last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
+#         last_10_max = P_sa[last_10_peaks]  # Get actual max values
+#
+#         # Get past 10 HR
+#         HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
+#
+#         # Initialize list of segments
+#         past_10_flat_segments = []
+#
+#         # Start from the end and track the current segment value
+#         prev_value = None
+#         for j in range(len(HR) - 1, -1, -1):
+#             current_value = HR[j]
+#             if current_value != prev_value:
+#                 # New segment found
+#                 past_10_flat_segments.append(current_value)
+#                 prev_value = current_value
+#                 if len(past_10_flat_segments) == 10:
+#                     break
+#
+#
+#
+#         # Update IC and time
+#         IC_current = ODE_solution.y[:, -1]
+#         t0 += time_step
+#         total_time += time_step
+#
+#         # Only check convergence after the minimum time has passed
+#         if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>200:
+#             minHR = np.min(past_10_flat_segments)
+#             maxHR = np.max(past_10_flat_segments)
+#
+#             print(minHR, maxHR)
+#
+#             if abs(maxHR - minHR) < 0.001:
 #                 break
 #
-#     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
+#     # Concatenate time and state arrays
+#     t_full = np.concatenate(all_t)
+#     y_full = np.hstack(all_y)
 #
-#     return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y
-
-
-def simulate():
-    # Solve ODE
-
-    IC_current = IC_overall.copy()
-    t0 = 0
-    total_time = 0
-
-    # Cardio parameters
-    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
-     R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la,
-     KE_la, Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
-     C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
-     Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv) = (new_params[k] if k in new_params else Parameters[k] for k in
-    ["A_im", "Tc", "T_im", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n", "P_thormax_n", "P_thormin_n", "VT_n",
-     "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Vu_pa", "Vu_pp", "Vu_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
-     "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
-     "R_sa", "Vu_sa", "D1", "D2", "K1_vc", "K2_vc", "Kr_vc", "Rvc_n", "Vu_vc", "Vvc_max", "Vvc_min", "C_jp",
-     "V_tot", "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv",
-     "Vu_ep", "Vu_sp", "Vu_bp", "Vu_hp", "Vu_rmp", "Vu_amp", "kr_am", "Vu_bv", "Vu_hv"])
-
-    # Cardio controller parameters
-    (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
-     kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
-     Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
-     GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
-     tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
-     Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-     tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p, tau_z,
-     f_acCO2_n, f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
-     Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
-     MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met) = \
-    [new_params[k] if k in new_params else Parameters[k] for k in
-     ["fab_o", "fes_o", "fes_inf", "fes_max", "fev_o",
-      "fev_inf", "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
-      "Ysh_min", "Ysp_max", "Ysp_min", "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp",
-      "Wb_sv", "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv",
-      "Wt_v", "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
-      "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
-      "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0",
-      "Vu_rmv0", "Vu_sv0", "AT", "g_ccsh", "g_ccsp", "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh",
-      "PO2_sp", "PO2_sv", "tau_cc", "tau_isc", "theta_shn", "theta_spn", "theta_svn", "x_sh", "x_sp", "x_sv",
-      "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "tau_p", "tau_z", "f_acCO2_n", "f_ac_max", "f_ac_min",
-      "k_ac", "K_H", "PaO2_ac_n", "tau_ac", "G_ap", "tau_ap", "DT_v", "GT_s", "GT_v", "T0", "tau_Ts", "tau_Tv", "A", "B", "C", "D",
-      "Cvb_O2_n", "gb_O2", "R_bpn", "tau_CO2", "tau_O2", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
-      "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "tau_w", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met",
-      "kmet", "MO2_ampn", "phi_max", "phi_min", "tau_M", "tau_met"]]
-
-    # Gas exchange and mixing
-    (a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
-     P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
-     VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta) = (new_params[k] if k in new_params else Parameters[k] for k in [
-    "a2", "alpha2", "beta2", "C2", "Fi_CO2", "Fi_O2", "K2", "PACO2_Delay_IC",
-    "PAO2_Delay_IC", "P_atm", "P_ws", "T1", "T2", "VL_CO2", "VL_O2", "Z", "dc", "KCCO2", "KCSFCO2", "MRBCO2",
-    "MO2_bp", "VB", "MRTCO2_basal", "MRTO2_basal", "tauMR", "VTCO2", "VTO2", "MRCO2", "MRO2", "tau_MRV", "s", "Ta"])
-
-    # Resp control
-    (GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao) = \
-    (new_params[k] if k in new_params else Parameters[k] for k in ["GV_dead", "KcCO2", "KcMRV", "KpCO2", "KpO2",
-   "V0_dead", "VA_rest", "lambda1", "lambda2", "n", "Pmax", "Pmax_dot", "E_rs", "R_rs", "P_ao"])
-
-    # determine the correct breathing profile
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(Next_Conditions["t1_store"][0],
-    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
-
-    Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
-    R_pa, R_pp, R_pv, Vu_pa, Vu_pp, Vu_pv, KE_lv, KE_rv, P0_lv, P0_rv, Vu_la, Vu_lv, Vu_ra, Vu_rv, Emax_la, P0_la, KE_la,
-    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, Vu_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, Vu_vc, Vvc_max, Vvc_min,
-    C_jp, V_tot, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
-    Vu_ep, Vu_sp, Vu_bp, Vu_hp, Vu_rmp, Vu_amp, kr_am, Vu_bv, Vu_hv,
-    fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
-    kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v, Wb_sh, Wb_sp, Wb_sv, Wc_sh,
-    Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0, Emax_rv0, fes_min, GEmax_lv,
-    GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0, R_rmp0, R_sp0, tau_Emax_lv,
-    tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev, tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0,
-    Vu_sv0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, tau_cc,
-    tau_isc, theta_shn, theta_spn, theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, tau_p, tau_z, f_acCO2_n,
-    f_ac_max, f_ac_min, k_ac, K_H, PaO2_ac_n, tau_ac, G_ap, tau_ap, DT_v, GT_s, GT_v, T0, tau_Ts, tau_Tv, A, B, C, D,
-    Cvb_O2_n, gb_O2, R_bpn, tau_CO2, tau_O2, Cvh_O2_n, Cvrm_O2_n, gh_O2, grm_O2, Kh_CO2, Krm_CO2, MO2_hpn,
-    MO2_rmp, R_hpn, tau_w, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max, phi_min, tau_M, tau_met,
-    a2_gas, alpha2, beta2, C2, Fi_CO2, Fi_O2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm,
-    P_ws, T1, T2, VL_CO2, VL_O2, Z, dc, KCCO2, KCSFCO2, MRBCO2, MO2_bp, VB, MRTCO2_basal, MRTO2_basal, tauMR,
-    VTCO2, VTO2, MRCO2, MRO2, tau_MRV, s, Ta,
-    GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]
-
-    all_t = []
-    all_y = []
-
-    while total_time < max_time:
-        t_span_local = (t0, t0 + time_step)
-
-        ODE_solution = solve_ivp(
-            combined_system,
-            t_span_local,
-            IC_current,
-            max_step=0.001,
-            method="RK23",
-            rtol=1e-3,
-            atol=1e-6,
-            args=(Next_Conditions, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters)
-        )
-
-        if ODE_solution.status == -1:
-            return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-
-
-        # Append to full history
-        all_t.append(ODE_solution.t)
-        all_y.append(ODE_solution.y)
-
-
-        i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
-
-        P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
-
-        peaks, _ = find_peaks(P_sa, distance=int(500))  # Adjust distance based on heart rate
-        troughs, _ = find_peaks(-P_sa, distance=int(500))  # Find minima (inverted peaks)
-
-        last_10_troughs = troughs[-10:-1]  # Get indices of last 5 minima
-        last_10_min = P_sa[last_10_troughs]  # Get actual minimum values
-
-        last_10_peaks = peaks[-10:-1]  # Get indices of last 5 max
-        last_10_max = P_sa[last_10_peaks]  # Get actual max values
-
-        # Get past 10 HR
-        HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
-
-        # Initialize list of segments
-        past_10_flat_segments = []
-
-        # Start from the end and track the current segment value
-        prev_value = None
-        for j in range(len(HR) - 1, -1, -1):
-            current_value = HR[j]
-            if current_value != prev_value:
-                # New segment found
-                past_10_flat_segments.append(current_value)
-                prev_value = current_value
-                if len(past_10_flat_segments) == 10:
-                    break
-
-
-
-        # Update IC and time
-        IC_current = ODE_solution.y[:, -1]
-        t0 += time_step
-        total_time += time_step
-
-        # Only check convergence after the minimum time has passed
-        if total_time >= min_time and len(past_10_flat_segments) >= 10 and t0>200:
-            minHR = np.min(past_10_flat_segments)
-            maxHR = np.max(past_10_flat_segments)
-
-            print(minHR, maxHR)
-
-            if abs(maxHR - minHR) < 0.001:
-                break
-
-    # Concatenate time and state arrays
-    t_full = np.concatenate(all_t)
-    y_full = np.hstack(all_y)
-
-    return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, t_full, y_full
+#     return ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max), np.mean(last_10_min), IC_current, Next_Conditions, t_full, y_full
 
 
 if __name__ == "__main__":
@@ -539,28 +558,49 @@ if __name__ == "__main__":
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_rv"][:index], label="Qi_rv", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ra"][:index], label="Q_ra", color="r")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc", color="b")
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
     ax1.legend(loc="upper left")
     ax1.grid(True)
 
-    # ax2 = ax1.twinx()
+    ax2 = ax1.twinx()
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_ev"][:index], label="Q_ev", color="r")
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_hv"][:index], label="Q_hv", color='aquamarine')
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sv"][:index], label="Q_sv", color='m')
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_bv"][:index], label="Q_bv", color='k')
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_rmv"][:index], label="Q_rmv", color="y")
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amv"][:index], label="Q_amv", color='c')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ra"][:index], label="P_ra", color="y")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_vc"][:index], label="P_vc", color='c')
 
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
-    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    #
-    # ax2.tick_params(axis='y', labelcolor="k")
-    # ax2.legend(loc="upper right")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
 
     plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_lv"][:index], label="Qi_lv", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc", color="b")
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="y")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv", color='c')
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
+
+    plt.show()
+
 
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_shift1"][:index], label="V_shift1")  #
     # plt.title("Pressure-Volume Traces")
@@ -606,6 +646,9 @@ if __name__ == "__main__":
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_shift1"][:index], label="V_shift1")  #
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="phi_atr", color='b')
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_tr"][:index], label="theta_tr", color='g')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["AR_mi"][:index], label="AR_mi", color='y')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["AR_tr"][:index], label="AR_tr", color='m')
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_ao"][:index], label="theta_ao", color='c')
 
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
@@ -630,8 +673,10 @@ if __name__ == "__main__":
     plt.show()
 
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="g")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="g")
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Firing rate (spikes/s)")
@@ -640,7 +685,8 @@ if __name__ == "__main__":
     ax1.grid(True)
     # # plt.show()
     ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="r")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="g")
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
     plt.show()
