@@ -311,7 +311,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 
     if ODE_solution.status == -1:
         # Integration failed or early termination
-        return [0.0, 0.0, 0.0], None, None
+        return [0.0, 0.0, 0.0], None, None, None
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
