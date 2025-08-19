@@ -270,7 +270,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 
     if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
         # Integration failed or early termination
-        return [0.0, 0.0, 0.0], None, None
+        return [0.0, 0.0, 0.0], None, None, None
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
