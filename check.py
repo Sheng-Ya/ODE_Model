@@ -274,8 +274,8 @@ Parameters = {
     "DV_ev": 5,           # Pure latency of the mechanism
     "DV_rmv": 5,           # Pure latency of the mechanism
     "DV_sv": 5,           # Pure latency of the mechanism
-    "Emax_lv0": 2.392,   # Basal level of maximum end-systolic elastance of the left ventricle # edited
-    "Emax_rv0": 1.412,   # Basal level of maximum end-systolic elastance of the right ventricle # edited
+    "Emax_lv0": 2.392,   # Basal level of maximum end-systolic elastance of the left ventricle
+    "Emax_rv0": 1.412,   # Basal level of maximum end-systolic elastance of the right ventricle
     "fes_min": 2.66,     # Threshold for sympathetic stimulation
     "GEmax_lv": 0.475,   # Constant gain factor
     "GEmax_rv": 0.282,   # Constant gain factor
