@@ -179,10 +179,14 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
         res = minimize(objective, x0= np.array(initial_guess[-2:]),
                        args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
-        t1_opt, t2_opt = res.x
-        optimal_t1.append(t1_opt)
-        optimal_t2.append(t2_opt)
-        initial_guess.extend(res.x)
+        if res.success:
+            t1_opt, t2_opt = res.x
+            optimal_t1.append(t1_opt)
+            optimal_t2.append(t2_opt)
+            initial_guess.extend(res.x)
+        else:
+            optimal_t1.append(np.nan)
+            optimal_t2.append(np.nan)
 
 
     # Convert to arrays for indexing
