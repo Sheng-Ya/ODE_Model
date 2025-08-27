@@ -616,6 +616,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Q_rmp = (P_sp - P_rmv) / R_rmp
 
     P_rm = 0
+    if P_rmv == 0:
+        return np.full(116, np.nan)
 
     if P_vc < P_rm:
         R_rmv = R_rmv_n * ((P_rmv - P_vc) / (P_rmv - P_rm))
