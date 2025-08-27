@@ -639,6 +639,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_amv = V_amv / C_amv + P_im
     else:
         if VT_amv > 0:
+            V_amv = 0
             P_amv = P_im + P_0 * (1 - (VT_amv / Vu_amv) ** -1.5)
         else:
             return np.full(116, np.nan)
