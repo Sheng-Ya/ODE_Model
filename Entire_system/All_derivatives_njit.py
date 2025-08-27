@@ -266,6 +266,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         psi = np.sin(np.pi * (T_im / Tc) * alp)
     elif (Tc / T_im) <= alp <= 1:
         psi = 0
+    else:
+        return np.full(116, np.nan)
 
     P_im = A_im * psi  # Muscle pump pressure
 
