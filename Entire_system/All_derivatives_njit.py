@@ -123,7 +123,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if t == 0:
         last_index = i % BUFFER_LIMIT
     else:
-        if time_since_beat_store[(i - 1) % BUFFER_LIMIT] == np.nan:
+        if np.isnan(time_since_beat_store[(i - 1) % BUFFER_LIMIT]):
             return np.full(116, np.nan)
         last_index = (i - num_removed - 1) % BUFFER_LIMIT
 
