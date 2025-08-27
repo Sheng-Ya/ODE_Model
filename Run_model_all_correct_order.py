@@ -195,8 +195,8 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     t2_clean = np.array(optimal_t2)
 
     # Fit a polynomial (or linear)
-    t1_poly = np.poly1d(np.polyfit(VAflow_clean, t1_clean, deg=6))
-    t2_poly = np.poly1d(np.polyfit(VAflow_clean, t2_clean, deg=6))
+    t1_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t1_clean)], t1_clean[~np.isnan(t1_clean)], deg=6))
+    t2_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t2_clean)], t1_clean[~np.isnan(t2_clean)], deg=6))
 
     c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
     d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
