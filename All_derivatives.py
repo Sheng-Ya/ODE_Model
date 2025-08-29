@@ -822,7 +822,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     CvbO2 = C_O2_param1 * C_O2_param2 * SvbO2 + C_O2_param3 * PvbO2
 
     # tissue
-    PvtO2 = CTO2 / alpha_O2  # henry
+    PvtO2 = max(CTO2 / alpha_O2, 0)  # henry
     PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (
                 1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
 
