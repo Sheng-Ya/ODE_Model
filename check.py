@@ -380,7 +380,7 @@ Parameters = {
     "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
     "Fi_O2": 21.0379,       # Inspired fraction of O2 (%)
     "K1": 13,               # Parameter for O2 dissociation equation (mmHg)
-    "K2": 194.4,            # Parameter for CO2 dissociation equation (mmHg) # Changed
+    "K2": 194.4,            # Parameter for CO2 dissociation equation (mmHg)
     "LCTV": 0.588,          # Lung to chemoreceptor vascular volume constant (l)
     "PACO2_Delay_IC": 40.4448,      # Initial CO2 convection delay (mmHg)
     "dPa_CO2_dt_IC": -0.2465,       # Initial CO2 rate of change (mmHg/s)
