@@ -368,7 +368,7 @@ Parameters = {
 # Table 23: Parameters of the Gas Exchange and Mixing
 # parameters_gas_exchange_mixing = {
     "a1": 0.3836,           # Parameter for O2 dissociation in blood (Dimensionless)
-    "a2": 1.219,            # Parameter for CO2 dissociation in blood (Dimensionless) # changed
+    "a2": 1.819,            # Parameter for CO2 dissociation in blood (Dimensionless) # changed
     "alpha1": 0.03198,      # O2 dissociation constant (mmHg^-1)
     "alpha2": 0.05591,      # CO2 dissociation constant (mmHg^-1)
     "beta1": 0.008275,      # O2 Bohr-Haldane parameter (mmHg^-1)
