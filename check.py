@@ -336,8 +336,8 @@ Parameters = {
 
 # Table 20: Parameters of the Pulmonary Mechanics
 # parameters_pulmonary_mechanics = {
-    "E_CW": 10.5,           # Chest wall elastance (cmH2O/l) # changed
-    "E_L": 10.5,            # Lung transmural elastance (cmH2O/l) # changed
+    "E_CW": 10.545,           # Chest wall elastance (cmH2O/l) # changed
+    "E_L": 10.545,            # Lung transmural elastance (cmH2O/l) # changed
     "E_rs": 21.9, # 21.9,             # Overall elastance (cmH2O/l) # changed
     "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
     "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
