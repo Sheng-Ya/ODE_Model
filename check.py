@@ -702,7 +702,7 @@ Parameters = {
     "kcc_sp": 0.13,            # Parameter related to the slope of the characteristic at the central point (peripheral resistance)
     "kcc_sv": 0.09,            # Parameter related to the slope of the characteristic at the central point (unstressed volume of veins)
     "kcc_v": 0.0162,           # Parameter related to the slope of the characteristic at the central point
-    "Ysh_max": 9,              # Upper saturation of the central command response (heart) # edited from 9
+    "Ysh_max": 20,              # Upper saturation of the central command response (heart) # edited from 9
     "Ysh_min": -0.0283,        # Lower saturation of the central command response (heart)
     "Ysp_max": 5.5,            # Upper saturation of the central command response (peripheral resistance)
     "Ysp_min": -0.037,         # Lower saturation of the central command response (peripheral resistance)
