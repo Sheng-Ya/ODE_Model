@@ -331,7 +331,7 @@ Parameters = {
     "R_CW": 0.8326,            # Chest wall resistance
     "R_L": 1.3661,             # Lung transmural resistance
     "R_trachea": 1000000,      # Upper airway wall resistance
-    "R_rs": 3.02,              # Overall resistance # changed
+    "R_rs": 3.02,              # Overall resistance 
 # }
 
 # Table 20: Parameters of the Pulmonary Mechanics
