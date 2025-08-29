@@ -350,16 +350,18 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     phi_atr = activation_H(t - time_since_beat, 1, T)
 
     # changing from 25 to 10 will move up the PV curve for phi_atr
-    # V_shift1 = -(5 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
+    # V_shift1 =   30 - (2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
+    V_shift1 =  4 / (0.3 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
+
     # V_shift1 = - 20 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra)))
-    # V_shift2 = -(1 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + 25 * (phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
-    V_shift1 = 0
-    V_shift2 = 0
+    V_shift2 =  4 / (0.3 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + (phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
+    # V_shift1 = 0
+    # V_shift2 = 0
 
     Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1) + P_thor
-    Pmax_ra = phi_atr * Emax_ra * (VT_ra - V_shift1) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - V_shift1)) - 1) + P_thor
+    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra - V_shift1) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - V_shift1)) - 1) + P_thor
     Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1) + P_thor
-    Pmax_la = phi_atr * Emax_la * (VT_la - V_shift2) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - V_shift2)) - 1) + P_thor
+    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la - V_shift2) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - V_shift2)) - 1) + P_thor
 
     # aortic valve
     ####################################
@@ -675,7 +677,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Vu_jp = Vu_ep + Vu_sp + Vu_bp + Vu_hp + Vu_rmp + Vu_amp
     Vu_jv = Vu_ev + Vu_sv + Vu_bv + Vu_hv + Vu_rmv + Vu_amv
 
-    V_u = Vu_sa + Vu_pa + Vu_pp + Vu_pv + Vu_ra + Vu_la + Vu_jp + Vu_jv
+    V_u = Vu_sa + Vu_pa + Vu_pp + Vu_pv + Vu_ra + Vu_la + Vu_jp + Vu_jv + Vu_rv + Vu_lv
 
     V_sa = P_sa * C_sa
     multiplied = P_sp * C_jp
@@ -795,11 +797,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    # if 100 < t:
+    # if 250 < t:
     #     MRCO2 = 0.8 / 60 - MRBCO2
     #     MRO2 = 0.85 / 60 - MRBO2
-    #
-    # if 200 < t:
+
+    # if 250 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
     #     MRO2 = 1.05 / 60 - MRBO2
 

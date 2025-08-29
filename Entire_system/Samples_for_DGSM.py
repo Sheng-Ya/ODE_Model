@@ -380,7 +380,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay4.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay9.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -483,7 +483,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 #         np.save(f'Next_final_{w:03d}.npy', storage_final)
 #
 #         np.save(save_path, np.array(results_all))
-#         print(f"Block {i+1} finished and results saved.")
+#         print(f"Block {w+1} finished and results saved.")
 #
 #     return results_all
 
@@ -668,12 +668,12 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    np.save('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy', X)
+    # np.save('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy', X)
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
-    # X = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_filtered.npy')
+    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy')[48475:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     # param_samples = [Old_Parameters]

@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
 
 from Next_Conditions import Next_Conditions
-from Parameters import Parameters as params
+from check import Parameters as params
 from Resp_Control_Breath_Optimiser import objective
 
 data = np.load("t1_t2_vs_VAflow.npz")
@@ -51,18 +51,18 @@ t1_mean = t1
 t2_mean = t2
 
 # Fit a polynomial (or linear)
-t1_poly = np.poly1d(np.polyfit(VAflow_unique, t1_mean, deg=6))
-t2_poly = np.poly1d(np.polyfit(VAflow_unique, t2_mean, deg=6))
+t1_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], deg=6))
+t2_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], deg=6))
 
-VAflow_fit = np.linspace(min(VAflow_unique), max(VAflow_unique), 200)
+VAflow_fit = np.linspace(min(VAflow_unique[~np.isnan(t1_mean)]), max(VAflow_unique[~np.isnan(t1_mean)]), 200)
 
 print("Best fit equation for t1:", t1_poly)
 print("Best fit equation for t2:", t2_poly)
 
 plt.figure(figsize=(14, 6))
-plt.plot(VAflow_unique, t1_mean, 'bo', markersize=3, label='Mean t1')
+plt.plot(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], 'bo', markersize=3, label='Mean t1')
 plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Fit t1')
-plt.plot(VAflow_unique, t2_mean, 'ro', markersize=3, label='Mean t2')
+plt.plot(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], 'ro', markersize=3, label='Mean t2')
 plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Fit t2')
 plt.xlabel("VAflow (L/s)")
 plt.ylabel("Time (s)")
@@ -128,7 +128,6 @@ for idx, VAflow in enumerate(VAflow_repeated):
     VD_volume = VD[idx]
     required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"], params["E_rs"], params["R_rs"], params["P_ao"]]
     try:
-        A = initial_guess[-2:]
         res = minimize(objective, x0=np.array(initial_guess[-2:]), args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
         # res = minimize(objective, x0=Next_Conditions["Nd"][-2:], method='COBYLA', bounds=bounds)
         if res.success:
@@ -141,12 +140,10 @@ for idx, VAflow in enumerate(VAflow_repeated):
             print(f"VAflow = {VAflow:.4f} → optimization failed")
             optimal_t1.append(np.nan)
             optimal_t2.append(np.nan)
-            failed_indices.append(idx)
     except Exception as e:
         print(f"VAflow = {VAflow:.4f} → exception: {e}")
         optimal_t1.append(np.nan)
         optimal_t2.append(np.nan)
-        failed_indices.append(idx)
 
 
 # Convert to arrays for indexing
@@ -272,16 +269,15 @@ for i in range(L1.shape[0]):
         lambda1 = L1[i, j]
         lambda2 = L2[i, j]
 
-        if lambda2 > 0.568:
-            A = 2
-
         # Update parameters
         params["lambda1"] = lambda1
         params["lambda2"] = lambda2
-        opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
+        required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"]]
 
         try:
-            res = minimize(opt.objective, x0= [2, 5], method='COBYLA', bounds=bounds)
+            res = minimize(objective, x0=np.array(initial_guess[-2:]),
+                           args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
+
             if res.success:
                 Z[i, j] = res.x[0]
             else:

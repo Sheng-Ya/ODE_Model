@@ -1,33 +1,58 @@
 from SALib import ProblemSpec
 from SALib.plotting.bar import plot as barplot
+from scipy.stats import spearmanr
+
 # from SALib.analyze import dgsm
 import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
-# X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy')[:43500, :]
-#
-# # Result_2 =  np.array([[0.0,0.0,0.0]])
-# # Result = np.load('Result_DGSM_new.npy')[:1800]
-# Result = np.load('Result_DGSM_478_delay.npy')[:43500, :]
-
+# # rest without delay and volumes params
 # X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy')[:83172, :]
-# Result = np.load('Result_DGSM_478_delay.npy')[:,0]
+# Result = np.load('Result_DGSM_478_delay.npy')
+# D = 173
+# block_size = D + 1   # 174
+# n_blocks = X.shape[0] // block_size
+# # Find basepoint indices (first row of each block)
+# base_idx = np.arange(0, X.shape[0], block_size)
+# # Mask: True if basepoint result != 0
+# mask_blocks = Result[base_idx, 0] != 0   # check column 0 (e.g. HR); adjust if needed
+# # Expand mask to all rows in a block
+# mask_full = np.repeat(mask_blocks, block_size)
+# # Filter arrays
+# X = X[mask_full]
+# Result = Result[mask_full]
 
-X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')
-Result1 = np.load('Result_DGSM_delay_20_basepoints.npy')
-Result2 = np.load('Result_DGSM_delay_21_39.npy')
-Result3 = np.load('Result_DGSM_delay_40_to_500.npy')
-
-Result = np.vstack((Result1, Result2, Result3))
-# Result1 = np.load('DGSM_500_Result_HR_P_sys_P_dia_steady_remove_120s.npy')
+# corr, _ = spearmanr([147, 133, 146, 145, 68, 137, 2, 65, 92, 69, 64, 84, 144, 138, 141, 5, 45, 111, 158, 43], [147, 133, 146, 145, 68, 137, 2, 65, 69, 92, 84, 64, 5, 45, 121, 138, 164, 111, 116, 85])
 
 
+# X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')
+# Result1 = np.load('Result_DGSM_delay_20_basepoints.npy')
+# Result2 = np.load('Result_DGSM_delay_21_39.npy')
+# Result3 = np.load('Result_DGSM_delay_40_to_500.npy')
 #
-# Result_3 = np.concatenate((Result, Result_2))
-# np.save("Results_first_41375_chunk.npy", Result_3)
+# Result = np.vstack((Result1, Result2, Result3))
 
-HR = Result[:, 0]
+# exercise all params
+X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy')[:97227, :]
+Result = np.load('Results_DGSM_351_exercise_all_params.npy')
+
+
+
+# D = 276
+# block_size = D + 1
+# n_blocks = X.shape[0] // block_size
+# # Find basepoint indices (first row of each block)
+# base_idx = np.arange(0, X.shape[0], block_size)
+# # Mask: True if basepoint result != 0
+# mask_blocks = Result[base_idx, 0] != 0   # check column 0 (e.g. HR); adjust if needed
+# # Expand mask to all rows in a block
+# mask_full = np.repeat(mask_blocks, block_size)
+# # Filter arrays
+# X = X[mask_full]
+# Result = Result[mask_full]
+
+HR = Result[:, 1]
 # HR = HR_load[HR_load != 0]
 
 # # Assume your arrays are named
@@ -62,6 +87,7 @@ HR = Result[:, 0]
 lower = 0.8
 upper = 1.2
 
+# # rest without delay and volumes params
 # sp = ProblemSpec({
 #     'outputs': ["HR"],
 #
@@ -168,6 +194,125 @@ upper = 1.2
 #         [-1.87 * upper, -1.87 * lower],
 #     ],
 # })
+
+# # exercise without delay and volumes params
+# sp = ProblemSpec({
+#     'outputs': ["HR"],
+#
+#     'names': [
+#         "beta2", "C2", "K2", "a2", "alpha2", "dc", "KCCO2",
+#         # "MRBCO2",
+#         "GV_dead",
+#         # "Kbg",
+#         "KcCO2", "KcMRV", "KpCO2", "KpO2", "V0_dead", "VA_rest", "Pmax",
+#         "Pmax_dot", "E_rs", "R_rs",
+#         # cardio
+#         "C_jp", "C_sa", "L_sa", "R_sa", "C_amv", "C_bv",
+#         "C_ev", "C_hv", "C_rmv", "C_sv", "R_amv_n", "R_bv_n",
+#         "R_ev_n", "R_hv_n", "R_rmv_n", "R_sv_n", "D1", "K1_vc", "Kr_vc", "Rvc_n",
+#         "C_pa", "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "Emax_la", "P0_la", "Emax_ra",
+#         "P0_ra", "P0_lv", "P0_rv", "g_abd", "g_thor", "P_abdmax_n", "P_abdmin_n",
+#         # "P_thormax_n", "P_thormin_n",
+#         "VT_n", "A_im", "Tc", "T_im", "s",
+#         # cardio control
+#         "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf",
+#         "kes", "kev", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min",
+#         "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp",
+#         "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
+#         "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
+#         "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "AT", "g_ccsh", "g_ccsp",
+#         "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn", "theta_spn",
+#         "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "f_acCO2_n",
+#         "f_ac_max",
+#         "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "G_ap", "GT_s", "GT_v", "T0", "A", "B",
+#         "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
+#         "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "kmet",
+#         "MO2_ampn", "phi_max", "phi_min",
+#         # exercise added parameters
+#         "Io_sh", "Io_sp", "Io_sv", "Io_v"
+#     ],
+#
+#     'bounds': [
+#         # gas
+#         [0.03255 * lower, 0.03255 * upper], [40 * lower, 40 * upper],
+#         [25 * lower, 25 * upper], [1.219 * lower, 1.219 * upper],
+#         [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+#         [346000 * lower, 346000 * upper],
+#         # [0.0009 * lower, 0.0009 * upper],
+#         # resp control
+#         [0.1698 * lower, 0.1698 * upper],
+#         # [17.4 * lower, 17.4 * upper],
+#         [0.2332 * lower, 0.2332 * upper],
+#         [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
+#         [0.1587 * lower, 0.1587 * upper], [0.067 * lower, 0.067 * upper], [100 * lower, 100 * upper],
+#         [1000 * lower, 1000 * upper], [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+#         # cardio
+#         [3.72 * lower, 3.72 * upper],
+#         [0.28 * lower, 0.28 * upper], [0.00066 * lower, 0.00066 * upper], [0.2 * lower, 0.2 * upper],
+#         [9.4 * lower, 9.4 * upper],
+#         [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper],
+#         [3.57 * lower, 3.57 * upper],
+#         [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper],
+#         [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper],
+#         [0.224 * lower, 0.224 * upper], [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper],
+#         [0.3855 * lower, 0.3855 * upper], [0.15 * lower, 0.15 * upper],
+#         [0.001 * lower, 0.001 * upper], [0.075 * lower, 0.075 * upper],
+#         [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper], [20.5 * lower, 20.5 * upper],
+#         [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.3 * lower, 0.3 * upper],
+#         [0.06 * lower, 0.06 * upper], [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper],
+#         [0.25 * lower, 0.25 * upper], [0.55 * lower, 0.55 * upper], [1.5 * lower, 1.5 * upper],
+#         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
+#         [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
+#         # [-1 * upper, -1 * lower],
+#         # [-2 * upper, -2 * lower],
+#         [0.45 * lower, 0.45 * upper], [30 * lower, 30 * upper],
+#         [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
+#         # cardio control
+#         [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper],
+#         [80 * lower, 80 * upper], [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper],
+#         [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper], [0.114 * lower, 0.114 * upper],
+#         [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
+#         [20 * lower, 20 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper],
+#         [-0.037 * upper, -0.037 * lower], [64.9 * lower, 64.9 * upper], [-0.028 * upper, -0.028 * lower],
+#         [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower], [-0.68 * upper, -0.68 * lower],
+#         [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower], [-1.1375 * upper, -1.1375 * lower],
+#         [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper],
+#         [0.2 * lower, 0.2 * upper], [-0.2 * upper, -0.2 * lower], [-0.3997 * upper, -0.3997 * lower],
+#         [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower], [0.4 * lower, 0.4 * upper],
+#         [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
+#         [1.412 * lower, 1.412 * upper], [0.7 * lower, 0.7 * upper], [2.66 * lower, 2.66 * upper],
+#         [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [3.47 * lower, 3.47 * upper],
+#         [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper], [0.695 * lower, 0.695 * upper],
+#         [-35.29 * upper, -35.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
+#         [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [5.655 * lower, 5.655 * upper],
+#         [10.27 * lower, 10.27 * upper], [5.49 * lower, 5.49 * upper], [(1 / 60) * lower, (1 / 60) * upper],
+#         [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper], [0.2 * lower, 0.2 * upper],
+#         [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
+#         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper],
+#         [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
+#         [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
+#         [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+#         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [122 * lower, 122 * upper],
+#         [1.4 * lower, 1.4 * upper],
+#         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
+#         [3 * lower, 3 * upper], [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper],
+#         [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper], [0.58 * lower, 0.58 * upper],
+#         [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
+#         [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper],
+#         [0.925 * lower, 0.925 * upper], [10.57 * lower, 10.57 * upper], [0.11 * lower, 0.11 * upper],
+#         [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper], [30 * lower, 30 * upper],
+#         [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
+#         [0.86 * lower, 0.86 * upper], [25.71 * lower, 25.71 * upper], [12660 * lower, 12660 * upper],
+#         [0.1555 * lower, 0.1555 * upper], [30 * lower, 30 * upper], [40 * lower, 40 * upper],
+#         [0.18 * lower, 0.18 * upper], [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper],
+#         [-1.87 * upper, -1.87 * lower],
+#         # exercise added parameters
+#         [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper],
+#         [0.22 * lower, 0.22 * upper]
+#     ],
+# })
+
+# exercise all params
 sp = ProblemSpec({
     'outputs': ["HR"],
 
@@ -194,14 +339,25 @@ sp = ProblemSpec({
         "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
         "GV_ev", "GV_rmv", "GV_sv", "R_amp0", "R_ep0", "R_rmp0", "R_sp0", "AT", "g_ccsh", "g_ccsp",
         "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv", "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn", "theta_spn",
-        "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max", "f_acCO2_n",
-        "f_ac_max",
+        "theta_svn", "x_sh", "x_sp", "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min", "k_ab", "P_n", "P_n_max",
+        "f_acCO2_n", "f_ac_max",
         "f_ac_min", "k_ac", "K_H", "PaO2_ac_n", "G_ap", "GT_s", "GT_v", "T0", "A", "B",
         "C", "D", "Cvb_O2_n", "gb_O2", "MO2_bp", "R_bpn", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2", "grm_O2",
         "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "kmet",
         "MO2_ampn", "phi_max", "phi_min",
         # exercise added parameters
-        "Io_sh", "Io_sp", "Io_sv", "Io_v"
+        "Io_sh", "Io_sp", "Io_sv", "Io_v",
+        # added params
+        "Kp_ao", "Kf_ao", "Kb_ao", "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po",
+        "Kf_po", "Kb_po", "Kv_po", "theta_po_max", "Kp_tr", "Kf_tr", "Kb_tr", "Kv_tr", "theta_tr_max", "alpha_O2",
+        "R_po", "R_mi", "R_tr", "R_ao", "C_O2_param1", "C_O2_param2", "C_O2_param3", "PAMO2_nominal",
+        "Vu_sa", "V_tot", "Vu_amp", "Vu_bp", "Vu_bv", "Vu_ep", "Vu_hp", "Vu_hv", "Vu_rmp", "Vu_sp", "Vu_vc",
+        "Vvc_max", "Vvc_min", "Vu_pa", "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "tau_Emax_lv",
+        "tau_Emax_rv", "tau_Ramp", "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv",
+        "Vu_amv0", "Vu_ev0", "Vu_rmv0", "Vu_sv0", "tau_cc", "tau_isc", "tau_p", "tau_z", "tau_ac", "tau_ap",
+        "tau_Ts", "tau_Tv", "tau_CO2", "tau_O2", "tau_w", "tau_M", "tau_met", "DEmax_lv", "DEmax_rv", "DR_amp",
+        "DR_ep", "DR_rmp", "DR_sp", "DV_amv", "DV_ev", "DV_rmv", "DV_sv", "DT_s", "DT_v", "Dmet", "Fi_CO2",
+        "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV"
     ],
 
     'bounds': [
@@ -252,7 +408,7 @@ sp = ProblemSpec({
         [0.2 * lower, 0.2 * upper], [-0.2 * upper, -0.2 * lower], [-0.3997 * upper, -0.3997 * lower],
         [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower], [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-        [1.412 * lower, 1.412 * upper], [0.7 * lower, 0.7 * upper], [2.66 * lower, 2.66 * upper],
+        [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper],
         [0.475 * lower, 0.475 * upper], [0.282 * lower, 0.282 * upper], [3.47 * lower, 3.47 * upper],
         [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper], [0.695 * lower, 0.695 * upper],
         [-35.29 * upper, -35.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
@@ -280,32 +436,57 @@ sp = ProblemSpec({
         [-1.87 * upper, -1.87 * lower],
         # exercise added parameters
         [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper],
-        [0.22 * lower, 0.22 * upper]
+        [0.22 * lower, 0.22 * upper],
+        # added params
+        [800 * lower, 800 * upper], [800 * lower, 800 * upper], [1 * lower, 1 * upper],
+        [20 * lower, 20 * upper], [1.309 * lower, 1.309 * upper], [1000 * lower, 1000 * upper],
+        [800 * lower, 800 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper],
+        [1.309 * lower, 1.309 * upper], [800 * lower, 800 * upper], [800 * lower, 800 * upper],
+        [1 * lower, 1 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
+        [2000 * lower, 2000 * upper], [800 * lower, 800 * upper], [2 * lower, 2 * upper],
+        [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper], [0.0000317 * lower, 0.0000317 * upper],
+        [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
+        [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper],
+        [150 * lower, 150 * upper], [3.03e-5 * lower, 3.03e-5 * upper], [104 * lower, 104 * upper],
+        [1 * lower, 1 * upper], [5027.6 * lower, 5027.6 * upper], [60.22 * lower, 60.22 * upper],
+        [68.42 * lower, 68.42 * upper], [279.49 * lower, 279.49 * upper], [127.72 * lower, 127.72 * upper],
+        [23 * lower, 23 * upper], [93.16 * lower, 93.16 * upper], [40.1 * lower, 40.1 * upper],
+        [260.3 * lower, 260.3 * upper], [123 * lower, 123 * upper], [350 * lower, 350 * upper],
+        [50 * lower, 50 * upper], [1 * lower, 1 * upper], [116.6775 * lower, 116.6775 * upper],
+        [114 * lower, 114 * upper], [4 * lower, 4 * upper], [5 * lower, 5 * upper],
+        [4 * lower, 4 * upper], [10 * lower, 10 * upper], [8 * lower, 8 * upper],
+        [8 * lower, 8 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper],
+        [286.4 * lower, 286.4 * upper], [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper],
+        [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper], [30 * lower, 30 * upper],
+        [2.076 * lower, 2.076 * upper], [0.8 * lower, 0.8 * upper], [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [1.5 * lower, 1.5 * upper],
+        [20 * lower, 20 * upper], [10 * lower, 10 * upper], [5 * lower, 5 * upper],
+        [40 * lower, 40 * upper], [10 * lower, 10 * upper], [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper], [5 * lower, 5 * upper], [5 * lower, 5 * upper],
+        [2 * lower, 2 * upper], [0.2 * lower, 0.2 * upper], [4 * lower, 4 * upper],
+        [0.0421 * lower, 0.0421 * upper], [21.0379 * lower, 21.0379 * upper], [5 * lower, 5 * upper],
+        [1 * lower, 1 * upper], [2 * lower, 2 * upper], [3 * lower, 3 * upper],
+        [2.5 * lower, 2.5 * upper], [20 * lower, 20 * upper], [0.9 * lower, 0.9 * upper],
+        [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper], [0.25 * lower, 0.25 * upper],
+        [50 * lower, 50 * upper]
     ],
 })
-# HR = Result[:, 0]
-# HR_sorted_index = np.argsort(HR)[::-1]
-# HR_sorted = HR[HR_sorted_index]
-#
-# fig, ax1 = plt.subplots()
-# ax1.bar(range(600), HR_sorted[500:1100], label="HR", color="b")
-#
-# plt.show()
 
 Si = dgsm.analyze(sp, X, HR, print_to_console=True)
 
 ## Extract and sort
-dgsm = np.array(Si['dgsm'])
+dgsm1 = np.array(Si['dgsm'])
 names = np.array(Si['names'])
 conf = np.array(Si['dgsm_conf'])
 
-dgsm_sorted = np.argsort(dgsm)[::-1]  # descending order
-top_dgsm = dgsm[dgsm_sorted]
+dgsm_sorted = np.argsort(dgsm1)[::-1]  # descending order
+top_dgsm = dgsm1[dgsm_sorted]
 top_names = names[dgsm_sorted]
 top_conf = conf[dgsm_sorted]
-
-# top_dgsm = top_dgsm[7:]
-# top_names = top_names[7:]
 
 # Split the sorted arrays in half
 mid = len(top_dgsm) // 2
@@ -317,7 +498,7 @@ conf_1, conf_2 = top_conf[:mid], top_conf[mid:]
 plt.figure(figsize=(10, 8))
 plt.bar(names_1, dgsm_1, yerr=conf_1)
 plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM 147")
+plt.title("HR DGSM")
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(rotation=90)
 plt.tight_layout()
@@ -327,7 +508,7 @@ plt.show()
 plt.figure(figsize=(10, 8))
 plt.bar(names_2, dgsm_2, yerr=conf_2)
 plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM 147")
+plt.title("HR DGSM")
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.xticks(rotation=90)
 plt.tight_layout()
@@ -361,4 +542,74 @@ plt.title("Parameters contributing 95% of DGSM Sensitivity")
 plt.xticks(rotation=90)
 plt.tight_layout()
 plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+
+
+# ranking convergence
+def rank_stability(problem, X, Y, max_blocks, step=5, top_k=threshold_index):
+    """
+    Compute DGSM rankings as number of base points increases.
+
+    Parameters
+    ----------
+    problem : dict
+        SALib problem definition
+    X, Y : arrays
+        Inputs and outputs
+    max_blocks : int
+        Maximum number of base points (blocks)
+    step : int
+        Increment in blocks
+    top_k : int
+        Number of top parameters to track for overlap stability
+    """
+    D = problem["num_vars"]
+    rankings = []
+    corrs = []
+    overlaps = []
+
+    prev_rank = None
+    block_sizes = range(step, max_blocks + 1, step)
+
+    for nb in block_sizes:
+        # number of samples = (D+1) * nb
+        N = (D + 1) * nb
+        Si = dgsm.analyze(problem, X[:N, :], Y[:N])
+        dgsm_vals = np.array(Si['dgsm'])
+
+        # sort descending, keep top_k
+        rank = np.argsort(dgsm_vals)[::-1][:top_k]
+        rankings.append(rank)
+
+        if prev_rank is not None:
+            # Spearman correlation of full top_k rankings
+            corr, _ = spearmanr(prev_rank, rank)
+            corrs.append(corr)
+
+            # Top-k overlap (fraction of shared elements)
+            overlap = len(set(prev_rank) & set(rank)) / top_k
+            overlaps.append(overlap)
+        else:
+            corrs.append(0.0)
+            overlaps.append(0.0)  # baseline: identical to itself
+
+        prev_rank = rank
+
+    return block_sizes, corrs, overlaps, rankings
+
+
+# Example usage
+max_blocks = int(len(HR)/block_size)
+block_sizes, corrs, overlaps, rankings = rank_stability(sp, X, HR, max_blocks=max_blocks, step=2)
+
+# Plot both metrics
+plt.figure(figsize=(8,5))
+plt.plot(block_sizes, corrs, marker="o", label="Spearman correlation")
+plt.plot(block_sizes, overlaps, marker="s", label="Top-k overlap")
+plt.xlabel("Number of base points (blocks)")
+plt.ylabel("Stability metric")
+plt.title("DGSM Ranking Stability - " + str(threshold_index))
+plt.legend()
+plt.grid(True, linestyle="--", alpha=0.6)
 plt.show()

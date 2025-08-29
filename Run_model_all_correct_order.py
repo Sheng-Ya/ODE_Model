@@ -49,7 +49,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 100 # Maximum time limit to avoid infinite loops
+max_time = 220 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -196,13 +196,13 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
     # Fit a polynomial (or linear)
     t1_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t1_clean)], t1_clean[~np.isnan(t1_clean)], deg=6))
-    t2_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t2_clean)], t1_clean[~np.isnan(t2_clean)], deg=6))
+    t2_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t2_clean)], t2_clean[~np.isnan(t2_clean)], deg=6))
 
     c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
     d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
 
-    print("Best fit equation for t1:", t1_poly)
-    print("Best fit equation for t2:", t2_poly)
+    print("Best fit equation for t1:", c0, c1, c2, c3, c4, c5, c6)
+    print("Best fit equation for t2:", d0, d1, d2, d3, d4, d5, d6)
 
     return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
 
@@ -282,8 +282,9 @@ def simulate():
     "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV"])
 
     # determine the correct breathing profile
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(Next_Conditions["t1_store"][0],
-    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (56.68997590915653, -202.59647354823105, 288.8670155008632, -209.7703017034145, 82.28269589051426, -17.368480186780154, 2.5893052287384397, 89.14188202682894, -308.69610281589763, 429.74939918039985, -308.8054292147809, 122.49308640665272, -26.978019539657186, 4.001791662703984)
+        # minimise_breathing(Next_Conditions["t1_store"][0],
+    # Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao))
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -587,6 +588,42 @@ if __name__ == "__main__":
 
     plt.show()
 
+    plt.plot(Next_Conditions["VT_lv"][index- 100000:index], Next_Conditions["P_lv"][index- 100000:index], label="LV")  # 10 s all    #
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+    plt.plot(Next_Conditions["VT_rv"][index- 100000:index], Next_Conditions["P_rv"][index- 100000:index], label="rV")  # 10 s all    #
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+    plt.plot(Next_Conditions["VT_ra"][index- 100000:index], Next_Conditions["P_ra"][index- 100000:index], label="RA")  #
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
+    # get max's plot with Pmax_la instead of P_la
+    plt.plot(Next_Conditions["VT_la"][index- 100000:index], Next_Conditions["P_la"][index- 100000:index], label="LA")
+    # plt.plot(Next_Conditions["VT_ra"][:index], Next_Conditions["P_ra"][:index], label="LA")
+
+    # # Add labels and legend
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend()
+    # plt.grid(True)
+    plt.show()
+
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_lv"][:index], label="Qi_lv", color="g")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
@@ -607,6 +644,10 @@ if __name__ == "__main__":
 
 
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_shift1"][:index], label="V_shift1")  #
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_rv"][:index], label="Qi_rv")  #
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_rv"][:index], label="Q_rv")  #
+
+
     # plt.title("Pressure-Volume Traces")
     plt.legend()
     # plt.grid(True)
@@ -1546,7 +1587,7 @@ if __name__ == "__main__":
     # plt.show()
 
 
-    plt.plot(Next_Conditions["VT_lv"][:index], Next_Conditions["P_lv"][:index], label="LV")  # 10 s all    #
+    plt.plot(Next_Conditions["VT_lv"][index- 100000:index], Next_Conditions["P_lv"][index- 100000:index], label="LV")  # 10 s all    #
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
     # plt.title("Pressure-Volume Traces")
@@ -1554,7 +1595,7 @@ if __name__ == "__main__":
     # plt.grid(True)
     plt.show()
 
-    plt.plot(Next_Conditions["VT_rv"][:index], Next_Conditions["P_rv"][:index], label="rV")  # 10 s all    #
+    plt.plot(Next_Conditions["VT_rv"][index- 100000:index], Next_Conditions["P_rv"][index- 100000:index], label="rV")  # 10 s all    #
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
     # plt.title("Pressure-Volume Traces")
@@ -1571,7 +1612,7 @@ if __name__ == "__main__":
     plt.show()
 
     # get max's plot with Pmax_la instead of P_la
-    plt.plot(Next_Conditions["VT_la"][:index], Next_Conditions["P_la"][:index], label="LA")
+    plt.plot(Next_Conditions["VT_la"][index- 100000:index], Next_Conditions["P_la"][index- 100000:index], label="LA")
     # plt.plot(Next_Conditions["VT_ra"][:index], Next_Conditions["P_ra"][:index], label="LA")
 
     # # Add labels and legend
