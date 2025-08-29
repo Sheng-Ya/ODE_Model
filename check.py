@@ -353,7 +353,7 @@ Parameters = {
     "KpCO2": 0.2025,         # Constant gain of CO2 peripheral chemoreceptors
     "KpO2": 4.72e-9,         # Constant gain of O2 peripheral chemoreceptors
     "V0_dead": 0.1587,        # Offset value of dead space volume
-    "VA_rest": 0.067,        # Basal value of alveolar ventilation
+    "VA_rest": 0.0673,        # Basal value of alveolar ventilation
 # }
 
 # Table 22: Parameters of Breathing Pattern Optimizer
