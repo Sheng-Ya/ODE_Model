@@ -374,7 +374,7 @@ Parameters = {
     "beta1": 0.008275,      # O2 Bohr-Haldane parameter (mmHg^-1)
     "beta2": 0.03255,       # CO2 Bohr-Haldane parameter (mmHg^-1)
     "C1": 9,                # Max concentration of hemoglobin-bound oxygen (mmol/l)
-    "C2": 87,               # Max carbon dioxide concentration (mmol/l)
+    "C2": 40,               # Max carbon dioxide concentration (mmol/l)
     "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359], # Initial CO2 dead space conditions (mmHg)
     "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579], # Initial O2 dead space conditions (mmHg)
     "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
