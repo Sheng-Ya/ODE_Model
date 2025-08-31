@@ -897,10 +897,10 @@ Parameters = {
     "tau_MRV": 50,            # Metabolic rate time constant (s)
 
 # added params
-    "Kp_ao": 300,
-    "Kf_ao": 2000,
-    "Kb_ao": 0.2,
-    "Kv_ao": 20,
+    "Kp_ao": 1000,
+    "Kf_ao": 8000,
+    "Kb_ao": 0.1,
+    "Kv_ao": 5,
     "theta_ao_max": 1.309,
     "Kp_mi": 1000,
     "Kf_mi": 800,
