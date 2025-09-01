@@ -33,9 +33,18 @@ import numpy as np
 #
 # Result = np.vstack((Result1, Result2, Result3))
 
-# exercise all params
-X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy')[:97227, :]
-Result = np.load('Results_DGSM_351_exercise_all_params.npy')
+# # exercise all params
+# X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy')[:97227, :]
+# Result = np.load('Results_DGSM_351_exercise_all_params.npy')
+
+X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')
+Result1 = np.load('Result_DGSM_delay1_49.npy')
+Result2 = np.load('Result_DGSM_delay50_113.npy')
+
+Result = np.vstack((Result1, Result2))
+
+np.save('Result_DGSM_delay1_113.npy', Result)
+
 
 
 

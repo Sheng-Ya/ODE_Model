@@ -273,7 +273,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if 0 <= time_since_last_breath < TI:
         P_thor = P_thormax - (P_thormax - P_thormin) * (T_resp / TI) * S
 
-    elif TI <= time_since_last_breath <= T_resp:
+    else:
         P_thor = P_thormax - (P_thormax - P_thormin) * ((TI + TE - T_resp * S) / TE)
 
     if 0 <= time_since_last_breath < (TI / 2):
@@ -282,7 +282,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     elif (TI / 2) <= time_since_last_breath < TI:
         P_abd = P_abdmin
 
-    elif TI <= time_since_last_breath <= T_resp:
+    else:
         P_abd = P_abdmax - (P_abdmax - P_abdmin) * ((TI + TE - T_resp * S) / TE)
 
     # added P_thor to only the pulmonary compartments
@@ -494,8 +494,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_sv = V_sv / C_sv
     else:
         V_sv = 0
-        P_sv = 0
-        Vu_sv = VT_sv
+        P_sv =  VT_sv / C_sv
+        # Vu_sv = VT_sv
 
     Q_sp = (P_sp - P_sv) / R_sp
 
@@ -520,8 +520,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_bv = V_bv / C_bv
     else:
         V_bv = 0
-        P_bv = 0
-        Vu_bv = VT_bv
+        P_bv = VT_bv / C_bv
+        # Vu_bv = VT_bv
 
     Q_bp = (P_sp - P_bv) / R_bp
 
@@ -546,8 +546,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_hv = V_hv / C_hv
     else:
         V_hv = 0
-        P_hv = 0
-        Vu_hv = VT_hv
+        P_hv = VT_hv / C_hv
+        # Vu_hv = VT_hv
 
     Q_hp = (P_sp - P_hv) / R_hp
 
@@ -573,8 +573,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_rmv = V_rmv / C_rmv
     else:
         V_rmv = 0
-        P_rmv = 0
-        Vu_rmv = VT_rmv
+        P_rmv = VT_rmv / C_rmv
+        # Vu_rmv = VT_rmv
 
     Q_rmp = (P_sp - P_rmv) / R_rmp
 

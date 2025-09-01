@@ -277,7 +277,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 
     if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
         # Integration failed or early termination
-        return [0.0, 0.0, 0.0], None, None, None
+        return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], None, None, None
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -321,7 +321,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 
     if ODE_solution.status == -1:
         # Integration failed or early termination
-        return [0.0, 0.0, 0.0], None, None, None
+        return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], None, None, None
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
@@ -421,7 +421,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay9.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay11.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -442,7 +442,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((block_size, len(base_result))))
+            results_all.extend(np.zeros((block_size, 9)))
             np.save(save_path, np.array(results_all))
             continue
 
@@ -719,12 +719,12 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    np.save('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy', X)
+    # np.save('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy', X)
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
-    # X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy')[48475:,:]
+    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[33900:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     # param_samples = [Old_Parameters]
