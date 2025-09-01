@@ -14,27 +14,16 @@ from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
-from All_Parameter_ranges import parameters as parameters_change
 from All_derivatives_njit import model_derivatives
-from All_Cardiovascular_controller import cardiovascular_controller
-from All_Cardiovascular_system import cardiovascular_system
-from All_Gas_exchange import gas_exchange
 from check import Parameters as Old_Parameters
-from All_Respiratory_controller import resp_control_vent
 
-
-from Selected_Conditions import Selected_Conditions as previous_Selected_Conditions
 from Initial_Conditions_after_running_again import Initial_Conditions
-# from All_Next_Conditions import Next_Conditions
 from All_Next_Conditions import Next_Conditions
-
-from Parameters_test import Parameters as Para
-
 
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 20000
 
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 400 # Maximum time limit to avoid infinite loops
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -711,7 +700,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 500)
+    # X = finite_diff.sample(sp, 500)
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]
@@ -724,7 +713,8 @@ if __name__ == "__main__":
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
-    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[33900:,:]
+    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[:75000,:]
+    # X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[75000:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     # param_samples = [Old_Parameters]
@@ -735,5 +725,7 @@ if __name__ == "__main__":
 
     # print(Result)
 
-    np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_rest_atria.npy', Result)
+    np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_1_250.npy', Result)
+    # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
+
 
