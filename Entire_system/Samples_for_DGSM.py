@@ -410,7 +410,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay12.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay11.npy'):
     results_all = []
 
     if os.path.exists(save_path):
