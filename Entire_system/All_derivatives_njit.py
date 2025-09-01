@@ -786,8 +786,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # tissue
     PvtO2 = max(CTO2 / alpha_O2, 0)  # henry
     # if CTO2 slightly negative but goes back later, it's fine. Not fine if it decreases below -1
-    if CTO2 < -1:
-        PvtO2 = CTO2 / alpha_O2
+    # if CTO2 < -1:
+    #     PvtO2 = CTO2 / alpha_O2
     PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (
             1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
 

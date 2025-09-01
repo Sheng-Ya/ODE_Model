@@ -410,7 +410,7 @@ def simulate_cpu(Current_Parameters, storage,  old_parameters, IC_initial=None, 
 #     return results_all
 
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay11.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay12.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -503,7 +503,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 #             # i = storage_final["i"].item() % BUFFER_LIMIT
 #
 #             print(f"Perturbation result: {res[0]}")
-#             results_perturbations.append(res)
+#             results_perturbations.append(res[0])
 #
 #         results_block = [base_result] + results_perturbations
 #         results_all.extend(results_block)
@@ -713,7 +713,7 @@ if __name__ == "__main__":
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
-    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[:75000,:]
+    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[4800:,:]
     # X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[75000:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]

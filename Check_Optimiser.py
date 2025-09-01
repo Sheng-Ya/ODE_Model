@@ -1,15 +1,13 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize, NonlinearConstraint
-
-from Next_Conditions import Next_Conditions
 from check import Parameters as params
 from Resp_Control_Breath_Optimiser import objective
 
-data = np.load("t1_t2_vs_VAflow.npz")
-VAflow = data["VAflow"]
-t1 = data["t1"]
-t2 = data["t2"]
+# data = np.load("t1_t2_vs_VAflow.npz")
+# VAflow = data["VAflow"]
+# t1 = data["t1"]
+# t2 = data["t2"]
 
 
 
@@ -44,32 +42,32 @@ t2 = data["t2"]
 #
 #
 # repeats = 3
-VAflow_unique = VAflow  # Grab every 5th (first of each group)
-# t1_mean = np.mean(t1.reshape(-1, repeats), axis=1)
-# t2_mean = np.mean(t2.reshape(-1, repeats), axis=1)
-t1_mean = t1
-t2_mean = t2
-
-# Fit a polynomial (or linear)
-t1_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], deg=6))
-t2_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], deg=6))
-
-VAflow_fit = np.linspace(min(VAflow_unique[~np.isnan(t1_mean)]), max(VAflow_unique[~np.isnan(t1_mean)]), 200)
-
-print("Best fit equation for t1:", t1_poly)
-print("Best fit equation for t2:", t2_poly)
-
-plt.figure(figsize=(14, 6))
-plt.plot(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], 'bo', markersize=3, label='Mean t1')
-plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Fit t1')
-plt.plot(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], 'ro', markersize=3, label='Mean t2')
-plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Fit t2')
-plt.xlabel("VAflow (L/s)")
-plt.ylabel("Time (s)")
-plt.title("Average t1 and t2 vs VAflow with Best-Fit Curves")
-plt.legend()
-plt.grid(True)
-plt.show()
+# VAflow_unique = VAflow  # Grab every 5th (first of each group)
+# # t1_mean = np.mean(t1.reshape(-1, repeats), axis=1)
+# # t2_mean = np.mean(t2.reshape(-1, repeats), axis=1)
+# t1_mean = t1
+# t2_mean = t2
+#
+# # Fit a polynomial (or linear)
+# t1_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], deg=6))
+# t2_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], deg=6))
+#
+# VAflow_fit = np.linspace(min(VAflow_unique[~np.isnan(t1_mean)]), max(VAflow_unique[~np.isnan(t1_mean)]), 200)
+#
+# print("Best fit equation for t1:", t1_poly)
+# print("Best fit equation for t2:", t2_poly)
+#
+# plt.figure(figsize=(14, 6))
+# plt.plot(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], 'bo', markersize=3, label='Mean t1')
+# plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Fit t1')
+# plt.plot(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], 'ro', markersize=3, label='Mean t2')
+# plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Fit t2')
+# plt.xlabel("VAflow (L/s)")
+# plt.ylabel("Time (s)")
+# plt.title("Average t1 and t2 vs VAflow with Best-Fit Curves")
+# plt.legend()
+# plt.grid(True)
+# plt.show()
 # #
 #
 #
@@ -174,6 +172,8 @@ plt.grid(True)
 plt.show()
 np.savez("t1_t2_vs_VAflow.npz", VAflow=VAflow_clean, t1=t1_clean, t2=t2_clean)
 
+plt.savefig("optimal_t1_t2.png", dpi=300, bbox_inches="tight")
+
 plt.figure(figsize=(10, 5))
 plt.scatter(VAflow_clean, t1_clean, label='Optimal t1 (Inspiration Time)', color='blue', alpha=0.6)
 plt.scatter(VAflow_clean, t2_clean, label='Optimal t2 (Expiration Time)', color='red', alpha=0.6)
@@ -257,43 +257,43 @@ plt.show()
 
 
 
-# Set up lambda1 and lambda2 sweep ranges
-lambda1_vals = np.linspace(0, 2, 30)
-lambda2_vals = np.linspace(0, 2, 30)
-L1, L2 = np.meshgrid(lambda1_vals, lambda2_vals)
-Z = np.zeros_like(L1)
-
-for i in range(L1.shape[0]):
-    for j in range(L1.shape[1]):
-
-        lambda1 = L1[i, j]
-        lambda2 = L2[i, j]
-
-        # Update parameters
-        params["lambda1"] = lambda1
-        params["lambda2"] = lambda2
-        required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"]]
-
-        try:
-            res = minimize(objective, x0=np.array(initial_guess[-2:]),
-                           args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
-
-            if res.success:
-                Z[i, j] = res.x[0]
-            else:
-                Z[i, j] = np.nan
-        except Exception:
-            Z[i, j] = np.nan
-
-        print(f"Processing λ1={lambda1:.2f}, λ2={lambda2:.2f} → t2 = {Z[i, j]:.4f}")
-
-# Plot heatmap of minimum work vs lambda1, lambda2
-plt.figure(figsize=(10, 6))
-cp = plt.contourf(L1, L2, Z, levels=50, cmap='viridis')
-plt.colorbar(cp, label='Inspiration time t1')
-plt.xlabel('lambda1 (smoothness penalty)')
-plt.ylabel('lambda2 (expiration penalty weight)')
-plt.title('Inspiration time t1 across λ1 and λ2 (optimized over t1, t2)')
-plt.tight_layout()
-plt.show()
+# # Set up lambda1 and lambda2 sweep ranges
+# lambda1_vals = np.linspace(0, 2, 30)
+# lambda2_vals = np.linspace(0, 2, 30)
+# L1, L2 = np.meshgrid(lambda1_vals, lambda2_vals)
+# Z = np.zeros_like(L1)
+#
+# for i in range(L1.shape[0]):
+#     for j in range(L1.shape[1]):
+#
+#         lambda1 = L1[i, j]
+#         lambda2 = L2[i, j]
+#
+#         # Update parameters
+#         params["lambda1"] = lambda1
+#         params["lambda2"] = lambda2
+#         required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"]]
+#
+#         try:
+#             res = minimize(objective, x0=np.array(initial_guess[-2:]),
+#                            args=(required_params, VAflow, VD, dt, tolerance), method='COBYLA', bounds=bounds)
+#
+#             if res.success:
+#                 Z[i, j] = res.x[0]
+#             else:
+#                 Z[i, j] = np.nan
+#         except Exception:
+#             Z[i, j] = np.nan
+#
+#         print(f"Processing λ1={lambda1:.2f}, λ2={lambda2:.2f} → t2 = {Z[i, j]:.4f}")
+#
+# # Plot heatmap of minimum work vs lambda1, lambda2
+# plt.figure(figsize=(10, 6))
+# cp = plt.contourf(L1, L2, Z, levels=50, cmap='viridis')
+# plt.colorbar(cp, label='Inspiration time t1')
+# plt.xlabel('lambda1 (smoothness penalty)')
+# plt.ylabel('lambda2 (expiration penalty weight)')
+# plt.title('Inspiration time t1 across λ1 and λ2 (optimized over t1, t2)')
+# plt.tight_layout()
+# plt.show()
 
