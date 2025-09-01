@@ -478,18 +478,18 @@ Parameters = {
 #     # Table 2. Compliance values
 # systemic_peripheral_and_venous = {
     "C_jp": 3.72, # 3.72
-    "C_amp": 0.315,  # Active skeletal muscle peripheral compliance
-    "C_amv": 9.4,    # Active skeletal muscle venous compliance
-    "C_bp": 0.358,   # Brain peripheral compliance
-    "C_bv": 10.71,   # Brain venous compliance
-    "C_ep": 0.668,   # Extra-splanchnic peripheral compliance
-    "C_ev": 20,      # Extra-splanchnic venous compliance
-    "C_hp": 0.119,   # Coronary peripheral compliance
-    "C_hv": 3.57,    # Coronary venous compliance
-    "C_rmp": 0.21,   # Resting skeletal muscle peripheral compliance
-    "C_rmv": 6.28,   # Resting skeletal muscle venous compliance
-    "C_sp": 2.05,    # Splanchnic peripheral compliance
-    "C_sv": 61.11,   # Splanchnic venous compliance
+    # "C_amp": 0.315,  # Active skeletal muscle peripheral compliance
+    "C_amv": 4.4,    # Active skeletal muscle venous compliance
+    # "C_bp": 0.358,   # Brain peripheral compliance
+    "C_bv": 5.71,   # Brain venous compliance
+    # "C_ep": 0.668,   # Extra-splanchnic peripheral compliance
+    "C_ev": 10,      # Extra-splanchnic venous compliance
+    # "C_hp": 0.119,   # Coronary peripheral compliance
+    "C_hv": 1.57,    # Coronary venous compliance
+    # "C_rmp": 0.21,   # Resting skeletal muscle peripheral compliance
+    "C_rmv": 3.28,   # Resting skeletal muscle venous compliance
+    # "C_sp": 2.05,    # Splanchnic peripheral compliance
+    "C_sv": 31.11,   # Splanchnic venous compliance
     "kr_am": 24.17,  # Constant parameter
     "P_0": 3.93,     # Constant parameter
     "R_amv_n": 0.0833,  # Active skeletal muscle venous resistance
@@ -499,14 +499,15 @@ Parameters = {
     "R_rmv_n": 0.125,   # Resting skeletal muscle venous resistance
     "R_sv_n": 0.038,    # Splanchnic venous resistance
     "V_tot": 5027.6,    # Total blood volume
-    "Vu_amp": 60.22,   # Active skeletal muscle peripheral unstressed volume
-    "Vu_bp": 68.42,    # Brain peripheral unstressed volume
+    # "Vu_amp": 60.22,   # Active skeletal muscle peripheral unstressed volume
+    # "Vu_bp": 68.42,    # Brain peripheral unstressed volume
     "Vu_bv": 279.49,   # Brain venous unstressed volume
-    "Vu_ep": 127.72,   # Extra-splanchnic peripheral unstressed volume
-    "Vu_hp": 23,       # Coronary peripheral unstressed volume
+    # "Vu_ep": 127.72,   # Extra-splanchnic peripheral unstressed volume
+    # "Vu_hp": 23,       # Coronary peripheral unstressed volume
     "Vu_hv": 93.16,    # Coronary venous unstressed volume
-    "Vu_rmp": 40.1,    # Resting skeletal muscle peripheral unstressed volume
-    "Vu_sp": 260.3,    # Splanchnic peripheral unstressed volume
+    "Vu_jp": 579.76,
+    # "Vu_rmp": 40.1,    # Resting skeletal muscle peripheral unstressed volume
+    # "Vu_sp": 260.3,    # Splanchnic peripheral unstressed volume
 # }
 #
 #     # Table 3. Vena Cava Parameters
@@ -516,7 +517,7 @@ Parameters = {
     "K1_vc": 0.15,     # Parameter for P-V curve of vena cava
     "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
     "Kr_vc": 0.001,    # Gain for vena cava flow resistance
-    "Rvc_n": 0.025,    # Nominal vena cava flow resistance # edited (changed to 0.0025 from xxx for better left atrial pressures, changed back to 0.025)
+    "Rvc_n": 0.05,    # Nominal vena cava flow resistance # edited (changed to 0.0025 from xxx for better left atrial pressures, changed back to 0.025)
     "Vu_vc": 123,      # Vena cava unstressed volume
     "Vvc_max": 350,     # Maximum volume of vena cava
     "Vvc_min": 50,      # Minimum volume of vena cava
@@ -525,7 +526,7 @@ Parameters = {
 #     # Table 4. Pulmonary Circulation Parameters
 # pulmonary_circulation = {
     "C_pa": 0.76, # 0.76,           # Pulmonary arterial compliances want to change to 5
-    "C_pp": 5.8, # 5.8,            # Pulmonary peripheral compliances want to change to 10
+    "C_pp": 15.8, # 5.8,            # Pulmonary peripheral compliances want to change to 10
     "C_pv": 25.37, # 25.37,          # Pulmonary venous compliances want to change to 15 # edited
     "L_pa": 0.00018,        # Pulmonary arterial inertance
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
@@ -576,7 +577,7 @@ Parameters = {
 # respiratory_pump = {
     "g_abd": 3.39,          # Constant gain factor linking tidal volume changes to abdominal pressure variations
     "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
-    "P_abdmax_n": 0,        # Basal value of abdominal pressure at the end of expiration
+    "P_abdmax_n": -1,        # Basal value of abdominal pressure at the end of expiration # edited to match dgsm
     "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
     "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
     "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
@@ -589,14 +590,14 @@ Parameters = {
     "f_ab_min": 2.52,       # Lower saturation level of the frequency discharge in the baroreceptor afferent fibers
     "k_ab": 11.76,          # Parameter related to the slope of the static function at the central point
     "P_n": 92,              # Value of baroreceptor pressure at the central point of the sigmoidal function
-    "P_n_max": 122,
+    "P_n_max": 112,
     "tau_p": 2.076,         # Time constant for the real pole
     "tau_z": 0.8,          # Time constant for the real zero
 # }
 
     # Table 9. Afferent Chemoreflex Pathway
 # afferent_chemoreflex = {
-    "f_ac_IC": 8.0807,      # Initial condition for the afferent activity from chemoreceptors
+#     "f_ac_IC": 8.0807,      # Initial condition for the afferent activity from chemoreceptors
     "f_acCO2_n": 1.4,       # Constant parameter tuned to reproduce the CO2 static response
     "f_ac_max": 12.3,       # Upper saturation level of the frequency discharge in the chemoreceptor afferent fibers
     "f_ac_min": 0.835,      # Lower saturation level of the frequency discharge in the chemoreceptor afferent fibers
@@ -609,7 +610,7 @@ Parameters = {
 
     # Table 10. Afferent activity from Pulmonary Stretch Receptors
 # afferent_pulmonary_stretch_receptors = {
-    "f_ap_IC": 4.4492,  # Initial condition for the afferent activity from pulmonary stretch receptors, spikes/s
+#     "f_ap_IC": 4.4492,  # Initial condition for the afferent activity from pulmonary stretch receptors, spikes/s
     "G_ap": 11.76,      # Constant gain factor, spikes/s/l
     "tau_ap": 2,       # Time constant of the lung inflation afferent response, seconds
 # }
@@ -745,13 +746,13 @@ Parameters = {
     "fes_min": 2.66,     # Threshold for sympathetic stimulation
     "GEmax_lv": 0.475,   # Constant gain factor
     "GEmax_rv": 0.282,   # Constant gain factor
-    "GR_amp": 2.47,       # Constant gain factor # edited
+    "GR_amp": 4.47,       # Constant gain factor # edited
     "GR_ep": 1.94,        # Constant gain factor
     "GR_rmp": 2.47,        # Constant gain factor
     "GR_sp": 0.695,       # Constant gain factor
-    "GV_amv": -58.29,     # Constant gain factor # edited
+    "GV_amv": -28.29,     # Constant gain factor # edited
     "GV_ev": -74.21,      # Constant gain factor
-    "GV_rmv": -58.29,      # Constant gain factor
+    "GV_rmv": -28.29,      # Constant gain factor
     "GV_sv": -265.4,      # Constant gain factor
     "R_amp0": 3.510,     # Basal level of active skeletal peripheral resistance
     "R_ep0": 1.655,      # Basal level of extra-splanchnic peripheral resistance # edited from 1.655
@@ -777,8 +778,8 @@ Parameters = {
 # parameters_heart_period = {
     "DT_s": 2,              # Pure latency of the mechanism
     "DT_v": 0.2,            # Pure latency of the mechanism
-    "fsh_IC": 3.8576,         # Initial condition for the efferent sympathetic cardiac activity
-    "fv_IC": 4.2748,         # Initial condition for the efferent vagal activity
+    # "fsh_IC": 3.8576,         # Initial condition for the efferent sympathetic cardiac activity
+    # "fv_IC": 4.2748,         # Initial condition for the efferent vagal activity
     "GT_s": -0.13,          # Constant gain factor
     "GT_v": 0.09,           # Constant gain factor
     "T0": 0.58,              # Heart period in the absence of cardiac innervation # want to change to 0.83333 from 0.58
@@ -788,32 +789,32 @@ Parameters = {
 
 # Table 19: Parameters of the Upper Airways
 # parameters_upper_airways = {
-    "A0_ua": 1,               # Maximum area of opening in upper airway
-    "b_ua": 1,                 # Upper airway mechanics constant
-    "C_ua": 0.001,             # Upper airway compliance
-    "K_ua": 1,                 # Proportionality coefficient
-    "Pcrit_min": -40,         # Critical upper airway pressure
-    "R_AW": 0.82128,           # Airway wall resistance
-    "R_CW": 0.8326,            # Chest wall resistance
-    "R_L": 1.3661,             # Lung transmural resistance
-    "R_trachea": 1000000,      # Upper airway wall resistance
-    "R_rs": 3.02,              # Overall resistance 
+#     "A0_ua": 1,               # Maximum area of opening in upper airway
+#     "b_ua": 1,                 # Upper airway mechanics constant
+#     "C_ua": 0.001,             # Upper airway compliance
+#     "K_ua": 1,                 # Proportionality coefficient
+#     "Pcrit_min": -40,         # Critical upper airway pressure
+#     "R_AW": 0.82128,           # Airway wall resistance
+#     "R_CW": 0.8326,            # Chest wall resistance
+#     "R_L": 1.3661,             # Lung transmural resistance
+#     "R_trachea": 1000000,      # Upper airway wall resistance
+    "R_rs": 3.02,              # Overall resistance
 # }
 
 # Table 20: Parameters of the Pulmonary Mechanics
 # parameters_pulmonary_mechanics = {
-    "E_CW": 10.545,           # Chest wall elastance (cmH2O/l) # changed
-    "E_L": 10.545,            # Lung transmural elastance (cmH2O/l) # changed
+#     "E_CW": 10.545,           # Chest wall elastance (cmH2O/l) # changed
+#     "E_L": 10.545,            # Lung transmural elastance (cmH2O/l) # changed
     "E_rs": 21.9, # 21.9,             # Overall elastance (cmH2O/l) # changed
-    "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
-    "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
+    # "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
+    # "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
     "P_ao": 0,                # Airway pressure (cmH2O)
 # }
 
 # Table 21: Parameters of Ventilation Controller
 # parameters_ventilation_controller = {
     "GV_dead": 0.1698,        # Constant gain for dead space volume
-    "Kbg": 17.4,             # Blood gas dissociation constant
+    # "Kbg": 17.4,             # Blood gas dissociation constant
     "KcCO2": 0.2332,         # Constant gain of CO2 central chemoreceptors
     "KcMRV": 1,              # Constant gain of central response to exercise (neural drive)
     "KpCO2": 0.2025,         # Constant gain of CO2 peripheral chemoreceptors
@@ -833,29 +834,29 @@ Parameters = {
 
 # Table 23: Parameters of the Gas Exchange and Mixing
 # parameters_gas_exchange_mixing = {
-    "a1": 0.3836,           # Parameter for O2 dissociation in blood (Dimensionless)
+#     "a1": 0.3836,           # Parameter for O2 dissociation in blood (Dimensionless)
     "a2": 1.819,            # Parameter for CO2 dissociation in blood (Dimensionless) # changed
-    "alpha1": 0.03198,      # O2 dissociation constant (mmHg^-1)
+    # "alpha1": 0.03198,      # O2 dissociation constant (mmHg^-1)
     "alpha2": 0.05591,      # CO2 dissociation constant (mmHg^-1)
-    "beta1": 0.008275,      # O2 Bohr-Haldane parameter (mmHg^-1)
+    # "beta1": 0.008275,      # O2 Bohr-Haldane parameter (mmHg^-1)
     "beta2": 0.03255,       # CO2 Bohr-Haldane parameter (mmHg^-1)
-    "C1": 9,                # Max concentration of hemoglobin-bound oxygen (mmol/l)
+    # "C1": 9,                # Max concentration of hemoglobin-bound oxygen (mmol/l)
     "C2": 87,               # Max carbon dioxide concentration (mmol/l)
-    "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359], # Initial CO2 dead space conditions (mmHg)
-    "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579], # Initial O2 dead space conditions (mmHg)
+    # "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359], # Initial CO2 dead space conditions (mmHg)
+    # "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579], # Initial O2 dead space conditions (mmHg)
     "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
     "Fi_O2": 21.0379,       # Inspired fraction of O2 (%)
     "K1": 13,               # Parameter for O2 dissociation equation (mmHg)
     "K2": 194.4,            # Parameter for CO2 dissociation equation (mmHg)
-    "LCTV": 0.588,          # Lung to chemoreceptor vascular volume constant (l)
+    # "LCTV": 0.588,          # Lung to chemoreceptor vascular volume constant (l)
     "PACO2_Delay_IC": 40.4448,      # Initial CO2 convection delay (mmHg)
-    "dPa_CO2_dt_IC": -0.2465,       # Initial CO2 rate of change (mmHg/s)
-    "PACO2_IC": 40.9432,            # Initial Condition for CO2 convection (mmHg)
-    "d2Pa_CO2_dt2_IC": 40.3928,   # Second order CO2 rate of change (mmHg/s^2)
+    # "dPa_CO2_dt_IC": -0.2465,       # Initial CO2 rate of change (mmHg/s)
+    # "PACO2_IC": 40.9432,            # Initial Condition for CO2 convection (mmHg)
+    # "d2Pa_CO2_dt2_IC": 40.3928,   # Second order CO2 rate of change (mmHg/s^2)
     "PAO2_Delay_IC": 103.1223,      # Initial O2 convection delay (mmHg)
-    "dPa_O2_dt_IC": 0.3557,         # Initial O2 rate of change (mmHg/s)
-    "PAO2_IC": 102.5153,            # Initial Condition for O2 convection (mmHg)
-    "d2Pa_O2_dt2_IC": 103.1435,   # Second order O2 rate of change (mmHg/s^2)
+    # "dPa_O2_dt_IC": 0.3557,         # Initial O2 rate of change (mmHg/s)
+    # "PAO2_IC": 102.5153,            # Initial Condition for O2 convection (mmHg)
+    # "d2Pa_O2_dt2_IC": 103.1435,   # Second order O2 rate of change (mmHg/s^2)
     "P_atm": 760,                    # Atmospheric pressure (mmHg) # CHANGED
     "P_ws": 47,                      # Water vapor pressure (mmHg)
     "T1": 1,                        # Time constant for cardiovascular mixing (s)
@@ -869,20 +870,20 @@ Parameters = {
 # Table 24: Parameters of the Brain Compartment
 # parameters_brain_compartment = {
     "dc": 0.015,                    # Depth of central receptor below medulla surface (cm)
-    "h": 0.0183/1000,                    # Cerebral blood flow constant (ml/(100g·s))
+    # "h": 0.0183/1000,                    # Cerebral blood flow constant (ml/(100g·s))
     "KCCO2": 346000,                # CO2 central receptor constant (s·cm^-2·l^-1)
     "KCSFCO2": 20,                 # CO2 diffusion time constant in cerebrospinal fluid (s), changed to be faster to see if limit cycle is reached
     "MRBCO2": 0.0009,               # Metabolic production rate of CO2 (1/s STPD)
     "MRBO2": 0.000925,              # Metabolic production rate of O2 (1/s STPD)
-    "PbCO2IC": 48.5338,             # Initial condition for brain CO2 partial pressure (mmHg)
-    "SbCO2": 0.36/1000,                  # Dissociation slope for CO2 in the brain (ml·(100g·y)/mmHg) # convert to L
-    "SCO2": 0.0043,                 # Dissociation slope for CO2 in blood (mmHg^-1)
+    # "PbCO2IC": 48.5338,             # Initial condition for brain CO2 partial pressure (mmHg)
+    # "SbCO2": 0.36/1000,                  # Dissociation slope for CO2 in the brain (ml·(100g·y)/mmHg) # convert to L
+    # "SCO2": 0.0043,                 # Dissociation slope for CO2 in blood (mmHg^-1)
 # }
 
 # Table 25: Parameters of the Gas Transport: Body Tissues Compartment
 # parameters_body_tissues_compartment = {
-    "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
-    "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
+#     "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
+#     "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
     "MRCO2": 0.2/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
     "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD) brain O2 minused in gas exchange
     "MRTCO2_basal": 0.2/60,            # Basal metabolic production rate for CO2 (l/min STPD)
@@ -898,32 +899,51 @@ Parameters = {
 
 # added params
     "Kp_ao": 1000,
-    "Kf_ao": 8000,
+    "Kf_ao": 5000,
     "Kb_ao": 0.1,
     "Kv_ao": 5,
     "theta_ao_max": 1.309,
-    "Kp_mi": 1000,
+    "Kp_mi": 600,
     "Kf_mi": 800,
-    "Kb_mi": 2,
-    "Kv_mi": 3.5,
+    "Kb_mi": 1,
+    "Kv_mi": 10,
     "theta_mi_max": 1.309,
     "Kp_po": 800,
     "Kf_po": 800,
     "Kb_po": 1,
     "Kv_po": 10,
     "theta_po_max": 1.309,
-    "Kp_tr": 2000,
+    "Kp_tr": 600,
     "Kf_tr": 800,
-    "Kb_tr": 2,
-    "Kv_tr": 7,
+    "Kb_tr": 1,
+    "Kv_tr": 10,
     "theta_tr_max": 1.309,
     "alpha_O2": 0.0000317,
     "R_po": 350,
-    "R_mi": 50,
-    "R_tr": 50,
+    "R_mi": 40,
+    "R_tr": 40,
     "R_ao": 350,
     "C_O2_param1": 0.00134,
-    "C_O2_param2": 150,
+    "C_O2_param2": 2.6,
     "C_O2_param3": 3.03e-5,
-    "PAMO2_nominal": 104
+    "PAMO2_nominal": 104,
+    "scale_param1": 4.9,
+    "scale_param2": 1.5,
+    "scale_param3": 0.3,
+    "scale_param4": 26.6,
+    "scale_param5": 0.5,
+    "scale_param6": 1.2,
+    "scale_param7": 30,
+    "scale_param8": 1.6,
+    "shift_param1": 4,
+    "shift_param2": 0.3,
+    "shift_param3": 4,
+    "shift_param4": 0.3,
+    "Pa_O2_lower": 80,
+    "rise_time_atr": 0.05,
+    "fall_time_atr": 0.1,
+    "rise_time_ven": 0.15,
+    "fall_time_ven": 0.3,
+    "ahead1": 0.9,
+    "ahead2": 0.1,
 }

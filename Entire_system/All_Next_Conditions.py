@@ -44,4 +44,7 @@ Next_Conditions = {
     "t2_store": np.array([1.85] * 20000),
 
     "P_sa_store": np.array([89.94924015] * 20000),
+    "V_lv_store": np.array([100.0] * 20000),
+    "V_rv_store": np.array([100.0] * 20000),
+    "P_rv_store": np.array([25.0] * 20000),
 }

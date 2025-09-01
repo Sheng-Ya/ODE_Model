@@ -55,16 +55,16 @@ def activation_U(beta, atr, T, Tsys):
 
 
 @njit
-def activation_H(ti, atr, T):
-    tr_atr = 0.05 * T
-    td_atr = 0.1 * T
-    tr_ven = 0.15 * T
-    td_ven = 0.3 * T
+def activation_H(ti, atr, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1, ahead2):
+    tr_atr = rise_time_atr * T
+    td_atr = fall_time_atr * T
+    tr_ven = rise_time_ven * T
+    td_ven = fall_time_ven * T
 
-    if ti <= 0.9 * T:
-        t_la = ti + 0.1 * T
+    if ti <= ahead1 * T:
+        t_la = ti + ahead2 * T
     else:
-        t_la = ti - 0.9 * T
+        t_la = ti - ahead1 * T
 
     if atr == 1:
         if t_la <= tr_atr:
