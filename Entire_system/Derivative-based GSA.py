@@ -37,8 +37,16 @@ import numpy as np
 # X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_exercise.npy')[:97227, :]
 # Result = np.load('Results_DGSM_351_exercise_all_params.npy')
 
-X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')
-Result = np.load('Result_DGSM_delay11.npy')
+# exercise all params with atria Bioeng392
+X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[:94800, :]
+Result1 = np.load('Result_DGSM_delay1_25.npy')
+Result2 = np.load('Result_DGSM_delay11.npy')
+Result = np.vstack((Result1, Result2))
+
+
+# go to the linux machine for the rest all params with atria results
+
+# Bioeng515 has the LHS results
 
 
 
@@ -57,7 +65,7 @@ Result = np.load('Result_DGSM_delay11.npy')
 # X = X[mask_full]
 # Result = Result[mask_full]
 
-HR = Result[:, 1]
+HR = Result[:, 0]
 # HR = HR_load[HR_load != 0]
 
 # # Assume your arrays are named

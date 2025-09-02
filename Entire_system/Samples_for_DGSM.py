@@ -713,7 +713,7 @@ if __name__ == "__main__":
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
 
-    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[4800:,:]
+    X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[7500:,:]
     # X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[75000:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]

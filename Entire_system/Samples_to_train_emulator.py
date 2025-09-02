@@ -404,51 +404,27 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=3200, save_p
     return results_all
 
 
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+# def parallel_simulations(param_samples, storage, chunk_size=3200, save_path='Result_DGSM_chunked.npy'):
 #     results_all = []
 #
+#     # If file exists from previous run, remove it to start fresh
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
-#     block_size = 175
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+#     for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+#         results = []
+#         for params in tqdm(chunk, desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}"):
+#             res = simulate_cpu(params, copy.deepcopy(storage), Old_Parameters)
+#             results.append(res)
 #
-#     for i, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#         print(f"Running base sample for block {i+1}...")
+#         results_chunk = [res[0] for res in results]
+#         results_all.extend(results_chunk)
 #
-#         base_result, IC_final, storage_final = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#
-#         print(f"Base sample result: {base_result}")
-#
-#         if base_result[0] == 0:
-#             print(f"Skipping block {i + 1} due to base failure.")
-#             results_all.extend(np.zeros((174, 3)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         results_perturbations = []
-#         for j, params in enumerate(block):
-#             print(f"Running perturbation {j+1}/{len(block)} of block {i+1}...")
-#             res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
-#
-#             i = storage_final["i"].item() % BUFFER_LIMIT
-#
-#             print(f"Perturbation result: {res[0]}")
-#             results_perturbations.append(res)
-#
-#         results_block = [base_result] + results_perturbations
-#         results_all.extend(results_block)
-#
-#         # Save checkpoint files for debugging
-#         np.save(f'IC_final_{i:03d}.npy', IC_final)
-#         np.save(f'Next_final_{i:03d}.npy', storage_final)
-#
+#         # Save progressively (overwrites with accumulated results)
 #         np.save(save_path, np.array(results_all))
-#         print(f"Block {i+1} finished and results saved.")
 #
 #     return results_all
+
 
 
 if __name__ == "__main__":
@@ -639,8 +615,8 @@ if __name__ == "__main__":
 
     # sample from a simulation (do this for initial training of emulator but use saltelli sampling for GSA)
     lhd = LatinHypercube(list(sp["bounds"]))
-    X = lhd.sample(200000)
-    np.save('All_params_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
+    # X = lhd.sample(200000)
+    X = np.load('All_params_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')
 
     # X = np.load('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy')
 
