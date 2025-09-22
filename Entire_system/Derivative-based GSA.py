@@ -38,13 +38,33 @@ import numpy as np
 # Result = np.load('Results_DGSM_351_exercise_all_params.npy')
 
 # exercise all params with atria Bioeng392
-X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[:94800, :]
-Result1 = np.load('Result_DGSM_delay1_25.npy')
-Result2 = np.load('Result_DGSM_delay11.npy')
+# X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')
+# Result = np.load('All_params_DGSM_500_Results_HR_Plv_Prv_Vlv_Vrv_atria.npy')
+
+# # go to the linux machine for at rest, all params with atria results
+X1 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[:95700, :]
+X2 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[96000:, :]
+Result1 = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[:95700, :]
+Result2 = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[96000:, :]
+#
+# # A = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[95700:96000, 2]
+# # AA = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[95700:96000, :]
+#
+X = np.vstack((X1, X2))
 Result = np.vstack((Result1, Result2))
 
-
-# go to the linux machine for the rest all params with atria results
+D = 299
+block_size = D + 1   # 174
+n_blocks = X.shape[0] // block_size
+# Find basepoint indices (first row of each block)
+base_idx = np.arange(0, X.shape[0], block_size)
+# Mask: True if basepoint result != 0
+mask_blocks = Result[base_idx, 0] != 0   # check column 0 (e.g. HR); adjust if needed
+# Expand mask to all rows in a block
+mask_full = np.repeat(mask_blocks, block_size)
+# Filter arrays
+X = X[mask_full]
+Result = Result[mask_full]
 
 # Bioeng515 has the LHS results
 
@@ -65,7 +85,7 @@ Result = np.vstack((Result1, Result2))
 # X = X[mask_full]
 # Result = Result[mask_full]
 
-HR = Result[:, 0]
+HR = Result[:, 7]
 # HR = HR_load[HR_load != 0]
 
 # # Assume your arrays are named
@@ -732,10 +752,11 @@ plt.show()
 
 
 
-# ranking convergence
-def rank_stability(problem, X, Y, max_blocks, step=5, top_k=threshold_index):
+# ranking convergence compared to final basepoint
+def rank_stability_final(problem, X, Y, max_blocks, step=5, top_k=threshold_index):
     """
-    Compute DGSM rankings as number of base points increases.
+    Compute DGSM rankings as number of base points increases,
+    comparing each to the final ranking.
 
     Parameters
     ----------
@@ -751,43 +772,38 @@ def rank_stability(problem, X, Y, max_blocks, step=5, top_k=threshold_index):
         Number of top parameters to track for overlap stability
     """
     D = problem["num_vars"]
-    rankings = []
-    corrs = []
-    overlaps = []
-
-    prev_rank = None
     block_sizes = range(step, max_blocks + 1, step)
+    rankings = []
 
+    # First, compute rankings for all block sizes
     for nb in block_sizes:
-        # number of samples = (D+1) * nb
         N = (D + 1) * nb
         Si = dgsm.analyze(problem, X[:N, :], Y[:N])
         dgsm_vals = np.array(Si['dgsm'])
-
-        # sort descending, keep top_k
         rank = np.argsort(dgsm_vals)[::-1][:top_k]
         rankings.append(rank)
 
-        if prev_rank is not None:
-            # Spearman correlation of full top_k rankings
-            corr, _ = spearmanr(prev_rank, rank)
-            corrs.append(corr)
+    # Use final ranking as reference
+    final_rank = rankings[-1]
 
-            # Top-k overlap (fraction of shared elements)
-            overlap = len(set(prev_rank) & set(rank)) / top_k
-            overlaps.append(overlap)
-        else:
-            corrs.append(0.0)
-            overlaps.append(0.0)  # baseline: identical to itself
+    corrs = []
+    overlaps = []
 
-        prev_rank = rank
+    for rank in rankings:
+        # Spearman correlation with final ranking
+        corr, _ = spearmanr(rank, final_rank)
+        corrs.append(corr)
+
+        # Top-k overlap
+        overlap = len(set(rank) & set(final_rank)) / top_k
+        overlaps.append(overlap)
 
     return block_sizes, corrs, overlaps, rankings
 
 
 # Example usage
 max_blocks = int(len(HR)/block_size)
-block_sizes, corrs, overlaps, rankings = rank_stability(sp, X, HR, max_blocks=max_blocks, step=2)
+block_sizes, corrs, overlaps, rankings = rank_stability_final(sp, X, HR, max_blocks=max_blocks, step=10)
 
 # Plot both metrics
 plt.figure(figsize=(8,5))
@@ -795,7 +811,8 @@ plt.plot(block_sizes, corrs, marker="o", label="Spearman correlation")
 plt.plot(block_sizes, overlaps, marker="s", label="Top-k overlap")
 plt.xlabel("Number of base points (blocks)")
 plt.ylabel("Stability metric")
-plt.title("DGSM Ranking Stability - " + str(threshold_index))
+plt.title("DGSM Rankings with Increasing Base Points Compared to All Samples")
 plt.legend()
 plt.grid(True, linestyle="--", alpha=0.6)
 plt.show()
+

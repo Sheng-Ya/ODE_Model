@@ -49,7 +49,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 210 # Maximum time limit to avoid infinite loops
+max_time = 550 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -292,7 +292,7 @@ def simulate():
 
     # determine the correct breathing profile
     c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (56.68997590915653, -202.59647354823105, 288.8670155008632, -209.7703017034145, 82.28269589051426, -17.368480186780154, 2.5893052287384397, 89.14188202682894, -308.69610281589763, 429.74939918039985, -308.8054292147809, 122.49308640665272, -26.978019539657186, 4.001791662703984)
-        # minimise_breathing(Next_Conditions["t1_store"][0],
+    # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (minimise_breathing(Next_Conditions["t1_store"][0],
     # Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao))
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
@@ -434,10 +434,73 @@ if __name__ == "__main__":
     print(HR)
     print(len(Next_Conditions["time_history"][:index]))
 
+    # Set global style
+    plt.rcParams.update({
+        "font.size": 14,  # Larger font
+        # "font.weight": "bold",  # Bold text
+        # "axes.labelweight": "bold",
+        "axes.titlesize": 16,
+        # "axes.titleweight": "bold",
+        "legend.fontsize": 10,
+        "lines.linewidth": 1.5,  # Thicker lines
+    })
+
 
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
+    t1 = Next_Conditions["TI"][:index]
+    Breath_time = 1/Next_Conditions["BF"][:index]
+    t2 = Breath_time - t1
+    # Minute_Ventilation = 60 * (Next_Conditions["VAflow"][index - 1400000:index] + t1 / (t1 + t2))
+    VD = new_params["GV_dead"] * Next_Conditions["VAflow"][:index] + new_params["V0_dead"]
+    VDflow = (1 / (t1 + t2)) * VD
+    Minute_Ventilation = (Next_Conditions["VAflow"][:index] + VDflow) * 60
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation, label="Minute Ventilation", color="r")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Ventilation (L/min)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.grid(True)
+    # # plt.show()
+    # ax2 = ax1.twinx()
+    ax1.plot(Next_Conditions["time_history"][:index], 60 * Next_Conditions["VAflow"][:index], label="Alveolar Ventilation", color="b")
+    ax1.legend(loc="upper left")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    plt.show()
+
+    # HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
+    #
+    # past_10_flat_segments = []
+    # prev_value = None
+    # for j in range(len(HR) - 1, -1, -1):
+    #     current_value = HR[j]
+    #     if current_value != prev_value:
+    #         # store both time and HR value as a tuple
+    #         past_10_flat_segments.append((sorted_times[j], current_value))
+    #         prev_value = current_value
+    #         if len(past_10_flat_segments) == 10:
+    #             break
+    #
+    # # unpack times and values
+    # avg_times, avg_values = zip(*past_10_flat_segments)
+    #
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, HR, label="HR")
+    #
+    # # scatter plot all 10 points
+    # ax1.scatter(avg_times, avg_values, color='g', marker='x', s=100, label="Last 10 flat values")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
+    #
+    #
     # P_sa = np.concatenate((Next_Conditions["P_sa_store"][i:], Next_Conditions["P_sa_store"][:i]))
     #
     # peaks, _ = find_peaks(P_sa, distance=int(500), prominence=1)  # Adjust distance based on heart rate
@@ -488,11 +551,6 @@ if __name__ == "__main__":
     # ax1.grid(True)
     # plt.show()
     #
-    #
-    #
-    #
-    #
-    #
     # V_rv = np.concatenate((Next_Conditions["V_rv_store"][i:], Next_Conditions["V_rv_store"][:i]))
     # peaks, _ = find_peaks(V_rv, distance=int(500), prominence=1)
     # troughs, _ = find_peaks(-V_rv, distance=int(500), prominence=1)
@@ -516,8 +574,6 @@ if __name__ == "__main__":
     # ax1.legend(loc="upper left")
     # ax1.grid(True)
     # plt.show()
-    #
-    #
     #
     #
     # P_rv = np.concatenate((Next_Conditions["P_rv_store"][i:], Next_Conditions["P_rv_store"][:i]))
@@ -557,18 +613,21 @@ if __name__ == "__main__":
     #
     #
     #
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["CTO2"][:index], label="CTO2")  #
-    # plt.xlabel("Volume (mL)")
-    # plt.ylabel("Pressure (mmHg)")
-    # # plt.title("Pressure-Volume Traces")
-    # plt.legend()
-    # # plt.grid(True)
-    # plt.show()
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="Activation Atrium Function")  #
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="Activation Ventricle Function")  #
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_tr"][:index], label="Tricuspid valve flow")  #
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_mi"][:index], label="Mitral valve flow")  #
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_ao"][:index], label="Aortic valve flow")  #
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_po"][:index], label="Pulmonary valve flow")  #
+    plt.xlabel("Time (s)")
+    plt.ylabel("Activation")
+    # plt.title("Pressure-Volume Traces")
+    plt.legend(loc="upper right")
+    # plt.grid(True)
+    plt.show()
+
+
+    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_tr"][:index], label="Tricuspid valve flow")  #
+    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_mi"][:index], label="Mitral valve flow")  #
+    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_ao"][:index], label="Aortic valve flow")  #
+    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_po"][:index], label="Pulmonary valve flow")  #
 
     plt.xlabel("Time (s)")
     plt.ylabel("Flow (mL/s)")
@@ -652,57 +711,110 @@ if __name__ == "__main__":
 
     plt.show()
 
-    plt.plot(Next_Conditions["VT_lv"][index- 100000:index], Next_Conditions["P_lv"][index- 100000:index], label="LV")  # 10 s all    #
+    # LV
+    plt.plot(Next_Conditions["VT_lv"][index - 100000:index], Next_Conditions["P_lv"][index - 100000:index],
+             label="LV", linewidth=2.5)
+    plt.plot(Next_Conditions["VT_rv"][index - 20000:index], Next_Conditions["P_rv"][index - 20000:index],
+             label="RV", linewidth=2.5)
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
-    # plt.title("Pressure-Volume Traces")
     plt.legend()
-    # plt.grid(True)
     plt.show()
 
-    plt.plot(Next_Conditions["VT_rv"][index- 100000:index], Next_Conditions["P_rv"][index- 100000:index], label="rV")  # 10 s all    #
-    plt.xlabel("Volume (mL)")
-    plt.ylabel("Pressure (mmHg)")
-    # plt.title("Pressure-Volume Traces")
-    plt.legend()
-    # plt.grid(True)
-    plt.show()
-
-    plt.plot(Next_Conditions["VT_ra"][index- 100000:index], Next_Conditions["P_ra"][index- 100000:index], label="RA")  #
-    plt.xlabel("Volume (mL)")
-    plt.ylabel("Pressure (mmHg)")
-    # plt.title("Pressure-Volume Traces")
-    plt.legend()
-    # plt.grid(True)
-    plt.show()
-
-    # get max's plot with Pmax_la instead of P_la
-    plt.plot(Next_Conditions["VT_la"][index- 100000:index], Next_Conditions["P_la"][index- 100000:index], label="LA")
-    # plt.plot(Next_Conditions["VT_ra"][:index], Next_Conditions["P_ra"][:index], label="LA")
-
-    # # Add labels and legend
-    plt.xlabel("Volume (mL)")
-    plt.ylabel("Pressure (mmHg)")
-    # plt.title("Pressure-Volume Traces")
-    plt.legend()
-    # plt.grid(True)
-    plt.show()
 
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_lv"][47500:index],
-             label="Q_lv (leaving LV)")
-    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_la"][47500:index], label="Q_la (into LA)")
-    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_ra"][47500:index], label="Q_ra (into RA)")
-    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Q_rv"][47500:index],
-             label="Q_rv (leaving RV/into pul art)")
-    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Qi_lv"][47500:index], label="Qi_lv")
-    ax1.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["Qi_rv"][47500:index], label="Qi_rv")
+    ax1.plot(Next_Conditions["time_history"][index - 1400000:index], 60 * Next_Conditions["HR"][index - 1400000:index], label="Heart Rate", color="r")
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Heart Rate (bpm)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.set_ylim(top=135)  # y-axis of ax1 goes up to 135
+
+    ax1.legend(loc="upper left")
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Emax_rv"][index - 1400000:index], label="RV Max Elastance", color="g")
+    ax2.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Emax_lv"][index - 1400000:index], label="LV Max Elastance", color='b')
+
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.set_ylabel("Elastance (mmHg/ml)")
+
+    # ax2.set_ylim(top=4.5)  # y-axis of ax2 goes up to 4.5
+    ax2.legend()
+
+
+    plt.show()
+
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_ev"][index - 1400000:index], label="Extrasplanchnic V$_{Stressed}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_amv"][index - 1400000:index], label="Active Muscle V$_{Stressed}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_rmv"][index - 1400000:index], label="Resting Muscle V$_{Stressed}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_sv"][index - 1400000:index], label="Splanchnic V$_{Stressed}$")
 
     # Add labels and legend
+    plt.ylabel("Volume (mL)")
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.show()
+
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["R_ep"][index - 1400000:index], label="Extrasplanchnic R$_{Peripheral}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["R_amp"][index - 1400000:index], label="Active Muscle R$_{Peripheral}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["R_rmp"][index - 1400000:index], label="Resting Muscle R$_{Peripheral}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["R_sp"][index - 1400000:index], label="Splanchnic R$_{Peripheral}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["R_bp"][index - 1400000:index], label="Brain R$_{Peripheral}$")
+    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["R_hp"][index - 1400000:index], label="Coronary R$_{Peripheral}$")
+
+    # Add labels and legend
+    plt.ylabel("Resistance (mmHg·s/ml)")
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.show()
+
+
+
+
+    # RA
+    plt.plot(Next_Conditions["VT_ra"][index - 10000:index], Next_Conditions["P_ra"][index - 10000:index],
+             label="RA")
+    plt.plot(Next_Conditions["VT_la"][index - 5000:index], Next_Conditions["P_la"][index - 5000:index],
+             label="LA")
+    plt.xlabel("Volume (mL)")
+    plt.ylabel("Pressure (mmHg)")
+    plt.legend()
+    plt.show()
+
+
+    # LA
+    fig, ax1 = plt.subplots()
+
+    plt.plot(Next_Conditions["time_history"][index - 40000:index], Next_Conditions["V"][index - 40000:index], linewidth=2.5)
+    plt.xlabel("Time (s)")
+    plt.xticks(range(int(Next_Conditions["time_history"][index - 40000:index][0]), int(Next_Conditions["time_history"][index - 40000:index][-1]) + 1, 2))  # every 2 s
+    plt.ylabel("Inspired/Expired Volume (L)")
+    plt.legend()
+    plt.show()
+
+    # Flows
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][index - 7500:index], Next_Conditions["Q_lv"][index - 7500:index],
+             label="Q$_{LV}$ (out of LV)")
+    ax1.plot(Next_Conditions["time_history"][index - 7500:index], Next_Conditions["Q_la"][index - 7500:index],
+             label="Q$_{LA}$ (into LA)")
+    ax1.plot(Next_Conditions["time_history"][index - 7500:index], Next_Conditions["Q_ra"][index - 7500:index],
+             label="Q$_{RA}$ (into RA)")
+    ax1.plot(Next_Conditions["time_history"][index - 7500:index], Next_Conditions["Q_rv"][index - 7500:index],
+             label="Q$_{RV}$ (out of RV)")
+    ax1.plot(Next_Conditions["time_history"][index - 7500:index], Next_Conditions["Qi_lv"][index - 7500:index],
+             label="Q$_{Mitral}$")
+    ax1.plot(Next_Conditions["time_history"][index - 7500:index], Next_Conditions["Qi_rv"][index - 7500:index],
+             label="Q$_{Tricuspid}$")
+
     ax1.set_xlabel("Time (s)")
+    ax1.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
     ax1.set_ylabel("Flow (mL/s)")
     ax1.legend(loc="upper left")
-    plt.grid(True)
+    plt.show()
 
     # ax2 = ax1.twinx()
     # ax2.plot(Next_Conditions["time_history"][47500:index], Next_Conditions["theta_mi"][47500:index], label="theta_mi",
@@ -712,23 +824,110 @@ if __name__ == "__main__":
     # ax2.tick_params(axis='y', labelcolor="k")
     # ax2.legend(loc="upper right")
 
+    plt.plot(Next_Conditions["time_history"][index - 8000:index], 57.2958 * Next_Conditions["theta_tr"][index - 8000:index],
+             label="Tricuspid")  #
+    plt.plot(Next_Conditions["time_history"][index - 8000:index], 57.2958 * Next_Conditions["theta_mi"][index - 8000:index], label="Mitral")  #
+    plt.plot(Next_Conditions["time_history"][index - 8000:index], 57.2958 * Next_Conditions["theta_ao"][index - 8000:index], label="Aortic")  #
+    plt.plot(Next_Conditions["time_history"][index - 8000:index], 57.2958 * Next_Conditions["theta_po"][index - 8000:index],
+             label="Pulmonary")  #
+
+    plt.gca().xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+    plt.ylabel("Valve Angle (degrees)")
+    # plt.title("Pressure-Volume Traces")
+    # Rotate tick labels
+    # plt.xticks(rotation=45)
+    plt.xlabel("Time (s)")
+
+    # Legend in upper left
+    plt.legend(loc="upper left")
+    # plt.grid(True)
+    plt.show()
+
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Arterial pO$_{2}$")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Nt")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtO2"][:index], label="Venous pO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Arterial pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtCO2"][:index], label="Venous pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Cerebral pCO$_{2}$")
+
+
+    plt.xlabel("Time (s)")
+    plt.ylabel("Partial Pressure (mmHg)")
+    plt.gca().xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+    plt.legend(loc="center left")
     plt.show()
 
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_lv"][:index], label="Qi_lv", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index], label="Q_vc", color="b")
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ca_O2"][:index], label="Arterial c[O$_{2}$]", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ca_CO2"][:index], label="Arterial c[CO$_{2}$]", color="m")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_O2"][:index], label="Venous c[O$_{2}$]", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_CO2"][:index], label="Venous c[CO$_{2}$]", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvbO2"][:index], label="CvbO2", color="y")
 
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="y")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv", color='c')
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Concentration (ml/ml blood)")
+
+    ax1.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+    ax1.set_ylabel("Concentrations (ml/ml blood)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="center left")
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color='g')
+
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv", color='b')
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_lv"][:index], label="Qi_lv", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="b")
+    ax1.set_xlabel("Time (s)")
+    ax1.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend()
+
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color='g')
+    #
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="r")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv", color='b')
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+
+    plt.show()
+
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_ra"][:index], label="V_ra")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_rv"][:index], label="V_rv")
+
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_la"][:index], label="V_la")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_lv"][:index], label="V_lv")
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Qi_lv"][:index], label="Qi_lv", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_la"][:index], label="Q_la", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="b")
+    ax1.set_xlabel("Time (s)")
+    ax1.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend()
+
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color='g')
+    #
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="r")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv", color='b')
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
 
     plt.show()
 
@@ -762,38 +961,19 @@ if __name__ == "__main__":
     plt.show()
 
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ca_O2"][:index], label="Arterial c[O2]", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ca_CO2"][:index], label="Arterial c[CO2]", color="m")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_O2"][:index], label="Venous c[O2]", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_CO2"][:index], label="Venous c[CO2]", color="g")
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvbO2"][:index], label="CvbO2", color="y")
 
-
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Firing rate (spikes/s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["QT"][:index], label="QT", color="g")
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
-    plt.show()
-    plt.show()
 
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sp"][:index],
-             label="Peripheral Resistances SA", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sv"][:index], label="Veins SA", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart SA", color="k")
+             label="Peripheral Resistance Sympathetic Activity", color="r")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sv"][:index], label="Venous Volume Sympathetic Activity", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="HR & Contractility Sympathetic Activity", color="k")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal Activity", color="g")
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Firing rate (spikes/s)")
     ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
+    ax1.legend(loc="center left")
     ax1.grid(True)
     plt.show()
 
@@ -952,21 +1132,21 @@ if __name__ == "__main__":
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_ac"][:index], label="Chemoreceptor firing", color="k")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Respiratory neuromuscular drive", color="g")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart sympathetic", color="m")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart sympathetic", color="m")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["prev_flat_bit_store"][:index], label="Heart sympathetic", color="r")
 
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh_delay2"][:index],
     #          label="Delay Heart sympathetic", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
     #
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index],
     #          label="Delay Vagal firing", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
-             color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="aquamarine")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
-             color='g')
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
+    #          color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="aquamarine")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
+    #          color='g')
 
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sv"][:index], label="theta_sv", color="g")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
@@ -979,15 +1159,15 @@ if __name__ == "__main__":
     ax1.legend(loc="upper left")
     ax1.grid(True)
     # # plt.show()
-    ax2 = ax1.twinx()
+    # ax2 = ax1.twinx()
     #
     # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
     # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
     #
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
     plt.show()
 
 
@@ -1262,20 +1442,6 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.show()
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR"][:index], label="HR")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index], label="Emax_lv")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index], label="Emax_rv")
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["I"][:index], label="I")
-    #
-    #
-    #
-    # Add labels and legend
-    plt.ylabel("")
-    plt.xlabel("Time (s)")
-    plt.title("Traces")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
 
 
 
@@ -1432,29 +1598,28 @@ if __name__ == "__main__":
     # ax1.grid(True)
     # plt.show()
 
-    # # Number of state variables
-    # num_variables = state_variables.shape[0]
-    # colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
-    #
-    # # Plot all state variables
-    # plt.figure(figsize=(14, 10))
-    #
-    # for i, label in enumerate(required_gas_keys):
-    #     # if label == "Pd_2_O2":  # Skip "VT_sv"
-    #     #     continue
-    #     color = colors[
-    #         i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-    #     plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
-    #              color=color, linestyle='-', markersize=4)
-    #
-    # plt.xlabel("Time")
-    # plt.ylabel("State Variables")
-    # plt.title("Evolution of State Variables Over Time")
-    # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-    # plt.grid()
-    # plt.tight_layout()
-    # plt.show()
+    # Number of state variables
+    num_variables = state_variables.shape[0]
+    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
 
+    # Plot all state variables
+    plt.figure(figsize=(14, 10))
+
+    for i, label in enumerate(required_gas_keys):
+        if label in ["Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PCSFCO2", "MRTO2", "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV"]:  # Skip "VT_sv"
+            continue
+        color = colors[
+            i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
+        plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
+                 color=color, linestyle='-', markersize=4)
+
+    plt.xlabel("Time")
+    plt.ylabel("State Variables")
+    plt.title("Evolution of State Variables Over Time")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
 
 
 
@@ -1526,14 +1691,6 @@ if __name__ == "__main__":
     # plt.plot(Next_Conditions["time_history"])
     # plt.show()
 
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Pa_O2")
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Nt")
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="PaCO2")
-
-    # plt.xlabel("Time (s)")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
 
 
     plt.plot(Next_Conditions["VT_lv"][index- 100000:index], Next_Conditions["P_lv"][index- 100000:index], label="LV")  # 10 s all    #
@@ -1634,24 +1791,7 @@ if __name__ == "__main__":
     plt.show()
 
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_ev"][:index], label="Vu_ev")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Vu_amv")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_rmv"][:index], label="Vu_rmv")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_sv"][:index], label="Vu_sv")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_ep"][:index], label="R_ep")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_amp"][:index], label="R_amp")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_rmp"][:index], label="R_rmp")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_sp"][:index], label="R_sp")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_bp"][:index], label="R_bp")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["R_hp"][:index], label="R_hp")
 
-    # Add labels and legend
-    plt.ylabel("")
-    plt.xlabel("Time (s)")
-    plt.title("Traces")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
 
 
 

@@ -149,10 +149,10 @@ def calc_vi_stats(base, perturbed, x_delta, variable):
     dfdx_filtered = dfdx[mask]
 
 
-    # mean_dfdx = np.mean(dfdx_filtered1)
-    # std_dfdx = np.std(dfdx_filtered1)
-    # mask = np.abs(dfdx_filtered1 - mean_dfdx) <= 3 * std_dfdx
-    # dfdx_filtered = dfdx_filtered1[mask]
+    mean_dfdx = np.mean(dfdx_filtered)
+    std_dfdx = np.std(dfdx_filtered)
+    mask = np.abs(dfdx_filtered - mean_dfdx) <= 3 * std_dfdx
+    dfdx_filtered = dfdx_filtered[mask]
 
 
     return np.mean(dfdx_filtered), np.std(dfdx_filtered)
@@ -185,10 +185,10 @@ def calc_vi_mean(base, perturbed, x_delta, variable):
     dfdx_filtered = dfdx[mask]
 
 
-    # mean_dfdx = np.mean(dfdx_filtered1)
-    # std_dfdx = np.std(dfdx_filtered1)
-    # mask = np.abs(dfdx_filtered1 - mean_dfdx) <= 3 * std_dfdx
-    # dfdx_filtered = dfdx_filtered1[mask]
+    mean_dfdx = np.mean(dfdx_filtered)
+    std_dfdx = np.std(dfdx_filtered)
+    mask = np.abs(dfdx_filtered - mean_dfdx) <= 3 * std_dfdx
+    dfdx_filtered = dfdx_filtered[mask]
 
     return np.mean(dfdx_filtered)
     # return dfdx.mean()

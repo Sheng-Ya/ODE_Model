@@ -4,14 +4,14 @@ from scipy.optimize import minimize, NonlinearConstraint
 from check import Parameters as params
 from Resp_Control_Breath_Optimiser import objective
 
-# data = np.load("t1_t2_vs_VAflow.npz")
-# VAflow = data["VAflow"]
-# t1 = data["t1"]
-# t2 = data["t2"]
+data = np.load("t1_t2_vs_VAflow.npz")
+VAflow = data["VAflow"]
+t1 = data["t1"]
+t2 = data["t2"]
 
 
 
-# # Define VAflow range
+# Define VAflow range
 # VAflow_vals = np.linspace(0.06, 1, 1000)
 #
 # # Coefficients for t1 and t2 best-fit polynomials (highest degree to constant)
@@ -41,33 +41,47 @@ from Resp_Control_Breath_Optimiser import objective
 # plt.show()
 #
 #
-# repeats = 3
-# VAflow_unique = VAflow  # Grab every 5th (first of each group)
-# # t1_mean = np.mean(t1.reshape(-1, repeats), axis=1)
-# # t2_mean = np.mean(t2.reshape(-1, repeats), axis=1)
-# t1_mean = t1
-# t2_mean = t2
-#
-# # Fit a polynomial (or linear)
-# t1_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], deg=6))
-# t2_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], deg=6))
-#
-# VAflow_fit = np.linspace(min(VAflow_unique[~np.isnan(t1_mean)]), max(VAflow_unique[~np.isnan(t1_mean)]), 200)
-#
-# print("Best fit equation for t1:", t1_poly)
-# print("Best fit equation for t2:", t2_poly)
-#
-# plt.figure(figsize=(14, 6))
-# plt.plot(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], 'bo', markersize=3, label='Mean t1')
-# plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Fit t1')
-# plt.plot(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], 'ro', markersize=3, label='Mean t2')
-# plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Fit t2')
-# plt.xlabel("VAflow (L/s)")
-# plt.ylabel("Time (s)")
+GV_dead = params["GV_dead"]
+V0_dead = params["V0_dead"]
+
+
+plt.rcParams.update({
+    "font.size": 14,  # Larger font
+    "font.weight": "bold",  # Bold text
+    "axes.labelweight": "bold",
+    "axes.titlesize": 16,
+    "axes.titleweight": "bold",
+    "legend.fontsize": 12,
+    "lines.linewidth": 2.5,  # Thicker lines
+})
+
+repeats = 3
+VAflow_unique = VAflow  # Grab every 5th (first of each group)
+# t1_mean = np.mean(t1.reshape(-1, repeats), axis=1)
+# t2_mean = np.mean(t2.reshape(-1, repeats), axis=1)
+t1_mean = t1
+t2_mean = t2
+
+# Fit a polynomial (or linear)
+t1_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], deg=6))
+t2_poly = np.poly1d(np.polyfit(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], deg=6))
+
+VAflow_fit = np.linspace(min(VAflow_unique[~np.isnan(t1_mean)]), max(VAflow_unique[~np.isnan(t1_mean)]), 200)
+
+print("Best fit equation for t1:", t1_poly)
+print("Best fit equation for t2:", t2_poly)
+
+plt.figure(figsize=(14, 6))
+plt.plot(VAflow_unique[~np.isnan(t1_mean)], t1_mean[~np.isnan(t1_mean)], 'bo', markersize=3, label='Optimal Inspiration Time')
+plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Inspiration Time Fit')
+plt.plot(VAflow_unique[~np.isnan(t2_mean)], t2_mean[~np.isnan(t2_mean)], 'ro', markersize=3, label='Optimal Expiration Time')
+plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Expiration Time Fit')
+plt.xlabel("Minute Ventilation (L/s)")
+plt.ylabel("Optimised Breathing Time (s)")
 # plt.title("Average t1 and t2 vs VAflow with Best-Fit Curves")
-# plt.legend()
+plt.legend()
 # plt.grid(True)
-# plt.show()
+plt.show()
 # #
 #
 #
