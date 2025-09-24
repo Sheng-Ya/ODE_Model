@@ -1,5 +1,7 @@
 import os
 import copy
+import torch
+from scipy.stats import qmc
 
 import numpy as np
 from SALib import ProblemSpec
@@ -14,12 +16,10 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from All_derivatives_njit import model_derivatives
-from check import Parameters as Old_Parameters
+from fixed_params import Parameters as Old_Parameters
 
 from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import Next_Conditions
-
-from autoemulate.experimental_design import LatinHypercube
 
 
 target_values = np.arange(0, 10000, 10)
@@ -425,6 +425,74 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=3200, save_p
 #
 #     return results_all
 
+def sample_inputs_from_spec(
+        spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
+) -> torch.Tensor:
+    """
+    Generate samples from a ProblemSpec-style dictionary.
+
+    Parameters
+    ----------
+    spec : dict
+        Must contain 'names' and 'bounds'.
+    n_samples : int
+        Number of samples to generate.
+    random_seed : int | None
+        For reproducibility.
+    method : str
+        "lhs" or "sobol".
+
+    Returns
+    -------
+    torch.Tensor
+        Samples of shape (n_samples, n_parameters)
+    """
+    if random_seed is not None:
+        torch.manual_seed(random_seed)
+
+    param_names = spec['names']
+    param_bounds = spec['bounds']
+    in_dim = len(param_names)
+
+    # Check if any bounds are fixed (min == max)
+    constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
+    sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
+
+    # Handle case all parameters are constant
+    if len(sample_param_bounds) == 0:
+        const_vals = torch.tensor(list(constant_params.values()))
+        return const_vals.repeat(n_samples, 1)
+
+    # Create sampler
+    if method.lower() == "lhs":
+        sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
+    elif method.lower() == "sobol":
+        sampler = qmc.Sobol(d=len(sample_param_bounds))
+    else:
+        raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
+
+    samples = sampler.random(n=n_samples)
+    # scale samples to bounds
+    scaled_samples = qmc.scale(
+        samples,
+        [b[0] for b in sample_param_bounds],
+        [b[1] for b in sample_param_bounds]
+    )
+    scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
+
+    # Insert constant parameters at the correct indices
+    full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
+    sample_idx = 0
+    for idx in range(in_dim):
+        if idx in constant_params:
+            full_samples[:, idx] = constant_params[idx]
+        else:
+            full_samples[:, idx] = scaled_samples[:, sample_idx]
+            sample_idx += 1
+
+    return full_samples
+
+
 
 
 if __name__ == "__main__":
@@ -611,12 +679,51 @@ if __name__ == "__main__":
             [0.1 * lower, 0.1 * upper]]
     })
 
-    param_keys = list(sp["names"])
 
-    # sample from a simulation (do this for initial training of emulator but use saltelli sampling for GSA)
-    lhd = LatinHypercube(list(sp["bounds"]))
-    # X = lhd.sample(200000)
-    X = np.load('All_params_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')
+    # filtered set from DGSM
+    subset_vars = {'k_ac', 'C_O2_param2', 'Wp_sv', 'ahead1', 'G_ap', 'PaO2_ac_n', 'Cvh_O2_n', 'T_im', 'K1_vc',
+                   'theta_mi_max', 'P0_rv', 'KcCO2', 'R_rs', 'GT_s', 'theta_svn', 'Emax_lv0', 'C_O2_param1', 'f_ac_min',
+                   'kmet', 'R_sa', 'R_bpn', 'Io_sv', 'phi_max', 'R_po', 'f_acCO2_n', 'Kv_tr', 'Emax_rv0', 'V_tot',
+                   'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'E_rs', 'C2', 'Wb_sh',
+                   'C_pp', 'Vu_hv', 'g_ccsp', 'R_mi', 'f_ab_max', 'Wb_sv', 'K2', 'Tc', 'GEmax_rv', 'GEmax_lv', 'a2',
+                   'Vu_bv', 'KE_lv', 'Wc_sp', 'scale_param2', 'KE_ra', 'GR_ep', 'Vu_rv', 'fes_min', 'Ysv_min',
+                   'VA_rest', 'k_ab', 'R_pv', 'scale_param3', 'KpCO2', 'grm_O2', 'KE_la', 'fes_o', 'Vu_vc', 'GR_sp',
+                   'Cvrm_O2_n', 'C_jp', 'Wc_v', 'C_pv', 'g_ccsh', 'Fi_O2', 'C_sv', 'MO2_rmp', 'rise_time_ven',
+                   'Ysv_max', 'Vu_amv0', 'KE_rv', 'Vu_lv', 'beta2', 'Vu_ev0', 'GT_v', 'R_amp0', 'D', 'gb_O2',
+                   'f_ac_max', 'theta_v', 'theta_shn', 'kcc_sv', 'kev', 'fes_inf', 'MO2_ampn', 'Vu_rmv0', 'Wb_sp',
+                   'Vu_jp', 'Cvb_O2_n', 'Kv_po', 'Wp_v', 'PaCO2_n', 'Rvc_n', 'scale_param4', 'R_rmp0', 'R_sp0',
+                   'alpha2', 'kcc_sh', 'Kp_tr', 'GV_sv', 'T0', 'V0_dead', 'fev_o', 'R_tr', 'theta_po_max', 'f_ab_min',
+                   'R_hv_n', 'R_pa', 'P_thormin_n', 'Vu_sv0', 'fab_o', 'phi_min', 'fall_time_ven', 'Wp_sh', 'Kp_po',
+                   'K_H', 'P0_lv', 'R_ep0', 'Vu_pv', 'C_ev', 'MO2_bp', 'GV_dead', 'Wc_sh', 'P_n', 'Vu_pp', 'R_pp'}
+    # Filter the names and bounds
+    filtered_names = []
+    filtered_bounds = []
+
+    for name, bound in zip(sp["names"], sp["bounds"]):
+        if name in subset_vars:
+            filtered_names.append(name)
+            filtered_bounds.append(bound)
+
+    # Create a new ProblemSpec with only the filtered variables
+    sp_filtered = ProblemSpec({
+        "outputs": sp["outputs"],
+        "names": filtered_names,
+        "bounds": filtered_bounds
+    })
+
+
+
+
+
+
+    param_keys = list(sp_filtered["names"])
+
+    # lhd = LatinHypercube(list(sp_filtered["bounds"]))
+    # X = sample_inputs_from_spec(sp_filtered, n_samples=200000, random_seed=42, method="lhs")
+    # X = X.cpu().numpy() if X.is_cuda else X.numpy()
+    # np.save('DGSM_filtered_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
+    # X = lhd.sample(10)
+    X = np.load('DGSM_filtered_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')
 
     # X = np.load('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy')
 
@@ -628,5 +735,14 @@ if __name__ == "__main__":
 
     # print(Result)
 
-    np.save('All_params_LHCS_200000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_200000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+
+
+
+
+
+
+
+
+
 

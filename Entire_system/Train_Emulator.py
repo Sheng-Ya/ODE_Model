@@ -40,7 +40,7 @@ Result = Result[idx]
 
 
 # compare emulators
-ae = AutoEmulate(X, Result, log_level="error", models=["rbf"], device="cuda")
+ae = AutoEmulate(X, Result, log_level="error", models=["rbf"])
 # ae.setup(X, Result,  param_search=True, param_search_iters=30, n_jobs=-1, models=["rbf"], cross_validator=KFold(n_splits=3))
 # ae.setup(X, Result, n_jobs=-1, models=["rbf"])
 ae.summarise()

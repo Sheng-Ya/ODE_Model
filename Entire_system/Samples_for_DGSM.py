@@ -2,6 +2,7 @@ import os
 import copy
 
 import numpy as np
+import torch
 from SALib import ProblemSpec
 from SALib.sample import finite_diff
 from scipy.optimize import minimize
@@ -715,6 +716,7 @@ if __name__ == "__main__":
 
     X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[7500:,:]
     # X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')[75000:,:]
+    # X = torch.tensor(X, dtype=torch.float32)
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     # param_samples = [Old_Parameters]

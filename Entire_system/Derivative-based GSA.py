@@ -7,23 +7,8 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
-# # rest without delay and volumes params
-# X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay.npy')[:83172, :]
-# Result = np.load('Result_DGSM_478_delay.npy')
-# D = 173
-# block_size = D + 1   # 174
-# n_blocks = X.shape[0] // block_size
-# # Find basepoint indices (first row of each block)
-# base_idx = np.arange(0, X.shape[0], block_size)
-# # Mask: True if basepoint result != 0
-# mask_blocks = Result[base_idx, 0] != 0   # check column 0 (e.g. HR); adjust if needed
-# # Expand mask to all rows in a block
-# mask_full = np.repeat(mask_blocks, block_size)
-# # Filter arrays
-# X = X[mask_full]
-# Result = Result[mask_full]
 
-# corr, _ = spearmanr([147, 133, 146, 145, 68, 137, 2, 65, 92, 69, 64, 84, 144, 138, 141, 5, 45, 111, 158, 43], [147, 133, 146, 145, 68, 137, 2, 65, 69, 92, 84, 64, 5, 45, 121, 138, 164, 111, 116, 85])
+
 
 
 # X = np.load('New_DGSM_500_X_samples_HR_P_sys_P_dia_no_bifur_delay_exercise.npy')
@@ -42,29 +27,44 @@ import numpy as np
 # Result = np.load('All_params_DGSM_500_Results_HR_Plv_Prv_Vlv_Vrv_atria.npy')
 
 # # go to the linux machine for at rest, all params with atria results
-X1 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[:95700, :]
-X2 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[96000:, :]
-Result1 = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[:95700, :]
-Result2 = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[96000:, :]
-#
-# # A = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[95700:96000, 2]
-# # AA = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[95700:96000, :]
-#
-X = np.vstack((X1, X2))
-Result = np.vstack((Result1, Result2))
+# X1 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[:95700, :]
+# X2 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[96000:, :]
+# Result1 = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[:95700, :]
+# Result2 = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[96000:, :]
+# #
+# # # A = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')[95700:96000, 2]
+# # # AA = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')[95700:96000, :]
+# #
+# X = np.vstack((X1, X2))
+# Result = np.vstack((Result1, Result2))
+X = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_rest_atria.npy')
+Result = np.load('All_params_DGSM_500_Result_HR_EDV_ESV_Plv_Prv_Vrv_rest_atria.npy')
+
+Stroke_Volume = Result[:, 3] - Result[:, 4]
+Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
+Result = np.column_stack((Result, Stroke_Volume))
+Result = np.column_stack((Result, Ejection_fraction))
 
 D = 299
-block_size = D + 1   # 174
+block_size = D + 1
 n_blocks = X.shape[0] // block_size
 # Find basepoint indices (first row of each block)
 base_idx = np.arange(0, X.shape[0], block_size)
 # Mask: True if basepoint result != 0
 mask_blocks = Result[base_idx, 0] != 0   # check column 0 (e.g. HR); adjust if needed
+# OR: drop block if *any* nan appears in that block
+mask_blocks_nan = np.array([
+    np.all(np.isfinite(Result[i:i+block_size]))   # True if block has no nan
+    for i in base_idx
+])
+mask_blocks = mask_blocks & mask_blocks_nan
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)
 # Filter arrays
 X = X[mask_full]
 Result = Result[mask_full]
+
+HR = Result[:, 0]
 
 # Bioeng515 has the LHS results
 
@@ -85,7 +85,6 @@ Result = Result[mask_full]
 # X = X[mask_full]
 # Result = Result[mask_full]
 
-HR = Result[:, 7]
 # HR = HR_load[HR_load != 0]
 
 # # Assume your arrays are named
@@ -694,31 +693,31 @@ top_dgsm = dgsm1[dgsm_sorted]
 top_names = names[dgsm_sorted]
 top_conf = conf[dgsm_sorted]
 
-# Split the sorted arrays in half
-mid = len(top_dgsm) // 2
-dgsm_1, dgsm_2 = top_dgsm[:mid], top_dgsm[mid:]
-names_1, names_2 = top_names[:mid], top_names[mid:]
-conf_1, conf_2 = top_conf[:mid], top_conf[mid:]
-
-# Plot first half
-plt.figure(figsize=(10, 8))
-plt.bar(names_1, dgsm_1, yerr=conf_1)
-plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.show()
-
-# Plot second half
-plt.figure(figsize=(10, 8))
-plt.bar(names_2, dgsm_2, yerr=conf_2)
-plt.xlabel("Sensitivity Index (DGSM)")
-plt.title("HR DGSM")
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation=90)
-plt.tight_layout()
-plt.show()
+# # Split the sorted arrays in half
+# mid = len(top_dgsm) // 2
+# dgsm_1, dgsm_2 = top_dgsm[:mid], top_dgsm[mid:]
+# names_1, names_2 = top_names[:mid], top_names[mid:]
+# conf_1, conf_2 = top_conf[:mid], top_conf[mid:]
+#
+# # Plot first half
+# plt.figure(figsize=(10, 8))
+# plt.bar(names_1, dgsm_1, yerr=conf_1)
+# plt.xlabel("Sensitivity Index (DGSM)")
+# plt.title("HR DGSM")
+# plt.grid(axis='y', linestyle='--', alpha=0.7)
+# plt.xticks(rotation=90)
+# plt.tight_layout()
+# plt.show()
+#
+# # Plot second half
+# plt.figure(figsize=(10, 8))
+# plt.bar(names_2, dgsm_2, yerr=conf_2)
+# plt.xlabel("Sensitivity Index (DGSM)")
+# plt.title("HR DGSM")
+# plt.grid(axis='y', linestyle='--', alpha=0.7)
+# plt.xticks(rotation=90)
+# plt.tight_layout()
+# plt.show()
 
 
 
@@ -727,24 +726,24 @@ plt.show()
 cumusum = np.cumsum(top_dgsm)
 total = cumusum[-1]
 
-# Find the index where cumulative sum reaches 95% of total
-threshold_index = np.searchsorted(cumusum, 0.95 * total) + 1  # +1 to include that index
+# Find the index where cumulative sum reaches 90% of total
+threshold_index = np.searchsorted(cumusum, 0.90 * total) + 1  # +1 to include that index
 
-# Get variables contributing to 95% of sensitivity
-vars_95 = top_names[:threshold_index]
-sens_95 = top_dgsm[:threshold_index]
+# Get variables contributing to 90% of sensitivity
+vars_90 = top_names[:threshold_index]
+sens_90 = top_dgsm[:threshold_index]
 
-print(f"Number of variables contributing 95% sensitivity: {threshold_index}")
-print("Variables:")
-for var, sens in zip(vars_95, sens_95):
-    print(f"{var}: {sens}")
+print(f"Number of variables contributing 90% sensitivity: {threshold_index}")
+# print("Variables:")
+# for var, sens in zip(vars_90, sens_90):
+#     print(f"{var}: {sens}")
 
 # Optional: Plot these variables only
 plt.figure(figsize=(10, 6))
-plt.bar(vars_95, sens_95)
+plt.bar(vars_90, sens_90)
 plt.xlabel("Parameters")
 plt.ylabel("DGSM Sensitivity")
-plt.title("Parameters contributing 95% of DGSM Sensitivity")
+plt.title("Parameters contributing 90% of DGSM Sensitivity")
 plt.xticks(rotation=90)
 plt.tight_layout()
 plt.grid(axis='y', linestyle='--', alpha=0.7)
