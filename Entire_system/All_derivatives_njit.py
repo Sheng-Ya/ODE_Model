@@ -119,7 +119,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, ahead2
+     fall_time_ven, ahead1
     ) = Input_Parameters
 
     # Determine the correct index based on t
@@ -337,10 +337,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         Vu_lv = VT_lv
 
     # activation function for contraction of the ventricle and atria
-    phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1,
-                       ahead2)
+    phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1)
     phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven,
-                           ahead1, ahead2)
+                           ahead1)
 
     # changing from 25 to 10 will move up the PV curve for phi_atr
     # V_shift1 =   30 - (2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))

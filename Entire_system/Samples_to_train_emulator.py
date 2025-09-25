@@ -1,7 +1,7 @@
 import os
 import copy
-# import torch
-# from scipy.stats import qmc
+import torch
+from scipy.stats import qmc
 
 import numpy as np
 from SALib import ProblemSpec
@@ -240,7 +240,7 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, ahead2
+     fall_time_ven, ahead1
      ) = \
     (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
     "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
@@ -254,7 +254,7 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
     "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
     "scale_param1", "scale_param2", "scale_param3", "scale_param4", "scale_param5", "scale_param6", "scale_param7",
     "scale_param8", "shift_param1", "shift_param2", "shift_param3", "shift_param4", "Pa_O2_lower", "rise_time_atr",
-    "fall_time_atr", "rise_time_ven", "fall_time_ven", "ahead1", "ahead2"])
+    "fall_time_atr", "rise_time_ven", "fall_time_ven", "ahead1"])
 
     # determine the correct breathing profile
     c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(1.5,
@@ -289,7 +289,7 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, ahead2]
+     fall_time_ven, ahead1]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -384,8 +384,8 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=2000, save_path='Result_DGSM_chunked.npy'):
-    results_all = []
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_chunked.npy'):
+    chunk_array = None
 
     # If file exists from previous run, remove it to start fresh
     if os.path.exists(save_path):
@@ -396,12 +396,17 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=2000, save_p
             results = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
 
         results_chunk = [res[0] for res in results]
-        results_all.extend(results_chunk)
+        # Initialize chunk_array if first iteration
+        if chunk_array is None:
+            chunk_array = np.zeros_like(results_chunk)
+
+        # Overwrite chunk_array with current results
+        np.copyto(chunk_array, results_chunk)
 
         # Optional: also accumulate in a single array
-        np.save(save_path, np.array(results_all))  # full file overwritten
+        np.save(save_path, chunk_array)  # full file overwritten
 
-    return results_all
+    return chunk_array
 
 
 # def parallel_simulations(param_samples, storage, chunk_size=10, save_path='Result_DGSM_chunked.npy'):
@@ -550,7 +555,7 @@ if __name__ == "__main__":
             "scale_param5", "scale_param6", "scale_param7", "scale_param8",
             "shift_param1", "shift_param2", "shift_param3", "shift_param4",
             "Pa_O2_lower", "rise_time_atr", "fall_time_atr", "rise_time_ven",
-            "fall_time_ven", "ahead1", "ahead2"
+            "fall_time_ven", "ahead1"
         ],
 
         'bounds': [
@@ -675,8 +680,7 @@ if __name__ == "__main__":
             [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
             [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
             [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * lower, 0.9 * upper],
-            [0.1 * lower, 0.1 * upper]]
+            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * lower, 0.9 * upper]]
     })
 
 
@@ -724,16 +728,18 @@ if __name__ == "__main__":
     # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
     # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
-    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:100000,:]
+    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:500000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
+
+    A = param_samples[0]
 
     print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_0_100000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_300000_500000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
 
 
 
