@@ -1,7 +1,7 @@
 import os
 import copy
-import torch
-from scipy.stats import qmc
+# import torch
+# from scipy.stats import qmc
 
 import numpy as np
 from SALib import ProblemSpec
@@ -384,7 +384,7 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=20, save_path='Result_DGSM_chunked2.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=2000, save_path='Result_DGSM_chunked.npy'):
     results_all = []
 
     # If file exists from previous run, remove it to start fresh
@@ -425,72 +425,72 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=20, save_pat
 #
 #     return results_all
 
-def sample_inputs_from_spec(
-        spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
-) -> torch.Tensor:
-    """
-    Generate samples from a ProblemSpec-style dictionary.
-
-    Parameters
-    ----------
-    spec : dict
-        Must contain 'names' and 'bounds'.
-    n_samples : int
-        Number of samples to generate.
-    random_seed : int | None
-        For reproducibility.
-    method : str
-        "lhs" or "sobol".
-
-    Returns
-    -------
-    torch.Tensor
-        Samples of shape (n_samples, n_parameters)
-    """
-    if random_seed is not None:
-        torch.manual_seed(random_seed)
-
-    param_names = spec['names']
-    param_bounds = spec['bounds']
-    in_dim = len(param_names)
-
-    # Check if any bounds are fixed (min == max)
-    constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
-    sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
-
-    # Handle case all parameters are constant
-    if len(sample_param_bounds) == 0:
-        const_vals = torch.tensor(list(constant_params.values()))
-        return const_vals.repeat(n_samples, 1)
-
-    # Create sampler
-    if method.lower() == "lhs":
-        sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
-    elif method.lower() == "sobol":
-        sampler = qmc.Sobol(d=len(sample_param_bounds))
-    else:
-        raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
-
-    samples = sampler.random(n=n_samples)
-    # scale samples to bounds
-    scaled_samples = qmc.scale(
-        samples,
-        [b[0] for b in sample_param_bounds],
-        [b[1] for b in sample_param_bounds]
-    )
-    scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
-
-    # Insert constant parameters at the correct indices
-    full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
-    sample_idx = 0
-    for idx in range(in_dim):
-        if idx in constant_params:
-            full_samples[:, idx] = constant_params[idx]
-        else:
-            full_samples[:, idx] = scaled_samples[:, sample_idx]
-            sample_idx += 1
-
-    return full_samples
+# def sample_inputs_from_spec(
+#         spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
+# ) -> torch.Tensor:
+#     """
+#     Generate samples from a ProblemSpec-style dictionary.
+#
+#     Parameters
+#     ----------
+#     spec : dict
+#         Must contain 'names' and 'bounds'.
+#     n_samples : int
+#         Number of samples to generate.
+#     random_seed : int | None
+#         For reproducibility.
+#     method : str
+#         "lhs" or "sobol".
+#
+#     Returns
+#     -------
+#     torch.Tensor
+#         Samples of shape (n_samples, n_parameters)
+#     """
+#     if random_seed is not None:
+#         torch.manual_seed(random_seed)
+#
+#     param_names = spec['names']
+#     param_bounds = spec['bounds']
+#     in_dim = len(param_names)
+#
+#     # Check if any bounds are fixed (min == max)
+#     constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
+#     sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
+#
+#     # Handle case all parameters are constant
+#     if len(sample_param_bounds) == 0:
+#         const_vals = torch.tensor(list(constant_params.values()))
+#         return const_vals.repeat(n_samples, 1)
+#
+#     # Create sampler
+#     if method.lower() == "lhs":
+#         sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
+#     elif method.lower() == "sobol":
+#         sampler = qmc.Sobol(d=len(sample_param_bounds))
+#     else:
+#         raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
+#
+#     samples = sampler.random(n=n_samples)
+#     # scale samples to bounds
+#     scaled_samples = qmc.scale(
+#         samples,
+#         [b[0] for b in sample_param_bounds],
+#         [b[1] for b in sample_param_bounds]
+#     )
+#     scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
+#
+#     # Insert constant parameters at the correct indices
+#     full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
+#     sample_idx = 0
+#     for idx in range(in_dim):
+#         if idx in constant_params:
+#             full_samples[:, idx] = constant_params[idx]
+#         else:
+#             full_samples[:, idx] = scaled_samples[:, sample_idx]
+#             sample_idx += 1
+#
+#     return full_samples
 
 
 
@@ -721,10 +721,10 @@ if __name__ == "__main__":
 
     param_keys = list(sp_filtered["names"])
 
-    X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
-    X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
-    # X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[100000:300000,:]
+    # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
+    # X = X.cpu().numpy() if X.is_cuda else X.numpy()
+    # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
+    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:100000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
@@ -733,7 +733,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_500000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_0_100000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
 
 
 
