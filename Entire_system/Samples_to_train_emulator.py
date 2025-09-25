@@ -384,7 +384,7 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=3200, save_path='Result_DGSM_chunked.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_chunked2.npy'):
     results_all = []
 
     # If file exists from previous run, remove it to start fresh
@@ -497,8 +497,8 @@ def sample_inputs_from_spec(
 
 if __name__ == "__main__":
 
-    lower = 0.8
-    upper = 1.2
+    lower = 0.5
+    upper = 1.5
 
     sp = ProblemSpec({
         'outputs': ["HR"],
@@ -555,8 +555,8 @@ if __name__ == "__main__":
 
         'bounds': [
             # gas
-            [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper],
-            [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+            [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+            [194.4 * lower, 194.4 * upper], [1.819 * 0.1, 1.819 * 0.1],
             [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
             [346000 * lower, 346000 * upper],
             # [0.0009 * lower, 0.0009 * upper],
@@ -617,7 +617,7 @@ if __name__ == "__main__":
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper],
             [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
             [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
-            [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+            [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
             [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
             [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
@@ -717,13 +717,14 @@ if __name__ == "__main__":
 
 
     param_keys = list(sp_filtered["names"])
+    # np.load('Result_DGSM_chunked.npy')
 
     # lhd = LatinHypercube(list(sp_filtered["bounds"]))
-    # X = sample_inputs_from_spec(sp_filtered, n_samples=200000, random_seed=42, method="lhs")
+    # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('DGSM_filtered_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
+    # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
     # X = lhd.sample(10)
-    X = np.load('DGSM_filtered_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')
+    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[8000:100000,:]
 
     # X = np.load('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy')
 
@@ -732,10 +733,9 @@ if __name__ == "__main__":
     print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
-
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_200000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_8000_100000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
 
 
 

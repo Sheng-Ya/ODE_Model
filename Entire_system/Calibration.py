@@ -226,7 +226,7 @@ nominals = [np.mean(b) for b in sp["bounds"]]
 
 ## EMULATION
 # model = AutoEmulate.load_model("rbf_final/rbf.joblib").model
-rbf_final = joblib.load("rbf_final/rbf.joblib").model
+rbf_final = joblib.load("rbf_EDV/RBF.joblib").model
 
 observation = {"heart rate": (1.1667, 0.1667)}
 
@@ -235,7 +235,7 @@ hm = HistoryMatching(observations=observation)
 X = X.astype(np.float32)
 X = torch.tensor(X)
 
-batch_size = 5000
+batch_size = 10000
 mean = []
 
 for start in range(0, len(X), batch_size):
@@ -250,6 +250,8 @@ all_means = torch.cat(mean, dim=0)
 # Final variance
 variance = torch.var(all_means)
 print(variance.item())
+
+print(max(all_means), min(all_means))
 
 implausability = hm.calculate_implausibility(all_means, variance)
 
