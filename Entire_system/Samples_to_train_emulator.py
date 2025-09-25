@@ -384,29 +384,26 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_chunked.npy'):
-    chunk_array = None
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_path='Result_DGSM_chunked.npy'):
+    all_results = []
 
     # If file exists from previous run, remove it to start fresh
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    for i, chunk in enumerate(chunked(param_samples, chunk_size)):
-        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i+1)*chunk_size}", total=len(chunk))):
-            results = Parallel(n_jobs=n_jobs)(delayed(simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
+    with Parallel(n_jobs=n_jobs) as parallel:
+        for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+            with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
+                results = parallel(
+                    delayed(simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
 
-        results_chunk = [res[0] for res in results]
-        # Initialize chunk_array if first iteration
-        if chunk_array is None:
-            chunk_array = np.zeros_like(results_chunk)
+            results_chunk = [res[0] for res in results]
+            all_results.extend(results_chunk)
 
-        # Overwrite chunk_array with current results
-        np.copyto(chunk_array, results_chunk)
+            # Save progressive results
+            np.save(save_path, np.array(all_results))
 
-        # Optional: also accumulate in a single array
-        np.save(save_path, chunk_array)  # full file overwritten
-
-    return chunk_array
+    return all_results
 
 
 # def parallel_simulations(param_samples, storage, chunk_size=10, save_path='Result_DGSM_chunked.npy'):
@@ -728,7 +725,7 @@ if __name__ == "__main__":
     # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
     # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
-    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:100000,:]
+    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[300000:500000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
@@ -736,10 +733,10 @@ if __name__ == "__main__":
 
     print(f"Number of samples created: {len(X)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_0_100000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_300000_500000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
 
 
 
