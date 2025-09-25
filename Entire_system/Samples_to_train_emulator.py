@@ -1,5 +1,7 @@
 import os
 import copy
+import signal
+import multiprocessing as mp
 # import torch
 # from scipy.stats import qmc
 
@@ -384,26 +386,40 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
+def timeout_handler(signum, frame):
+    raise TimeoutError("Simulation timeout")
+
+def safe_simulate_cpu(params, storage, old_parameters, timeout=120):
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout)
+        result = simulate_cpu(params, storage, old_parameters)
+        signal.alarm(0)  # Cancel timeout
+        return result
+    except Exception:
+        signal.alarm(0)  # Cancel timeout
+        return ([0.0]*9, None, None, None)
+
+
 def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_path='Result_DGSM_chunked.npy'):
-    all_results = []
+    results_all = []
 
     # If file exists from previous run, remove it to start fresh
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    with Parallel(n_jobs=n_jobs) as parallel:
-        for i, chunk in enumerate(chunked(param_samples, chunk_size)):
-            with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
-                results = parallel(
-                    delayed(simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
+    for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(safe_simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
 
-            results_chunk = [res[0] for res in results]
-            all_results.extend(results_chunk)
+        results_chunk = [res[0] for res in results]
+        results_all.extend(results_chunk)
 
-            # Save progressive results
-            np.save(save_path, np.array(all_results))
+        # Optional: also accumulate in a single array
+        np.save(save_path, np.array(results_all))  # full file overwritten
 
-    return all_results
+    return results_all
 
 
 # def parallel_simulations(param_samples, storage, chunk_size=10, save_path='Result_DGSM_chunked.npy'):

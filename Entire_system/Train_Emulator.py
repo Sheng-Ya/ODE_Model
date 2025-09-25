@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 matplotlib.use('Agg')  # non-interactive backend
 import numpy as np
 from autoemulate import AutoEmulate
-A = np.load('Result_DGSM_chunked1.npy')
+A = np.load(r'C:\Users\vanes\Downloads\Result_DGSM_chunked1.npy')
+AA = np.load(r'C:\Users\vanes\Downloads\Result_DGSM_chunked.npy')
 
 from sklearn.model_selection import KFold
 
