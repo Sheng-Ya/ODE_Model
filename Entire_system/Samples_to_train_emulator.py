@@ -1,7 +1,7 @@
 import os
 import copy
-import torch
-from scipy.stats import qmc
+# import torch
+# from scipy.stats import qmc
 
 import numpy as np
 from SALib import ProblemSpec
@@ -728,7 +728,7 @@ if __name__ == "__main__":
     # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
     # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
-    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:500000,:]
+    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:100000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
@@ -739,7 +739,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_300000_500000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_0_100000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
 
 
 
