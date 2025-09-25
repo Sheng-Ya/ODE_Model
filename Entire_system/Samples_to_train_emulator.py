@@ -384,7 +384,7 @@ def chunked(iterable, n):
         yield iterable[i:i + n]
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1000, save_path='Result_DGSM_chunked2.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=500, save_path='Result_DGSM_chunked.npy'):
     results_all = []
 
     # If file exists from previous run, remove it to start fresh
@@ -556,7 +556,7 @@ if __name__ == "__main__":
         'bounds': [
             # gas
             [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
-            [194.4 * lower, 194.4 * upper], [1.819 * 0.1, 1.819 * 0.1],
+            [194.4 * lower, 194.4 * upper], [1.819 * 0.9, 1.819 * 1.1],
             [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
             [346000 * lower, 346000 * upper],
             # [0.0009 * lower, 0.0009 * upper],
@@ -720,11 +720,11 @@ if __name__ == "__main__":
     # np.load('Result_DGSM_chunked.npy')
 
     # lhd = LatinHypercube(list(sp_filtered["bounds"]))
-    # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
-    # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
+    X = sample_inputs_from_spec(sp_filtered, n_samples=200000, random_seed=42, method="lhs")
+    X = X.cpu().numpy() if X.is_cuda else X.numpy()
+    np.save('DGSM_filtered_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
     # X = lhd.sample(10)
-    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[8000:100000,:]
+    # X = np.load('DGSM_filtered_LHCS_200000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')
 
     # X = np.load('LHCS_152000_X_samples_HR_P_sys_P_dia_rest.npy')
 
@@ -735,7 +735,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_8000_100000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_200000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
 
 
 
