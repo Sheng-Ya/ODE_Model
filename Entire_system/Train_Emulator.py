@@ -12,17 +12,17 @@ import matplotlib.pyplot as plt
 matplotlib.use('Agg')  # non-interactive backend
 import numpy as np
 from autoemulate import AutoEmulate
-A = np.load(r'C:\Users\vanes\Downloads\Result_DGSM_chunked1.npy')
-AA = np.load(r'C:\Users\vanes\Downloads\Result_DGSM_chunked.npy')
+# A = np.load(r'C:\Users\vanes\Downloads\Result_DGSM_chunked1.npy')
+# AA = np.load(r'C:\Users\vanes\Downloads\Result_DGSM_chunked.npy')
 
 from sklearn.model_selection import KFold
 
-X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:8000,:] # size [N, 299]
+X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[:8000,:] # size [N, 299]
 Result_all = np.load('Result_8000.npy')
 
 mask = Result_all[:,0] != 0
 
-X_all = X[mask, :]
+X = X_all[mask, :]
 Result = Result_all[mask, :]
 
 
@@ -98,7 +98,7 @@ Result = Result_next[:, 5] # Heart rate here
 
 ## EMULATION
 idx = np.random.choice(len(Result), size=30000, replace=False)
-X = X_all[idx,:]
+X = X[idx,:]
 Result = Result[idx]
 
 
