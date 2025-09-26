@@ -36,6 +36,13 @@ mask = Result_all[:,0] != 0
 X = X_all[mask, :]
 Result = Result_all[mask, :]
 
+nan_mask = ~np.isnan(Result).any(axis=1)  # True for rows without NaN
+X = X[nan_mask, :]
+Result = Result[nan_mask, :]
+
+mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
+X = X[:, mask]
+
 # HR
 Result = Result[:, 0] # Heart rate here
 
