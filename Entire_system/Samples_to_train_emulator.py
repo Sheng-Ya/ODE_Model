@@ -264,7 +264,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
 
     if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
         # Integration failed or early termination
-        return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], None, None, None
+        return [0.0]*21
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -308,7 +308,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
 
     if ODE_solution.status == -1:
         # Integration failed or early termination
-        return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], None, None, None
+        return [0.0]*21
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
@@ -436,16 +436,11 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
 
     print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
-          np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
-          np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
-          np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra), np.mean(last_10_max_P_ra),
-          np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
-          np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
-          np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv))
+          np.mean(last_10_max_V_lv))
 
     # A = IC_overall.copy()
 
-    IC_current = ODE_solution.y[:, -1]
+    # IC_current = ODE_solution.y[:, -1]
 
     return ([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
           np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
@@ -466,7 +461,7 @@ def chunked(iterable, n):
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=120):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=100):
     try:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
