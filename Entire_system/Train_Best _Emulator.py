@@ -305,7 +305,7 @@ Result = Result[:, 0] # Heart rate here
 ## EMULATION
 
 # compare emulators
-ae = AutoEmulate(X, Result, log_level="error")
+ae = AutoEmulate(X, Result, log_level="progress_bar", models=["MLP"])
 ae.summarise()
 best = ae.best_result()
 print("Model with id: ", best.id, " performed best: ", best.model_name)
@@ -313,9 +313,9 @@ print(best.params)
 
 # ae.save(best, "rbf_new")
 os.makedirs("best_HR", exist_ok=True)
-joblib.dump(best, "best_HR/RBF.joblib")
+joblib.dump(best, "best_HR/MLP.joblib")
 
-fig = ae.plot(best, fname="best_HR.png")
+fig = ae.plot(best, fname="best_HR_MLP.png")
 
 
 #
