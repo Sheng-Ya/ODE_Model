@@ -120,7 +120,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, ahead2
+     fall_time_ven, ahead1, theta_min, delta_P
      ) = Input_Parameters
 
     # Determine the correct index based on t
@@ -336,8 +336,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         Vu_lv = VT_lv
 
     # activation function for contraction of the ventricle and atria
-    phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1, ahead2)
-    phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1, ahead2)
+    phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1)
+    phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1)
 
     # changing from 25 to 10 will move up the PV curve for phi_atr
     # V_shift1 =   30 - (2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
@@ -353,75 +353,296 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1) + P_thor
     Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la - V_shift2) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - V_shift2)) - 1) + P_thor
 
-    # aortic valve
-    if Pmax_lv - P_sa > 0:
-        if theta_ao > theta_ao_max:
-            theta_ao = theta_ao_max
-        AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
-        # AR_ao = 1
+    # # aortic valve
+    # if Pmax_lv - P_sa > 0:
+    #     if theta_ao > theta_ao_max:
+    #         theta_ao = theta_ao_max
+    #     if theta_ao < 0.0872665:
+    #         theta_ao = 0.0872665
+    #
+    #     AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
+    #     # AR_ao = 1
+    #
+    #     Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * R_ao)
+    #
+    #     d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
+    #         theta_ao) - Kv_ao * Q_lv * np.sin(2*theta_ao)
+    #     P_lv = Pmax_lv
+    # else:
+    #     Q_lv = 0.0
+    #     AR_ao = 0.0
+    #     theta_ao = 0.0872665  # theta_ao_min
+    #     d2theta_ao_dt2 = 0.0
+    #     # d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao)
+    #     P_lv = Pmax_lv
 
-        Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * R_ao)
+    # Define transition smoothness parameter
+    # delta_P = 0.3  # Pressure transition width (mmHg) - tune this value
 
-        d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
-            theta_ao) - Kv_ao * Q_lv * np.sin(theta_ao)
-        P_lv = Pmax_lv
-    else:
-        Q_lv = 0.0
-        AR_ao = 0.0
-        theta_ao = 0.0872665  # theta_ao_min
-        d2theta_ao_dt2 = 0.0
-        # d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao)
-        P_lv = Pmax_lv
+    # Smooth valve state transition
+    valve_signal = 0.5 * (1 + np.tanh((Pmax_lv - P_sa) / delta_P))
+    if abs(valve_signal) < 1e-8:
+        theta_ao = theta_min
+
+    if theta_ao > theta_ao_max:
+        theta_ao = theta_ao_max
+    elif theta_ao < theta_min:
+        theta_ao = theta_min
+
+    # Compute area ratio with smooth transition
+    AR_ao = valve_signal * ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
+
+    # Flow with smooth transition
+    Q_lv = valve_signal * (np.sqrt(np.maximum(Pmax_lv - P_sa, 0)) * AR_ao * R_ao)
+
+    # Dynamics with smooth transition
+    d2theta_ao_dt2 = valve_signal * ((Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt +
+            Kb_ao * Q_lv * np.cos(theta_ao) - Kv_ao * Q_lv * np.sin(2 * theta_ao))
+
+    P_lv = Pmax_lv
+
+    # # aortic valve
+    # if Pmax_lv - P_sa > 0:
+    #     AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
+    #
+    #     Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * R_ao)
+    #
+    #     if theta_ao > theta_ao_max:
+    #         c = theta_ao_max
+    #         zeta = 1 # critically damped, no overshoot
+    #         Ts = 0.004  # desired approximate settling time (s)
+    #
+    #         omega_n = 4.0 / (zeta * Ts)
+    #         k_p = omega_n ** 2
+    #         k_d = 2 * zeta * omega_n
+    #         d2theta_ao_dt2 = -k_d * dtheta_ao_dt - k_p * (theta_ao - c)
+    #         # theta_ao = 0.0872665
+    #     else:
+    #         if theta_ao < 0.27:
+    #             c = theta_ao_max
+    #             zeta = 1  # critically damped, no overshoot
+    #             Ts = 0.004  # desired approximate settling time (s)
+    #
+    #             omega_n = 4.0 / (zeta * Ts)
+    #             k_p = omega_n ** 2
+    #             k_d = 2 * zeta * omega_n
+    #             d2theta_ao_dt2 = -k_d * dtheta_ao_dt - k_p * (theta_ao - c)
+    #         else:
+    #             d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
+    #                 theta_ao) - Kv_ao * Q_lv * np.sin(2 * theta_ao)
+    #
+    #     P_lv = Pmax_lv
+    # else:
+    #     # if t < 20:
+    #     #     d2theta_ao_dt2 = 0.0
+    #     #     Q_lv = 0
+    #     #     theta_ao = 0.0872665
+    #     # else:
+    #     # Kp_ao= 5500
+    #     # Kf_ao= 50
+    #     # Kb_ao= 2
+    #     # Kv_ao= 7
+    #     # if theta_ao < 0.0872665:
+    #     #     AR_ao = ((1 - np.cos(0.0872665)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
+    #     # else:
+    #     AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
+    #     Q_lv = -(math.sqrt(P_sa - Pmax_lv) * AR_ao * R_ao)
+    #
+    #     if theta_ao < 0.87:
+    #         # dtheta_ao_dt = (-theta_ao + 0.0872665)
+    #         # desired parameters
+    #         c = 0.0872665
+    #         zeta = 1  # critically damped, no overshoot
+    #         Ts = 0.001  # desired approximate settling time (s)
+    #
+    #         omega_n = 4.0 / (zeta * Ts)
+    #         k_p = omega_n ** 2
+    #         k_d = 2 * zeta * omega_n
+    #         d2theta_ao_dt2 = -k_d*dtheta_ao_dt - k_p*(theta_ao - c)
+    #         # theta_ao = 0.0872665
+    #     else:
+    #         d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
+    #             theta_ao) # - Kv_ao * Q_lv * np.sin(2 * theta_ao)
+    #
+    #     P_lv = Pmax_lv
+
+    # # aortic valve - SIMPLIFIED
+    # delta_P = 3.0  # Main transition parameter
+    #
+    # # Smooth valve state transition (0 = closed, 1 = open)
+    # valve_signal = 0.5 * (1 + np.tanh((Pmax_lv - P_sa) / delta_P))
+    #
+    # # Compute area ratio
+    # AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
+    #
+    # # Flow with smooth transition
+    # pressure_diff = Pmax_lv - P_sa
+    # Q_forward = math.sqrt(max(pressure_diff, 0)) * AR_ao * R_ao
+    # Q_backward = -math.sqrt(max(-pressure_diff, 0)) * AR_ao * R_ao
+    # Q_lv = valve_signal * Q_forward + (1 - valve_signal) * Q_backward
+    #
+    # # Normal dynamics
+    # d2theta_normal = ((pressure_diff * Kp_ao * np.cos(theta_ao) -
+    #                    Kf_ao * dtheta_ao_dt +
+    #                    Kb_ao * Q_lv * np.cos(theta_ao) -
+    #                    valve_signal * Kv_ao * Q_lv * np.sin(2 * theta_ao)))
+    #
+    # # --- UNIFIED RESTORING FORCE ---
+    # zeta = 1  # Critically damped
+    # Ts_open = 0.04  # Settling time for opening
+    # Ts_close = 0.01  # Settling time for closing (faster)
+    #
+    # omega_n_open = 4.0 / (zeta * Ts_open)
+    # omega_n_close = 4.0 / (zeta * Ts_close)
+    #
+    # k_p_open = omega_n_open ** 2
+    # k_d_open = 2 * zeta * omega_n_open
+    # k_p_close = omega_n_close ** 2
+    # k_d_close = 2 * zeta * omega_n_close
+    #
+    # # Target position and gains blend with valve_signal
+    # theta_target = valve_signal * theta_ao_max + (1 - valve_signal) * 0.0872665
+    # k_p_blended = valve_signal * k_p_open + (1 - valve_signal) * k_p_close
+    # k_d_blended = valve_signal * k_d_open + (1 - valve_signal) * k_d_close
+    #
+    # # Restoring force term
+    # d2theta_restore = -k_d_blended * dtheta_ao_dt - k_p_blended * (theta_ao - theta_target)
+    #
+    # # Simply add restoring force to normal dynamics
+    # d2theta_ao_dt2 = d2theta_normal + d2theta_restore
+    # AA = d2theta_normal
+    # phi_atr = d2theta_restore
+    # phi = d2theta_ao_dt2
+    # V_shift1 = valve_signal
+    #
+    # P_lv = Pmax_lv
+    # ####################################
+
+    # if Pmax_la > P_lv:
+    #     if theta_mi > theta_mi_max:
+    #         theta_mi = theta_mi_max
+    #     AR_mi = ((1 - np.cos(theta_mi)) ** 2) / ((1 - np.cos(theta_mi_max)) ** 2)
+    #     Qi_lv = math.sqrt(Pmax_la - P_lv) * AR_mi * R_mi
+    #
+    #     d2theta_mi_dt2 = (Pmax_la - P_lv) * Kp_mi * np.cos(theta_mi) - Kf_mi * dtheta_mi_dt + Kb_mi * Qi_lv * np.cos(
+    #         theta_mi) - Kv_mi * Qi_lv * np.sin(2*theta_mi)
+    #     P_la = Pmax_la
+    # else:
+    #     Qi_lv = 0
+    #     AR_mi = 0
+    #     # theta_mi = 0.0872665
+    #     d2theta_mi_dt2 = 0.0
+    #     P_la = Pmax_la
+
+
+    valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
+    # Enforce theta bounds when nearly closed
+    if abs(valve_signal) < 1e-8:
+        theta_mi = theta_min  # minimum angle (closed)
+
+    if theta_mi > theta_mi_max:
+        theta_mi = theta_mi_max
+    elif theta_mi < theta_min:
+        theta_mi = theta_min
+
+    # Compute area ratio with smooth transition
+    AR_mi = valve_signal * ((1 - np.cos(theta_mi)) ** 2) / ((1 - np.cos(theta_mi_max)) ** 2)
+
+    # Flow with smooth transition
+    Qi_lv = valve_signal * (np.sqrt(np.maximum(Pmax_la - P_lv, 0)) * AR_mi * R_mi)
+
+    # Dynamics with smooth transition
+    d2theta_mi_dt2 = valve_signal * ((Pmax_la - P_lv) * Kp_mi * np.cos(theta_mi) - Kf_mi * dtheta_mi_dt +
+            Kb_mi * Qi_lv * np.cos(theta_mi) - Kv_mi * Qi_lv * np.sin(2 * theta_mi))
+
+    P_la = Pmax_la
+
+    ####################################
+    # if Pmax_rv > P_pa:
+    #     if theta_po > theta_po_max:
+    #         theta_po = theta_po_max
+    #     AR_po = ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
+    #     Q_rv = (math.sqrt(Pmax_rv - P_pa) * AR_po * R_po)
+    #
+    #     d2theta_po_dt2 = (Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(
+    #         theta_po) - Kv_po * Q_rv * np.sin(2*theta_po)
+    #     P_rv = Pmax_rv
+    # else:
+    #     Q_rv = 0
+    #     theta_po = 0.0872665
+    #     d2theta_po_dt2 = 0.0
+    #     P_rv = Pmax_rv
+    # Smooth valve state transition (pulmonary valve opens when RV pressure > PA pressure)
+    valve_signal = 0.5 * (1 + np.tanh((Pmax_rv - P_pa) / delta_P))
+
+    # Enforce theta bounds when nearly closed
+    if abs(valve_signal) < 1e-8:
+        theta_po = theta_min  # minimum angle (closed)
+
+    if theta_po > theta_po_max:
+        theta_po = theta_po_max
+        # AR_po = valve_signal * ((1 - np.cos(theta_po_max)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
+    elif theta_po < theta_min:
+        theta_po = theta_min
+        # AR_po = valve_signal * ((1 - np.cos(0.0872665)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
+    # else:
+    #     AR_po = valve_signal * ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
+
+    # Compute area ratio with smooth transition
+    AR_po = valve_signal * ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
+
+    # Flow with smooth transition
+    Q_rv = valve_signal * (np.sqrt(np.maximum(Pmax_rv - P_pa, 0)) * AR_po * R_po)
+
+    # Dynamics with smooth transition
+    d2theta_po_dt2 = valve_signal * ((Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt +
+            Kb_po * Q_rv * np.cos(theta_po) - Kv_po * Q_rv * np.sin(2 * theta_po))
+
+    P_rv = Pmax_rv
     ####################################
 
-    if Pmax_la > P_lv:
-        if theta_mi > theta_mi_max:
-            theta_mi = theta_mi_max
-        AR_mi = ((1 - np.cos(theta_mi)) ** 2) / ((1 - np.cos(theta_mi_max)) ** 2)
-        Qi_lv = math.sqrt(Pmax_la - P_lv) * AR_mi * R_mi
+    # if Pmax_ra > P_rv:
+    #     if theta_tr > theta_tr_max:
+    #         theta_tr = theta_tr_max
+    #     AR_tr = ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
+    #     Qi_rv = math.sqrt(Pmax_ra - P_rv) * AR_tr * R_tr
+    #
+    #     d2theta_tr_dt2 = (Pmax_ra - P_rv) * Kp_tr * np.cos(theta_tr) - Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(
+    #         theta_tr) - Kv_tr * Qi_rv * np.sin(theta_tr)
+    #     P_ra = Pmax_ra
+    # else:
+    #     Qi_rv = 0
+    #     AR_tr = 0
+    #     theta_tr = 0.0872665
+    #     d2theta_tr_dt2 = 0.0
+    #     P_ra = Pmax_ra
+    valve_signal = 0.5 * (1 + np.tanh((Pmax_ra - P_rv) / delta_P))
 
-        d2theta_mi_dt2 = (Pmax_la - P_lv) * Kp_mi * np.cos(theta_mi) - Kf_mi * dtheta_mi_dt + Kb_mi * Qi_lv * np.cos(
-            theta_mi) - Kv_mi * Qi_lv * np.sin(theta_mi)
-        P_la = Pmax_la
-    else:
-        Qi_lv = 0
-        AR_mi = 0
-        theta_mi = 0.0872665
-        d2theta_mi_dt2 = 0.0
-        P_la = Pmax_la
+    # Enforce theta bounds when nearly closed
+    if abs(valve_signal) < 1e-8:
+        theta_tr = theta_min  # minimum angle (closed)
 
-    ####################################
-    if Pmax_rv > P_pa:
-        if theta_po > theta_po_max:
-            theta_po = theta_po_max
-        AR_po = ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
-        Q_rv = (math.sqrt(Pmax_rv - P_pa) * AR_po * R_po)
+    if theta_tr > theta_tr_max:
+        theta_tr = theta_tr_max
+        # AR_tr = valve_signal * ((1 - np.cos(theta_tr_max)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
+    elif theta_tr < theta_min:
+        theta_tr = theta_min
+        # AR_tr = valve_signal * ((1 - np.cos(0.0872665)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
+    # else:
+    #     AR_tr = valve_signal * ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
 
-        d2theta_po_dt2 = (Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(
-            theta_po) - Kv_po * Q_rv * np.sin(theta_po)
-        P_rv = Pmax_rv
-    else:
-        Q_rv = 0
-        theta_po = 0.0872665
-        d2theta_po_dt2 = 0.0
-        P_rv = Pmax_rv
-    ####################################
+    # # Compute area ratio with smooth transition
+    AR_tr = valve_signal * ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
 
-    if Pmax_ra > P_rv:
-        if theta_tr > theta_tr_max:
-            theta_tr = theta_tr_max
-        AR_tr = ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
-        Qi_rv = math.sqrt(Pmax_ra - P_rv) * AR_tr * R_tr
+    # Flow with smooth transition
+    Qi_rv = valve_signal * (np.sqrt(np.maximum(Pmax_ra - P_rv, 0)) * AR_tr * R_tr)
 
-        d2theta_tr_dt2 = (Pmax_ra - P_rv) * Kp_tr * np.cos(theta_tr) - Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(
-            theta_tr) - Kv_tr * Qi_rv * np.sin(theta_tr)
-        P_ra = Pmax_ra
-    else:
-        Qi_rv = 0
-        AR_tr = 0
-        theta_tr = 0.0872665
-        d2theta_tr_dt2 = 0.0
-        P_ra = Pmax_ra
+    # Dynamics with smooth transition
+    d2theta_tr_dt2 = valve_signal * ((Pmax_ra - P_rv) * Kp_tr * np.cos(theta_tr) -
+            Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(theta_tr) - Kv_tr * Qi_rv * np.sin(2 * theta_tr))
+
+    P_ra = Pmax_ra
+    AA = valve_signal
     ####################################
 
     Q_la = (P_pv - P_la) / R_pv
@@ -668,8 +889,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # VT_sa = V_sa + Vu_sa
     # should be + ?, edit: removed P_thor from here. Ignore
 
-    AA = (VT_lv + VT_rv + VT_la + VT_ra + (V_sa + Vu_sa) + VT_amv + VT_rmv + (V_ev + Vu_ev) + VT_sv + VT_hv + VT_bv +
-          (V_s_peripheral + Vu_jp) + VT_vc + VT_pa + VT_pp + VT_pv)
+    # AA = (VT_lv + VT_rv + VT_la + VT_ra + (V_sa + Vu_sa) + VT_amv + VT_rmv + (V_ev + Vu_ev) + VT_sv + VT_hv + VT_bv +
+    #       (V_s_peripheral + Vu_jp) + VT_vc + VT_pa + VT_pp + VT_pv)
 
     # ============================================================================
     # GAS EXCHANGE
@@ -757,9 +978,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.8 / 60 - MRBCO2
     #     MRO2 = 0.85 / 60 - MRBO2
 
-    if 200 < t:
-        MRCO2 = 1 / 60 - MRBCO2
-        MRO2 = 1.05 / 60 - MRBO2
+    # if 200 < t:
+    #     MRCO2 = 1 / 60 - MRBCO2
+    #     MRO2 = 1.05 / 60 - MRBO2
 
     ## new code
     # PvbCO2 and PvbO2 is the same as the brain compartment CO2 and O2 partial pressure
@@ -1155,15 +1376,17 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                 "f_v_store", "f_sv_store", "phi_met_store", "HR_every_store", "Vu_ev_every_store",
                 "Vu_sv_every_store", "Vu_rmv_every_store", "Vu_amv_every_store", "Emax_lv_every_store",
                 "Emax_rv_every_store", "P_sa_store", "V_lv_store", "V_rv_store", "P_rv_store",
+                "P_la_store", "V_la_store", "V_ra_store", "P_ra_store",
 
                 # Needed in cardio controller
-                "prev_flat_bit_store", "t1_store", "t2_store"],
+                "prev_flat_bit_store", "t1_store", "t2_store", "P_lv_store", "phi_atr_store"],
 
             [time_since_beat,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
              Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, P_sa, VT_lv, VT_rv, P_rv,
-             prev_flat_bit, t1, t2]
+             P_la, VT_la, VT_ra, P_ra,
+             prev_flat_bit, t1, t2, P_lv, phi_atr]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 

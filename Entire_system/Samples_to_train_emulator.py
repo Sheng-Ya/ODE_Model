@@ -2,8 +2,8 @@ import os
 import copy
 import signal
 import multiprocessing as mp
-# import torch
-# from scipy.stats import qmc
+import torch
+from scipy.stats import qmc
 
 import numpy as np
 from SALib import ProblemSpec
@@ -16,7 +16,7 @@ import tqdm_joblib
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 from All_derivatives_njit import model_derivatives
 from fixed_params import Parameters as Old_Parameters
 
@@ -174,8 +174,8 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
 
 
-def simulate_cpu(Current_Parameters, storage, old_parameters):
-    local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
+def simulate_cpu(Current_Parameters, local_updates, old_parameters):
+    # local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
 
     IC_current = IC_overall.copy()
     t_span = [0, max_time]
@@ -242,7 +242,7 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1
+     fall_time_ven, ahead1, theta_min, delta_P
      ) = \
     (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
     "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
@@ -256,7 +256,7 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
     "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
     "scale_param1", "scale_param2", "scale_param3", "scale_param4", "scale_param5", "scale_param6", "scale_param7",
     "scale_param8", "shift_param1", "shift_param2", "shift_param3", "shift_param4", "Pa_O2_lower", "rise_time_atr",
-    "fall_time_atr", "rise_time_ven", "fall_time_ven", "ahead1"])
+    "fall_time_atr", "rise_time_ven", "fall_time_ven", "ahead1", "theta_min", "delta_P"])
 
     # determine the correct breathing profile
     c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(1.5,
@@ -291,7 +291,7 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1]
+     fall_time_ven, ahead1, theta_min, delta_P]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -326,10 +326,10 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
     peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
     troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
 
-    last_10_troughs_V_lv = troughs[-8:-1]
+    last_10_troughs_V_lv = troughs[-10:-1]
     last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
 
-    last_10_peaks_V_lv = peaks[-8:-1]
+    last_10_peaks_V_lv = peaks[-10:-1]
     last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
 
     V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
@@ -367,16 +367,93 @@ def simulate_cpu(Current_Parameters, storage, old_parameters):
             prev_value = current_value
             if len(past_10_flat_segments) == 10:
                 break
-    print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_max_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_max_P_rv))
+
+    # left atria
+    V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
+    peaks, _ = find_peaks(V_la, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-V_la, distance=int(1000), prominence=1)
+
+    last_10_troughs_V_la = troughs[-10:-1]
+    last_10_min_V_la = V_la[last_10_troughs_V_la]
+
+    last_10_peaks_V_la = peaks[-10:-1]
+    last_10_max_V_la = V_la[last_10_peaks_V_la]
+
+    P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+
+    last_10_troughs_P_la = troughs[-10:-1]
+    last_10_min_P_la = P_la[last_10_troughs_P_la]
+
+    last_10_peaks_P_la = peaks[-10:-1]
+    last_10_max_P_la = P_la[last_10_peaks_P_la]
+
+    # right atria
+    V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
+    peaks, _ = find_peaks(V_ra, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-V_ra, distance=int(1000), prominence=1)
+
+    last_10_troughs_V_ra = troughs[-10:-1]
+    last_10_min_V_ra = V_ra[last_10_troughs_V_ra]
+
+    last_10_peaks_V_ra = peaks[-10:-1]
+    last_10_max_V_ra = V_ra[last_10_peaks_V_ra]
+
+    P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
+
+    last_10_troughs_P_ra = troughs[-10:-1]
+    last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
+
+    last_10_peaks_P_ra = peaks[-10:-1]
+    last_10_max_P_ra = P_ra[last_10_peaks_P_ra]
+
+    # get volume before atrial contraction
+    phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
+    # Find transitions: where phi_atr goes from 0 to >0
+    starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
+    local_mins = starts[-10:]
+    last_10_b4_LA_atrial_contract = V_la[local_mins]
+    last_10_b4_RA_atrial_contract = V_ra[local_mins]
+
+    # maximum ventricular pressure derivative
+    P_lv = np.concatenate((local_updates["P_lv_store"][i_buffer:], local_updates["P_lv_store"][:i_buffer]))
+    all_time = np.concatenate((local_updates["all_time"][i_buffer:], local_updates["all_time"][:i_buffer]))
+    dPmax_lv_dt1 = np.gradient(P_lv, all_time)
+    dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
+    peaks, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
+    last_10 = peaks[-10:-1]
+    last_10_max_P_lv_deriv = dPmax_lv_dt[last_10]
+
+    P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
+
+    dPmax_rv_dt1 = np.gradient(P_rv, all_time)
+    dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
+    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
+    last_10 = peaks[-10:-1]
+    last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
+
+    print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
+          np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
+          np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
+          np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra), np.mean(last_10_max_P_ra),
+          np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
+          np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
+          np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv))
 
     # A = IC_overall.copy()
 
     IC_current = ODE_solution.y[:, -1]
 
     return ([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
-            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
-            np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv)], IC_current, local_updates,
-            [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6])
+          np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
+          np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
+          np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra), np.mean(last_10_max_P_ra),
+          np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
+          np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
+          np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv)])#, IC_current, local_updates)
 
 
 #
@@ -398,7 +475,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=120):
         return result
     except Exception:
         signal.alarm(0)  # Cancel timeout
-        return ([0.0]*9, None, None, None)
+        return ([0.0]*21)
 
 
 def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_path='Result_DGSM_chunked.npy'):
@@ -411,10 +488,9 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_p
     for i, chunk in enumerate(chunked(param_samples, chunk_size)):
         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
             results = Parallel(n_jobs=n_jobs)(
-                delayed(safe_simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
+                delayed(simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
 
-        results_chunk = [res[0] for res in results]
-        results_all.extend(results_chunk)
+        results_all.extend(results)
 
         # Optional: also accumulate in a single array
         np.save(save_path, np.array(results_all))  # full file overwritten
@@ -435,80 +511,79 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_p
 #             res = simulate_cpu(params, copy.deepcopy(storage), Old_Parameters)
 #             results.append(res)
 #
-#         results_chunk = [res[0] for res in results]
-#         results_all.extend(results_chunk)
+#         results_all.extend(results)
 #
 #         # Save progressively (overwrites with accumulated results)
 #         np.save(save_path, np.array(results_all))
 #
 #     return results_all
 
-# def sample_inputs_from_spec(
-#         spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
-# ) -> torch.Tensor:
-#     """
-#     Generate samples from a ProblemSpec-style dictionary.
-#
-#     Parameters
-#     ----------
-#     spec : dict
-#         Must contain 'names' and 'bounds'.
-#     n_samples : int
-#         Number of samples to generate.
-#     random_seed : int | None
-#         For reproducibility.
-#     method : str
-#         "lhs" or "sobol".
-#
-#     Returns
-#     -------
-#     torch.Tensor
-#         Samples of shape (n_samples, n_parameters)
-#     """
-#     if random_seed is not None:
-#         torch.manual_seed(random_seed)
-#
-#     param_names = spec['names']
-#     param_bounds = spec['bounds']
-#     in_dim = len(param_names)
-#
-#     # Check if any bounds are fixed (min == max)
-#     constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
-#     sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
-#
-#     # Handle case all parameters are constant
-#     if len(sample_param_bounds) == 0:
-#         const_vals = torch.tensor(list(constant_params.values()))
-#         return const_vals.repeat(n_samples, 1)
-#
-#     # Create sampler
-#     if method.lower() == "lhs":
-#         sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
-#     elif method.lower() == "sobol":
-#         sampler = qmc.Sobol(d=len(sample_param_bounds))
-#     else:
-#         raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
-#
-#     samples = sampler.random(n=n_samples)
-#     # scale samples to bounds
-#     scaled_samples = qmc.scale(
-#         samples,
-#         [b[0] for b in sample_param_bounds],
-#         [b[1] for b in sample_param_bounds]
-#     )
-#     scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
-#
-#     # Insert constant parameters at the correct indices
-#     full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
-#     sample_idx = 0
-#     for idx in range(in_dim):
-#         if idx in constant_params:
-#             full_samples[:, idx] = constant_params[idx]
-#         else:
-#             full_samples[:, idx] = scaled_samples[:, sample_idx]
-#             sample_idx += 1
-#
-#     return full_samples
+def sample_inputs_from_spec(
+        spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
+) -> torch.Tensor:
+    """
+    Generate samples from a ProblemSpec-style dictionary.
+
+    Parameters
+    ----------
+    spec : dict
+        Must contain 'names' and 'bounds'.
+    n_samples : int
+        Number of samples to generate.
+    random_seed : int | None
+        For reproducibility.
+    method : str
+        "lhs" or "sobol".
+
+    Returns
+    -------
+    torch.Tensor
+        Samples of shape (n_samples, n_parameters)
+    """
+    if random_seed is not None:
+        torch.manual_seed(random_seed)
+
+    param_names = spec['names']
+    param_bounds = spec['bounds']
+    in_dim = len(param_names)
+
+    # Check if any bounds are fixed (min == max)
+    constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
+    sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
+
+    # Handle case all parameters are constant
+    if len(sample_param_bounds) == 0:
+        const_vals = torch.tensor(list(constant_params.values()))
+        return const_vals.repeat(n_samples, 1)
+
+    # Create sampler
+    if method.lower() == "lhs":
+        sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
+    elif method.lower() == "sobol":
+        sampler = qmc.Sobol(d=len(sample_param_bounds))
+    else:
+        raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
+
+    samples = sampler.random(n=n_samples)
+    # scale samples to bounds
+    scaled_samples = qmc.scale(
+        samples,
+        [b[0] for b in sample_param_bounds],
+        [b[1] for b in sample_param_bounds]
+    )
+    scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
+
+    # Insert constant parameters at the correct indices
+    full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
+    sample_idx = 0
+    for idx in range(in_dim):
+        if idx in constant_params:
+            full_samples[:, idx] = constant_params[idx]
+        else:
+            full_samples[:, idx] = scaled_samples[:, sample_idx]
+            sample_idx += 1
+
+    return full_samples
 
 
 
@@ -568,7 +643,7 @@ if __name__ == "__main__":
             "scale_param5", "scale_param6", "scale_param7", "scale_param8",
             "shift_param1", "shift_param2", "shift_param3", "shift_param4",
             "Pa_O2_lower", "rise_time_atr", "fall_time_atr", "rise_time_ven",
-            "fall_time_ven", "ahead1"
+            "fall_time_ven", "ahead1", "theta_min", "delta_P"
         ],
 
         'bounds': [
@@ -600,9 +675,8 @@ if __name__ == "__main__":
             [0.76 * lower, 0.76 * upper], [15.8 * lower, 15.8 * upper], [25.37 * lower, 25.37 * upper],
             [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.1 * lower, 0.1 * upper], [0.35 * lower, 0.35 * upper], [0.55 * lower, 0.55 * upper],
-            [0.05 * lower, 0.05 * upper],
             [0.35 * lower, 0.35 * upper], [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper],
-            [1.5 * lower, 1.5 * upper],
+            [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
             [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
             [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
             [-4 * upper, -4 * lower],
@@ -652,14 +726,14 @@ if __name__ == "__main__":
             [0.18 * lower, 0.18 * upper], [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper],
             [-1.87 * upper, -1.87 * lower],
             # added params
-            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [0.1 * lower, 0.1 * upper],
-            [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper], [600 * lower, 600 * upper],
-            [800 * lower, 800 * upper], [1 * lower, 1 * upper], [10 * lower, 10 * upper],
-            [1.309 * lower, 1.309 * upper], [800 * lower, 800 * upper], [800 * lower, 800 * upper],
-            [1 * lower, 1 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
-            [600 * lower, 600 * upper], [800 * lower, 800 * upper], [1 * lower, 1 * upper],
-            [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper], [0.0000317 * lower, 0.0000317 * upper],
-            [350 * lower, 350 * upper], [40 * lower, 40 * upper], [40 * lower, 40 * upper],
+            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper],
+            [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper], [100 * lower, 100 * upper],
+            [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper],
+            [1.309 * lower, 1.309 * upper], [3000 * lower, 3000 * upper], [2000 * lower, 2000 * upper],
+            [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
+            [100 * lower, 100 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper],
+            [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper], [0.0000317 * lower, 0.0000317 * upper],
+            [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
             [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper],
             [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper], [104 * lower, 104 * upper],
             [1 * lower, 1 * upper], [5027.6 * lower, 5027.6 * upper], [279.49 * lower, 279.49 * upper],
@@ -693,12 +767,13 @@ if __name__ == "__main__":
             [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
             [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
             [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * lower, 0.9 * upper]]
+            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.8 * 0.8, 0.8 * 1.2],
+            [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
     })
 
 
     # filtered set from DGSM
-    subset_vars = {'k_ac', 'C_O2_param2', 'Wp_sv', 'ahead1', 'G_ap', 'PaO2_ac_n', 'Cvh_O2_n', 'T_im', 'K1_vc',
+    subset_vars = {'k_ac', 'C_O2_param2', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'PaO2_ac_n', 'Cvh_O2_n', 'T_im', 'K1_vc',
                    'theta_mi_max', 'P0_rv', 'KcCO2', 'R_rs', 'GT_s', 'theta_svn', 'Emax_lv0', 'C_O2_param1', 'f_ac_min',
                    'kmet', 'R_sa', 'R_bpn', 'Io_sv', 'phi_max', 'R_po', 'f_acCO2_n', 'Kv_tr', 'Emax_rv0', 'V_tot',
                    'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'E_rs', 'C2', 'Wb_sh',
@@ -731,28 +806,25 @@ if __name__ == "__main__":
         "bounds": filtered_bounds
     })
 
-
-
-
-
-
     param_keys = list(sp_filtered["names"])
+
+    # AA = np.load("Result_DGSM_chunked.npy")
 
     # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy', X)
-    X = np.load('DGSM_filtered_LHCS_500000_X_sample_HR_Plv_Prv_Vlv_Vrv_rest.npy')[166000:300000,:]
+    # np.save('DGSM_filtered_LHCS_500000_X_sample_21_target_rest.npy', X)
+    X = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')[:100000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
-    A = param_samples[0]
+    # A = [{'A': 20.9, 'AT': 1/60, 'A_im': 30.0, 'B': 92.8, 'C': 10570.0, 'C2': 87.0, 'C_O2_param1': 0.00134, 'C_O2_param2': 2.6, 'C_O2_param3': 3.03e-05, 'C_amv': 4.4, 'C_bv': 5.71, 'C_ev': 10.0, 'C_hv': 1.57, 'C_jp': 3.72, 'C_pa': 0.76, 'C_pp': 15.8, 'C_pv': 25.37, 'C_rmv': 3.28, 'C_sa': 0.28, 'C_sv': 31.11, 'Cvam_O2_n': 0.1555, 'Cvb_O2_n': 0.14, 'Cvh_O2_n': 0.11, 'Cvrm_O2_n': 0.155, 'D': -5.251, 'D1': 0.3855, 'DEmax_lv': 2.0, 'DEmax_rv': 2.0, 'DR_amp': 2.0, 'DR_ep': 2.0, 'DR_rmp': 2.0, 'DR_sp': 2.0, 'DT_s': 2.0, 'DT_v': 0.2, 'DV_amv': 5.0, 'DV_ev': 5.0, 'DV_rmv': 5.0, 'DV_sv': 5.0, 'Dmet': 4.0, 'E_rs': 21.9, 'Emax_la': 0.35, 'Emax_lv0': 1.4, 'Emax_ra': 0.35, 'Emax_rv0': 0.7, 'Fi_CO2': 0.0421, 'Fi_O2': 21.0379, 'GEmax_lv': 0.475, 'GEmax_rv': 0.282, 'GR_amp': 4.47, 'GR_ep': 1.94, 'GR_rmp': 2.47, 'GR_sp': 0.695, 'GT_s': -0.13, 'GT_v': 0.09, 'GV_amv': -28.29, 'GV_dead': 0.1698, 'GV_ev': -74.21, 'GV_rmv': -28.29, 'GV_sv': -265.4, 'G_ap': 11.76, 'Io_met': 0.4266, 'Io_sh': 0.658, 'Io_sp': 0.65, 'Io_sv': 0.45, 'Io_v': 0.22, 'K1_vc': 0.15, 'K2': 194.4, 'KCCO2': 346000.0, 'KCSFCO2': 20.0, 'KE_la': 0.05, 'KE_lv': 0.014, 'KE_ra': 0.05, 'KE_rv': 0.011, 'K_H': 3.0, 'Kb_ao': 2.0, 'Kb_mi': 2.0, 'Kb_po': 5.0, 'Kb_tr': 2.0, 'KcCO2': 0.2332, 'KcMRV': 1.0, 'Kf_ao': 5000.0, 'Kf_mi': 500.0, 'Kf_po': 2000.0, 'Kf_tr': 500.0, 'Kh_CO2': 11.11, 'KpCO2': 0.2025, 'KpO2': 4.72e-09, 'Kp_ao': 1000.0, 'Kp_mi': 100.0, 'Kp_po': 3000.0, 'Kp_tr': 100.0, 'Kr_vc': 0.001, 'Krm_CO2': 142.8, 'Kv_ao': 5.0, 'Kv_mi': 7.0, 'Kv_po': 10.0, 'Kv_tr': 7.0, 'L_pa': 0.00018, 'L_sa': 0.00022, 'MO2_ampn': 0.516, 'MO2_bp': 0.925, 'MO2_hpn': 0.4, 'MO2_rmp': 0.86, 'P0_la': 0.55, 'P0_lv': 1.5, 'P0_ra': 0.55, 'P0_rv': 1.5, 'PAMO2_nominal': 104.0, 'PO2_sh': 45.0, 'PO2_sp': 30.0, 'PO2_sv': 30.0, 'P_0': 3.93, 'P_abdmax_n': -1.0, 'P_abdmin_n': -2.5, 'P_n': 92.0, 'P_n_max': 112.0, 'P_thormax_n': -4.0, 'P_thormin_n': -4.0, 'PaCO2_n': 40.0, 'PaO2_ac_n': 45.0, 'Pa_O2_lower': 80.0, 'Pmax': 100.0, 'Pmax_dot': 1000.0, 'R_amp0': 3.51, 'R_amv_n': 0.0833, 'R_ao': 350.0, 'R_bpn': 6.57, 'R_bv_n': 0.075, 'R_ep0': 1.655, 'R_ev_n': 0.04, 'R_hpn': 19.71, 'R_hv_n': 0.224, 'R_mi': 350.0, 'R_pa': 0.023, 'R_po': 350.0, 'R_pp': 0.0894, 'R_pv': 0.1, 'R_rmp0': 5.27, 'R_rmv_n': 0.125, 'R_rs': 3.02, 'R_sa': 0.06, 'R_sp0': 2.49, 'R_sv_n': 0.038, 'R_tr': 350.0, 'Rvc_n': 0.05, 'T0': 0.58, 'T1': 1.0, 'T2': 2.0, 'T_im': 1.1, 'Ta': 5.0, 'Tc': 0.7, 'V0_dead': 0.1587, 'VA_rest': 0.067, 'VB': 0.9, 'VL_CO2': 3.0, 'VL_O2': 2.5, 'VTCO2': 0.25, 'VTO2': 0.25, 'VT_n': 0.73, 'V_tot': 5027.6, 'Vu_amv0': 286.4, 'Vu_bv': 279.49, 'Vu_ev0': 607.8, 'Vu_hv': 93.16, 'Vu_jp': 579.76, 'Vu_la': 4.0, 'Vu_lv': 15.908, 'Vu_pa': 1.0, 'Vu_pp': 116.6775, 'Vu_pv': 114.0, 'Vu_ra': 4.0, 'Vu_rmv0': 190.95, 'Vu_rv': 38.703, 'Vu_sa': 1.0, 'Vu_sv0': 1361.6, 'Vu_vc': 123.0, 'Vvc_max': 350.0, 'Vvc_min': 50.0, 'W_hn': 12660.0, 'Wb_sh': -1.75, 'Wb_sp': -1.1375, 'Wb_sv': -1.1375, 'Wc_sh': 1.0, 'Wc_sp': 1.716, 'Wc_sv': 1.716, 'Wc_v': 0.2, 'Wp_sh': -0.2, 'Wp_sp': -0.3997, 'Wp_sv': -0.3997, 'Wp_v': -0.103, 'Wt_sh': 0.4, 'Wt_sp': 0.4, 'Wt_sv': 0.4, 'Wt_v': 0.4, 'Ysh_max': 20.0, 'Ysh_min': -0.0283, 'Ysp_max': 5.5, 'Ysp_min': -0.037, 'Ysv_max': 64.9, 'Ysv_min': -0.437, 'Yv_max': 1.9, 'Yv_min': -0.0008, 'a2': 1.819, 'ahead1': 0.9, 'alpha2': 0.05591, 'alpha_O2': 3.17e-05, 'beta2': 0.03255, 'dc': 0.015, 'delta_P': 0.3, 'f_ab_max': 47.78, 'f_ab_min': 2.52, 'f_acCO2_n': 1.4, 'f_ac_max': 12.3, 'f_ac_min': 0.835, 'fab_o': 25.0, 'fall_time_atr': 0.1, 'fall_time_ven': 0.3, 'fes_inf': 2.1, 'fes_max': 80.0, 'fes_min': 2.66, 'fes_o': 16.11, 'fev_inf': 6.3, 'fev_o': 3.2, 'gM': 40.0, 'g_abd': 3.39, 'g_ccsh': 1.0, 'g_ccsp': 1.5, 'g_ccsv': 0.2, 'g_thor': 6.8, 'gam_O2': 30.0, 'gb_O2': 10.0, 'gh_O2': 35.0, 'grm_O2': 30.0, 'k_ab': 11.76, 'k_ac': 29.27, 'kcc_sh': 0.114, 'kcc_sp': 0.13, 'kcc_sv': 0.09, 'kcc_v': 0.0162, 'kes': 0.0675, 'kev': 7.06, 'kisc_sh': 6.0, 'kisc_sp': 2.0, 'kisc_sv': 2.0, 'kmet': 0.18, 'kr_am': 24.17, 'phi_max': 20.0, 'phi_min': -1.87, 'rise_time_atr': 0.05, 'rise_time_ven': 0.15, 's': 0.04, 'scale_param1': 4.9, 'scale_param2': 1.5, 'scale_param3': 0.3, 'scale_param4': 26.6, 'scale_param5': 0.5, 'scale_param6': 1.2, 'scale_param7': 30.0, 'scale_param8': 1.6, 'shift_param1': 4.0, 'shift_param2': 0.3, 'shift_param3': 4.0, 'shift_param4': 0.3, 'tauMR': 50.0, 'tau_CO2': 20.0, 'tau_Emax_lv': 8.0, 'tau_Emax_rv': 8.0, 'tau_M': 40.0, 'tau_MRV': 50.0, 'tau_O2': 10.0, 'tau_Ramp': 2.0, 'tau_Rep': 2.0, 'tau_Rrmp': 2.0, 'tau_Rsp': 2.0, 'tau_Ts': 2.0, 'tau_Tv': 1.5, 'tau_Vamv': 20.0, 'tau_Vev': 20.0, 'tau_Vrmv': 20.0, 'tau_Vsv': 20.0, 'tau_ac': 2.0, 'tau_ap': 2.0, 'tau_cc': 20.0, 'tau_isc': 30.0, 'tau_met': 10.0, 'tau_p': 2.076, 'tau_w': 5.0, 'tau_z': 0.8, 'theta_ao_max': 1.309, 'theta_mi_max': 1.309, 'theta_min': 0.0872665, 'theta_po_max': 1.309, 'theta_shn': 3.6, 'theta_spn': 13.32, 'theta_svn': 13.32, 'theta_tr_max': 1.309, 'theta_v': -0.68, 'x_sh': 53.0, 'x_sp': 6.0, 'x_sv': 6.0},]
 
-    print(f"Number of samples created: {len(X)}")
+    # print(f"Number of samples created: {len(X)}")
 
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_166000_300000_Result_HR_Plv_Prv_Vlv_Vrv_rest.npy', Result)
+    np.save('DGSM_filtered_LHCS_0_100000_Result_21_targets_rest.npy', Result)
 
 
 

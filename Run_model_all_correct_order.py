@@ -10,7 +10,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 
 from line_profiler import LineProfiler
 from collections import deque
@@ -20,7 +20,7 @@ from All_derivatives import model_derivatives
 from Cardiovascular_controller import cardiovascular_controller
 from Cardiovascular_system_new import cardiovascular_system
 from Gas_Exchange import gas_exchange
-from Parameters import Parameters
+from Entire_system.fixed_params import Parameters
 from check import Parameters as new_params
 from Resp_Control_Ventilation import resp_control_vent
 
@@ -43,13 +43,13 @@ from Next_Conditions_all_derivatives import Next_Conditions
 # output_file3 = "Next_Conditions_new.py"
 
 
-target_values = np.arange(0, 10000, 10)
+target_values = np.arange(0, 10000, 1)
 
 time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 550 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -112,7 +112,7 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
 
     # Debugging check for progress
     if t != 0:
-        if t > 18:
+        if t > 2.6:
             A = 2
         diff = np.abs(t - target_values)
         if np.any(diff < 0.0001):
@@ -274,7 +274,7 @@ def simulate():
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
     shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-    fall_time_ven, ahead1, ahead2
+    fall_time_ven, ahead1, theta_min, delta_P
      ) = \
     (new_params[k] if k in new_params else Parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
     "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
@@ -288,12 +288,12 @@ def simulate():
     "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
     "scale_param1", "scale_param2", "scale_param3", "scale_param4", "scale_param5", "scale_param6", "scale_param7", "scale_param8",
      "shift_param1", "shift_param2", "shift_param3", "shift_param4", "Pa_O2_lower", "rise_time_atr", "fall_time_atr", "rise_time_ven",
-     "fall_time_ven", "ahead1", "ahead2"])
+     "fall_time_ven", "ahead1", "theta_min", "delta_P"])
 
     # determine the correct breathing profile
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (56.68997590915653, -202.59647354823105, 288.8670155008632, -209.7703017034145, 82.28269589051426, -17.368480186780154, 2.5893052287384397, 89.14188202682894, -308.69610281589763, 429.74939918039985, -308.8054292147809, 122.49308640665272, -26.978019539657186, 4.001791662703984)
-    # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (minimise_breathing(Next_Conditions["t1_store"][0],
-    # Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao))
+    # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (56.68997590915653, -202.59647354823105, 288.8670155008632, -209.7703017034145, 82.28269589051426, -17.368480186780154, 2.5893052287384397, 89.14188202682894, -308.69610281589763, 429.74939918039985, -308.8054292147809, 122.49308640665272, -26.978019539657186, 4.001791662703984)
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (minimise_breathing(Next_Conditions["t1_store"][0],
+    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao))
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -320,7 +320,7 @@ def simulate():
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
      shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, ahead2]
+     fall_time_ven, ahead1, theta_min, delta_P]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -392,11 +392,90 @@ def simulate():
             if len(past_10_flat_segments) == 10:
                 break
 
+
+
+    # left atria
+    V_la = np.concatenate((Next_Conditions["V_la_store"][i_buffer:], Next_Conditions["V_la_store"][:i_buffer]))
+    peaks, _ = find_peaks(V_la, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-V_la, distance=int(1000), prominence=1)
+
+    last_10_troughs_V_la = troughs[-10:-1]
+    last_10_min_V_la = V_la[last_10_troughs_V_la]
+
+    last_10_peaks_V_la = peaks[-10:-1]
+    last_10_max_V_la = V_la[last_10_peaks_V_la]
+
+    P_la = np.concatenate((Next_Conditions["P_la_store"][i_buffer:], Next_Conditions["P_la_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+
+    last_10_troughs_P_la = troughs[-10:-1]
+    last_10_min_P_la = P_la[last_10_troughs_P_la]
+
+    last_10_peaks_P_la = peaks[-10:-1]
+    last_10_max_P_la = P_la[last_10_peaks_P_la]
+
+
+    # right atria
+    V_ra = np.concatenate((Next_Conditions["V_ra_store"][i_buffer:], Next_Conditions["V_ra_store"][:i_buffer]))
+    peaks, _ = find_peaks(V_ra, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-V_ra, distance=int(1000), prominence=1)
+
+    last_10_troughs_V_ra = troughs[-10:-1]
+    last_10_min_V_ra = V_ra[last_10_troughs_V_ra]
+
+    last_10_peaks_V_ra = peaks[-10:-1]
+    last_10_max_V_ra = V_ra[last_10_peaks_V_ra]
+
+    P_ra = np.concatenate((Next_Conditions["P_ra_store"][i_buffer:], Next_Conditions["P_ra_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
+
+    last_10_troughs_P_ra = troughs[-10:-1]
+    last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
+
+    last_10_peaks_P_ra = peaks[-10:-1]
+    last_10_max_P_ra = P_ra[last_10_peaks_P_ra]
+
+    # get volume before atrial contraction
+    phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
+    # Find transitions: where phi_atr goes from 0 to >0
+    starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
+    local_mins = starts[-10:]
+    last_10_b4_LA_atrial_contract = V_la[local_mins]
+    last_10_b4_RA_atrial_contract = V_ra[local_mins]
+
+    # maximum ventricular pressure derivative
+    P_lv = np.concatenate((Next_Conditions["P_lv_store"][i_buffer:], Next_Conditions["P_lv_store"][:i_buffer]))
+    all_time = np.concatenate((Next_Conditions["all_time"][i_buffer:], Next_Conditions["all_time"][:i_buffer]))
+    dPmax_lv_dt1 = np.gradient(P_lv, all_time)
+    dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
+    peaks, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
+    last_10 = peaks[-10:-1]
+    last_10_max_P_lv_deriv = dPmax_lv_dt[last_10]
+
+    P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
+
+    dPmax_rv_dt1 = np.gradient(P_rv, all_time)
+    dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
+    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
+    last_10 = peaks[-10:-1]
+    last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
+
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
+    print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
+            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
+            np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
+            np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra), np.mean(last_10_max_P_ra),
+            np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
+            np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
+            np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv))
+
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
-            np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv), IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
+            np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
+            IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
 
 
 if __name__ == "__main__":
@@ -411,7 +490,7 @@ if __name__ == "__main__":
     print("ODE Status:", solution.status)
     print("ODE Message:", solution.message)
 
-    np.save(f'IC_final.npy', save_IC)  # individual chunks
+    np.save(f'IC_final.npy', y_full)  # individual chunks
     np.save(f'Next_final.npy', save_Next)  # individual chunks
     # lp.disable()
     # lp.print_stats()
@@ -431,7 +510,7 @@ if __name__ == "__main__":
     )
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
-    print(HR)
+    # print(HR)
     print(len(Next_Conditions["time_history"][:index]))
 
     # Set global style
@@ -457,19 +536,203 @@ if __name__ == "__main__":
     VDflow = (1 / (t1 + t2)) * VD
     Minute_Ventilation = (Next_Conditions["VAflow"][:index] + VDflow) * 60
 
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation, label="Minute Ventilation", color="r")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Ventilation (L/min)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # # ax1.grid(True)
+    # # # plt.show()
+    # # ax2 = ax1.twinx()
+    # ax1.plot(Next_Conditions["time_history"][:index], 60 * Next_Conditions["VAflow"][:index], label="Alveolar Ventilation", color="b")
+    # ax1.legend(loc="upper left")
+    # # ax2.tick_params(axis='y', labelcolor="k")
+    # # ax2.legend(loc="upper right")
+    # plt.show()
+
+    # left atria
+
+    V_la = np.concatenate((Next_Conditions["V_la_store"][i:], Next_Conditions["V_la_store"][:i]))
+    peaks, _ = find_peaks(V_la, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-V_la, distance=int(1000), prominence=1)
+
+    last_10_troughs_V_la = troughs[-10:-1]
+    last_10_min_V_la = V_la[last_10_troughs_V_la]
+
+    last_10_peaks_V_la = peaks[-10:-1]
+    last_10_max_V_la = V_la[last_10_peaks_V_la]
+
+    phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
+    # Find transitions: where phi_atr goes from 0 to >0
+    starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
+
+    local_mins = starts[-10:]
+
+    # local_mins = []
+    #
+    # for k in range(len(peaks) - 1):
+    #     cycle_start, cycle_end = peaks[k], peaks[k + 1]
+    #     cycle_len = cycle_end - cycle_start
+    #
+    #     # take the middle 90%
+    #     start = cycle_start + int(0.05 * cycle_len)
+    #     end = cycle_end - int(0.05 * cycle_len)
+    #     # half = start + (end - start) // 2  # only search up to mid-cycle
+    #     segment = V_la[start:end + 1]  # include end
+    #     if len(segment) == 0:
+    #         continue
+    #     # Compute derivative of the segment
+    #     dseg = np.gradient(segment)
+    #
+    #     # Find where slope becomes strongly negative (atrial emptying starts)
+    #     drop_idx = np.where(np.isclose(dseg, 0, atol=1e-3))[0]   # tune atol
+    #     if len(drop_idx) == 0:
+    #         print("non_found")
+    #         continue  # no sharp drop in this segment
+    #     if len(dseg) > 0:
+    #         chosen_rel = np.argmin(np.abs(dseg))  # index where slope is closest to zero
+    #         chosen_idx = start + chosen_rel
+    #         local_mins.append(chosen_idx)
+
+        # # Take the index just before the drop
+        # chosen_rel = drop_idx[0] - 1
+        # if chosen_rel < 0:
+        #     chosen_rel = drop_idx[0]  # fallback
+        #
+        # chosen_idx = start + chosen_rel
+        # local_mins.append(chosen_idx)
+
+    # local_mins = np.array(local_mins)
+
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation, label="Minute Ventilation", color="r")
+    ax1.plot(sorted_times, V_la, label="V_la")
+
+    ax1.scatter(sorted_times[troughs], V_la[troughs], color='r', marker='o',label="Atrial max volume during V-wave")
+    ax1.scatter(sorted_times[peaks], V_la[peaks], color='g', marker='x', label="Atrial ESV")
+    ax1.scatter(sorted_times[local_mins], V_la[local_mins], color='k', marker='o', label="Atrial EDV")
 
     ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Ventilation (L/min)")
     ax1.tick_params(axis='y', labelcolor="k")
-    # ax1.grid(True)
-    # # plt.show()
-    # ax2 = ax1.twinx()
-    ax1.plot(Next_Conditions["time_history"][:index], 60 * Next_Conditions["VAflow"][:index], label="Alveolar Ventilation", color="b")
     ax1.legend(loc="upper left")
-    # ax2.tick_params(axis='y', labelcolor="k")
-    # ax2.legend(loc="upper right")
+    ax1.grid(True)
+    plt.show()
+
+    P_la = np.concatenate((Next_Conditions["P_la_store"][i:], Next_Conditions["P_la_store"][:i]))
+    peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+
+    last_10_troughs_P_la = troughs[-10:-1]
+    last_10_min_P_la = P_la[last_10_troughs_P_la]
+
+    last_10_peaks_P_la = peaks[-10:-1]
+    last_10_max_P_la = P_la[last_10_peaks_P_la]
+
+    # print(np.mean(last_10_min_P_la), np.mean(last_10_max_P_la))
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, P_la, label="P_la")
+
+    ax1.scatter(sorted_times[troughs], P_la[troughs], color='r', marker='o', label="Detected Minima")
+    ax1.scatter(sorted_times[peaks], P_la[peaks], color='g', marker='x', label="Detected Maxima")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+
+
+
+
+    # right atria
+    V_ra = np.concatenate((Next_Conditions["V_ra_store"][i:], Next_Conditions["V_ra_store"][:i]))
+    peaks, _ = find_peaks(V_ra, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-V_ra, distance=int(1000), prominence=1)
+
+    last_10_troughs_V_ra = troughs[-10:-1]
+    last_10_min_V_ra = V_ra[last_10_troughs_V_ra]
+
+    last_10_peaks_V_ra = peaks[-10:-1]
+    last_10_max_V_ra = V_ra[last_10_peaks_V_ra]
+
+    phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
+    # Find transitions: where phi_atr goes from 0 to >0
+    starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
+
+    local_mins = starts[-10:]
+
+    # print(np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra))
+
+    # # Even indices → one type (e.g., globals)
+    # # Odd indices → the alternating type (locals)
+    # first_indices = last_10_troughs_V_ra[::2]  # 0,2,4,6,...
+    # alternate_indices = last_10_troughs_V_ra[1::2]  # 1,3,5,7,...
+    #
+    # if first_indices[0] < alternate_indices[0]:
+    #     global_mins = first_indices
+    #     local_mins = alternate_indices
+    # else:
+    #     global_mins = alternate_indices
+    #     local_mins = first_indices
+
+    # local_mins = []
+    #
+    # for k in range(len(peaks) - 1):
+    #     start, end = peaks[k], peaks[k + 1]
+    #     half = start + (end - start) // 2  # only search up to mid-cycle
+    #     segment = V_ra[start:half + 1]  # include end
+    #     if len(segment) == 0:
+    #         continue
+    #     seg_min = find_peaks(-segment)
+    #     seg_min = seg_min[0]
+    #     # indices in the segment equal (within tol) to min → plateau detection
+    #     plateau_inds = np.where(np.isclose(segment, seg_min, atol=1e-6))[0]
+    #     # choose the middle point of the plateau (more stable than first or last)
+    #     chosen_rel = plateau_inds[len(plateau_inds) // 2]
+    #     chosen_idx = start + chosen_rel
+    #
+    #     local_mins.append(chosen_idx)
+    #
+    # local_mins = np.array(local_mins)
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, V_ra, label="V_ra")
+
+    ax1.scatter(sorted_times[troughs], V_ra[troughs], color='r', marker='o', label="Atrial max volume during V-wave")
+    ax1.scatter(sorted_times[peaks], V_ra[peaks], color='g', marker='x', label="Atrial ESV")
+    ax1.scatter(sorted_times[local_mins], V_ra[local_mins], color='k', marker='o', label="Atrial EDV")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+    P_ra = np.concatenate((Next_Conditions["P_ra_store"][i:], Next_Conditions["P_ra_store"][:i]))
+    peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
+
+    last_10_troughs_P_ra = troughs[-10:-1]
+    last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
+
+    last_10_peaks_P_ra = peaks[-10:-1]
+    last_10_max_P_ra = P_ra[last_10_peaks_P_ra]
+
+    # print(np.mean(last_10_min_P_ra), np.mean(last_10_max_P_ra))
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, P_ra, label="P_ra")
+
+    ax1.scatter(sorted_times[troughs], P_ra[troughs], color='r', marker='o', label="Detected Minima")
+    ax1.scatter(sorted_times[peaks], P_ra[peaks], color='g', marker='x', label="Detected Maxima")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
     plt.show()
 
     # HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
@@ -613,35 +876,97 @@ if __name__ == "__main__":
     #
     #
     #
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="Activation Atrium Function")  #
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="Activation Ventricle Function")  #
+    # Preallocate arrays
 
-    plt.xlabel("Time (s)")
-    plt.ylabel("Activation")
-    # plt.title("Pressure-Volume Traces")
-    plt.legend(loc="upper right")
-    # plt.grid(True)
+    P_lv = np.concatenate((Next_Conditions["P_lv_store"][i:], Next_Conditions["P_lv_store"][:i]))
+    all_time = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
+
+    dPmax_lv_dt1 = np.gradient(P_lv, all_time)
+    dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
+    peaks1, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
+
+
+    P_rv = np.concatenate((Next_Conditions["P_rv_store"][i:], Next_Conditions["P_rv_store"][:i]))
+    all_time = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
+    # dPmax_rv_dt = np.zeros_like(P_rv)
+
+    # dPmax_rv_dt[1:-1] = (P_rv[2:] - P_rv[:-2]) / (all_time[2:] - all_time[:-2])
+    time_for_deriv = all_time
+    dPmax_rv_dt1 = np.gradient(P_rv, all_time)
+    dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
+    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(all_time, P_rv, label="P_rv", color="r")
+    ax1.plot(all_time, P_lv, label="P_lv", color="k")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Pressure (mmHg)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+
+    ax2.plot(time_for_deriv, dPmax_rv_dt1, label="dP_rv_dt", color="m")
+    ax2.plot(time_for_deriv, dPmax_lv_dt1, label="dP_lv_dt", color="c")
+    ax2.plot(all_time, dPmax_rv_dt, label="dP_rv_dt_smooth", color="b")
+    ax2.plot(all_time, dPmax_lv_dt, label="dP_lv_dt_smooth", color="g")
+    ax2.scatter(sorted_times[peaks], dPmax_rv_dt[peaks], color='r', marker='o', label="Max dP_rv_dt")
+    ax2.scatter(sorted_times[peaks1], dPmax_lv_dt[peaks1], color='k', marker='o', label="Max dP_lv_dt")
+
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
     plt.show()
 
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="Activation Atrium Function", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="Activation Ventricle Function", color="m")
+    ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_tr"][:index],
+             label="Tricuspid valve flow", color="r")  #
+    ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_mi"][:index],
+             label="Mitral valve flow", color="b")  #
+    # ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_ao"][:index],
+    #          label="Aortic valve flow", color="b")  #
+    # ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_po"][:index],
+    #          label="Pulmonary valve flow", color="c")  #
 
-    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_tr"][:index], label="Tricuspid valve flow")  #
-    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_mi"][:index], label="Mitral valve flow")  #
-    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_ao"][:index], label="Aortic valve flow")  #
-    plt.plot(Next_Conditions["time_history"][:index], 57.2958*Next_Conditions["theta_po"][:index], label="Pulmonary valve flow")  #
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Valve_angle")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_sa"][:index], label="Q_sa", color="dimgrey")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_lv"][:index], label="Q_lv", color="m")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="m")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_lv"][:index], label="Pmax_lv", color="y")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="darkorange")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_rv"][:index], label="Pmax_rv", color="dimgrey")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ra"][:index], label="P_ra", color="g")
 
-    plt.xlabel("Time (s)")
-    plt.ylabel("Flow (mL/s)")
+    ax2.set_ylabel("Flow (mL/s)")
     # plt.title("Pressure-Volume Traces")
-    plt.legend()
-    # plt.grid(True)
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
     plt.show()
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="Total Volume")  #
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="signal")  #
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="d2_restore")  #
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="combined")  #
+    ax1.legend(loc="upper left")
 
-    plt.xlabel("Volume (mL)")
-    plt.ylabel("Pressure (mmHg)")
+    # ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["V_shift1"][:index], label="signal", color="m")  #
+    #
+    # # plt.xlabel("Volume (mL)")
+    # ax2.set_ylabel("Pressure (mmHg)")
+    # ax2.legend(loc="upper right")
+
     # plt.title("Pressure-Volume Traces")
-    plt.legend()
+    # plt.legend()
     # plt.grid(True)
     plt.show()
 
