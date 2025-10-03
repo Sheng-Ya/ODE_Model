@@ -2,8 +2,8 @@ import os
 import copy
 import signal
 import multiprocessing as mp
-import torch
-from scipy.stats import qmc
+# import torch
+# from scipy.stats import qmc
 
 import numpy as np
 from SALib import ProblemSpec
@@ -488,7 +488,7 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_p
     for i, chunk in enumerate(chunked(param_samples, chunk_size)):
         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
             results = Parallel(n_jobs=n_jobs)(
-                delayed(simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
+                delayed(safe_simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
 
         results_all.extend(results)
 
@@ -518,72 +518,72 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=1200, save_p
 #
 #     return results_all
 
-def sample_inputs_from_spec(
-        spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
-) -> torch.Tensor:
-    """
-    Generate samples from a ProblemSpec-style dictionary.
-
-    Parameters
-    ----------
-    spec : dict
-        Must contain 'names' and 'bounds'.
-    n_samples : int
-        Number of samples to generate.
-    random_seed : int | None
-        For reproducibility.
-    method : str
-        "lhs" or "sobol".
-
-    Returns
-    -------
-    torch.Tensor
-        Samples of shape (n_samples, n_parameters)
-    """
-    if random_seed is not None:
-        torch.manual_seed(random_seed)
-
-    param_names = spec['names']
-    param_bounds = spec['bounds']
-    in_dim = len(param_names)
-
-    # Check if any bounds are fixed (min == max)
-    constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
-    sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
-
-    # Handle case all parameters are constant
-    if len(sample_param_bounds) == 0:
-        const_vals = torch.tensor(list(constant_params.values()))
-        return const_vals.repeat(n_samples, 1)
-
-    # Create sampler
-    if method.lower() == "lhs":
-        sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
-    elif method.lower() == "sobol":
-        sampler = qmc.Sobol(d=len(sample_param_bounds))
-    else:
-        raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
-
-    samples = sampler.random(n=n_samples)
-    # scale samples to bounds
-    scaled_samples = qmc.scale(
-        samples,
-        [b[0] for b in sample_param_bounds],
-        [b[1] for b in sample_param_bounds]
-    )
-    scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
-
-    # Insert constant parameters at the correct indices
-    full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
-    sample_idx = 0
-    for idx in range(in_dim):
-        if idx in constant_params:
-            full_samples[:, idx] = constant_params[idx]
-        else:
-            full_samples[:, idx] = scaled_samples[:, sample_idx]
-            sample_idx += 1
-
-    return full_samples
+# def sample_inputs_from_spec(
+#         spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
+# ) -> torch.Tensor:
+#     """
+#     Generate samples from a ProblemSpec-style dictionary.
+#
+#     Parameters
+#     ----------
+#     spec : dict
+#         Must contain 'names' and 'bounds'.
+#     n_samples : int
+#         Number of samples to generate.
+#     random_seed : int | None
+#         For reproducibility.
+#     method : str
+#         "lhs" or "sobol".
+#
+#     Returns
+#     -------
+#     torch.Tensor
+#         Samples of shape (n_samples, n_parameters)
+#     """
+#     if random_seed is not None:
+#         torch.manual_seed(random_seed)
+#
+#     param_names = spec['names']
+#     param_bounds = spec['bounds']
+#     in_dim = len(param_names)
+#
+#     # Check if any bounds are fixed (min == max)
+#     constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
+#     sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
+#
+#     # Handle case all parameters are constant
+#     if len(sample_param_bounds) == 0:
+#         const_vals = torch.tensor(list(constant_params.values()))
+#         return const_vals.repeat(n_samples, 1)
+#
+#     # Create sampler
+#     if method.lower() == "lhs":
+#         sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
+#     elif method.lower() == "sobol":
+#         sampler = qmc.Sobol(d=len(sample_param_bounds))
+#     else:
+#         raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
+#
+#     samples = sampler.random(n=n_samples)
+#     # scale samples to bounds
+#     scaled_samples = qmc.scale(
+#         samples,
+#         [b[0] for b in sample_param_bounds],
+#         [b[1] for b in sample_param_bounds]
+#     )
+#     scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
+#
+#     # Insert constant parameters at the correct indices
+#     full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
+#     sample_idx = 0
+#     for idx in range(in_dim):
+#         if idx in constant_params:
+#             full_samples[:, idx] = constant_params[idx]
+#         else:
+#             full_samples[:, idx] = scaled_samples[:, sample_idx]
+#             sample_idx += 1
+#
+#     return full_samples
 
 
 
