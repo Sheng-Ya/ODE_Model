@@ -1,7 +1,7 @@
 import os
 import copy
 import signal
-import multiprocessing as mp
+# import multiprocessing as mp
 # import torch
 # from scipy.stats import qmc
 
@@ -821,6 +821,9 @@ if __name__ == "__main__":
 
     np.save('DGSM_filtered_LHCS_0_100000_Result_21_targets_rest.npy', Result)
 
+    # 390 is from 300000_500000
+    # 390 is from 100000_200000
+    # 515 is from 200000_300000
 
 
 

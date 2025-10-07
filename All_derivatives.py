@@ -708,7 +708,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_sv = V_sv / C_sv
     else:
         V_sv = 0
-        P_sv = 0
+        P_sv =  VT_sv / C_sv
         Vu_sv = VT_sv
 
     Q_sp = (P_sp - P_sv) / R_sp
@@ -734,8 +734,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_bv = V_bv / C_bv
     else:
         V_bv = 0
-        P_bv = 0
-        Vu_bv = VT_bv
+        P_bv = VT_bv / C_bv
 
     Q_bp = (P_sp - P_bv) / R_bp
 
@@ -760,7 +759,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_hv = V_hv / C_hv
     else:
         V_hv = 0
-        P_hv = 0
+        P_hv = VT_hv / C_hv
         Vu_hv = VT_hv
 
     Q_hp = (P_sp - P_hv) / R_hp
@@ -787,7 +786,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_rmv = V_rmv / C_rmv
     else:
         V_rmv = 0
-        P_rmv = 0
+        P_rmv = VT_rmv / C_rmv
         Vu_rmv = VT_rmv
 
     Q_rmp = (P_sp - P_rmv) / R_rmp
