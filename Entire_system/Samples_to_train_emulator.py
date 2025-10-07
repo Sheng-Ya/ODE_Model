@@ -259,12 +259,13 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     "fall_time_atr", "rise_time_ven", "fall_time_ven", "ahead1", "theta_min", "delta_P"])
 
     # determine the correct breathing profile
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(1.5,
-    1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
+    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (56.68997590915653, -202.59647354823105, 288.8670155008632, -209.7703017034145, 82.28269589051426, -17.368480186780154, 2.5893052287384397, 89.14188202682894, -308.69610281589763, 429.74939918039985, -308.8054292147809, 122.49308640665272, -26.978019539657186, 4.001791662703984)
+    # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(1.5,
+    # 1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
 
-    if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
-        # Integration failed or early termination
-        return [0.0]*21
+    # if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
+    #     # Integration failed or early termination
+    #     return [0.0]*21
 
     Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -674,8 +675,8 @@ if __name__ == "__main__":
             [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
             [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
             [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
-            [-4 * upper, -4 * lower],
-            [-9 * upper, -9 * lower],
+            [-2 * upper, -2 * lower],
+            [-6 * upper, -6 * lower],
             [0.73 * lower, 0.73 * upper], [30 * lower, 30 * upper],
             [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
             # cardio control
@@ -762,34 +763,42 @@ if __name__ == "__main__":
             [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
             [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
             [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.8 * 0.8, 0.8 * 1.2],
+            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
             [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
     })
 
 
     # filtered set from DGSM
-    subset_vars = {'k_ac', 'C_O2_param2', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'PaO2_ac_n', 'Cvh_O2_n', 'T_im', 'K1_vc',
-                   'theta_mi_max', 'P0_rv', 'KcCO2', 'R_rs', 'GT_s', 'theta_svn', 'Emax_lv0', 'C_O2_param1', 'f_ac_min',
+    subset_vars = {'k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O2_n', 'T_im', 'K1_vc',
+                   'theta_mi_max', 'P0_rv', 'GT_s', 'theta_svn', 'Emax_lv0', 'f_ac_min',
                    'kmet', 'R_sa', 'R_bpn', 'Io_sv', 'phi_max', 'R_po', 'f_acCO2_n', 'Kv_tr', 'Emax_rv0', 'V_tot',
-                   'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'E_rs', 'C2', 'Wb_sh',
-                   'C_pp', 'Vu_hv', 'g_ccsp', 'R_mi', 'f_ab_max', 'Wb_sv', 'K2', 'Tc', 'GEmax_rv', 'GEmax_lv', 'a2',
+                   'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'Wb_sh',
+                   'C_pp', 'Vu_hv', 'g_ccsp', 'R_mi', 'f_ab_max', 'Wb_sv', 'Tc', 'GEmax_rv', 'GEmax_lv',
                    'Vu_bv', 'KE_lv', 'Wc_sp', 'scale_param2', 'KE_ra', 'GR_ep', 'Vu_rv', 'fes_min', 'Ysv_min',
-                   'VA_rest', 'k_ab', 'R_pv', 'scale_param3', 'KpCO2', 'grm_O2', 'KE_la', 'fes_o', 'Vu_vc', 'GR_sp',
-                   'Cvrm_O2_n', 'C_jp', 'Wc_v', 'C_pv', 'g_ccsh', 'Fi_O2', 'C_sv', 'MO2_rmp', 'rise_time_ven',
-                   'Ysv_max', 'Vu_amv0', 'KE_rv', 'Vu_lv', 'beta2', 'Vu_ev0', 'GT_v', 'R_amp0', 'D', 'gb_O2',
+                   'k_ab', 'R_pv', 'grm_O2', 'KE_la', 'fes_o', 'Vu_vc', 'GR_sp',
+                   'Cvrm_O2_n', 'C_jp', 'Wc_v', 'C_pv', 'g_ccsh', 'C_sv', 'MO2_rmp', 'rise_time_ven',
+                   'Ysv_max', 'Vu_amv0', 'KE_rv', 'Vu_lv', 'Vu_ev0', 'GT_v', 'R_amp0', 'D', 'gb_O2',
                    'f_ac_max', 'theta_v', 'theta_shn', 'kcc_sv', 'kev', 'fes_inf', 'MO2_ampn', 'Vu_rmv0', 'Wb_sp',
-                   'Vu_jp', 'Cvb_O2_n', 'Kv_po', 'Wp_v', 'PaCO2_n', 'Rvc_n', 'scale_param4', 'R_rmp0', 'R_sp0',
-                   'alpha2', 'kcc_sh', 'Kp_tr', 'GV_sv', 'T0', 'V0_dead', 'fev_o', 'R_tr', 'theta_po_max', 'f_ab_min',
+                   'Vu_jp', 'Cvb_O2_n', 'Kv_po', 'Wp_v', 'Rvc_n', 'R_rmp0', 'R_sp0',
+                   'kcc_sh', 'Kp_tr', 'GV_sv', 'T0', 'fev_o', 'R_tr', 'theta_po_max', 'f_ab_min',
                    'R_hv_n', 'R_pa', 'P_thormin_n', 'Vu_sv0', 'fab_o', 'phi_min', 'fall_time_ven', 'Wp_sh', 'Kp_po',
-                   'K_H', 'P0_lv', 'R_ep0', 'Vu_pv', 'C_ev', 'MO2_bp', 'GV_dead', 'Wc_sh', 'P_n', 'Vu_pp', 'R_pp'}
+                   'P0_lv', 'R_ep0', 'Vu_pv', 'C_ev', 'MO2_bp', 'Wc_sh', 'P_n', 'Vu_pp', 'R_pp'
+                   # removed the below to just focus on the cardiovascular variables
+                   # 'beta2', 'C2', 'K2', 'a2', 'alpha2', 'GV_dead', 'KcCO2', 'KpCO2', 'Fi_O2', 'V0_dead'
+                   # 'VA_rest', 'E_rs', 'R_rs', 'PaCO2_n', 'C_O2_param1', 'C_O2_param2', 'PaO2_ac_n',
+                   # 'scale_param3', 'scale_param4', 'K_H'
+                   }
     # Filter the names and bounds
     filtered_names = []
     filtered_bounds = []
+
+    A = len(subset_vars)
 
     for name, bound in zip(sp["names"], sp["bounds"]):
         filtered_names.append(name)
         if name in subset_vars:
             filtered_bounds.append(bound)
+            # filtered_bounds.append([np.mean(bound), np.mean(bound)])
         else:
             # take nominal (mean of lower/upper)
             filtered_bounds.append([np.mean(bound), np.mean(bound)])
@@ -807,8 +816,8 @@ if __name__ == "__main__":
 
     # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('DGSM_filtered_LHCS_500000_X_sample_21_target_rest.npy', X)
-    X = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')[:100000,:]
+    # np.save('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy', X)
+    X = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:100000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
@@ -819,7 +828,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
     # print(Result)
 
-    np.save('DGSM_filtered_LHCS_0_100000_Result_21_targets_rest.npy', Result)
+    np.save('DGSM_filtered_NO_RESP_LHCS_0_100000_Result_21_targets_rest.npy', Result)
 
     # 390 is from 300000_500000
     # 390 is from 100000_200000

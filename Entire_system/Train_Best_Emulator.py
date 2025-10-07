@@ -22,6 +22,9 @@ warnings.filterwarnings(
 )
 from sklearn.model_selection import KFold
 
+# A = AutoEmulate.list_emulators()
+# print(A)
+
 X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
 Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
 
@@ -317,109 +320,111 @@ Result = Result[mask]
 # Parameters = {name: val for name, val in zip(sp['names'], values)}
 
 
-mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
-X = X[:, mask]
 
-# HR
-Result = Result[:, 0] # Heart rate here
 
-idx = np.random.choice(len(Result), size=10000, replace=False)
-X = X[idx,:]
-Result = Result[idx]
 
+# mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
+# X = X[:, mask]
+
+# # HR
+# Result = Result[:, 0] # Heart rate here
+#
+# idx = np.random.choice(len(Result), size=30000, replace=False)
+# X = X[idx,:]
+# Result = Result[idx]
 
 ## EMULATION
 
-# compare emulators
-ae = AutoEmulate(X, Result, log_level="progress_bar", models=["MLP"])
-ae.summarise()
-best = ae.best_result()
-print("Model with id: ", best.id, " performed best: ", best.model_name)
-print(best.params)
+# # compare emulators
+# ae = AutoEmulate(X, Result, log_level="info", models=["GaussianProcessMatern32"])
+# ae.summarise()
+# best = ae.best_result()
+# print("Model with id: ", best.id, " performed best: ", best.model_name)
+# print(best.params)
+#
+# # ae.save(best, "rbf_new")
+# os.makedirs("best_HR", exist_ok=True)
+# joblib.dump(best, "best_HR/GaussianProcessMatern32.joblib")
+#
+# fig = ae.plot(best, fname="GaussianProcessMatern32.png")
 
-# ae.save(best, "rbf_new")
-os.makedirs("best_HR", exist_ok=True)
-joblib.dump(best, "best_HR/MLP.joblib")
-
-fig = ae.plot(best, fname="best_HR_MLP.png")
 
 
+Result_cols = [
+    "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
+    "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
+    "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
+    "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure",
+    "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv",
+    "Stroke Volume", "Ejection Fraction",
+]
 
-# Result_cols = [
-#     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
-#     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
-#     "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
-#     "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure",
-#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv",
-#     "Stroke Volume", "Ejection Fraction",
-# ]
-#
-# fig, axes = plt.subplots(nrows=8, ncols=3, figsize=(15, 12))
-# axes = axes.flatten()
-#
-# for i, col in enumerate(Result_cols):
-#     sns.kdeplot(Result[:, i], fill=True, ax=axes[i])
-#     axes[i].set_title(col)
-#     axes[i].set_xlabel("Value")
-#     axes[i].set_ylabel("Density")
-#
-# # Remove the last empty subplot if 11 < 12
-# fig.delaxes(axes[-1])
-#
-# plt.tight_layout()
-# plt.show()
-#
-#
-#
-#
-# # --- Extract names and bounds from your ProblemSpec
-# param_names = sp["names"]   # length 299
-# param_bounds = sp["bounds"] # same length
-#
-# # --- Compute nominal values (midpoint of bounds)
-# param_nominal = [(low + high) / 2 for low, high in param_bounds]
-# param_min = [low for low, high in param_bounds]
-# param_max = [high for low, high in param_bounds]
-#
-# n_params = X.shape[1]
-# chunk_size = 30  # plots per figure
-#
-# print("Any NaN? ", np.isnan(X).any())
-# print("Any +inf? ", np.isposinf(X).any())
-# print("Any -inf? ", np.isneginf(X).any())
-#
-# # --- Filter out constant columns
-# valid_indices = [i for i in range(n_params) if not np.all(X[:, i] == X[0, i])]
-#
-# for start in range(0, len(valid_indices), chunk_size):
-#     end = min(start + chunk_size, len(valid_indices))
-#     subset_indices = valid_indices[start:end]
-#
-#     ncols = 5
-#     nrows = int(np.ceil(len(subset_indices) / ncols))
-#     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, nrows*2.5))
-#     axes = axes.flatten()
-#
-#     for i, param_idx in enumerate(subset_indices):
-#         ax = axes[i]
-#         sns.kdeplot(X[:, param_idx], fill=True, ax=ax, color="blue", alpha=0.6)
-#
-#         # Add vertical lines for min, max, nominal
-#         ax.axvline(param_min[param_idx], color="red", linestyle="--", label="Min" if i == 0 else "")
-#         ax.axvline(param_max[param_idx], color="green", linestyle="--", label="Max" if i == 0 else "")
-#         ax.axvline(param_nominal[param_idx], color="black", linestyle="-", label="Nominal" if i == 0 else "")
-#
-#         ax.set_title(param_names[param_idx], fontsize=8)
-#         ax.set_xlabel("")
-#         ax.set_ylabel("")
-#
-#     # Remove unused axes if fewer than nrows*ncols
-#     for j in range(i + 1, len(axes)):
-#         fig.delaxes(axes[j])
-#
-#     # Only add legend once per figure
-#     handles, labels = axes[0].get_legend_handles_labels()
-#     fig.legend(handles, labels, loc="upper right")
-#
-#     plt.tight_layout()
-#     plt.show()
+fig, axes = plt.subplots(nrows=8, ncols=3, figsize=(15, 12))
+axes = axes.flatten()
+
+for i, col in enumerate(Result_cols):
+    sns.kdeplot(Result[:, i], fill=True, ax=axes[i])
+    axes[i].set_title(col)
+    axes[i].set_xlabel("Value")
+    axes[i].set_ylabel("Density")
+
+# Remove the last empty subplot if 11 < 12
+fig.delaxes(axes[-1])
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+# --- Extract names and bounds from your ProblemSpec
+param_names = sp["names"]   # length 299
+param_bounds = sp["bounds"] # same length
+
+# --- Compute nominal values (midpoint of bounds)
+param_nominal = [(low + high) / 2 for low, high in param_bounds]
+param_min = [low for low, high in param_bounds]
+param_max = [high for low, high in param_bounds]
+
+n_params = X.shape[1]
+chunk_size = 30  # plots per figure
+
+print("Any NaN? ", np.isnan(X).any())
+print("Any +inf? ", np.isposinf(X).any())
+print("Any -inf? ", np.isneginf(X).any())
+
+# --- Filter out constant columns
+valid_indices = [i for i in range(n_params) if not np.all(X[:, i] == X[0, i])]
+
+for start in range(0, len(valid_indices), chunk_size):
+    end = min(start + chunk_size, len(valid_indices))
+    subset_indices = valid_indices[start:end]
+
+    ncols = 5
+    nrows = int(np.ceil(len(subset_indices) / ncols))
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, nrows*2.5))
+    axes = axes.flatten()
+
+    for i, param_idx in enumerate(subset_indices):
+        ax = axes[i]
+        sns.kdeplot(X[:, param_idx], fill=True, ax=ax, color="blue", alpha=0.6)
+
+        # Add vertical lines for min, max, nominal
+        ax.axvline(param_min[param_idx], color="red", linestyle="--", label="Min" if i == 0 else "")
+        ax.axvline(param_max[param_idx], color="green", linestyle="--", label="Max" if i == 0 else "")
+        ax.axvline(param_nominal[param_idx], color="black", linestyle="-", label="Nominal" if i == 0 else "")
+
+        ax.set_title(param_names[param_idx], fontsize=8)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+
+    # Remove unused axes if fewer than nrows*ncols
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    # Only add legend once per figure
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper right")
+
+    plt.tight_layout()
+    plt.show()
