@@ -817,7 +817,7 @@ if __name__ == "__main__":
     # X = sample_inputs_from_spec(sp_filtered, n_samples=500000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
     # np.save('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy', X)
-    X = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:100000,:]
+    X = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[100000:300000,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
 
@@ -825,10 +825,10 @@ if __name__ == "__main__":
 
     # print(f"Number of samples created: {len(X)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
     # print(Result)
 
-    np.save('DGSM_filtered_NO_RESP_LHCS_0_100000_Result_21_targets_rest.npy', Result)
+    np.save('DGSM_filtered_NO_RESP_LHCS_100000_300000_Result_21_targets_rest.npy', Result)
 
     # 390 is from 300000_500000
     # 390 is from 100000_200000

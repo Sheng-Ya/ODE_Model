@@ -49,7 +49,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 300 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -1069,10 +1069,13 @@ if __name__ == "__main__":
 
     plt.show()
 
-    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_ev"][index - 1400000:index], label="Extrasplanchnic V$_{Stressed}$")
-    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_amv"][index - 1400000:index], label="Active Muscle V$_{Stressed}$")
-    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_rmv"][index - 1400000:index], label="Resting Muscle V$_{Stressed}$")
-    plt.plot(Next_Conditions["time_history"][index - 1400000:index], Next_Conditions["Vu_sv"][index - 1400000:index], label="Splanchnic V$_{Stressed}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_ev"][:index], label="Extrasplanchnic V$_{Unstressed}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Active Muscle V$_{Unstressed}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_rmv"][:index], label="Resting Muscle V$_{Unstressed}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_sv"][:index], label="Splanchnic V$_{Unstressed}$")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_bv"][:index], label="Cerebral V$_{Unstressed}$")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_hv"][:index], label="Coronary V$_{Unstressed}$")
+
 
     # Add labels and legend
     plt.ylabel("Volume (mL)")

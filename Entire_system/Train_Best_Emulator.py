@@ -25,8 +25,17 @@ from sklearn.model_selection import KFold
 # A = AutoEmulate.list_emulators()
 # print(A)
 
-X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
-Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
+# X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
+# Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
+
+X1 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:46800]
+Result1 = np.load('Result_DGSM_chunked_0_46800.npy')
+
+X2 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[100000:188800]
+Result2 = np.load('Result_DGSM_chunked_100000_188800.npy')
+
+X_all = np.vstack([X1, X2])
+Result_all = np.vstack([Result1, Result2])
 
 lower = 0.5
 upper = 1.5
@@ -117,8 +126,8 @@ sp = ProblemSpec({
         [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
         [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
-        [-4 * upper, -4 * lower],
-        [-9 * upper, -9 * lower],
+        [-2 * upper, -2 * lower],
+        [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [30 * lower, 30 * upper],
         [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
@@ -205,12 +214,18 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
         [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.8 * 0.8, 0.8 * 1.2],
+        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
-mask = Result_all[:,0] != 0
 
+
+# total_volume_mask = X_all[:, 211] > 4500
+# X = X_all[total_volume_mask, :]
+# Result = Result_all[total_volume_mask]
+
+
+mask = Result_all[:,0] != 0
 X = X_all[mask, :]
 Result = Result_all[mask, :]
 
@@ -224,100 +239,103 @@ nan_mask = ~np.isnan(Result).any(axis=1)  # True for rows without NaN
 X = X[nan_mask, :]
 Result = Result[nan_mask, :]
 
-# get the mean of the column
-col_mean = Result.mean(axis=0)
-col_std = Result.std(axis=0)
 
-mask = np.all((Result >= (col_mean - 3*col_std)) & (Result <= (col_mean + 3*col_std)), axis=1)
-X = X[mask, :]
-Result = Result[mask]
+# # get the mean of the column
+# col_mean = Result.mean(axis=0)
+# col_std = Result.std(axis=0)
+# # 3 std to remove outliers
+# mask = np.all((Result >= (col_mean - 3*col_std)) & (Result <= (col_mean + 3*col_std)), axis=1)
+# X = X[mask, :]
+# Result = Result[mask]
 
-# # physiological filters
-# hr_mask = Result[:, 0] < 3.67
-# X = X[hr_mask, :]
-# Result = Result[hr_mask]
-#
-# p_sys_mask = (Result[:, 1] < 140) & (Result[:, 1] > 90)
-# X = X[p_sys_mask, :]
-# Result = Result[p_sys_mask]
-#
-# p_dia_mask = Result[:, 2] < 100
-# X = X[p_dia_mask, :]
-# Result = Result[p_dia_mask]
-#
-# EDV_mask = (Result[:, 3] < 230) & (Result[:, 3] > 95)
-# X = X[EDV_mask, :]
-# Result = Result[EDV_mask]
-#
-# ESV_mask = Result[:, 4] > 35
-# X = X[ESV_mask, :]
-# Result = Result[ESV_mask]
-#
-# RV_V_max_mask = (Result[:, 5] < 260) & (Result[:, 5] > 100)
-# X = X[RV_V_max_mask, :]
-# Result = Result[RV_V_max_mask]
-#
-# RV_V_min_mask = (Result[:, 6] < 135) & (Result[:, 6] > 35)
-# X = X[RV_V_min_mask, :]
-# Result = Result[RV_V_min_mask]
-#
-# RV_P_max_mask = (Result[:, 7] < 40) & (Result[:, 7] > 15)
-# X = X[RV_P_max_mask, :]
-# Result = Result[RV_P_max_mask]
-#
-#
-# RV_P_min_mask = Result[:, 8] < 8
-# X = X[RV_P_min_mask, :]
-# Result = Result[RV_P_min_mask]
-#
-#
-# min_RA_p_mask = Result[:, 11] < 12
-# X = X[min_RA_p_mask, :]
-# Result = Result[min_RA_p_mask]
-#
-# max_RA_p_mask = Result[:, 12] < 12
-# X = X[max_RA_p_mask, :]
-# Result = Result[max_RA_p_mask]
-#
-# min_LA_p_mask = Result[:, 15] < 12
-# X = X[min_LA_p_mask, :]
-# Result = Result[min_LA_p_mask]
-#
-# max_LA_p_mask = Result[:, 16] < 12
-# X = X[max_LA_p_mask, :]
-# Result = Result[max_LA_p_mask]
-#
-# EDV_LA_mask = Result[:, 17] < 0.95 * Result[:, 14]
-# X = X[EDV_LA_mask, :]
-# Result = Result[EDV_LA_mask]
-#
-# EDV_RA_mask = Result[:, 18] < 0.95 * Result[:, 10]
-# X = X[EDV_RA_mask, :]
-# Result = Result[EDV_RA_mask]
-#
-# min_RA_v_mask = Result[:, 9] > 40
-# X = X[min_RA_v_mask, :]
-# Result = Result[min_RA_v_mask]
-#
-# min_LA_v_mask = Result[:, 13] > 40
-# X = X[min_LA_v_mask, :]
-# Result = Result[min_LA_v_mask]
-#
-# ahead1_mask = X[:, 297] > 0.85
-# X = X[ahead1_mask, :]
-# Result = Result[ahead1_mask]
-#
-#
-# SV_mask = Result[:, 21] < 100
-# X = X[SV_mask, :]
-# Result = Result[SV_mask]
-#
-# eject_mask = Result[:, 22] < 80
-# X = X[eject_mask, :]
-# Result = Result[eject_mask]
+# physiological filters
+hr_mask = Result[:, 0] < 3.67
+X = X[hr_mask, :]
+Result = Result[hr_mask]
 
-# values = X[0,:]
-# Parameters = {name: val for name, val in zip(sp['names'], values)}
+p_sys_mask = (Result[:, 1] < 120) & (Result[:, 1] > 90)
+X = X[p_sys_mask, :]
+Result = Result[p_sys_mask]
+
+p_dia_mask = Result[:, 2] < 100
+X = X[p_dia_mask, :]
+Result = Result[p_dia_mask]
+
+EDV_mask = (Result[:, 3] < 230) & (Result[:, 3] > 95)
+X = X[EDV_mask, :]
+Result = Result[EDV_mask]
+
+ESV_mask = Result[:, 4] > 35
+X = X[ESV_mask, :]
+Result = Result[ESV_mask]
+
+RV_V_max_mask = (Result[:, 5] < 260) & (Result[:, 5] > 100)
+X = X[RV_V_max_mask, :]
+Result = Result[RV_V_max_mask]
+
+RV_V_min_mask = (Result[:, 6] < 135) & (Result[:, 6] > 35)
+X = X[RV_V_min_mask, :]
+Result = Result[RV_V_min_mask]
+
+RV_P_max_mask = (Result[:, 7] < 35) & (Result[:, 7] > 15)
+X = X[RV_P_max_mask, :]
+Result = Result[RV_P_max_mask]
+
+
+RV_P_min_mask = Result[:, 8] < 8
+X = X[RV_P_min_mask, :]
+Result = Result[RV_P_min_mask]
+
+
+min_RA_p_mask = Result[:, 11] < 10
+X = X[min_RA_p_mask, :]
+Result = Result[min_RA_p_mask]
+
+max_RA_p_mask = Result[:, 12] < 10
+X = X[max_RA_p_mask, :]
+Result = Result[max_RA_p_mask]
+
+min_LA_p_mask = Result[:, 15] < 10
+X = X[min_LA_p_mask, :]
+Result = Result[min_LA_p_mask]
+
+max_LA_p_mask = Result[:, 16] < 10
+X = X[max_LA_p_mask, :]
+Result = Result[max_LA_p_mask]
+
+EDV_LA_mask = Result[:, 17] < 0.95 * Result[:, 14]
+X = X[EDV_LA_mask, :]
+Result = Result[EDV_LA_mask]
+
+EDV_RA_mask = Result[:, 18] < 0.95 * Result[:, 10]
+X = X[EDV_RA_mask, :]
+Result = Result[EDV_RA_mask]
+
+min_RA_v_mask = Result[:, 9] > 40
+X = X[min_RA_v_mask, :]
+Result = Result[min_RA_v_mask]
+
+min_LA_v_mask = Result[:, 13] > 40
+X = X[min_LA_v_mask, :]
+Result = Result[min_LA_v_mask]
+
+ahead1_mask = X[:, 297] > 0.85
+X = X[ahead1_mask, :]
+Result = Result[ahead1_mask]
+
+
+SV_mask = Result[:, 21] < 100
+X = X[SV_mask, :]
+Result = Result[SV_mask]
+
+eject_mask = Result[:, 22] < 80
+X = X[eject_mask, :]
+Result = Result[eject_mask]
+
+no = 5
+print(Result[no,:])
+values = X[no,:]
+Parameters = {name: val for name, val in zip(sp['names'], values)}
 
 
 

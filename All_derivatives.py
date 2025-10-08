@@ -709,7 +709,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         V_sv = 0
         P_sv =  VT_sv / C_sv
-        Vu_sv = VT_sv
+        # Vu_sv = VT_sv
 
     Q_sp = (P_sp - P_sv) / R_sp
 
@@ -760,7 +760,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         V_hv = 0
         P_hv = VT_hv / C_hv
-        Vu_hv = VT_hv
+        # Vu_hv = VT_hv
 
     Q_hp = (P_sp - P_hv) / R_hp
 
@@ -787,7 +787,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         V_rmv = 0
         P_rmv = VT_rmv / C_rmv
-        Vu_rmv = VT_rmv
+        # Vu_rmv = VT_rmv
 
     Q_rmp = (P_sp - P_rmv) / R_rmp
 
@@ -1464,7 +1464,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
         ],
 
         [  # Corresponding values
-            HR, V_ev, V_sv, V_rmv, V_amv, Emax_lv, Emax_rv,
+            HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv, Emax_lv, Emax_rv,
             R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_sp, f_sh, f_v, f_sv, Nt, f_ab, f_ac, f_ap, Tv_change,
             Ts_change, HR_every,
             f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, P_n_current, V])
