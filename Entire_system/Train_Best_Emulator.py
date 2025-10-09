@@ -1,5 +1,6 @@
 import os
 import joblib
+import pandas as pd
 import seaborn as sns
 import torch
 from SALib import ProblemSpec
@@ -28,11 +29,11 @@ from sklearn.model_selection import KFold
 # X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
 # Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
 
-X1 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:46800]
-Result1 = np.load('Result_DGSM_chunked_0_46800.npy')
+X1 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:61200]
+Result1 = np.load('Result_DGSM_chunked_0_61200.npy')
 
-X2 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[100000:188800]
-Result2 = np.load('Result_DGSM_chunked_100000_188800.npy')
+X2 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[100000:217600]
+Result2 = np.load('Result_DGSM_chunked_100000_217600.npy')
 
 X_all = np.vstack([X1, X2])
 Result_all = np.vstack([Result1, Result2])
@@ -221,8 +222,8 @@ sp = ProblemSpec({
 
 
 # total_volume_mask = X_all[:, 211] > 4500
-# X = X_all[total_volume_mask, :]
-# Result = Result_all[total_volume_mask]
+# X_all = X_all[total_volume_mask, :]
+# Result_all = Result_all[total_volume_mask]
 
 
 mask = Result_all[:,0] != 0
@@ -253,7 +254,7 @@ hr_mask = Result[:, 0] < 3.67
 X = X[hr_mask, :]
 Result = Result[hr_mask]
 
-p_sys_mask = (Result[:, 1] < 120) & (Result[:, 1] > 90)
+p_sys_mask = (Result[:, 1] < 135) & (Result[:, 1] > 90)
 X = X[p_sys_mask, :]
 Result = Result[p_sys_mask]
 
@@ -287,19 +288,19 @@ X = X[RV_P_min_mask, :]
 Result = Result[RV_P_min_mask]
 
 
-min_RA_p_mask = Result[:, 11] < 10
+min_RA_p_mask = Result[:, 11] < 12
 X = X[min_RA_p_mask, :]
 Result = Result[min_RA_p_mask]
 
-max_RA_p_mask = Result[:, 12] < 10
+max_RA_p_mask = Result[:, 12] < 12
 X = X[max_RA_p_mask, :]
 Result = Result[max_RA_p_mask]
 
-min_LA_p_mask = Result[:, 15] < 10
+min_LA_p_mask = Result[:, 15] < 12
 X = X[min_LA_p_mask, :]
 Result = Result[min_LA_p_mask]
 
-max_LA_p_mask = Result[:, 16] < 10
+max_LA_p_mask = Result[:, 16] < 12
 X = X[max_LA_p_mask, :]
 Result = Result[max_LA_p_mask]
 
@@ -332,7 +333,7 @@ eject_mask = Result[:, 22] < 80
 X = X[eject_mask, :]
 Result = Result[eject_mask]
 
-no = 5
+no = 10
 print(Result[no,:])
 values = X[no,:]
 Parameters = {name: val for name, val in zip(sp['names'], values)}
@@ -413,6 +414,31 @@ print("Any -inf? ", np.isneginf(X).any())
 
 # --- Filter out constant columns
 valid_indices = [i for i in range(n_params) if not np.all(X[:, i] == X[0, i])]
+
+# Select the first five valid variables
+subset_indices = valid_indices[:5]
+
+# Create a dataframe with those variables
+X_subset = pd.DataFrame(X[:, subset_indices], columns=[param_names[i] for i in subset_indices])
+
+# Create the pairplot
+sns.pairplot(
+    X_subset,
+    corner=True,        # shows only the lower triangle (less cluttered)
+    diag_kind="kde",    # use KDE plots on the diagonal
+    kind="hist",
+    # plot_kws={"alpha": 0.5, "s": 10, "edgecolor": "none"}  # style for scatter
+)
+
+plt.suptitle("Pairwise Density of First Five Parameters", y=1.02)
+plt.show()
+
+
+
+
+
+
+
 
 for start in range(0, len(valid_indices), chunk_size):
     end = min(start + chunk_size, len(valid_indices))
