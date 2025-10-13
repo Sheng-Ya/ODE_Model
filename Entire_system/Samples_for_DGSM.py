@@ -16,7 +16,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, savgol_filter
 from All_derivatives_njit import model_derivatives
-from check import Parameters as Old_Parameters
+from fixed_params import Parameters as Old_Parameters
 
 from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import Next_Conditions
@@ -370,7 +370,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
             prev_value = current_value
             if len(past_10_flat_segments) == 10:
                 break
-    print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_max_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_max_P_rv))
+    # print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_max_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_max_P_rv))
 
     # left atria
     V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
@@ -521,7 +521,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         os.remove(save_path)
 
     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-    block_size = 300
+    block_size = 301
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     for i, block in enumerate(param_blocks):
@@ -529,13 +529,13 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         copy_of_storage = copy.deepcopy(storage)
 
         # Run only the base sample first
-        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+        base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
 
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((block_size, 9)))
+            results_all.extend(np.zeros((block_size, 26)))
             np.save(save_path, np.array(results_all))
             continue
 
@@ -565,9 +565,9 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
     # If coefficients differ, don't reuse breath_coef
     if next_minimise_coef != minimise_coef:
-        return safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
+        return simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
     else:
-        return safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+        return simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
 
 
 # def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
@@ -576,7 +576,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
-#     block_size = 300
+#     block_size = 301
 #     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 #
 #     for w, block in enumerate(param_blocks):
@@ -808,7 +808,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    # X = finite_diff.sample(sp, 500)
+    X = finite_diff.sample(sp, 500)
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]
@@ -816,7 +816,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    X = np.load('All_params_DGSM_500_X_samples.npy')
+    # X = np.load('All_params_DGSM_500_X_samples.npy')
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)

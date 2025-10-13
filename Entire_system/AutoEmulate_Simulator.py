@@ -219,7 +219,7 @@ subset_vars = {'k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O
 
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 20000
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 20 # Maximum time limit to avoid infinite loops
 
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
@@ -277,7 +277,7 @@ class Cardiopulmonary(Simulator):
         X = X.detach().cpu().numpy().astype(float)
         param_sample = [dict(zip(sp["names"], row)) for row in X]
         print("start")
-        return self.simulate_cpu(param_sample, Next_Conditions, Old_Parameters)
+        return self.safe_simulate_cpu(param_sample, Next_Conditions, Old_Parameters)
 
     def combined_system(self, t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control,
                         num_resp_control, Input_Parameters):
@@ -449,7 +449,7 @@ class Cardiopulmonary(Simulator):
 
         if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
             # Integration failed or early termination
-            return [0.0]*21
+            return torch.tensor([0.0], dtype=torch.float32).unsqueeze(1)
 
         Input_Parameters = [A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
                             C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la,
@@ -511,49 +511,49 @@ class Cardiopulmonary(Simulator):
 
         if ODE_solution.status == -1:
             # Integration failed or early termination
-            return [0.0] * 21
+            return torch.tensor([0.0], dtype=torch.float32).unsqueeze(1)
 
         i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
-        P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
-        peaks, _ = find_peaks(P_sa, distance=int(500))
-        troughs, _ = find_peaks(-P_sa, distance=int(500))
-
-        last_10_troughs_P_sa = troughs[-10:-1]
-        last_10_min_P_sa = P_sa[last_10_troughs_P_sa]
-
-        last_10_peaks_P_sa = peaks[-10:-1]
-        last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
-
-        V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
-        peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
-        troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
-
-        last_10_troughs_V_lv = troughs[-10:-1]
-        last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
-
-        last_10_peaks_V_lv = peaks[-10:-1]
-        last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
-
-        V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
-        peaks, _ = find_peaks(V_rv, distance=int(500), prominence=1)
-        troughs, _ = find_peaks(-V_rv, distance=int(500), prominence=1)
-
-        last_10_troughs_V_rv = troughs[-10:-1]
-        last_10_min_V_rv = V_rv[last_10_troughs_V_rv]
-
-        last_10_peaks_V_rv = peaks[-10:-1]
-        last_10_max_V_rv = V_rv[last_10_peaks_V_rv]
-
-        P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
-        peaks, _ = find_peaks(P_rv, distance=int(500), prominence=1)
-        troughs, _ = find_peaks(-P_rv, distance=int(500), prominence=1)
-
-        last_10_troughs_P_rv = troughs[-10:-1]
-        last_10_min_P_rv = P_rv[last_10_troughs_P_rv]
-
-        last_10_peaks_P_rv = peaks[-10:-1]
-        last_10_max_P_rv = P_rv[last_10_peaks_P_rv]
+        # P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
+        # peaks, _ = find_peaks(P_sa, distance=int(500))
+        # troughs, _ = find_peaks(-P_sa, distance=int(500))
+        #
+        # last_10_troughs_P_sa = troughs[-10:-1]
+        # last_10_min_P_sa = P_sa[last_10_troughs_P_sa]
+        #
+        # last_10_peaks_P_sa = peaks[-10:-1]
+        # last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
+        #
+        # V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
+        # peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
+        # troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
+        #
+        # last_10_troughs_V_lv = troughs[-10:-1]
+        # last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
+        #
+        # last_10_peaks_V_lv = peaks[-10:-1]
+        # last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
+        #
+        # V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
+        # peaks, _ = find_peaks(V_rv, distance=int(500), prominence=1)
+        # troughs, _ = find_peaks(-V_rv, distance=int(500), prominence=1)
+        #
+        # last_10_troughs_V_rv = troughs[-10:-1]
+        # last_10_min_V_rv = V_rv[last_10_troughs_V_rv]
+        #
+        # last_10_peaks_V_rv = peaks[-10:-1]
+        # last_10_max_V_rv = V_rv[last_10_peaks_V_rv]
+        #
+        # P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
+        # peaks, _ = find_peaks(P_rv, distance=int(500), prominence=1)
+        # troughs, _ = find_peaks(-P_rv, distance=int(500), prominence=1)
+        #
+        # last_10_troughs_P_rv = troughs[-10:-1]
+        # last_10_min_P_rv = P_rv[last_10_troughs_P_rv]
+        #
+        # last_10_peaks_P_rv = peaks[-10:-1]
+        # last_10_max_P_rv = P_rv[last_10_peaks_P_rv]
 
         # Get past 10 HR
         HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
@@ -570,86 +570,90 @@ class Cardiopulmonary(Simulator):
                 if len(past_10_flat_segments) == 10:
                     break
 
-        # left atria
-        V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
-        peaks, _ = find_peaks(V_la, distance=int(1000), prominence=1)
-        troughs, _ = find_peaks(-V_la, distance=int(1000), prominence=1)
+        # # left atria
+        # V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
+        # peaks, _ = find_peaks(V_la, distance=int(1000), prominence=1)
+        # troughs, _ = find_peaks(-V_la, distance=int(1000), prominence=1)
+        #
+        # last_10_troughs_V_la = troughs[-10:-1]
+        # last_10_min_V_la = V_la[last_10_troughs_V_la]
+        #
+        # last_10_peaks_V_la = peaks[-10:-1]
+        # last_10_max_V_la = V_la[last_10_peaks_V_la]
+        #
+        # P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
+        # peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
+        # troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+        #
+        # last_10_troughs_P_la = troughs[-10:-1]
+        # last_10_min_P_la = P_la[last_10_troughs_P_la]
+        #
+        # last_10_peaks_P_la = peaks[-10:-1]
+        # last_10_max_P_la = P_la[last_10_peaks_P_la]
+        #
+        # # right atria
+        # V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
+        # peaks, _ = find_peaks(V_ra, distance=int(1000), prominence=1)
+        # troughs, _ = find_peaks(-V_ra, distance=int(1000), prominence=1)
+        #
+        # last_10_troughs_V_ra = troughs[-10:-1]
+        # last_10_min_V_ra = V_ra[last_10_troughs_V_ra]
+        #
+        # last_10_peaks_V_ra = peaks[-10:-1]
+        # last_10_max_V_ra = V_ra[last_10_peaks_V_ra]
+        #
+        # P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
+        # peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
+        # troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
+        #
+        # last_10_troughs_P_ra = troughs[-10:-1]
+        # last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
+        #
+        # last_10_peaks_P_ra = peaks[-10:-1]
+        # last_10_max_P_ra = P_ra[last_10_peaks_P_ra]
+        #
+        # # get volume before atrial contraction
+        # phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
+        # # Find transitions: where phi_atr goes from 0 to >0
+        # starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
+        # local_mins = starts[-10:]
+        # last_10_b4_LA_atrial_contract = V_la[local_mins]
+        # last_10_b4_RA_atrial_contract = V_ra[local_mins]
+        #
+        # # maximum ventricular pressure derivative
+        # P_lv = np.concatenate((local_updates["P_lv_store"][i_buffer:], local_updates["P_lv_store"][:i_buffer]))
+        # all_time = np.concatenate((local_updates["all_time"][i_buffer:], local_updates["all_time"][:i_buffer]))
+        # dPmax_lv_dt1 = np.gradient(P_lv, all_time)
+        # dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
+        # peaks, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
+        # last_10 = peaks[-10:-1]
+        # last_10_max_P_lv_deriv = dPmax_lv_dt[last_10]
+        #
+        # P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
+        #
+        # dPmax_rv_dt1 = np.gradient(P_rv, all_time)
+        # dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
+        # peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
+        # last_10 = peaks[-10:-1]
+        # last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
 
-        last_10_troughs_V_la = troughs[-10:-1]
-        last_10_min_V_la = V_la[last_10_troughs_V_la]
+        print(np.mean(past_10_flat_segments))
 
-        last_10_peaks_V_la = peaks[-10:-1]
-        last_10_max_V_la = V_la[last_10_peaks_V_la]
+        # print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
+        #       np.mean(last_10_max_V_lv))
 
-        P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
-        peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
-        troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+        # Result = [np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
+        #          np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv),
+        #          np.mean(last_10_min_V_rv),
+        #          np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
+        #          np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra),
+        #          np.mean(last_10_max_P_ra),
+        #          np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la),
+        #          np.mean(last_10_max_P_la),
+        #          np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
+        #          np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv)]
 
-        last_10_troughs_P_la = troughs[-10:-1]
-        last_10_min_P_la = P_la[last_10_troughs_P_la]
-
-        last_10_peaks_P_la = peaks[-10:-1]
-        last_10_max_P_la = P_la[last_10_peaks_P_la]
-
-        # right atria
-        V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
-        peaks, _ = find_peaks(V_ra, distance=int(1000), prominence=1)
-        troughs, _ = find_peaks(-V_ra, distance=int(1000), prominence=1)
-
-        last_10_troughs_V_ra = troughs[-10:-1]
-        last_10_min_V_ra = V_ra[last_10_troughs_V_ra]
-
-        last_10_peaks_V_ra = peaks[-10:-1]
-        last_10_max_V_ra = V_ra[last_10_peaks_V_ra]
-
-        P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
-        peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
-        troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
-
-        last_10_troughs_P_ra = troughs[-10:-1]
-        last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
-
-        last_10_peaks_P_ra = peaks[-10:-1]
-        last_10_max_P_ra = P_ra[last_10_peaks_P_ra]
-
-        # get volume before atrial contraction
-        phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
-        # Find transitions: where phi_atr goes from 0 to >0
-        starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
-        local_mins = starts[-10:]
-        last_10_b4_LA_atrial_contract = V_la[local_mins]
-        last_10_b4_RA_atrial_contract = V_ra[local_mins]
-
-        # maximum ventricular pressure derivative
-        P_lv = np.concatenate((local_updates["P_lv_store"][i_buffer:], local_updates["P_lv_store"][:i_buffer]))
-        all_time = np.concatenate((local_updates["all_time"][i_buffer:], local_updates["all_time"][:i_buffer]))
-        dPmax_lv_dt1 = np.gradient(P_lv, all_time)
-        dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
-        peaks, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
-        last_10 = peaks[-10:-1]
-        last_10_max_P_lv_deriv = dPmax_lv_dt[last_10]
-
-        P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
-
-        dPmax_rv_dt1 = np.gradient(P_rv, all_time)
-        dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
-        peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
-        last_10 = peaks[-10:-1]
-        last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
-
-        print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
-              np.mean(last_10_max_V_lv))
-
-        return ([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
-                 np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv),
-                 np.mean(last_10_min_V_rv),
-                 np.mean(last_10_max_P_rv), np.mean(last_10_min_P_rv),
-                 np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra),
-                 np.mean(last_10_max_P_ra),
-                 np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la),
-                 np.mean(last_10_max_P_la),
-                 np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
-                 np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv)])  # , IC_current, local_updates)
+        return torch.tensor([np.mean(past_10_flat_segments)], dtype=torch.float32).unsqueeze(1) # , IC_current, local_updates)
 
 
     def minimise_breathing(self, t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
@@ -706,7 +710,7 @@ class Cardiopulmonary(Simulator):
             return result
         except Exception:
             signal.alarm(0)  # Cancel timeout
-            return ([0.0] * 21)
+            return torch.tensor([0.0], dtype=torch.float32).unsqueeze(1)
 
     def timeout_handler(self, signum, frame):
         raise TimeoutError("Simulation timeout")

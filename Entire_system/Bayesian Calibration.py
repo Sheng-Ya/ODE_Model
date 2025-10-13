@@ -232,6 +232,9 @@ subset_vars = ['k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O
                'scale_param3', 'scale_param4', 'K_H'
                ]
 
+# MUST SORT SO ITS THE SAME ORDER
+subset_vars = [name for name in sp["names"] if name in subset_vars]
+
 
 # Convert to dictionary
 param_ranges: dict[str, tuple[float, float]] = {
@@ -241,13 +244,15 @@ param_ranges: dict[str, tuple[float, float]] = {
     for name, b in zip(sp["names"], sp["bounds"])
 }
 
-output_names = [
-    "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
-    "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
-    "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
-    "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure",
-    "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv",
-    "Stroke Volume", "Ejection Fraction"]
+# output_names = [
+#     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
+#     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
+#     "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
+#     "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure",
+#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv"]
+    # "Stroke Volume", "Ejection Fraction"]
+
+output_names = ["Heart Rate"]
 
 # ----------------------------
 # LOAD SIMULATOR
@@ -258,7 +263,7 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # ----------------------------
 # LOAD EMULATOR
 # ----------------------------
-ensembleMLP_final = joblib.load("best_HR/EnsembleMLP.joblib").model
+ensembleMLP_final = joblib.load("best_HR/EnsembleMLP.joblib")
 
 # ----------------------------
 # OBSERVATION
@@ -269,6 +274,29 @@ observation = {"HR": (1.1, 0.1)}
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
+    X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
+    Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
+    mask = Result_all[:, 0] != 0
+    X = X_all[mask, :]
+    Result = Result_all[mask, :]
+
+    nan_mask = ~np.isnan(Result).any(axis=1)  # True for rows without NaN
+    X = X[nan_mask, :]
+    Result = Result[nan_mask, :]
+
+    # get the mean of the column
+    col_mean = Result.mean(axis=0)
+    col_std = Result.std(axis=0)
+    # 3 std to remove outliers
+    mask = np.all((Result >= (col_mean - 2*col_std)) & (Result <= (col_mean + 2*col_std)), axis=1)
+    X = X[mask, :]
+    Result = Result[mask]
+
+    X = X[:1000,:]
+    Result = Result[:1000]
+
+    X = torch.tensor(X, dtype=torch.float32)
+    Result = torch.tensor(Result[:,0], dtype=torch.float32).unsqueeze(1)
 
     hmw = HistoryMatchingWorkflow(
         simulator=Simulator,
@@ -277,14 +305,14 @@ if __name__ == "__main__":
         # optional parameters
         threshold=3.0,
         random_seed=random_seed,
-        # train_x=x,
-        # train_y=y
+        # train_x=X,
+        # train_y=Result,
         calibration_params=subset_vars,
     )
 
-    _ = hmw.run_waves(n_waves=1, n_simulations=50, n_test_samples=1000)
+    _ = hmw.run_waves(n_waves=1, n_simulations=3, n_test_samples=1000)
 
-    hmw.plot_wave(0)
+    hmw.plot_wave(0, fname="save.png")
 
 
 
