@@ -528,13 +528,43 @@ if __name__ == "__main__":
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
+
+
+    cardiac_output = np.mean(Next_Conditions["Q_pp_store"])
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_pp"][:index], label="Q_pp", color="k")
+    ax1.axhline(y=cardiac_output, color='r')
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+    PaO2 = np.mean(Next_Conditions["Pa_O2_every_store"])
+    PaCO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Pa_O2", color="k")
+    ax1.axhline(y=PaO2, color='r')
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index],
+             label="Pa_CO2", color="b")
+    ax1.axhline(y=PaCO2, color='r')
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+
     t1 = Next_Conditions["TI"][:index]
     Breath_time = 1/Next_Conditions["BF"][:index]
     t2 = Breath_time - t1
     # Minute_Ventilation = 60 * (Next_Conditions["VAflow"][index - 1400000:index] + t1 / (t1 + t2))
     VD = new_params["GV_dead"] * Next_Conditions["VAflow"][:index] + new_params["V0_dead"]
     VDflow = (1 / (t1 + t2)) * VD
-    Minute_Ventilation = (Next_Conditions["VAflow"][:index] + VDflow) * 60
+    Minute_Ventilation1 = (Next_Conditions["VAflow"][:index] + VDflow) * 60
 
     # fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation, label="Minute Ventilation", color="r")
@@ -550,6 +580,49 @@ if __name__ == "__main__":
     # # ax2.tick_params(axis='y', labelcolor="k")
     # # ax2.legend(loc="upper right")
     # plt.show()
+
+    VAflow = np.concatenate((Next_Conditions["VAflow_store"][i:], Next_Conditions["VAflow_store"][:i]))
+    t1 = np.concatenate((Next_Conditions["t1_store"][i:], Next_Conditions["t1_store"][:i]))
+    t2 = np.concatenate((Next_Conditions["t2_store"][i:], Next_Conditions["t2_store"][:i]))
+    VD = new_params["GV_dead"] * VAflow + new_params["V0_dead"]
+    VDflow = (1 / (t1 + t2)) * VD
+    Minute_Ventilation = (VAflow + VDflow) * 60
+
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, Minute_Ventilation, label="Minute_Ventilation")
+    ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation1, label="Minute Ventilation all", color="r")
+
+
+    # scatter plot all 10 points
+    ax1.scatter(sorted_times[-1], Minute_Ventilation[-1], color='g', marker='x', s=100, label="Last 10 flat values")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
+
+
+    tidal = np.concatenate((Next_Conditions["tidal_store"][i:], Next_Conditions["tidal_store"][:i]))
+    peaks, _ = find_peaks(tidal, distance=int(1000))
+    last_10_peaks_tidal = peaks[-1]
+    last_10_max_tidal = tidal[last_10_peaks_tidal]
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(sorted_times, tidal, label="tidal")
+
+    ax1.scatter(sorted_times[peaks], tidal[peaks], color='g', marker='x', label="peak tidal volume")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    plt.show()
+
+
 
     # left atria
 
@@ -619,8 +692,8 @@ if __name__ == "__main__":
     plt.show()
 
     P_la = np.concatenate((Next_Conditions["P_la_store"][i:], Next_Conditions["P_la_store"][:i]))
-    peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
-    troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(P_la, distance=int(2000), prominence=1)
+    troughs, _ = find_peaks(-P_la, distance=int(2000), prominence=1)
 
     last_10_troughs_P_la = troughs[-10:-1]
     last_10_min_P_la = P_la[last_10_troughs_P_la]
@@ -712,8 +785,8 @@ if __name__ == "__main__":
     plt.show()
 
     P_ra = np.concatenate((Next_Conditions["P_ra_store"][i:], Next_Conditions["P_ra_store"][:i]))
-    peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
-    troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(P_ra, distance=int(2000), prominence=1)
+    troughs, _ = find_peaks(-P_ra, distance=int(2000), prominence=1)
 
     last_10_troughs_P_ra = troughs[-10:-1]
     last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
@@ -883,7 +956,7 @@ if __name__ == "__main__":
 
     dPmax_lv_dt1 = np.gradient(P_lv, all_time)
     dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
-    peaks1, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
+    peaks1, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=10)
 
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i:], Next_Conditions["P_rv_store"][:i]))
@@ -894,7 +967,7 @@ if __name__ == "__main__":
     time_for_deriv = all_time
     dPmax_rv_dt1 = np.gradient(P_rv, all_time)
     dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
-    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=10)
 
     fig, ax1 = plt.subplots()
     ax1.plot(all_time, P_rv, label="P_rv", color="r")

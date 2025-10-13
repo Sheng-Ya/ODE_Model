@@ -1378,14 +1378,15 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                 "P_la_store", "V_la_store", "V_ra_store", "P_ra_store",
 
                 # Needed in cardio controller
-                "prev_flat_bit_store", "t1_store", "t2_store", "P_lv_store", "phi_atr_store"],
+                "prev_flat_bit_store", "t1_store", "t2_store", "P_lv_store", "phi_atr_store", "tidal_store",
+                "VAflow_store", "Q_pp_store"],
 
             [time_since_beat,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
              Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, P_sa, VT_lv, VT_rv, P_rv,
              P_la, VT_la, VT_ra, P_ra,
-             prev_flat_bit, t1, t2, P_lv, phi_atr]
+             prev_flat_bit, t1, t2, P_lv, phi_atr, V, VAflow, Q_pp]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 

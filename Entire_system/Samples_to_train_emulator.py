@@ -381,8 +381,8 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     last_10_max_V_la = V_la[last_10_peaks_V_la]
 
     P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
-    peaks, _ = find_peaks(P_la, distance=int(1000), prominence=1)
-    troughs, _ = find_peaks(-P_la, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(P_la, distance=int(2000), prominence=1)
+    troughs, _ = find_peaks(-P_la, distance=int(2000), prominence=1)
 
     last_10_troughs_P_la = troughs[-10:-1]
     last_10_min_P_la = P_la[last_10_troughs_P_la]
@@ -402,8 +402,8 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     last_10_max_V_ra = V_ra[last_10_peaks_V_ra]
 
     P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
-    peaks, _ = find_peaks(P_ra, distance=int(1000), prominence=1)
-    troughs, _ = find_peaks(-P_ra, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(P_ra, distance=int(2000), prominence=1)
+    troughs, _ = find_peaks(-P_ra, distance=int(2000), prominence=1)
 
     last_10_troughs_P_ra = troughs[-10:-1]
     last_10_min_P_ra = P_ra[last_10_troughs_P_ra]
@@ -424,7 +424,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     all_time = np.concatenate((local_updates["all_time"][i_buffer:], local_updates["all_time"][:i_buffer]))
     dPmax_lv_dt1 = np.gradient(P_lv, all_time)
     dPmax_lv_dt = savgol_filter(dPmax_lv_dt1, window_length=11, polyorder=3)
-    peaks, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(dPmax_lv_dt, distance=int(1000), prominence=10)
     last_10 = peaks[-10:-1]
     last_10_max_P_lv_deriv = dPmax_lv_dt[last_10]
 
@@ -432,7 +432,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
 
     dPmax_rv_dt1 = np.gradient(P_rv, all_time)
     dPmax_rv_dt = savgol_filter(dPmax_rv_dt1, window_length=11, polyorder=3)
-    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=1)
+    peaks, _ = find_peaks(dPmax_rv_dt, distance=int(1000), prominence=10)
     last_10 = peaks[-10:-1]
     last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
 
