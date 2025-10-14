@@ -462,6 +462,24 @@ def simulate():
     last_10 = peaks[-10:-1]
     last_10_max_P_rv_deriv = dPmax_rv_dt[last_10]
 
+
+
+    tidal = np.concatenate((Next_Conditions["tidal_store"][i_buffer:], Next_Conditions["tidal_store"][:i_buffer]))
+    peaks, _ = find_peaks(tidal, distance=int(1000))
+    last_10_peaks_tidal = peaks[-1]
+    max_tidal = tidal[last_10_peaks_tidal]
+
+    VAflow = np.concatenate((Next_Conditions["VAflow_store"][i_buffer:], Next_Conditions["VAflow_store"][:i_buffer]))
+    t1 = np.concatenate((Next_Conditions["t1_store"][i_buffer:], Next_Conditions["t1_store"][:i_buffer]))
+    t2 = np.concatenate((Next_Conditions["t2_store"][i_buffer:], Next_Conditions["t2_store"][:i_buffer]))
+    VD = GV_dead * VAflow[-1] + V0_dead
+    VDflow = (1 / (t1[-1] + t2[-1])) * VD
+    Minute_Ventilation = (VAflow[-1] + VDflow) * 60
+
+    cardiac_output = np.mean(Next_Conditions["Q_pp_store"])
+    Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
+    Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
+
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
     print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
@@ -469,7 +487,8 @@ def simulate():
             np.mean(last_10_min_V_ra), np.mean(last_10_max_V_ra), np.mean(last_10_min_P_ra), np.mean(last_10_max_P_ra),
             np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
             np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
-            np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv))
+            np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal,
+            Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2)
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
@@ -614,13 +633,18 @@ if __name__ == "__main__":
     fig, ax1 = plt.subplots()
     ax1.plot(sorted_times, tidal, label="tidal")
 
-    ax1.scatter(sorted_times[peaks], tidal[peaks], color='g', marker='x', label="peak tidal volume")
+    ax1.scatter(sorted_times[peaks], last_10_max_tidal, color='g', marker='x', label="peak tidal volume")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
     ax1.legend(loc="upper left")
     ax1.grid(True)
     plt.show()
+
+    Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
+    Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
+
+    print(tidal[peaks], Minute_Ventilation[-1], cardiac_output, Pa_O2, Pa_CO2)
 
 
 

@@ -547,6 +547,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
             copy.deepcopy(storage_final), Old_Parameters, IC_final, breath_coef, minimise_coef) for params in block)
 
         results_block = [res[0] for res in results_perturbations]
+        # print(results_block)
         results_all.extend(results_block)
 
         # Save chunk incrementally (appending)
@@ -808,7 +809,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 500)
+    # X = finite_diff.sample(sp, 500)
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]
@@ -816,7 +817,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    # X = np.load('All_params_DGSM_500_X_samples.npy')
+    X = np.load('All_params_DGSM_500_X_samples.npy')[:75250,:]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
