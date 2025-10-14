@@ -817,7 +817,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    X = np.load('All_params_DGSM_500_X_samples.npy')[:75250,:]
+    X = np.load('All_params_DGSM_500_X_samples.npy')[75250:,:]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
