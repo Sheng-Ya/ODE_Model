@@ -512,6 +512,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=100, IC_initial=N
         return result
     except Exception:
         signal.alarm(0)  # Cancel timeout
+        print("too slow")
         return ([0.0]*26, None, None, None)
 
 def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay11.npy'):
@@ -529,7 +530,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         copy_of_storage = copy.deepcopy(storage)
 
         # Run only the base sample first
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
 
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
@@ -566,9 +567,9 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
     # If coefficients differ, don't reuse breath_coef
     if next_minimise_coef != minimise_coef:
-        return simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
+        return safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
     else:
-        return simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+        return safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
 
 
 # def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
@@ -817,7 +818,7 @@ if __name__ == "__main__":
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
 
-    X = np.load('All_params_DGSM_500_X_samples.npy')[75250:,:]
+    X = np.load('All_params_DGSM_500_X_samples.npy')[2107:75250,:]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
