@@ -1,46 +1,43 @@
-import os
-import joblib
-import pandas as pd
-import seaborn as sns
-import torch
-from SALib import ProblemSpec
-from SALib.plotting.bar import plot as barplot
-from SALib.analyze import sobol
-from SALib.analyze.sobol import analyze
-# from SALib.sample import saltelli
-from SALib.sample.sobol import sample
-import matplotlib
-import matplotlib.pyplot as plt
-# matplotlib.use('Agg')  # non-interactive backend
 import numpy as np
-from autoemulate import AutoEmulate
-import warnings
-# Ignore only this specific FutureWarning from pandas
-warnings.filterwarnings(
-    "ignore",
-    message=".*use_inf_as_na option is deprecated.*",
-    category=FutureWarning
-)
-from sklearn.model_selection import KFold
+import matplotlib.pyplot as plt
+import dgsm_edited as dgsm
+from SALib import ProblemSpec
 
-# A = AutoEmulate.list_emulators()
-# print(A)
+X = np.load('All_params_DGSM_500_X_samples_rest_20.npy')
+Result1 = np.load('All_params_DGSM_500_Result_rest_1_250_20.npy')
+Result2 = np.load('All_params_DGSM_500_Result_rest_250_500_20.npy')
+Result = np.vstack((Result1, Result2))
 
-X_all = np.load('HR_LHCS_500000_X_sample_rest.npy')[:135000]
-Result_all = np.load('Result_DGSM_chunked.npy')[:,0]
+lower = 0.8
+upper = 1.2
 
-# X1 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:61200]
-# Result1 = np.load('Result_DGSM_chunked_0_61200.npy')
-#
-# X2 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[100000:217600]
-# Result2 = np.load('Result_DGSM_chunked_100000_217600.npy')
-#
-# X_all = np.vstack([X1, X2])
-# Result_all = np.vstack([Result1, Result2])
+Stroke_Volume = Result[:, 3] - Result[:, 4]
+Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
+Result = np.column_stack((Result, Stroke_Volume))
+Result = np.column_stack((Result, Ejection_fraction))
 
-lower = 0.5
-upper = 1.5
-#
+D = 300
+block_size = D + 1
+n_blocks = X.shape[0] // block_size
+# Find basepoint indices (first row of each block)
+base_idx = np.arange(0, X.shape[0], block_size)
+# Mask: True if basepoint result != 0
+mask_blocks = Result[base_idx, 0] != 0   # check column 0 (e.g. HR); adjust if needed
+# OR: drop block if *any* nan appears in that block
+mask_blocks_nan = np.array([
+    np.all(np.isfinite(Result[i:i+block_size]))   # True if block has no nan
+    for i in base_idx
+])
+mask_blocks = mask_blocks & mask_blocks_nan
+# Expand mask to all rows in a block
+mask_full = np.repeat(mask_blocks, block_size)
+# Filter arrays
+X = X[mask_full]
+Result = Result[mask_full]
+
+
+
+# Adjust this to match your problem spec
 sp = ProblemSpec({
     'outputs': ["HR"],
 
@@ -96,8 +93,8 @@ sp = ProblemSpec({
 
     'bounds': [
         # gas
-        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
-        [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper],
+        [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
         [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
@@ -157,7 +154,7 @@ sp = ProblemSpec({
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper],
         [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
         [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
-        [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
@@ -215,282 +212,94 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
         [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
+        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * 0.95, 0.9 * 1.05],
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
+# Plot
+Result_cols = ["Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV", "Max RV Volume", "Min RV Volume",
+               "Max RV Pressure", "Min RV Pressure", "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
+               "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure", "LA EDV", "RA EDV", "LV Max P Deriv",
+               "RV Max P Deriv", "Max Tidal Volume", "Minute Ventilation", "Cardiac Output", "PaO2", "PaCO2",
+               "Stroke Volume", "Ejection Fraction"]
+
+n_biomarkers = len(Result_cols)  # i = 0 ... 10
+
+# Dictionary mapping biomarker index -> influential parameters
+influential_params = {}
+
+for i in range(n_biomarkers):
+    biomarker = Result[:, i]
+    Si = dgsm.analyze(sp, X, biomarker, print_to_console=False)
+
+    dgsm1 = np.array(Si['dgsm'])
+    names = np.array(Si['names'])
+    conf = np.array(Si['dgsm_conf'])
+
+    # Sort descending
+    dgsm_sorted = np.argsort(dgsm1)[::-1]
+    top_dgsm = dgsm1[dgsm_sorted]
+    top_names = names[dgsm_sorted]
+    top_conf = conf[dgsm_sorted]
+
+    # Cumulative contribution
+    cumusum = np.cumsum(top_dgsm)
+    total = cumusum[-1]
+
+    threshold_index = np.searchsorted(cumusum, 0.90 * total) + 1
+    vars_90 = top_names[:threshold_index]
+
+    influential_params[i] = set(vars_90)
+
+    print(f"{Result_cols[i]}: {threshold_index} parameters contribute 90% sensitivity")
+    print(vars_90)
+    print()
+
+# Union of all influential parameters across biomarkers
+union_params = set().union(*influential_params.values())
+print(f"Union of parameters (all biomarkers): {union_params}")
+
+# --- Plot which biomarkers each parameter is influential in ---
+param_counts = {p: sum(p in influential_params[i] for i in range(n_biomarkers))
+                for p in union_params}
+
+# Sort parameters by count descending
+param_list = sorted(union_params, key=lambda p: param_counts[p], reverse=True)
+
+# Rebuild matrix
+matrix = np.zeros((len(param_list), n_biomarkers), dtype=int)
+for j, p in enumerate(param_list):
+    for i in range(n_biomarkers):
+        if p in influential_params[i]:
+            matrix[j, i] = 1
 
 
-# total_volume_mask = X_all[:, 211] > 4500
-# X_all = X_all[total_volume_mask, :]
-# Result_all = Result_all[total_volume_mask]
+# Count how many parameters influence each biomarker (for sorting y-axis)
+biomarker_counts = np.sum(matrix, axis=0)  # sum over rows for each column
+sorted_biomarkers_idx = np.argsort(biomarker_counts)[::-1]
 
-mask = Result_all != 0
-# mask = Result_all[:,0] != 0
-X = X_all[mask, :]
-Result = Result_all[mask]
+# Count how many biomarkers each parameter influences (for sorting x-axis)
+param_counts = np.sum(matrix, axis=1)
+sorted_params_idx = np.argsort(param_counts)[::-1]
 
-# Stroke_Volume = Result[:, 3] - Result[:, 4]
-# Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
-#
-# Result = np.column_stack((Result, Stroke_Volume))
-# Result = np.column_stack((Result, Ejection_fraction))
-#
-nan_mask = ~np.isnan(Result)  # True for rows without NaN
-X = X[nan_mask, :]
-Result = Result[nan_mask]
+# Reorder matrix and labels
+matrix_sorted = matrix[np.ix_(sorted_params_idx, sorted_biomarkers_idx)]
+param_list_sorted = [param_list[i] for i in sorted_params_idx]
+Result_cols_sorted = [Result_cols[i] for i in sorted_biomarkers_idx]
 
+print(len(param_list_sorted))
 
-# get the mean of the column
-col_mean = Result.mean(axis=0)
-col_std = Result.std(axis=0)
-# 3 std to remove outliers
-mask = (Result >= (col_mean - 3*col_std)) & (Result <= (col_mean + 3*col_std))
-X = X[mask, :]
-Result = Result[mask]
+# Plot
+fig, ax = plt.subplots(figsize=(12, 8))
+im = ax.imshow(matrix_sorted.T, aspect="auto", cmap="Blues")  # transpose to switch axes
 
-# physiological filters
-# hr_mask = (Result[:, 0] < 1.8) & (Result[:, 0] > 0.7)
-# hr_mask = Result[:, 0] < 3.67
-# X = X[hr_mask, :]
-# Result = Result[hr_mask]
+# Set ticks
+ax.set_xticks(range(len(param_list_sorted)))
+ax.set_xticklabels(param_list_sorted, rotation=90)  # parameters on x-axis
+ax.set_yticks(range(n_biomarkers))
+ax.set_yticklabels(Result_cols_sorted)  # biomarkers on y-axis
 
-# p_sys_mask = (Result[:, 1] < 135) & (Result[:, 1] > 90)
-# X = X[p_sys_mask, :]
-# Result = Result[p_sys_mask]
-#
-# p_dia_mask = Result[:, 2] < 100
-# X = X[p_dia_mask, :]
-# Result = Result[p_dia_mask]
-#
-# EDV_mask = (Result[:, 3] < 230) & (Result[:, 3] > 95)
-# X = X[EDV_mask, :]
-# Result = Result[EDV_mask]
-#
-# ESV_mask = Result[:, 4] > 35
-# X = X[ESV_mask, :]
-# Result = Result[ESV_mask]
-#
-# RV_V_max_mask = (Result[:, 5] < 260) & (Result[:, 5] > 100)
-# X = X[RV_V_max_mask, :]
-# Result = Result[RV_V_max_mask]
-#
-# RV_V_min_mask = (Result[:, 6] < 135) & (Result[:, 6] > 35)
-# X = X[RV_V_min_mask, :]
-# Result = Result[RV_V_min_mask]
-#
-# RV_P_max_mask = (Result[:, 7] < 35) & (Result[:, 7] > 15)
-# X = X[RV_P_max_mask, :]
-# Result = Result[RV_P_max_mask]
-#
-#
-# RV_P_min_mask = Result[:, 8] < 8
-# X = X[RV_P_min_mask, :]
-# Result = Result[RV_P_min_mask]
-#
-#
-# min_RA_p_mask = Result[:, 11] < 12
-# X = X[min_RA_p_mask, :]
-# Result = Result[min_RA_p_mask]
-#
-# max_RA_p_mask = Result[:, 12] < 12
-# X = X[max_RA_p_mask, :]
-# Result = Result[max_RA_p_mask]
-#
-# min_LA_p_mask = Result[:, 15] < 12
-# X = X[min_LA_p_mask, :]
-# Result = Result[min_LA_p_mask]
-#
-# max_LA_p_mask = Result[:, 16] < 12
-# X = X[max_LA_p_mask, :]
-# Result = Result[max_LA_p_mask]
-#
-# EDV_LA_mask = Result[:, 17] < 0.95 * Result[:, 14]
-# X = X[EDV_LA_mask, :]
-# Result = Result[EDV_LA_mask]
-#
-# EDV_RA_mask = Result[:, 18] < 0.95 * Result[:, 10]
-# X = X[EDV_RA_mask, :]
-# Result = Result[EDV_RA_mask]
-#
-# min_RA_v_mask = Result[:, 9] > 40
-# X = X[min_RA_v_mask, :]
-# Result = Result[min_RA_v_mask]
-#
-# min_LA_v_mask = Result[:, 13] > 40
-# X = X[min_LA_v_mask, :]
-# Result = Result[min_LA_v_mask]
-#
-# ahead1_mask = X[:, 297] > 0.85
-# X = X[ahead1_mask, :]
-# Result = Result[ahead1_mask]
-#
-#
-# SV_mask = Result[:, 21] < 100
-# X = X[SV_mask, :]
-# Result = Result[SV_mask]
-#
-# eject_mask = Result[:, 22] < 80
-# X = X[eject_mask, :]
-# Result = Result[eject_mask]
-#
-# no = 10
-# print(Result[no,:])
-# values = X[no,:]
-# Parameters = {name: val for name, val in zip(sp['names'], values)}
-
-
-
-
-
-mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
-X = X[:, mask]
-
-# HR
-
-idx = np.random.choice(len(Result), size=10000, replace=False)
-X = X[idx,:]
-Result = Result[idx]
-
-# EMULATION
-
-# # compare emulators
-# ae = AutoEmulate(X, Result, log_level="info", models=["rbf"])
-# ae.summarise()
-# best = ae.best_result()
-# print("Model with id: ", best.id, " performed best: ", best.model_name)
-# print(best.params)
-#
-# # ae.save(best, "rbf_new")
-# os.makedirs("best_HR", exist_ok=True)
-# joblib.dump(best, "best_HR/HR_rbf_10000.joblib")
-#
-# fig = ae.plot(best, fname="HR_rbf_10000.png")
-
-
-# model_names = ["LightGBM", "SupportVectorMachine", "RandomForest", "MLP", "EnsembleMLP", "EnsembleMLPDropout",
-# "GaussianProcess", "GaussianProcessCorrelated", "GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
-
-model_names = ["GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
-
-for model_name in model_names:
-    ae = AutoEmulate(X, Result, log_level="info", models=[model_name])
-    ae.summarise()
-    best = ae.best_result()
-    print(f"Model with id: {best.id} performed best: {best.model_name}")
-    print(best.params)
-
-    os.makedirs(f"best_{model_name}", exist_ok=True)
-    joblib.dump(best, f"best_{model_name}/HR_{model_name}_10000.joblib")
-
-    fig = ae.plot(best, fname=f"HR_{model_name}_10000.png")
-
-# # Just HR plot
-# fig, ax1 = plt.subplots()
-# sns.kdeplot(Result, fill=True)
-# ax1.set_title("Heart Rate")
-# ax1.set_xlabel("Value")
-# ax1.set_ylabel("Density")
-# plt.tight_layout()
-# plt.show()
-#
-# Result_cols = ["Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV", "Max RV Volume", "Min RV Volume",
-#                "Max RV Pressure", "Min RV Pressure", "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
-#                "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure", "LA EDV", "RA EDV", "LV Max P Deriv",
-#                "RV Max P Deriv", "Max Tidal Volume", "Minute Ventilation", "Cardiac Output", "PaO2", "PaCO2",
-#                "Stroke Volume", "Ejection Fraction"]
-#
-# fig, axes = plt.subplots(nrows=7, ncols=4, figsize=(15, 12))
-# axes = axes.flatten()
-#
-# for i, col in enumerate(Result_cols):
-#     sns.kdeplot(Result[:, i], fill=True, ax=axes[i])
-#     axes[i].set_title(col)
-#     axes[i].set_xlabel("Value")
-#     axes[i].set_ylabel("Density")
-#
-# # Remove the last empty subplot if 11 < 12
-# fig.delaxes(axes[-1])
-#
-# plt.tight_layout()
-# plt.show()
-#
-#
-#
-#
-# # --- Extract names and bounds from your ProblemSpec
-# param_names = sp["names"]   # length 299
-# param_bounds = sp["bounds"] # same length
-#
-# # --- Compute nominal values (midpoint of bounds)
-# param_nominal = [(low + high) / 2 for low, high in param_bounds]
-# param_min = [low for low, high in param_bounds]
-# param_max = [high for low, high in param_bounds]
-#
-# n_params = X.shape[1]
-# chunk_size = 30  # plots per figure
-#
-# print("Any NaN? ", np.isnan(X).any())
-# print("Any +inf? ", np.isposinf(X).any())
-# print("Any -inf? ", np.isneginf(X).any())
-#
-# # --- Filter out constant columns
-# valid_indices = [i for i in range(n_params) if not np.all(X[:, i] == X[0, i])]
-#
-# # Select the first five valid variables
-# subset_indices = valid_indices[:17]
-#
-# # Create a dataframe with those variables
-# X_subset = pd.DataFrame(X[:, subset_indices], columns=[param_names[i] for i in subset_indices])
-#
-# # Create the pairplot
-# sns.pairplot(
-#     X_subset,
-#     corner=True,        # shows only the lower triangle (less cluttered)
-#     diag_kind="kde",    # use KDE plots on the diagonal
-#     kind="hist",
-#     # plot_kws={"alpha": 0.5, "s": 10, "edgecolor": "none"}  # style for scatter
-# )
-#
-# plt.suptitle("Pairwise Density of First Five Parameters", y=1.02)
-# plt.show()
-#
-#
-#
-#
-#
-#
-#
-#
-# for start in range(0, len(valid_indices), chunk_size):
-#     end = min(start + chunk_size, len(valid_indices))
-#     subset_indices = valid_indices[start:end]
-#
-#     ncols = 5
-#     nrows = int(np.ceil(len(subset_indices) / ncols))
-#     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, nrows*2.5))
-#     axes = axes.flatten()
-#
-#     for i, param_idx in enumerate(subset_indices):
-#         ax = axes[i]
-#         sns.kdeplot(X[:, param_idx], fill=True, ax=ax, color="blue", alpha=0.6)
-#
-#         # Add vertical lines for min, max, nominal
-#         ax.axvline(param_min[param_idx], color="red", linestyle="--", label="Min" if i == 0 else "")
-#         ax.axvline(param_max[param_idx], color="green", linestyle="--", label="Max" if i == 0 else "")
-#         ax.axvline(param_nominal[param_idx], color="black", linestyle="-", label="Nominal" if i == 0 else "")
-#
-#         ax.set_title(param_names[param_idx], fontsize=8)
-#         ax.set_xlabel("")
-#         ax.set_ylabel("")
-#
-#     # Remove unused axes if fewer than nrows*ncols
-#     for j in range(i + 1, len(axes)):
-#         fig.delaxes(axes[j])
-#
-#     # Only add legend once per figure
-#     handles, labels = axes[0].get_legend_handles_labels()
-#     fig.legend(handles, labels, loc="upper right")
-#
-#     plt.tight_layout()
-#     plt.show()
+# plt.colorbar(im, ax=ax, label="Influential (1 = yes, 0 = no)")
+plt.title("Influential Parameters (contributing to 90% DGSM) across Biomarkers")
+plt.tight_layout()
+plt.show()

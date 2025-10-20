@@ -282,9 +282,9 @@ im = ax.imshow(matrix_sorted.T, aspect="auto", cmap="Blues")  # transpose to swi
 
 # Set ticks
 ax.set_xticks(range(len(param_list_sorted)))
-ax.set_xticklabels(param_list_sorted, rotation=90, fontsize=18)  # parameters on x-axis
+ax.set_xticklabels(param_list_sorted, rotation=90)  # parameters on x-axis
 ax.set_yticks(range(n_biomarkers))
-ax.set_yticklabels(Result_cols_sorted, fontsize=18)  # biomarkers on y-axis
+ax.set_yticklabels(Result_cols_sorted)  # biomarkers on y-axis
 
 # plt.colorbar(im, ax=ax, label="Influential (1 = yes, 0 = no)")
 plt.title("Influential Parameters (contributing to 90% DGSM) across Biomarkers")

@@ -503,7 +503,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=100, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=None, breath_coef=None):
     try:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
@@ -515,7 +515,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=100, IC_initial=N
         print("too slow")
         return ([0.0]*26, None, None, None)
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay11.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay12.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -625,8 +625,8 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
 
 if __name__ == "__main__":
-    lower = 0.5
-    upper = 1.5
+    lower = 0.8
+    upper = 1.2
 
     sp = ProblemSpec({
         'outputs': ["HR"],
@@ -771,7 +771,7 @@ if __name__ == "__main__":
             [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
             [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper],
             [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper], [104 * lower, 104 * upper],
-            [1 * lower, 1 * upper], [5027.6 * 0.8, 5027.6 * 1.2], [279.49 * lower, 279.49 * upper],
+            [1 * lower, 1 * upper], [5027.6 * lower, 5027.6 * upper], [279.49 * lower, 279.49 * upper],
             [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper], [350 * lower, 350 * upper],
             [50 * lower, 50 * upper], [1 * lower, 1 * upper], [116.6775 * lower, 116.6775 * upper],
@@ -817,8 +817,9 @@ if __name__ == "__main__":
     # X_1 = X[:41374, :]
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
+    # np.save("All_params_DGSM_500_X_samples_rest_20.npy", X)
 
-    X = np.load('All_params_DGSM_500_X_samples.npy')[:75250,:]
+    X = np.load('All_params_DGSM_500_X_samples_rest_50.npy')[:75250,:]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
@@ -827,12 +828,12 @@ if __name__ == "__main__":
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=80)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
 
-    np.save('All_params_DGSM_500_Result.npy', Result)
+    np.save('All_params_DGSM_500_Result_rest_1_250_50.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 
