@@ -322,15 +322,15 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # last_10_peaks_P_sa = peaks[-10:-1]
     # last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
     #
-    # V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
-    # peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
+    V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
+    peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
     # troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
     #
     # last_10_troughs_V_lv = troughs[-10:-1]
     # last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
     #
-    # last_10_peaks_V_lv = peaks[-10:-1]
-    # last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
+    last_10_peaks_V_lv = peaks[-10:-1]
+    last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
     #
     # V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
     # peaks, _ = find_peaks(V_rv, distance=int(500), prominence=1)
@@ -448,10 +448,10 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # Minute_Ventilation = (VAflow[-1] + VDflow) * 60
     #
     # cardiac_output = np.mean(local_updates["Q_pp_store"])
-    Pa_O2 = np.mean(local_updates["Pa_O2_every_store"])
+    # Pa_O2 = np.mean(local_updates["Pa_O2_every_store"])
     # Pa_CO2 = np.mean(local_updates["Pa_CO2_every_store"])
 
-    print(Pa_O2)
+    print(np.mean(last_10_max_V_lv))
 
     # A = IC_overall.copy()
 
@@ -465,7 +465,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     #       np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
     #       np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal, Minute_Ventilation,
     #          cardiac_output, Pa_O2, Pa_CO2])#, IC_current, local_updates)
-    return [Pa_O2]#, IC_current, local_updates)
+    return [np.mean(last_10_max_V_lv)]#, IC_current, local_updates)
 
 
 #
@@ -851,7 +851,11 @@ if __name__ == "__main__":
 #                    'KE_lv', 'theta_tr_max', 'Wc_v'}
 
 # PaO2: 2 parameters contribute 90% sensitivity
-    subset_vars = {'Fi_O2', 'PaCO2_n'}
+#     subset_vars = {'Fi_O2', 'PaCO2_n'}
+
+# EDV: 12 parameters contribute 90% sensitivity
+    subset_vars = {'V_tot', 'Vu_sv0', 'Emax_lv0', 'T0', 'Vu_ev0', 'Vu_jp', 'fall_time_ven', 'C_pv',
+                    'C_O2_param1', 'Kv_tr', 'C_pp', 'KE_lv'}
 
     # Filter the names and bounds
     filtered_names = []
@@ -879,10 +883,10 @@ if __name__ == "__main__":
 
     # AA = np.load("Result_DGSM_chunked.npy")
 
-    # X = sample_inputs_from_spec(sp_filtered, n_samples=50000, random_seed=42, method="lhs")
+    # X = sample_inputs_from_spec(sp_filtered, n_samples=200000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('PaO2_LHCS_50000_X_sample_rest.npy', X)
-    X = np.load('PaO2_LHCS_50000_X_sample_rest.npy')
+    # np.save('EDV_LHCS_200000_X_sample_rest.npy', X)
+    X = np.load('EDV_LHCS_200000_X_sample_rest.npy')
 
     # mask = np.ptp(X, axis=0) != 0
     # print(np.sum(mask))
@@ -896,7 +900,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=100)
     # print(Result)
 
-    np.save('PaO2_1_50000_Result_rest.npy', Result)
+    np.save('EDV_1_200000_Result_rest.npy', Result)
 
     # 390 is from 300000_500000
     # 390 is from 100000_200000

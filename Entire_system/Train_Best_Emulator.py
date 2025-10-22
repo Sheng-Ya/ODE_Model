@@ -4,6 +4,8 @@ import pandas as pd
 import seaborn as sns
 import torch
 from SALib import ProblemSpec
+from gpytorch.likelihoods import MultitaskGaussianLikelihood
+
 from SALib.plotting.bar import plot as barplot
 from SALib.analyze import sobol
 from SALib.analyze.sobol import analyze
@@ -25,9 +27,18 @@ from sklearn.model_selection import KFold
 
 # A = AutoEmulate.list_emulators()
 # print(A)
+# X_all = np.load('LHCS/EDP_LHCS_200000_X_sample_rest.npy')[:150000]
+# Result_all = np.load('LHCS/Results_LHCS_EDP_150000.npy')[:,0]
 
-X_all = np.load('HR_LHCS_500000_X_sample_rest.npy')[:135000]
-Result_all = np.load('Result_DGSM_chunked.npy')[:,0]
+# change x2
+size = 5000
+Variable = "Max_RV_P"
+
+# change x3
+X_all = np.load(f'LHCS/{Variable}_LHCS_200000_X_sample_rest.npy')[:105000]
+Result_all = np.load(f'LHCS/Results_LHCS_{Variable}_105000.npy')[:,0]
+
+
 
 # X1 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:61200]
 # Result1 = np.load('Result_DGSM_chunked_0_61200.npy')
@@ -37,6 +48,16 @@ Result_all = np.load('Result_DGSM_chunked.npy')[:,0]
 #
 # X_all = np.vstack([X1, X2])
 # Result_all = np.vstack([Result1, Result2])
+
+# HR, EDP, ESP, Max RA pressure has
+# [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+# [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+
+# Max RV pressure, EDV, PaO2 has
+# [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+# [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
 
 lower = 0.5
 upper = 1.5
@@ -96,9 +117,9 @@ sp = ProblemSpec({
 
     'bounds': [
         # gas
-        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -346,11 +367,18 @@ Result = Result[mask]
 mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
 X = X[:, mask]
 
-# HR
+# idx = np.random.choice(len(Result), size=10000, replace=False)
+X = X[:size,:]
+Result = Result[:size]
 
-idx = np.random.choice(len(Result), size=10000, replace=False)
-X = X[idx,:]
-Result = Result[idx]
+# # Just HR plot
+# fig, ax1 = plt.subplots()
+# sns.kdeplot(Result, fill=True)
+# ax1.set_title("Heart Rate")
+# ax1.set_xlabel("Value")
+# ax1.set_ylabel("Density")
+# plt.tight_layout()
+# plt.show()
 
 # EMULATION
 
@@ -371,28 +399,32 @@ Result = Result[idx]
 # model_names = ["LightGBM", "SupportVectorMachine", "RandomForest", "MLP", "EnsembleMLP", "EnsembleMLPDropout",
 # "GaussianProcess", "GaussianProcessCorrelated", "GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
 
-model_names = ["GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
+# model_names = ["GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
+model_names = ["GaussianProcessMatern32"]
+params = {
+    'epochs': 200,
+    'lr': 0.1,
+    'likelihood_cls': MultitaskGaussianLikelihood,  # ← actual class reference
+    'scheduler_cls': None,
+    'scheduler_kwargs': {}
+}
+
+# GaussianProcess_old = joblib.load("best_GaussianProcess/Max_RA_GaussianProcess_10000.joblib")
+# params = GaussianProcess_old.params
+
 
 for model_name in model_names:
-    ae = AutoEmulate(X, Result, log_level="info", models=[model_name])
+    ae = AutoEmulate(X, Result, log_level="info", models=[model_name], model_params=params, device="cuda")
     ae.summarise()
     best = ae.best_result()
     print(f"Model with id: {best.id} performed best: {best.model_name}")
     print(best.params)
 
     os.makedirs(f"best_{model_name}", exist_ok=True)
-    joblib.dump(best, f"best_{model_name}/HR_{model_name}_10000.joblib")
+    joblib.dump(best, f"best_{model_name}/{Variable}_{model_name}_{size}.joblib")
 
-    fig = ae.plot(best, fname=f"HR_{model_name}_10000.png")
+    fig = ae.plot(best, fname=f"{Variable}_{model_name}_{size}.png")
 
-# # Just HR plot
-# fig, ax1 = plt.subplots()
-# sns.kdeplot(Result, fill=True)
-# ax1.set_title("Heart Rate")
-# ax1.set_xlabel("Value")
-# ax1.set_ylabel("Density")
-# plt.tight_layout()
-# plt.show()
 #
 # Result_cols = ["Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV", "Max RV Volume", "Min RV Volume",
 #                "Max RV Pressure", "Min RV Pressure", "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",

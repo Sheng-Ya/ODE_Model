@@ -1,6 +1,6 @@
 import os
-import warnings
 import torch
+import warnings
 import joblib
 import numpy as np
 import matplotlib.pyplot as plt
@@ -88,10 +88,11 @@ sp = ProblemSpec({
         ],
 
     'bounds': [
+        # change
         # gas
-        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -120,8 +121,8 @@ sp = ProblemSpec({
         [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
         [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
-        [-4 * upper, -4 * lower],
-        [-9 * upper, -9 * lower],
+        [-2 * upper, -2 * lower],
+        [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [30 * lower, 30 * upper],
         [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
@@ -177,7 +178,7 @@ sp = ProblemSpec({
         [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
         [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper],
         [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper], [104 * lower, 104 * upper],
-        [1 * lower, 1 * upper], [5027.6 * lower, 5027.6 * upper], [279.49 * lower, 279.49 * upper],
+        [1 * lower, 1 * upper], [5027.6 * 0.8, 5027.6 * 1.2], [279.49 * lower, 279.49 * upper],
         [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper], [350 * lower, 350 * upper],
         [50 * lower, 50 * upper], [1 * lower, 1 * upper], [116.6775 * lower, 116.6775 * upper],
@@ -208,29 +209,42 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
         [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.8 * 0.8, 0.8 * 1.2],
+        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
-subset_vars = ['k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O2_n', 'T_im', 'K1_vc',
-               'theta_mi_max', 'P0_rv', 'GT_s', 'theta_svn', 'Emax_lv0', 'f_ac_min',
-               'kmet', 'R_sa', 'R_bpn', 'Io_sv', 'phi_max', 'R_po', 'f_acCO2_n', 'Kv_tr', 'Emax_rv0', 'V_tot',
-               'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'Wb_sh',
-               'C_pp', 'Vu_hv', 'g_ccsp', 'R_mi', 'f_ab_max', 'Wb_sv', 'Tc', 'GEmax_rv', 'GEmax_lv',
-               'Vu_bv', 'KE_lv', 'Wc_sp', 'scale_param2', 'KE_ra', 'GR_ep', 'Vu_rv', 'fes_min', 'Ysv_min',
-               'k_ab', 'R_pv', 'grm_O2', 'KE_la', 'fes_o', 'Vu_vc', 'GR_sp',
-               'Cvrm_O2_n', 'C_jp', 'Wc_v', 'C_pv', 'g_ccsh', 'C_sv', 'MO2_rmp', 'rise_time_ven',
-               'Ysv_max', 'Vu_amv0', 'KE_rv', 'Vu_lv', 'Vu_ev0', 'GT_v', 'R_amp0', 'D', 'gb_O2',
-               'f_ac_max', 'theta_v', 'theta_shn', 'kcc_sv', 'kev', 'fes_inf', 'MO2_ampn', 'Vu_rmv0', 'Wb_sp',
-               'Vu_jp', 'Cvb_O2_n', 'Kv_po', 'Wp_v', 'Rvc_n', 'R_rmp0', 'R_sp0',
-               'kcc_sh', 'Kp_tr', 'GV_sv', 'T0', 'fev_o', 'R_tr', 'theta_po_max', 'f_ab_min',
-               'R_hv_n', 'R_pa', 'P_thormin_n', 'Vu_sv0', 'fab_o', 'phi_min', 'fall_time_ven', 'Wp_sh', 'Kp_po',
-               'P0_lv', 'R_ep0', 'Vu_pv', 'C_ev', 'MO2_bp', 'Wc_sh', 'P_n', 'Vu_pp', 'R_pp',
-               # comment out to remove the below to just focus on the cardiovascular variables
-               'beta2', 'C2', 'K2', 'a2', 'alpha2', 'GV_dead', 'KcCO2', 'KpCO2', 'Fi_O2', 'V0_dead',
-               'VA_rest', 'E_rs', 'R_rs', 'PaCO2_n', 'C_O2_param1', 'C_O2_param2', 'PaO2_ac_n',
-               'scale_param3', 'scale_param4', 'K_H'
-               ]
+# subset_vars = ['k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O2_n', 'T_im', 'K1_vc',
+#                'theta_mi_max', 'P0_rv', 'GT_s', 'theta_svn', 'Emax_lv0', 'f_ac_min',
+#                'kmet', 'R_sa', 'R_bpn', 'Io_sv', 'phi_max', 'R_po', 'f_acCO2_n', 'Kv_tr', 'Emax_rv0', 'V_tot',
+#                'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'Wb_sh',
+#                'C_pp', 'Vu_hv', 'g_ccsp', 'R_mi', 'f_ab_max', 'Wb_sv', 'Tc', 'GEmax_rv', 'GEmax_lv',
+#                'Vu_bv', 'KE_lv', 'Wc_sp', 'scale_param2', 'KE_ra', 'GR_ep', 'Vu_rv', 'fes_min', 'Ysv_min',
+#                'k_ab', 'R_pv', 'grm_O2', 'KE_la', 'fes_o', 'Vu_vc', 'GR_sp',
+#                'Cvrm_O2_n', 'C_jp', 'Wc_v', 'C_pv', 'g_ccsh', 'C_sv', 'MO2_rmp', 'rise_time_ven',
+#                'Ysv_max', 'Vu_amv0', 'KE_rv', 'Vu_lv', 'Vu_ev0', 'GT_v', 'R_amp0', 'D', 'gb_O2',
+#                'f_ac_max', 'theta_v', 'theta_shn', 'kcc_sv', 'kev', 'fes_inf', 'MO2_ampn', 'Vu_rmv0', 'Wb_sp',
+#                'Vu_jp', 'Cvb_O2_n', 'Kv_po', 'Wp_v', 'Rvc_n', 'R_rmp0', 'R_sp0',
+#                'kcc_sh', 'Kp_tr', 'GV_sv', 'T0', 'fev_o', 'R_tr', 'theta_po_max', 'f_ab_min',
+#                'R_hv_n', 'R_pa', 'P_thormin_n', 'Vu_sv0', 'fab_o', 'phi_min', 'fall_time_ven', 'Wp_sh', 'Kp_po',
+#                'P0_lv', 'R_ep0', 'Vu_pv', 'C_ev', 'MO2_bp', 'Wc_sh', 'P_n', 'Vu_pp', 'R_pp',
+#                # comment out to remove the below to just focus on the cardiovascular variables
+#                'beta2', 'C2', 'K2', 'a2', 'alpha2', 'GV_dead', 'KcCO2', 'KpCO2', 'Fi_O2', 'V0_dead',
+#                'VA_rest', 'E_rs', 'R_rs', 'PaCO2_n', 'C_O2_param1', 'C_O2_param2', 'PaO2_ac_n',
+#                'scale_param3', 'scale_param4', 'K_H'
+#                ]
+
+# change
+#    # HR: 17 parameters contribute 90 % sensitivity
+# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+
+# Max RV Pressure: 46 parameters contribute 90% sensitivity
+subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
+               'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
+               'KcCO2', 'Fi_O2', 'Wb_sh', 'C_pv', 'Kv_tr', 'kes', 'fes_o', 'MO2_bp', 'fab_o',
+               'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
+               'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
+               'KE_lv', 'theta_tr_max', 'Wc_v']
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -263,44 +277,46 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # ----------------------------
 # LOAD EMULATOR
 # ----------------------------
-ensembleMLP_final = joblib.load("best_HR/EnsembleMLP.joblib")
-
+# change
+GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
+# GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/Max_RV_P_GaussianProcessMatern32_5000.joblib")
 # ----------------------------
 # OBSERVATION
 # ----------------------------
-observation = {"HR": (1.1, 0.1)}
+# change
+observation = {"HR": (25, 2)}
 
 # ----------------------------
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
-    X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
-    Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
-    mask = Result_all[:, 0] != 0
-    X = X_all[mask, :]
-    Result = Result_all[mask, :]
-
-    nan_mask = ~np.isnan(Result).any(axis=1)  # True for rows without NaN
-    X = X[nan_mask, :]
-    Result = Result[nan_mask, :]
-
-    # get the mean of the column
-    col_mean = Result.mean(axis=0)
-    col_std = Result.std(axis=0)
-    # 3 std to remove outliers
-    mask = np.all((Result >= (col_mean - 2*col_std)) & (Result <= (col_mean + 2*col_std)), axis=1)
-    X = X[mask, :]
-    Result = Result[mask]
-
-    X = X[:1000,:]
-    Result = Result[:1000]
-
-    X = torch.tensor(X, dtype=torch.float32)
-    Result = torch.tensor(Result[:,0], dtype=torch.float32).unsqueeze(1)
+    # X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
+    # Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
+    # mask = Result_all[:, 0] != 0
+    # X = X_all[mask, :]
+    # Result = Result_all[mask, :]
+    #
+    # nan_mask = ~np.isnan(Result).any(axis=1)  # True for rows without NaN
+    # X = X[nan_mask, :]
+    # Result = Result[nan_mask, :]
+    #
+    # # get the mean of the column
+    # col_mean = Result.mean(axis=0)
+    # col_std = Result.std(axis=0)
+    # # 3 std to remove outliers
+    # mask = np.all((Result >= (col_mean - 2*col_std)) & (Result <= (col_mean + 2*col_std)), axis=1)
+    # X = X[mask, :]
+    # Result = Result[mask]
+    #
+    # X = X[:1000,:]
+    # Result = Result[:1000]
+    #
+    # X = torch.tensor(X, dtype=torch.float32)
+    # Result = torch.tensor(Result[:,0], dtype=torch.float32).unsqueeze(1)
 
     hmw = HistoryMatchingWorkflow(
         simulator=Simulator,
-        result=ensembleMLP_final,
+        result=GaussianProcess_final,
         observations=observation,
         # optional parameters
         threshold=3.0,
@@ -310,9 +326,43 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    _ = hmw.run_waves(n_waves=1, n_simulations=3, n_test_samples=1000)
+    _ = hmw.run_waves(n_waves=3, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
 
-    hmw.plot_wave(0, fname="save.png")
+    # change
+    # hmw.plot_wave((len(hmw.wave_results)-1), fname="save_RV_max_1000_5_wave.png")
+    # hmw.plot_wave(1, fname="save_RV_max_1.png")
+
+    # Get the last wave results
+    test_parameters, impl_scores = hmw.wave_results[-1]
+    nroy_points = hmw.get_nroy(impl_scores, test_parameters)  # Implausibility < 3.0
+
+    # Get exact min/max bounds for the parameters from the NROY points
+    params_post_hm = hmw.generate_param_bounds(
+        nroy_x=nroy_points,
+        param_names=sp["names"],
+        buffer_ratio=0.0
+    )
+
+    model_post_hm = hmw.emulator  # Use the emulator from history matching
+    parameter_range = {k: v for k, v in params_post_hm.items() if k in subset_vars}
+
+    bc = BayesianCalibration(
+        emulator=model_post_hm,
+        parameter_range=parameter_range,
+        observations={k: torch.tensor(v[0]) for k, v in observation.items()},
+        # take account of the emulator uncertainty
+        model_uncertainty=True,
+        # specify observation noise as variance
+        observation_noise={k: v[1] ** 2 for k, v in observation.items()}
+    )
+
+    mcmc = bc.run_mcmc(warmup_steps=250, num_samples=1000, sampler='nuts')
+
+    print(mcmc.summary())
+
+
+
+
 
 
 
@@ -331,7 +381,7 @@ if __name__ == "__main__":
 
     # # Create BayesianCalibration object
     # bc = BayesianCalibration(
-    #     ensembleMLP_final,
+    #     GaussianProcess_final,
     #     param_ranges,
     #     observation,
     #     observation_noise=20.0,

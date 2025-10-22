@@ -277,7 +277,7 @@ class Cardiopulmonary(Simulator):
         X = X.detach().cpu().numpy().astype(float)
         param_sample = [dict(zip(sp["names"], row)) for row in X]
         print("start")
-        return self.safe_simulate_cpu(param_sample, Next_Conditions, Old_Parameters)
+        return self.simulate_cpu(param_sample, Next_Conditions, Old_Parameters)
 
     def combined_system(self, t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control,
                         num_resp_control, Input_Parameters):

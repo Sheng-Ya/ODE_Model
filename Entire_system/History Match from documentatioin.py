@@ -250,7 +250,7 @@ subset_vars = {'k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O
 ## EMULATION
 # model = AutoEmulate.load_model("rbf_final/rbf.joblib").model
 # rbf_final = joblib.load("rbf_max_RV_pressure/RBF.joblib").model
-rbf_final = joblib.load("best_HR/EnsembleMLP.joblib").model
+rbf_final = joblib.load("old_best_HR/EnsembleMLP.joblib").model
 
 observation = {"HR": (1.1, 0.1)}
 
