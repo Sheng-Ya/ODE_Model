@@ -89,10 +89,19 @@ sp = ProblemSpec({
 
     'bounds': [
         # change
+# HR, EDP, ESP, Max RA pressure has
+# [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+# [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+
+# Max RV pressure, EDV, PaO2 has
+# [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+# [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         # gas
-        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
+        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -235,16 +244,16 @@ sp = ProblemSpec({
 
 # change
 #    # HR: 17 parameters contribute 90 % sensitivity
-# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
-#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+ 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
 # Max RV Pressure: 46 parameters contribute 90% sensitivity
-subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
-               'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
-               'KcCO2', 'Fi_O2', 'Wb_sh', 'C_pv', 'Kv_tr', 'kes', 'fes_o', 'MO2_bp', 'fab_o',
-               'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
-               'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
-               'KE_lv', 'theta_tr_max', 'Wc_v']
+# subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
+#                'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
+#                'KcCO2', 'Fi_O2', 'Wb_sh', 'C_pv', 'Kv_tr', 'kes', 'fes_o', 'MO2_bp', 'fab_o',
+#                'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
+#                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
+#                'KE_lv', 'theta_tr_max', 'Wc_v']
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -278,13 +287,13 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # LOAD EMULATOR
 # ----------------------------
 # change
-GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
-# GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/Max_RV_P_GaussianProcessMatern32_5000.joblib")
+# GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
+GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/HR_GaussianProcessMatern32_5000.joblib")
 # ----------------------------
 # OBSERVATION
 # ----------------------------
 # change
-observation = {"HR": (25, 2)}
+observation = {"HR": (1.1, 0.1)}
 
 # ----------------------------
 # BAYESIAN CALIBRATION
@@ -326,10 +335,10 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    _ = hmw.run_waves(n_waves=3, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
+    _ = hmw.run_waves(n_waves=5, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
 
     # change
-    # hmw.plot_wave((len(hmw.wave_results)-1), fname="save_RV_max_1000_5_wave.png")
+    hmw.plot_wave((len(hmw.wave_results)-1), fname="HR_10000_5_wave.png")
     # hmw.plot_wave(1, fname="save_RV_max_1.png")
 
     # Get the last wave results
