@@ -243,9 +243,9 @@ sp = ProblemSpec({
 #                ]
 
 # change
-#    # HR: 17 parameters contribute 90 % sensitivity
-subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
- 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+#     # HR: 17 parameters contribute 90 % sensitivity
+# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
 # Max RV Pressure: 46 parameters contribute 90% sensitivity
 # subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
@@ -254,6 +254,19 @@ subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1
 #                'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
 #                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
 #                'KE_lv', 'theta_tr_max', 'Wc_v']
+
+#   EDP: 83 parameters contribute 90% sensitivity
+subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
+               'C_pp', 'Vu_jp', 'R_bpn', 'T0', 'fes_o', 'C_pv', 'PaCO2_n', 'R_sp0', 'V_tot',
+               'GV_sv', 'kes', 'K2', 'P_n', 'k_ab', 'Wb_sh', 'Kp_tr', 'Cvrm_O2_n', 'fev_inf',
+               'theta_mi_max', 'Kv_mi', 'kev', 'fev_o', 'KE_lv', 'Emax_lv0', 'MO2_bp', 'R_pv',
+               'f_acCO2_n', 'GT_s', 'Kp_mi', 'theta_spn', 'theta_shn', 'Wc_v', 'kcc_sv',
+               'Vu_bv', 'Vu_sv0', 'E_rs', 'Kv_tr', 'Cvb_O2_n', 'C_sv', 'PaO2_ac_n', 'C_jp',
+               'Wb_sp', 'f_ac_max', 'Io_met', 'GT_v', 'f_ab_min', 'Io_sv', 'V0_dead', 'Vu_vc',
+               'GR_ep', 'fall_time_ven', 'f_ab_max', 'KcCO2', 'Cvam_O2_n', 'k_ac',
+               'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
+               'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
+               'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -288,12 +301,12 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # ----------------------------
 # change
 # GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
-GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/HR_GaussianProcessMatern32_5000.joblib")
+GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/EDP_GaussianProcessMatern32_10000.joblib")
 # ----------------------------
 # OBSERVATION
 # ----------------------------
 # change
-observation = {"HR": (1.1, 0.1)}
+observation = {"EDP": (70, 3)}
 
 # ----------------------------
 # BAYESIAN CALIBRATION
@@ -338,7 +351,8 @@ if __name__ == "__main__":
     _ = hmw.run_waves(n_waves=5, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
 
     # change
-    hmw.plot_wave((len(hmw.wave_results)-1), fname="HR_10000_5_wave.png")
+    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"EDP_10000_wave_{(len(hmw.wave_results)-1)}.png")
+    print(len(hmw.wave_results)-1)
     # hmw.plot_wave(1, fname="save_RV_max_1.png")
 
     # Get the last wave results
