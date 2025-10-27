@@ -3,13 +3,23 @@ import matplotlib.pyplot as plt
 import dgsm_edited as dgsm
 from SALib import ProblemSpec
 
-X = np.load('All_params_DGSM_500_X_samples_rest_20.npy')
-Result1 = np.load('All_params_DGSM_500_Result_rest_1_250_20.npy')
-Result2 = np.load('All_params_DGSM_500_Result_rest_250_500_20.npy')
+# X = np.load('All_params_DGSM_500_X_samples_rest_20.npy')
+# Result1 = np.load('All_params_DGSM_500_Result_rest_1_250_20.npy')
+# Result2 = np.load('All_params_DGSM_500_Result_rest_250_500_20.npy')
+# Result = np.vstack((Result1, Result2))
+
+# X = np.load('All_params_DGSM_500_X_samples_rest_20.npy')
+# Result1 = np.load('All_params_DGSM_500_Result_rest_0_250_20_exercise_backup.npy')
+# Result2 = np.load('All_params_DGSM_500_Result_exercise_250_500_backup.npy')
+# Result = np.vstack((Result1, Result2))
+
+X = np.load('All_params_DGSM_500_X_samples_rest_50.npy')
+Result1 = np.load('All_params_DGSM_500_Result_rest_1_250_50.npy')
+Result2 = np.load('All_params_DGSM_500_Result_rest_250_500_50.npy')
 Result = np.vstack((Result1, Result2))
 
-lower = 0.8
-upper = 1.2
+lower = 0.5
+upper = 1.5
 
 Stroke_Volume = Result[:, 3] - Result[:, 4]
 Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
@@ -93,9 +103,9 @@ sp = ProblemSpec({
 
     'bounds': [
         # gas
-        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper],
-        [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
-        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+        [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -154,7 +164,7 @@ sp = ProblemSpec({
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper],
         [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
         [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
-        [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],

@@ -1,76 +1,43 @@
 import os
-import joblib
-import pandas as pd
-import seaborn as sns
 import torch
-from SALib import ProblemSpec
-from gpytorch.likelihoods import MultitaskGaussianLikelihood
-
-from SALib.plotting.bar import plot as barplot
-from SALib.analyze import sobol
-from SALib.analyze.sobol import analyze
-# from SALib.sample import saltelli
-from SALib.sample.sobol import sample
-import matplotlib
-import matplotlib.pyplot as plt
-# matplotlib.use('Agg')  # non-interactive backend
-import numpy as np
-from autoemulate import AutoEmulate
 import warnings
-# Ignore only this specific FutureWarning from pandas
-warnings.filterwarnings(
-    "ignore",
-    message=".*use_inf_as_na option is deprecated.*",
-    category=FutureWarning
-)
+import joblib
+import numpy as np
+import matplotlib.pyplot as plt
+import pyro
+import arviz as az
+
+from getdist.arviz_wrapper import arviz_to_mcsamples
+from getdist import plots
+from SALib import ProblemSpec
+from autoemulate.simulations.epidemic import Epidemic
+from autoemulate.core.compare import AutoEmulate
+from autoemulate.calibration.bayes import BayesianCalibration
+from autoemulate.emulators import GaussianProcess
+from autoemulate.data.utils import set_random_seed
+from autoemulate.calibration.history_matching import HistoryMatching, HistoryMatchingWorkflow
 from sklearn.model_selection import KFold
+from AutoEmulate_Simulator import Cardiopulmonary
 
-# A = AutoEmulate.list_emulators()
-# print(A)
-# X_all = np.load('LHCS/EDP_LHCS_200000_X_sample_rest.npy')[:150000]
-# Result_all = np.load('LHCS/Results_LHCS_EDP_150000.npy')[:,0]
+# ----------------------------
+# SETTINGS
+# ----------------------------
+warnings.filterwarnings("ignore")
+os.environ["PYTHONWARNINGS"] = "ignore"
 
-# change x2
-size = 5000
-Variable = "Minute_vent"
+random_seed = 42
+set_random_seed(random_seed)
+pyro.set_rng_seed(random_seed)
 
-# change x3
-# X_all = np.load(f'{Variable}_LHCS_100000_X_sample_rest.npy')[:40000]
-# Result_all = np.load(f'LHCS/Results_LHCS_{Variable}_40000.npy')[:,0]
+# ----------------------------
+# PROBLEM SPECIFICATION
+# ----------------------------
+lower, upper = 0.5, 1.5
 
-X_all = np.load(f'HR_LHCS_40000_X_sample_exercise_20.npy')[:10000]
-Result_all = np.load(f'Result_lhcs.npy')[:,0]
-
-
-
-
-
-# X1 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[:61200]
-# Result1 = np.load('Result_DGSM_chunked_0_61200.npy')
-#
-# X2 = np.load('DGSM_filtered_NO_RESP_LHCS_500000_X_sample_21_target_rest.npy')[100000:217600]
-# Result2 = np.load('Result_DGSM_chunked_100000_217600.npy')
-#
-# X_all = np.vstack([X1, X2])
-# Result_all = np.vstack([Result1, Result2])
-
-# HR, EDP, ESP, Max RA pressure has
-# [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
-# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-# [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
-
-# Max RV pressure, EDV, PaO2, Minute Ventilation has
-# [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
-# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-# [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
-
-lower = 0.8
-upper = 1.2
-#
 sp = ProblemSpec({
-    'outputs': ["HR"],
+        'outputs': ["HR"],
 
-    'names': [
+        'names': [
         "beta2", "C2", "K2", "a2", "alpha2", "dc", "KCCO2",
         # "MRBCO2",
         "GV_dead",
@@ -118,13 +85,23 @@ sp = ProblemSpec({
         "shift_param1", "shift_param2", "shift_param3", "shift_param4",
         "Pa_O2_lower", "rise_time_atr", "fall_time_atr", "rise_time_ven",
         "fall_time_ven", "ahead1", "theta_min", "delta_P"
-    ],
+        ],
 
     'bounds': [
+        # change
+# HR, EDP, ESP, Max RA pressure has
+# [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+# [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+
+# Max RV pressure, EDV, PaO2 has
+# [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+# [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+# [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         # gas
-        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
+        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -245,289 +222,187 @@ sp = ProblemSpec({
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
+# subset_vars = ['k_ac', 'Wp_sv', 'ahead1', 'theta_min', 'delta_P', 'G_ap', 'Cvh_O2_n', 'T_im', 'K1_vc',
+#                'theta_mi_max', 'P0_rv', 'GT_s', 'theta_svn', 'Emax_lv0', 'f_ac_min',
+#                'kmet', 'R_sa', 'R_bpn', 'Io_sv', 'phi_max', 'R_po', 'f_acCO2_n', 'Kv_tr', 'Emax_rv0', 'V_tot',
+#                'kes', 'Io_met', 'Cvam_O2_n', 'fev_inf', 'theta_spn', 'theta_tr_max', 'Wb_sh',
+#                'C_pp', 'Vu_hv', 'g_ccsp', 'R_mi', 'f_ab_max', 'Wb_sv', 'Tc', 'GEmax_rv', 'GEmax_lv',
+#                'Vu_bv', 'KE_lv', 'Wc_sp', 'scale_param2', 'KE_ra', 'GR_ep', 'Vu_rv', 'fes_min', 'Ysv_min',
+#                'k_ab', 'R_pv', 'grm_O2', 'KE_la', 'fes_o', 'Vu_vc', 'GR_sp',
+#                'Cvrm_O2_n', 'C_jp', 'Wc_v', 'C_pv', 'g_ccsh', 'C_sv', 'MO2_rmp', 'rise_time_ven',
+#                'Ysv_max', 'Vu_amv0', 'KE_rv', 'Vu_lv', 'Vu_ev0', 'GT_v', 'R_amp0', 'D', 'gb_O2',
+#                'f_ac_max', 'theta_v', 'theta_shn', 'kcc_sv', 'kev', 'fes_inf', 'MO2_ampn', 'Vu_rmv0', 'Wb_sp',
+#                'Vu_jp', 'Cvb_O2_n', 'Kv_po', 'Wp_v', 'Rvc_n', 'R_rmp0', 'R_sp0',
+#                'kcc_sh', 'Kp_tr', 'GV_sv', 'T0', 'fev_o', 'R_tr', 'theta_po_max', 'f_ab_min',
+#                'R_hv_n', 'R_pa', 'P_thormin_n', 'Vu_sv0', 'fab_o', 'phi_min', 'fall_time_ven', 'Wp_sh', 'Kp_po',
+#                'P0_lv', 'R_ep0', 'Vu_pv', 'C_ev', 'MO2_bp', 'Wc_sh', 'P_n', 'Vu_pp', 'R_pp',
+#                # comment out to remove the below to just focus on the cardiovascular variables
+#                'beta2', 'C2', 'K2', 'a2', 'alpha2', 'GV_dead', 'KcCO2', 'KpCO2', 'Fi_O2', 'V0_dead',
+#                'VA_rest', 'E_rs', 'R_rs', 'PaCO2_n', 'C_O2_param1', 'C_O2_param2', 'PaO2_ac_n',
+#                'scale_param3', 'scale_param4', 'K_H'
+#                ]
+
+# change
+#     # HR: 17 parameters contribute 90 % sensitivity
+# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+
+# Max RV Pressure: 46 parameters contribute 90% sensitivity
+# subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
+#                'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
+#                'KcCO2', 'Fi_O2', 'Wb_sh', 'C_pv', 'Kv_tr', 'kes', 'fes_o', 'MO2_bp', 'fab_o',
+#                'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
+#                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
+#                'KE_lv', 'theta_tr_max', 'Wc_v']
+
+#   EDP: 83 parameters contribute 90% sensitivity
+subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
+               'C_pp', 'Vu_jp', 'R_bpn', 'T0', 'fes_o', 'C_pv', 'PaCO2_n', 'R_sp0', 'V_tot',
+               'GV_sv', 'kes', 'K2', 'P_n', 'k_ab', 'Wb_sh', 'Kp_tr', 'Cvrm_O2_n', 'fev_inf',
+               'theta_mi_max', 'Kv_mi', 'kev', 'fev_o', 'KE_lv', 'Emax_lv0', 'MO2_bp', 'R_pv',
+               'f_acCO2_n', 'GT_s', 'Kp_mi', 'theta_spn', 'theta_shn', 'Wc_v', 'kcc_sv',
+               'Vu_bv', 'Vu_sv0', 'E_rs', 'Kv_tr', 'Cvb_O2_n', 'C_sv', 'PaO2_ac_n', 'C_jp',
+               'Wb_sp', 'f_ac_max', 'Io_met', 'GT_v', 'f_ab_min', 'Io_sv', 'V0_dead', 'Vu_vc',
+               'GR_ep', 'fall_time_ven', 'f_ab_max', 'KcCO2', 'Cvam_O2_n', 'k_ac',
+               'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
+               'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
+               'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
+
+# MUST SORT SO ITS THE SAME ORDER
+subset_vars = [name for name in sp["names"] if name in subset_vars]
 
 
-# total_volume_mask = X_all[:, 211] > 4500
-# X_all = X_all[total_volume_mask, :]
-# Result_all = Result_all[total_volume_mask]
-
-mask = Result_all != 0
-# mask = Result_all[:,0] != 0
-X = X_all[mask, :]
-Result = Result_all[mask]
-
-# Stroke_Volume = Result[:, 3] - Result[:, 4]
-# Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
-#
-# Result = np.column_stack((Result, Stroke_Volume))
-# Result = np.column_stack((Result, Ejection_fraction))
-#
-nan_mask = ~np.isnan(Result)  # True for rows without NaN
-X = X[nan_mask, :]
-Result = Result[nan_mask]
-
-
-# get the mean of the column
-col_mean = Result.mean(axis=0)
-col_std = Result.std(axis=0)
-# 3 std to remove outliers
-mask = (Result >= (col_mean - 3*col_std)) & (Result <= (col_mean + 3*col_std))
-X = X[mask, :]
-Result = Result[mask]
-
-# physiological filters
-# hr_mask = (Result[:, 0] < 1.8) & (Result[:, 0] > 0.7)
-# hr_mask = Result[:, 0] < 3.67
-# X = X[hr_mask, :]
-# Result = Result[hr_mask]
-
-# p_sys_mask = (Result[:, 1] < 135) & (Result[:, 1] > 90)
-# X = X[p_sys_mask, :]
-# Result = Result[p_sys_mask]
-#
-# p_dia_mask = Result[:, 2] < 100
-# X = X[p_dia_mask, :]
-# Result = Result[p_dia_mask]
-#
-# EDV_mask = (Result[:, 3] < 230) & (Result[:, 3] > 95)
-# X = X[EDV_mask, :]
-# Result = Result[EDV_mask]
-#
-# ESV_mask = Result[:, 4] > 35
-# X = X[ESV_mask, :]
-# Result = Result[ESV_mask]
-#
-# RV_V_max_mask = (Result[:, 5] < 260) & (Result[:, 5] > 100)
-# X = X[RV_V_max_mask, :]
-# Result = Result[RV_V_max_mask]
-#
-# RV_V_min_mask = (Result[:, 6] < 135) & (Result[:, 6] > 35)
-# X = X[RV_V_min_mask, :]
-# Result = Result[RV_V_min_mask]
-#
-# RV_P_max_mask = (Result[:, 7] < 35) & (Result[:, 7] > 15)
-# X = X[RV_P_max_mask, :]
-# Result = Result[RV_P_max_mask]
-#
-#
-# RV_P_min_mask = Result[:, 8] < 8
-# X = X[RV_P_min_mask, :]
-# Result = Result[RV_P_min_mask]
-#
-#
-# min_RA_p_mask = Result[:, 11] < 12
-# X = X[min_RA_p_mask, :]
-# Result = Result[min_RA_p_mask]
-#
-# max_RA_p_mask = Result[:, 12] < 12
-# X = X[max_RA_p_mask, :]
-# Result = Result[max_RA_p_mask]
-#
-# min_LA_p_mask = Result[:, 15] < 12
-# X = X[min_LA_p_mask, :]
-# Result = Result[min_LA_p_mask]
-#
-# max_LA_p_mask = Result[:, 16] < 12
-# X = X[max_LA_p_mask, :]
-# Result = Result[max_LA_p_mask]
-#
-# EDV_LA_mask = Result[:, 17] < 0.95 * Result[:, 14]
-# X = X[EDV_LA_mask, :]
-# Result = Result[EDV_LA_mask]
-#
-# EDV_RA_mask = Result[:, 18] < 0.95 * Result[:, 10]
-# X = X[EDV_RA_mask, :]
-# Result = Result[EDV_RA_mask]
-#
-# min_RA_v_mask = Result[:, 9] > 40
-# X = X[min_RA_v_mask, :]
-# Result = Result[min_RA_v_mask]
-#
-# min_LA_v_mask = Result[:, 13] > 40
-# X = X[min_LA_v_mask, :]
-# Result = Result[min_LA_v_mask]
-#
-# ahead1_mask = X[:, 297] > 0.85
-# X = X[ahead1_mask, :]
-# Result = Result[ahead1_mask]
-#
-#
-# SV_mask = Result[:, 21] < 100
-# X = X[SV_mask, :]
-# Result = Result[SV_mask]
-#
-# eject_mask = Result[:, 22] < 80
-# X = X[eject_mask, :]
-# Result = Result[eject_mask]
-#
-# no = 10
-# print(Result[no,:])
-# values = X[no,:]
-# Parameters = {name: val for name, val in zip(sp['names'], values)}
-
-
-
-
-
-mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
-X = X[:, mask]
-
-# idx = np.random.choice(len(Result), size=10000, replace=False)
-X = X[:size,:]
-Result = Result[:size]
-
-# Just HR plot
-fig, ax1 = plt.subplots()
-sns.kdeplot(Result, fill=True)
-ax1.set_title("Heart Rate")
-ax1.set_xlabel("Value")
-ax1.set_ylabel("Density")
-plt.tight_layout()
-plt.show()
-
-# EMULATION
-
-# # compare emulators
-# ae = AutoEmulate(X, Result, log_level="info", models=["rbf"])
-# ae.summarise()
-# best = ae.best_result()
-# print("Model with id: ", best.id, " performed best: ", best.model_name)
-# print(best.params)
-#
-# # ae.save(best, "rbf_new")
-# os.makedirs("best_HR", exist_ok=True)
-# joblib.dump(best, "best_HR/HR_rbf_10000.joblib")
-#
-# fig = ae.plot(best, fname="HR_rbf_10000.png")
-
-
-# model_names = ["LightGBM", "SupportVectorMachine", "RandomForest", "MLP", "EnsembleMLP", "EnsembleMLPDropout",
-# "GaussianProcess", "GaussianProcessCorrelated", "GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
-
-# model_names = ["GaussianProcessMatern32", "GaussianProcessMatern52", "GaussianProcessRBF"]
-model_names = ["GaussianProcessMatern32"]
-params = {
-    'epochs': 200,
-    'lr': 0.1,
-    'likelihood_cls': MultitaskGaussianLikelihood,  # ← actual class reference
-    'scheduler_cls': None,
-    'scheduler_kwargs': {}
+# Convert to dictionary
+param_ranges: dict[str, tuple[float, float]] = {
+    str(name): (float(b[0]), float(b[1]))
+    if str(name) in subset_vars
+    else (np.mean([float(b[0]), float(b[1])]), np.mean([float(b[0]), float(b[1])]))
+    for name, b in zip(sp["names"], sp["bounds"])
 }
 
-# GaussianProcess_old = joblib.load("best_GaussianProcess/Max_RA_GaussianProcess_10000.joblib")
-# params = GaussianProcess_old.params
+# output_names = [
+#     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
+#     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
+#     "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
+#     "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure",
+#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv"]
+    # "Stroke Volume", "Ejection Fraction"]
+
+output_names = ["Heart Rate"]
+
+# ----------------------------
+# LOAD SIMULATOR
+# ----------------------------
+Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names)
 
 
-for model_name in model_names:
-    ae = AutoEmulate(X, Result, log_level="info", models=[model_name], model_params=params)
-    ae.summarise()
-    best = ae.best_result()
-    print(f"Model with id: {best.id} performed best: {best.model_name}")
-    print(best.params)
+# ----------------------------
+# LOAD EMULATOR
+# ----------------------------
+# change
+# GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
+GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/EDP_GaussianProcessMatern32_10000.joblib")
+# ----------------------------
+# OBSERVATION
+# ----------------------------
+# change
+observation = {"EDP": (70, 3)}
 
-    os.makedirs(f"best_{model_name}", exist_ok=True)
-    joblib.dump(best, f"best_{model_name}/{Variable}_{model_name}_{size}.joblib")
+# ----------------------------
+# BAYESIAN CALIBRATION
+# ----------------------------
+if __name__ == "__main__":
+    # X_all = np.load('DGSM_filtered_LHCS_500000_X_sample_21_targets_rest.npy')
+    # Result_all = np.load('DGSM_filtered_LHCS_500000_Result_21_targets_rest.npy')
 
-    fig = ae.plot(best, fname=f"{Variable}_{model_name}_{size}.png")
+    hmw = HistoryMatchingWorkflow(
+        simulator=Simulator,
+        result=GaussianProcess_final,
+        observations=observation,
+        # optional parameters
+        threshold=3.0,
+        random_seed=random_seed,
+        # train_x=X,
+        # train_y=Result,
+        calibration_params=subset_vars,
+    )
 
-#
-# Result_cols = ["Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV", "Max RV Volume", "Min RV Volume",
-#                "Max RV Pressure", "Min RV Pressure", "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
-#                "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure", "LA EDV", "RA EDV", "LV Max P Deriv",
-#                "RV Max P Deriv", "Max Tidal Volume", "Minute Ventilation", "Cardiac Output", "PaO2", "PaCO2",
-#                "Stroke Volume", "Ejection Fraction"]
-#
-# fig, axes = plt.subplots(nrows=7, ncols=4, figsize=(15, 12))
-# axes = axes.flatten()
-#
-# for i, col in enumerate(Result_cols):
-#     sns.kdeplot(Result[:, i], fill=True, ax=axes[i])
-#     axes[i].set_title(col)
-#     axes[i].set_xlabel("Value")
-#     axes[i].set_ylabel("Density")
-#
-# # Remove the last empty subplot if 11 < 12
-# fig.delaxes(axes[-1])
-#
-# plt.tight_layout()
-# plt.show()
-#
-#
-#
-#
-# # --- Extract names and bounds from your ProblemSpec
-# param_names = sp["names"]   # length 299
-# param_bounds = sp["bounds"] # same length
-#
-# # --- Compute nominal values (midpoint of bounds)
-# param_nominal = [(low + high) / 2 for low, high in param_bounds]
-# param_min = [low for low, high in param_bounds]
-# param_max = [high for low, high in param_bounds]
-#
-# n_params = X.shape[1]
-# chunk_size = 30  # plots per figure
-#
-# print("Any NaN? ", np.isnan(X).any())
-# print("Any +inf? ", np.isposinf(X).any())
-# print("Any -inf? ", np.isneginf(X).any())
-#
-# # --- Filter out constant columns
-# valid_indices = [i for i in range(n_params) if not np.all(X[:, i] == X[0, i])]
-#
-# # Select the first five valid variables
-# subset_indices = valid_indices[:17]
-#
-# # Create a dataframe with those variables
-# X_subset = pd.DataFrame(X[:, subset_indices], columns=[param_names[i] for i in subset_indices])
-#
-# # Create the pairplot
-# sns.pairplot(
-#     X_subset,
-#     corner=True,        # shows only the lower triangle (less cluttered)
-#     diag_kind="kde",    # use KDE plots on the diagonal
-#     kind="hist",
-#     # plot_kws={"alpha": 0.5, "s": 10, "edgecolor": "none"}  # style for scatter
-# )
-#
-# plt.suptitle("Pairwise Density of First Five Parameters", y=1.02)
-# plt.show()
-#
-#
-#
-#
-#
-#
-#
-#
-# for start in range(0, len(valid_indices), chunk_size):
-#     end = min(start + chunk_size, len(valid_indices))
-#     subset_indices = valid_indices[start:end]
-#
-#     ncols = 5
-#     nrows = int(np.ceil(len(subset_indices) / ncols))
-#     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, nrows*2.5))
-#     axes = axes.flatten()
-#
-#     for i, param_idx in enumerate(subset_indices):
-#         ax = axes[i]
-#         sns.kdeplot(X[:, param_idx], fill=True, ax=ax, color="blue", alpha=0.6)
-#
-#         # Add vertical lines for min, max, nominal
-#         ax.axvline(param_min[param_idx], color="red", linestyle="--", label="Min" if i == 0 else "")
-#         ax.axvline(param_max[param_idx], color="green", linestyle="--", label="Max" if i == 0 else "")
-#         ax.axvline(param_nominal[param_idx], color="black", linestyle="-", label="Nominal" if i == 0 else "")
-#
-#         ax.set_title(param_names[param_idx], fontsize=8)
-#         ax.set_xlabel("")
-#         ax.set_ylabel("")
-#
-#     # Remove unused axes if fewer than nrows*ncols
-#     for j in range(i + 1, len(axes)):
-#         fig.delaxes(axes[j])
-#
-#     # Only add legend once per figure
-#     handles, labels = axes[0].get_legend_handles_labels()
-#     fig.legend(handles, labels, loc="upper right")
-#
-#     plt.tight_layout()
-#     plt.show()
+    _ = hmw.run_waves(n_waves=5, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
+
+    # change
+    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"EDP_10000_wave_{(len(hmw.wave_results)-1)}.png")
+    print(len(hmw.wave_results)-1)
+    # hmw.plot_wave(1, fname="save_RV_max_1.png")
+
+    # Get the last wave results
+    test_parameters, impl_scores = hmw.wave_results[-1]
+    nroy_points = hmw.get_nroy(impl_scores, test_parameters)  # Implausibility < 3.0
+
+    # Get exact min/max bounds for the parameters from the NROY points
+    params_post_hm = hmw.generate_param_bounds(
+        nroy_x=nroy_points,
+        param_names=sp["names"],
+        buffer_ratio=0.0
+    )
+
+    model_post_hm = hmw.emulator  # Use the emulator from history matching
+    parameter_range = {k: v for k, v in params_post_hm.items() if k in subset_vars}
+
+    bc = BayesianCalibration(
+        emulator=model_post_hm,
+        parameter_range=parameter_range,
+        observations={k: torch.tensor(v[0]) for k, v in observation.items()},
+        # take account of the emulator uncertainty
+        model_uncertainty=True,
+        # specify observation noise as variance
+        observation_noise={k: v[1] ** 2 for k, v in observation.items()}
+    )
+
+    mcmc = bc.run_mcmc(warmup_steps=250, num_samples=1000, sampler='nuts')
+
+    print(mcmc.summary())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # # Create BayesianCalibration object
+    # bc = BayesianCalibration(
+    #     GaussianProcess_final,
+    #     param_ranges,
+    #     observation,
+    #     observation_noise=20.0,
+    # )
+    #
+    # # Run MCMC
+    # mcmc_emu = bc.run_mcmc(
+    #     warmup_steps=250,
+    #     num_samples=1000,
+    #     num_chains=2,
+    #     sampler="metropolis",
+    # )
+    #
+    # # Summarize and plot
+    # print(mcmc_emu.summary())
+    # az_data = bc.to_arviz(mcmc_emu, posterior_predictive=True)
+    # print(az_data)
+    # import arviz as az
+    #
+    # _ = az.plot_trace(az_data, figsize=(20, 8))
+    #
+    # _ = az.plot_ppc(az_data, show=True)

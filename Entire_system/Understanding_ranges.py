@@ -21,8 +21,13 @@ import matplotlib.pyplot as plt
 # X_500 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')
 # Result_500 = np.load('All_params_DGSM_500_Results_HR_Plv_Prv_Vlv_Vrv_atria.npy')[:,2]
 
-X_500 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')
-Result_500 = np.load('All_params_DGSM_500_Results_HR_Plv_Prv_Vlv_Vrv_atria.npy')[:,2]
+# X_500 = np.load('All_params_DGSM_500_X_samples_HR_P_sys_P_dia_atria.npy')
+# Result_500 = np.load('All_params_DGSM_500_Results_HR_Plv_Prv_Vlv_Vrv_atria.npy')[:,2]
+
+X_500 = np.load('All_params_DGSM_500_X_samples_rest_20.npy')
+Result1 = np.load('All_params_DGSM_500_Result_rest_1_250_20.npy')
+Result2 = np.load('All_params_DGSM_500_Result_rest_250_500_20.npy')
+Result_500 = np.vstack((Result1, Result2))[:,0]
 
 #
 # X_500 = np.load('DGSM_500_X_samples_HR_P_sys_P_dia_steady_remove.npy')
@@ -286,7 +291,8 @@ sp = ProblemSpec({
         "VT_n", "A_im", "Tc", "T_im", "s",
         # cardio control
         "fab_o", "fes_o", "fes_inf", "fes_max", "fev_o", "fev_inf",
-        "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min",
+        "kes", "kev", "Io_sh", "Io_sp", "Io_sv", "Io_v", "kcc_sh", "kcc_sp", "kcc_sv", "kcc_v", "Ysh_max",
+        "Ysh_min", "Ysp_max", "Ysp_min",
         "Ysv_max", "Ysv_min", "Yv_max", "Yv_min", "theta_v", "Wb_sh", "Wb_sp", "Wb_sv", "Wc_sh", "Wc_sp",
         "Wc_sv", "Wc_v", "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v", "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
         "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv", "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp", "GR_sp", "GV_amv",
@@ -299,7 +305,8 @@ sp = ProblemSpec({
         "Kh_CO2", "Krm_CO2", "MO2_hpn", "MO2_rmp", "R_hpn", "W_hn", "Cvam_O2_n", "gam_O2", "gM", "Io_met", "kmet",
         "MO2_ampn", "phi_max", "phi_min",
         # added params
-        "Kp_ao", "Kf_ao", "Kb_ao", "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po",
+        "Kp_ao", "Kf_ao", "Kb_ao", "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max",
+        "Kp_po",
         "Kf_po", "Kb_po", "Kv_po", "theta_po_max", "Kp_tr", "Kf_tr", "Kb_tr", "Kv_tr", "theta_tr_max", "alpha_O2",
         "R_po", "R_mi", "R_tr", "R_ao", "C_O2_param1", "C_O2_param2", "C_O2_param3", "PAMO2_nominal",
         "Vu_sa", "V_tot", "Vu_bv", "Vu_hv", "Vu_jp", "Vu_vc",
@@ -308,19 +315,20 @@ sp = ProblemSpec({
         "Vu_amv0", "Vu_ev0", "Vu_rmv0", "Vu_sv0", "tau_cc", "tau_isc", "tau_p", "tau_z", "tau_ac", "tau_ap",
         "tau_Ts", "tau_Tv", "tau_CO2", "tau_O2", "tau_w", "tau_M", "tau_met", "DEmax_lv", "DEmax_rv", "DR_amp",
         "DR_ep", "DR_rmp", "DR_sp", "DV_amv", "DV_ev", "DV_rmv", "DV_sv", "DT_s", "DT_v", "Dmet", "Fi_CO2",
-        "Fi_O2", "Ta", "KE_lv", "KE_rv", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
+        "Fi_O2", "Ta", "KE_lv", "KE_rv", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2",
+        "tau_MRV",
         "scale_param1", "scale_param2", "scale_param3", "scale_param4",
         "scale_param5", "scale_param6", "scale_param7", "scale_param8",
         "shift_param1", "shift_param2", "shift_param3", "shift_param4",
         "Pa_O2_lower", "rise_time_atr", "fall_time_atr", "rise_time_ven",
-        "fall_time_ven", "ahead1", "ahead2"
+        "fall_time_ven", "ahead1", "theta_min", "delta_P"
     ],
 
     'bounds': [
         # gas
-        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper],
-        [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
-        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+        [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
+        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -344,12 +352,13 @@ sp = ProblemSpec({
         [0.001 * lower, 0.001 * upper], [0.05 * lower, 0.05 * upper],
         [0.76 * lower, 0.76 * upper], [15.8 * lower, 15.8 * upper], [25.37 * lower, 25.37 * upper],
         [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
-        [0.1 * lower, 0.1 * upper], [0.35 * lower, 0.35 * upper], [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper],
-        [0.35 * lower, 0.35 * upper], [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
+        [0.1 * lower, 0.1 * upper], [0.35 * lower, 0.35 * upper], [0.55 * lower, 0.55 * upper],
+        [0.35 * lower, 0.35 * upper], [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper],
+        [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
         [1.5 * lower, 1.5 * upper], [3.39 * lower, 3.39 * upper], [6.8 * lower, 6.8 * upper],
         [-1 * upper, -1 * lower], [-2.5 * upper, -2.5 * lower],
-        [-4 * upper, -4 * lower],
-        [-9 * upper, -9 * lower],
+        [-2 * upper, -2 * lower],
+        [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [30 * lower, 30 * upper],
         [0.7 * lower, 0.7 * upper], [1.1 * lower, 1.1 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
@@ -357,7 +366,7 @@ sp = ProblemSpec({
         [80 * lower, 80 * upper], [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper],
         [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper], [0.658 * lower, 0.658 * upper],
         [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper],
-        [0.22 * lower, 0.22 * upper],[0.114 * lower, 0.114 * upper],
+        [0.22 * lower, 0.22 * upper], [0.114 * lower, 0.114 * upper],
         [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
         [20 * lower, 20 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper],
         [-0.037 * upper, -0.037 * lower], [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower],
@@ -378,7 +387,7 @@ sp = ProblemSpec({
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper],
         [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
         [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
-        [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
@@ -390,21 +399,22 @@ sp = ProblemSpec({
         [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper], [30 * lower, 30 * upper],
         [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
         [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper],
-        [0.1555 * lower, 0.1555 * upper], [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper],
+        [0.1555 * lower, 0.1555 * upper], [30 * lower, 30 * upper], [40 * lower, 40 * upper],
+        [0.4266 * lower, 0.4266 * upper],
         [0.18 * lower, 0.18 * upper], [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper],
         [-1.87 * upper, -1.87 * lower],
         # added params
-        [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [0.1 * lower, 0.1 * upper],
-        [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper], [600 * lower, 600 * upper],
-        [800 * lower, 800 * upper], [1 * lower, 1 * upper], [10 * lower, 10 * upper],
-        [1.309 * lower, 1.309 * upper], [800 * lower, 800 * upper], [800 * lower, 800 * upper],
-        [1 * lower, 1 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
-        [600 * lower, 600 * upper], [800 * lower, 800 * upper], [1 * lower, 1 * upper],
-        [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper], [0.0000317 * lower, 0.0000317 * upper],
-        [350 * lower, 350 * upper], [40 * lower, 40 * upper], [40 * lower, 40 * upper],
+        [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper],
+        [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper], [100 * lower, 100 * upper],
+        [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper],
+        [1.309 * lower, 1.309 * upper], [3000 * lower, 3000 * upper], [2000 * lower, 2000 * upper],
+        [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
+        [100 * lower, 100 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper],
+        [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper], [0.0000317 * lower, 0.0000317 * upper],
+        [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
         [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper],
         [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper], [104 * lower, 104 * upper],
-        [1 * lower, 1 * upper], [5027.6 * lower, 5027.6 * upper], [279.49 * lower, 279.49 * upper],
+        [1 * lower, 1 * upper], [5027.6 * 0.8, 5027.6 * 1.2], [279.49 * lower, 279.49 * upper],
         [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper], [350 * lower, 350 * upper],
         [50 * lower, 50 * upper], [1 * lower, 1 * upper], [116.6775 * lower, 116.6775 * upper],
@@ -435,8 +445,8 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
         [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * lower, 0.9 * upper],
-        [0.1 * lower, 0.1 * upper]]
+        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * 0.95, 0.9 * 1.05],
+        [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
 
@@ -502,13 +512,13 @@ def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
             A = np.abs((x_pert - x_base) - mean_delta)
 
             # Keep values within 2 standard deviations from the mean
-            mask2 = np.abs((x_pert - x_base) - mean_delta) <= 3 * std_delta
+            mask2 = np.abs((x_pert - x_base) - mean_delta) <= 2 * std_delta
             # mask2 = np.abs(dfdx - mean_dfdx) <= 3 * std_dfdx
             # mask2 = np.abs(((y_pert - y_base) ** 2) - mean_dfdx) <= 2 * std_dfdx
 
             mean_dfdx = np.mean(dfdx)
             std_dfdx = np.std(dfdx)
-            mask = np.abs(dfdx - mean_dfdx) <= 3 * std_dfdx
+            mask = np.abs(dfdx - mean_dfdx) <= 2 * std_dfdx
 
             x_base1 = x_base[mask]
             y_base1 = y_base[mask]
@@ -529,7 +539,7 @@ def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
                 if (xb, yb) not in valid_points1:
                     color = "b"
                 elif (xb, yb) not in valid_points2:
-                    color = "b"
+                    color = "r"
                 else:
                     color = "k"
 
@@ -541,7 +551,7 @@ def result_range(problem, X, Y, num_resamples=100, conf_level=0.95):
                         arrowprops=dict(arrowstyle="->", color=color, lw=1, alpha=0.6),
                     )
 
-                if color == "b":
+                if color == "r":
                     axes[k].annotate(
                         "",
                         xy=(xp, yp),  # Arrow head (perturbed)

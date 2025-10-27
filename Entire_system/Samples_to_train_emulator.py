@@ -322,15 +322,15 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # last_10_peaks_P_sa = peaks[-10:-1]
     # last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
     #
-    V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
-    peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
+    # V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
+    # peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
     # troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
     #
     # last_10_troughs_V_lv = troughs[-10:-1]
     # last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
     #
-    last_10_peaks_V_lv = peaks[-10:-1]
-    last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
+    # last_10_peaks_V_lv = peaks[-10:-1]
+    # last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
     #
     # V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
     # peaks, _ = find_peaks(V_rv, distance=int(500), prominence=1)
@@ -440,18 +440,18 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # last_10_peaks_tidal = peaks[-1]
     # max_tidal = tidal[last_10_peaks_tidal]
     #
-    # VAflow = np.concatenate((local_updates["VAflow_store"][i_buffer:], local_updates["VAflow_store"][:i_buffer]))
-    # t1 = np.concatenate((local_updates["t1_store"][i_buffer:], local_updates["t1_store"][:i_buffer]))
-    # t2 = np.concatenate((local_updates["t2_store"][i_buffer:], local_updates["t2_store"][:i_buffer]))
-    # VD = GV_dead * VAflow[-1] + V0_dead
-    # VDflow = (1 / (t1[-1] + t2[-1])) * VD
-    # Minute_Ventilation = (VAflow[-1] + VDflow) * 60
+    VAflow = np.concatenate((local_updates["VAflow_store"][i_buffer:], local_updates["VAflow_store"][:i_buffer]))
+    t1 = np.concatenate((local_updates["t1_store"][i_buffer:], local_updates["t1_store"][:i_buffer]))
+    t2 = np.concatenate((local_updates["t2_store"][i_buffer:], local_updates["t2_store"][:i_buffer]))
+    VD = GV_dead * VAflow[-1] + V0_dead
+    VDflow = (1 / (t1[-1] + t2[-1])) * VD
+    Minute_Ventilation = (VAflow[-1] + VDflow) * 60
     #
     # cardiac_output = np.mean(local_updates["Q_pp_store"])
     # Pa_O2 = np.mean(local_updates["Pa_O2_every_store"])
     # Pa_CO2 = np.mean(local_updates["Pa_CO2_every_store"])
 
-    print(np.mean(last_10_max_V_lv))
+    print(np.mean(Minute_Ventilation))
 
     # A = IC_overall.copy()
 
@@ -465,7 +465,8 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     #       np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
     #       np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal, Minute_Ventilation,
     #          cardiac_output, Pa_O2, Pa_CO2])#, IC_current, local_updates)
-    return [np.mean(last_10_max_V_lv)]#, IC_current, local_updates)
+    # change
+    return [Minute_Ventilation]#, IC_current, local_updates)
 
 
 #
@@ -490,7 +491,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=150):
         return ([0.0])
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=3000, save_path='Result_DGSM_chunked_ok.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=2500, save_path='Result_DGSM_chunked123.npy'):
     results_all = []
 
     # If file exists from previous run, remove it to start fresh
@@ -779,7 +780,7 @@ if __name__ == "__main__":
             [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
             [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
             [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
+            [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * 0.95, 0.9 * 1.05],
             [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
     })
 
@@ -805,6 +806,7 @@ if __name__ == "__main__":
     #                'scale_param3', 'scale_param4', 'K_H'
     #                }
 
+ # change
  #    # HR: 17 parameters contribute 90 % sensitivity
  #    subset_vars = {'T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
  # 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n'}
@@ -853,9 +855,12 @@ if __name__ == "__main__":
 # PaO2: 2 parameters contribute 90% sensitivity
 #     subset_vars = {'Fi_O2', 'PaCO2_n'}
 
-# EDV: 12 parameters contribute 90% sensitivity
-    subset_vars = {'V_tot', 'Vu_sv0', 'Emax_lv0', 'T0', 'Vu_ev0', 'Vu_jp', 'fall_time_ven', 'C_pv',
-                    'C_O2_param1', 'Kv_tr', 'C_pp', 'KE_lv'}
+# # EDV: 12 parameters contribute 90% sensitivity
+#     subset_vars = {'V_tot', 'Vu_sv0', 'Emax_lv0', 'T0', 'Vu_ev0', 'Vu_jp', 'fall_time_ven', 'C_pv',
+#                     'C_O2_param1', 'Kv_tr', 'C_pp', 'KE_lv'}
+
+# Minute Ventilation: 7 parameters contribute 90% sensitivity
+    subset_vars = {'R_rs', 'PaCO2_n', 'E_rs', 'C2', 'V0_dead', 'GV_dead', 'V_tot'}
 
     # Filter the names and bounds
     filtered_names = []
@@ -882,11 +887,11 @@ if __name__ == "__main__":
     param_keys = list(sp_filtered["names"])
 
     # AA = np.load("Result_DGSM_chunked.npy")
-
+    # change
     # X = sample_inputs_from_spec(sp_filtered, n_samples=200000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('EDV_LHCS_200000_X_sample_rest.npy', X)
-    X = np.load('EDV_LHCS_200000_X_sample_rest.npy')
+    # np.save('Minute_vent_LHCS_100000_X_sample_rest.npy', X)
+    X = np.load('Minute_vent_LHCS_100000_X_sample_rest.npy')[:10000]
 
     # mask = np.ptp(X, axis=0) != 0
     # print(np.sum(mask))
@@ -897,14 +902,15 @@ if __name__ == "__main__":
 
     print(f"Number of samples created: {len(X)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=100)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=120)
     # print(Result)
+    # change
+    np.save('Minute_vent_100000_Result_rest_1_10000.npy', Result)
 
-    np.save('EDV_1_200000_Result_rest.npy', Result)
-
-    # 390 is from 300000_500000
-    # 390 is from 100000_200000
-    # 515 is from 200000_300000
+    # 515 is from 0_10000
+    # 390 is from 10000_20000
+    # 515 is from 20000_30000
+    # 392 is from 30000_40000
 
 
 

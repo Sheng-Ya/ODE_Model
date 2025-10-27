@@ -614,7 +614,7 @@ if __name__ == "__main__":
 
 
     # scatter plot all 10 points
-    ax1.scatter(sorted_times[-1], Minute_Ventilation[-1], color='g', marker='x', s=100, label="Last 10 flat values")
+    # ax1.scatter(sorted_times[-1], Minute_Ventilation[-1], color='g', marker='x', s=100, label="Last 10 flat values")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")
@@ -629,22 +629,23 @@ if __name__ == "__main__":
     peaks, _ = find_peaks(tidal, distance=int(1000))
     last_10_peaks_tidal = peaks[-1]
     last_10_max_tidal = tidal[last_10_peaks_tidal]
-
-    fig, ax1 = plt.subplots()
-    ax1.plot(sorted_times, tidal, label="tidal")
-
-    ax1.scatter(sorted_times[peaks], last_10_max_tidal, color='g', marker='x', label="peak tidal volume")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
+    #
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, tidal, label="tidal")
+    #
+    # ax1.scatter(sorted_times[peaks], last_10_max_tidal, color='g', marker='x', label="peak tidal volume")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
 
     Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
     Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
 
     print(tidal[peaks], Minute_Ventilation[-1], cardiac_output, Pa_O2, Pa_CO2)
+    print(sorted_times[peaks], last_10_max_tidal)
 
 
 
