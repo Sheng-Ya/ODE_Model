@@ -2,16 +2,15 @@ from SALib import ProblemSpec
 from SALib.plotting.bar import plot as barplot
 from SALib.analyze import sobol
 from SALib.analyze.sobol import analyze
-# from SALib.sample import saltelli
+from SALib.sample import saltelli
 from SALib.sample.sobol import sample
 from SALib.test_functions import Ishigami
 import matplotlib.pyplot as plt
 import numpy as np
-from autoemulate.compare import AutoEmulate
-from autoemulate.logging_config import _configure_logging
+from autoemulate import AutoEmulate
+# from autoemulate.logging_config import _configure_logging
 
 ae = AutoEmulate()
-ae.logger = _configure_logging()
 rbf_final_loaded = ae.load("rbf_final_hyper")
 
 lower = 0.8

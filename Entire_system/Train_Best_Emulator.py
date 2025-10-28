@@ -256,6 +256,11 @@ mask = Result_all != 0
 X = X_all[mask, :]
 Result = Result_all[mask]
 
+mask = Result_all1 != 0
+# mask = Result_all[:,0] != 0
+X1 = X_all1[mask, :]
+Result1 = Result_all1[mask]
+
 # Stroke_Volume = Result[:, 3] - Result[:, 4]
 # Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
 #
@@ -266,6 +271,10 @@ nan_mask = ~np.isnan(Result)  # True for rows without NaN
 X = X[nan_mask, :]
 Result = Result[nan_mask]
 
+nan_mask = ~np.isnan(Result1)  # True for rows without NaN
+X1 = X1[nan_mask, :]
+Result1 = Result1[nan_mask]
+
 
 # get the mean of the column
 col_mean = Result.mean(axis=0)
@@ -274,6 +283,15 @@ col_std = Result.std(axis=0)
 mask = (Result >= (col_mean - 3*col_std)) & (Result <= (col_mean + 3*col_std))
 X = X[mask, :]
 Result = Result[mask]
+
+
+# get the mean of the column
+col_mean = Result1.mean(axis=0)
+col_std = Result1.std(axis=0)
+# 3 std to remove outliers
+mask = (Result1 >= (col_mean - 3*col_std)) & (Result1 <= (col_mean + 3*col_std))
+X1 = X1[mask, :]
+Result1 = Result1[mask]
 
 # physiological filters
 # hr_mask = (Result[:, 0] < 1.8) & (Result[:, 0] > 0.7)
@@ -376,9 +394,15 @@ X = X[:, mask]
 X = X[:size,:]
 Result = Result[:size]
 
+
+X1 = X1[:size,:]
+Result1 = Result1[:size]
+
 # Just HR plot
 fig, ax1 = plt.subplots()
 sns.kdeplot(Result, fill=True)
+sns.kdeplot(Result1, fill=True)
+
 ax1.set_title("Heart Rate")
 ax1.set_xlabel("Value")
 ax1.set_ylabel("Density")

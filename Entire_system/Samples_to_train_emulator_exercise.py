@@ -314,13 +314,13 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
     # change
-    P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
+    # P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
     # peaks, _ = find_peaks(P_sa, distance=int(500))
-    troughs, _ = find_peaks(-P_sa, distance=int(500))
-    #
-    last_10_troughs_P_sa = troughs[-10:-1]
-    last_10_min_P_sa = P_sa[last_10_troughs_P_sa]
-    # #
+    # # # troughs, _ = find_peaks(-P_sa, distance=int(500))
+    # # #
+    # # # last_10_troughs_P_sa = troughs[-10:-1]
+    # # # last_10_min_P_sa = P_sa[last_10_troughs_P_sa]
+    # # #
     # last_10_peaks_P_sa = peaks[-10:-1]
     # last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
     #
@@ -344,15 +344,15 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # last_10_peaks_V_rv = peaks[-10:-1]
     # last_10_max_V_rv = V_rv[last_10_peaks_V_rv]
     #
-    # P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
-    # peaks, _ = find_peaks(P_rv, distance=int(500), prominence=1)
+    P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
+    peaks, _ = find_peaks(P_rv, distance=int(500), prominence=1)
     # troughs, _ = find_peaks(-P_rv, distance=int(500), prominence=1)
     #
     # last_10_troughs_P_rv = troughs[-10:-1]
     # last_10_min_P_rv = P_rv[last_10_troughs_P_rv]
     #
-    # last_10_peaks_P_rv = peaks[-10:-1]
-    # last_10_max_P_rv = P_rv[last_10_peaks_P_rv]
+    last_10_peaks_P_rv = peaks[-10:-1]
+    last_10_max_P_rv = P_rv[last_10_peaks_P_rv]
     #
     #
     # Get past 10 HR
@@ -453,7 +453,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # Pa_O2 = np.mean(local_updates["Pa_O2_every_store"])
     # Pa_CO2 = np.mean(local_updates["Pa_CO2_every_store"])
     # change
-    print(np.mean(last_10_min_P_sa))
+    print(np.mean(last_10_max_P_rv))
 
     # A = IC_overall.copy()
 
@@ -468,7 +468,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     #       np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal, Minute_Ventilation,
     #          cardiac_output, Pa_O2, Pa_CO2])#, IC_current, local_updates)
     # change
-    return [np.mean(last_10_min_P_sa)]#, IC_current, local_updates)
+    return [np.mean(last_10_max_P_rv)]#, IC_current, local_updates)
 
 
 #
@@ -843,21 +843,8 @@ if __name__ == "__main__":
 #                    'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
 #                    'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
 #                    'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp'}
-    subset_vars = {
-        'k_ab', 'Wb_sh', 'theta_v', 'Wp_v', 'G_ap', 'kev', 'fev_inf', 'Io_sh', 'AT',
-        'fab_o', 'phi_max', 'C_O2_param1', 'P_n', 'MO2_bp', 'f_ac_max', 'tauMR',
-        'P_n_max', 'Kv_mi', 'f_ab_max', 'GT_s', 'GT_v', 'V_tot', 'VA_rest', 'Yv_max',
-        'Io_met', 'fev_o', 'PaO2_ac_n', 'fes_o', 'R_pv', 'GV_sv', 'Io_sv', 'Kp_mi',
-        'E_rs', 'Fi_O2', 'Vu_ev0', 'V0_dead', 'Vu_amv0', 'KcCO2', 'C_pp', 'Vu_sv0',
-        'theta_mi_max', 'GR_amp', 'theta_spn', 'Vu_jp', 'f_acCO2_n', 'fall_time_ven',
-        'k_ac', 'f_ab_min', 'Ysh_max', 'Kv_tr', 'f_ac_min', 'C_sv', 'kes', 'KE_lv',
-        'R_bpn', 'Io_v', 'Wc_v', 'T0', 'C_pv', 'GV_dead', 'Vu_bv', 'KE_rv', 'Cvam_O2_n',
-        'Cvrm_O2_n', 'Vu_vc', 'scale_param4', 'R_rs', 'theta_tr_max', 'Cvb_O2_n',
-        'theta_shn', 'fes_min', 'kcc_sh', 'Kp_tr', 'R_sp0', 'P0_lv', 'Wb_sp', 'MO2_ampn',
-        'Wc_sh'
-    }
 
-    # #   Systolic Pressure: 28 parameters contribute 90% sensitivity
+# #   Systolic Pressure: 28 parameters contribute 90% sensitivity
 #     subset_vars = {'V_tot', 'Vu_sv0', 'P_n', 'C2', 'PaCO2_n', 'kes', 'a2', 'V0_dead', 'fes_o', 'R_rs',
 #                    'E_rs', 'GV_dead', 'Vu_ev0', 'K2', 'Vu_jp', 'C_pv', 'fes_min', 'R_pv', 'R_sa',
 #                    'Fi_O2', 'Cvrm_O2_n', 'C_O2_param1', 'fab_o', 'rise_time_ven', 'fall_time_ven',
@@ -881,6 +868,19 @@ if __name__ == "__main__":
 #                    'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
 #                    'KE_lv', 'theta_tr_max', 'Wc_v'}
 
+    subset_vars = {
+        'V_tot', 'Vu_sv0', 'E_rs', 'R_rs', 'GV_sv', 'GV_dead', 'V0_dead', 'theta_v',
+        'C_O2_param1', 'Wp_v', 'G_ap', 'C_pv', 'VA_rest', 'Wc_v', 'Wb_sh', 'AT', 'Vu_jp',
+        'rise_time_ven', 'k_ab', 'Vu_ev0', 'k_ac', 'f_acCO2_n', 'Io_sh', 'fab_o',
+        'Kv_tr', 'Yv_max', 'tauMR', 'kev', 'PaO2_ac_n', 'P_n_max', 'fev_o', 'Fi_O2',
+        'C_pp', 'fes_o', 'GT_v', 'P_n', 'C_sv', 'KcCO2', 'fev_inf', 'GT_s', 'PaCO2_n',
+        'C2', 'MO2_bp', 'T0', 'Ysh_max', 'f_ac_max', 'Tc', 'Kp_tr', 'f_ab_max',
+        'fall_time_ven', 'theta_tr_max', 'R_po', 'a2', 'Kv_mi', 'KE_lv', 'kes', 'Io_sv',
+        'Kp_mi', 'GR_amp', 'Io_met', 'R_pv', 'KE_rv', 'f_ac_min', 'K2', 'Cvb_O2_n',
+        'phi_max', 'f_ab_min', 'Vu_bv', 'R_bpn', 'theta_mi_max', 'scale_param4',
+        'kcc_sh', 'Rvc_n'
+    }
+
 # PaO2: 2 parameters contribute 90% sensitivity
 #     subset_vars = {'Fi_O2', 'PaCO2_n'}
 
@@ -891,6 +891,11 @@ if __name__ == "__main__":
 # Minute Ventilation: 7 parameters contribute 90% sensitivity
 #     subset_vars = {'R_rs', 'PaCO2_n', 'E_rs', 'C2', 'V0_dead', 'GV_dead', 'V_tot'}
 
+    # subset_vars = {
+    #     'R_rs', 'E_rs', 'GV_dead', 'V0_dead', 'PaCO2_n', 'VA_rest', 'KcCO2',
+    #     'V_tot', 'C_O2_param1', 'C2', 'MO2_bp', 'KcMRV'
+    # }
+    #
     # Filter the names and bounds
     filtered_names = []
     filtered_bounds = []
@@ -917,10 +922,10 @@ if __name__ == "__main__":
 
     # AA = np.load("Result_DGSM_chunked.npy")
     # change
-    # X = sample_inputs_from_spec(sp_filtered, n_samples=40000, random_seed=42, method="lhs")
+    # X = sample_inputs_from_spec(sp_filtered, n_samples=10000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('P_dia_LHCS_40000_X_sample_exercise_20.npy', X)
-    X = np.load('P_dia_LHCS_40000_X_sample_exercise_20.npy')
+    # np.save('Max_RV_LHCS_10000_X_sample_exercise_20.npy', X)
+    X = np.load('Max_RV_LHCS_10000_X_sample_exercise_20.npy')
 
     mask = np.ptp(X, axis=0) != 0
     print(np.sum(mask))
@@ -934,7 +939,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=100)
     # print(Result)
     # change
-    np.save('P_dia_Result_exercise_40000_20.npy', Result)
+    np.save('Max_RV_Result_exercise_10000_20.npy', Result)
 
     # 515 is from 0_10000
     # 390 is from 10000_20000
