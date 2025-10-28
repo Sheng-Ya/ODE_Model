@@ -9,6 +9,7 @@ from gpytorch.likelihoods import MultitaskGaussianLikelihood
 from SALib.plotting.bar import plot as barplot
 from SALib.analyze import sobol
 from SALib.analyze.sobol import analyze
+from SALib.util import scale_samples
 # from SALib.sample import saltelli
 from SALib.sample.sobol import sample
 import matplotlib
@@ -35,9 +36,9 @@ size = 5000
 Variable = "HR"
 
 # change x2
-X_all = np.load(f'NROY_Points_HR.npy')
-Param_ranges = np.load(f'NROY_Points_HR.npy')
-GaussianProcess_final= joblib.load("best_emulator/HR_GaussianProcessMatern32_10000.joblib")
+X_all = np.load(f'NROY_Points_HR.npy', allow_pickle=True)
+Param_ranges = np.load(f'NROY_Params_HR.npy', allow_pickle=True).item()
+GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/HR_GaussianProcessMatern32_10000.joblib").model
 
 # HR, EDP, ESP, Max RA pressure has
 # [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
@@ -230,8 +231,71 @@ sp = ProblemSpec({
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
+subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+ 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
-Result = GaussianProcess_final.predict(X_all)
+subset_vars = [name for name in sp["names"] if name in subset_vars]
+
+# Get all indices corresponding to subset_vars
+# subset_idx = []
+subset_idx = [sp['names'].index(var) for var in subset_vars if var in sp['names']]
+subset_idx = np.array(subset_idx) # include full index range
+X_subset = X_all[:, subset_idx]
+subset_bounds = [sp['bounds'][i] for i in subset_idx]
+
+
+sp_subset = ProblemSpec({
+    'names': subset_vars
+})
+
+N = 38
+# N = 3899
+D = len(subset_idx)
+# sample_size = N * (2 * D + 2)
+sample_size = (D + 2) * N
+skip_values = 0
+
+base_sequence = np.zeros((N + skip_values, 2 * D),dtype=float)
+base_sequence[:,:D] = X_subset[:N,:]
+base_sequence[:,D:] = X_subset[N:(N*2),:]
+
+saltelli_sequence = np.zeros([sample_size, D])
+
+index = 0
+for i in range(N):
+    # Copy matrix "A"
+    saltelli_sequence[index, :] = base_sequence[i, :D]
+    index += 1
+
+    # 2. Cross-sample hybrids (A with one column from B)
+    for k in range(D):
+        saltelli_sequence[index, :] = base_sequence[i, :D]
+        saltelli_sequence[index, k] = base_sequence[i, k + D]
+        index += 1
+
+    # Copy matrix "B"
+    saltelli_sequence[index, :] = base_sequence[i, D:]
+    index += 1
+
+    # Cross-sample elements of "A" into "B"
+    # Only needed if you're doing second-order indices (true by default)
+    # if calc_second_order:
+    #     for k in range(D):
+    #         # Start with all columns from B
+    #         saltelli_sequence[index, :] = base_sequence[i, D:]
+    #         # Replace the k-th column with A
+    #         saltelli_sequence[index, k] = base_sequence[i, k]
+    #         index += 1
+
+X = torch.from_numpy(saltelli_sequence.astype(np.float32))
+
+Result, _ = GaussianProcess_final.predict_mean_and_variance(X)
+Result = Result.detach().cpu().numpy()
+A = sp['bounds']
+
+X_scales = scale_samples(saltelli_sequence, sp)
+
+A = analyze(sp, Result[:sample_size], calc_second_order=False)
 
 # Just HR plot
 fig, ax1 = plt.subplots()

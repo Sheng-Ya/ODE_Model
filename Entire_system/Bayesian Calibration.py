@@ -1,4 +1,6 @@
 import os
+
+import pandas as pd
 import torch
 import warnings
 import joblib
@@ -94,7 +96,7 @@ sp = ProblemSpec({
 # [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
 # [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
 
-# Max RV pressure, EDV, PaO2 has
+# Max RV pressure, EDV, PaO2, Minute Vent has
 # [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
 # [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
 # [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
@@ -244,8 +246,8 @@ sp = ProblemSpec({
 
 # change
 #     # HR: 17 parameters contribute 90 % sensitivity
-# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
-#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+ 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
 # Max RV Pressure: 46 parameters contribute 90% sensitivity
 # subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
@@ -255,18 +257,48 @@ sp = ProblemSpec({
 #                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
 #                'KE_lv', 'theta_tr_max', 'Wc_v']
 
-#   EDP: 83 parameters contribute 90% sensitivity
-subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
-               'C_pp', 'Vu_jp', 'R_bpn', 'T0', 'fes_o', 'C_pv', 'PaCO2_n', 'R_sp0', 'V_tot',
-               'GV_sv', 'kes', 'K2', 'P_n', 'k_ab', 'Wb_sh', 'Kp_tr', 'Cvrm_O2_n', 'fev_inf',
-               'theta_mi_max', 'Kv_mi', 'kev', 'fev_o', 'KE_lv', 'Emax_lv0', 'MO2_bp', 'R_pv',
-               'f_acCO2_n', 'GT_s', 'Kp_mi', 'theta_spn', 'theta_shn', 'Wc_v', 'kcc_sv',
-               'Vu_bv', 'Vu_sv0', 'E_rs', 'Kv_tr', 'Cvb_O2_n', 'C_sv', 'PaO2_ac_n', 'C_jp',
-               'Wb_sp', 'f_ac_max', 'Io_met', 'GT_v', 'f_ab_min', 'Io_sv', 'V0_dead', 'Vu_vc',
-               'GR_ep', 'fall_time_ven', 'f_ab_max', 'KcCO2', 'Cvam_O2_n', 'k_ac',
-               'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
-               'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
-               'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
+# #   EDP: 83 parameters contribute 90% sensitivity
+# subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
+#                'C_pp', 'Vu_jp', 'R_bpn', 'T0', 'fes_o', 'C_pv', 'PaCO2_n', 'R_sp0', 'V_tot',
+#                'GV_sv', 'kes', 'K2', 'P_n', 'k_ab', 'Wb_sh', 'Kp_tr', 'Cvrm_O2_n', 'fev_inf',
+#                'theta_mi_max', 'Kv_mi', 'kev', 'fev_o', 'KE_lv', 'Emax_lv0', 'MO2_bp', 'R_pv',
+#                'f_acCO2_n', 'GT_s', 'Kp_mi', 'theta_spn', 'theta_shn', 'Wc_v', 'kcc_sv',
+#                'Vu_bv', 'Vu_sv0', 'E_rs', 'Kv_tr', 'Cvb_O2_n', 'C_sv', 'PaO2_ac_n', 'C_jp',
+#                'Wb_sp', 'f_ac_max', 'Io_met', 'GT_v', 'f_ab_min', 'Io_sv', 'V0_dead', 'Vu_vc',
+#                'GR_ep', 'fall_time_ven', 'f_ab_max', 'KcCO2', 'Cvam_O2_n', 'k_ac',
+#                'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
+#                'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
+#                'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
+
+# # EDV: 12 parameters contribute 90% sensitivity
+# subset_vars = ['V_tot', 'Vu_sv0', 'Emax_lv0', 'T0', 'Vu_ev0', 'Vu_jp', 'fall_time_ven', 'C_pv',
+#                 'C_O2_param1', 'Kv_tr', 'C_pp', 'KE_lv']
+
+# #   Systolic Pressure: 28 parameters contribute 90% sensitivity
+# subset_vars = ['V_tot', 'Vu_sv0', 'P_n', 'C2', 'PaCO2_n', 'kes', 'a2', 'V0_dead', 'fes_o', 'R_rs',
+#                'E_rs', 'GV_dead', 'Vu_ev0', 'K2', 'Vu_jp', 'C_pv', 'fes_min', 'R_pv', 'R_sa',
+#                'Fi_O2', 'Cvrm_O2_n', 'C_O2_param1', 'fab_o', 'rise_time_ven', 'fall_time_ven',
+#                'GV_sv', 'C_pp', 'Kv_tr']
+
+#    # Max RA Pressure: 89 parameters contribute 90 % sensitivity
+# subset_vars = ['a2', 'Vu_sv0', 'MO2_bp', 'PaCO2_n', 'C2', 'G_ap', 'Wp_v', 'R_rs', 'kes',
+#  'V0_dead', 'GT_v', 'GV_dead', 'theta_v', 'K2', 'PaO2_ac_n', 'beta2', 'V_tot',
+#  'E_rs', 'Fi_O2', 'kev', 'fev_o', 'GV_sv', 'Wb_sh', 'T0', 'f_ab_max', 'fes_o',
+#  'Wc_v', 'f_acCO2_n', 'P_n', 'alpha2', 'C_O2_param1', 'k_ab', 'GT_s',
+#  'scale_param4', 'Cvb_O2_n', 'KcCO2', 'C_pv', 'fev_inf', 'Vu_ev0', 'Kv_mi',
+#  'fes_min', 'Vu_jp', 'fab_o', 'f_ac_max', 'theta_mi_max', 'f_ab_min', 'KE_ra',
+#  'C_pp', 'k_ac', 'theta_shn', 'Vu_bv', 'VA_rest', 'Cvrm_O2_n', 'f_ac_min',
+#  'R_bpn', 'Io_met', 'Cvam_O2_n', 'grm_O2', 'KE_lv', 'fall_time_ven', 'Emax_ra',
+#  'Kv_tr', 'C_sv', 'KE_rv', 'Wb_sp', 'kmet', 'P0_rv', 'theta_svn', 'g_ccsh',
+#  'C_O2_param2', 'Wc_sh', 'Wp_sp', 'KpCO2', 'C_jp', 'Vu_rmv0', 'R_pv', 'Kp_mi',
+#  'fes_inf', 'Io_sh', 'theta_tr_max', 'Vu_vc', 'Io_sp', 'R_sp0', 'kcc_sh', 'C_sa',
+#  'C_bv', 'MO2_hpn', 'Vu_rv', 'Vu_pp']
+
+# # PaO2: 2 parameters contribute 90% sensitivity
+# subset_vars = ['Fi_O2', 'PaCO2_n']
+
+# # Minute Ventilation: 7 parameters contribute 90% sensitivity
+# subset_vars = ['R_rs', 'PaCO2_n', 'E_rs', 'C2', 'V0_dead', 'GV_dead', 'V_tot']
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -300,13 +332,21 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # LOAD EMULATOR
 # ----------------------------
 # change
+Variable = "HR"
 # GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
-GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/EDP_GaussianProcessMatern32_10000.joblib")
+GaussianProcess_final= joblib.load(f"best_GaussianProcessMatern32/best_emulator/{Variable}_GaussianProcessMatern32_10000.joblib")
 # ----------------------------
 # OBSERVATION
 # ----------------------------
 # change
-observation = {"EDP": (70, 3)}
+# observation = {"EDP": (70, 3)}
+observation = {"HR": (1.1, 0.1)}
+# observation = {"Max_RV_P": (25, 2)}
+# observation = {"EDV": (163, 23)}
+# observation = {"ESP": (105, 5)}
+# observation = {"Max_RA_P": (7, 1)}
+# observation = {"PaO2": (87.5, 4.2)}
+# observation = {"Minute_vent": (6.5, 0.5)}
 
 # ----------------------------
 # BAYESIAN CALIBRATION
@@ -348,10 +388,9 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    _ = hmw.run_waves(n_waves=5, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
+    _ = hmw.run_waves(n_waves=1, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
 
-    # change
-    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"EDP_10000_wave_{(len(hmw.wave_results)-1)}.png")
+    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{Variable}_10000_wave_{(len(hmw.wave_results)-1)}.png")
     print(len(hmw.wave_results)-1)
     # hmw.plot_wave(1, fname="save_RV_max_1.png")
 
@@ -366,22 +405,33 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    model_post_hm = hmw.emulator  # Use the emulator from history matching
-    parameter_range = {k: v for k, v in params_post_hm.items() if k in subset_vars}
+    np.save ("NROY_Points_HR.npy", nroy_points)
+    np.save("NROY_Params_HR.npy", params_post_hm)
 
-    bc = BayesianCalibration(
-        emulator=model_post_hm,
-        parameter_range=parameter_range,
-        observations={k: torch.tensor(v[0]) for k, v in observation.items()},
-        # take account of the emulator uncertainty
-        model_uncertainty=True,
-        # specify observation noise as variance
-        observation_noise={k: v[1] ** 2 for k, v in observation.items()}
-    )
-
-    mcmc = bc.run_mcmc(warmup_steps=250, num_samples=1000, sampler='nuts')
-
-    print(mcmc.summary())
+    #
+    # model_post_hm = hmw.emulator  # Use the emulator from history matching
+    # parameter_range = {k: v for k, v in params_post_hm.items() if k in subset_vars}
+    #
+    # bc = BayesianCalibration(
+    #     emulator=model_post_hm,
+    #     parameter_range=parameter_range,
+    #     observations={k: torch.tensor(v[0]) for k, v in observation.items()},
+    #     # take account of the emulator uncertainty
+    #     model_uncertainty=True,
+    #     # specify observation noise as variance
+    #     observation_noise={k: v[1] ** 2 for k, v in observation.items()}
+    # )
+    #
+    # mcmc = bc.run_mcmc(warmup_steps=250, num_samples=1000, sampler='nuts')
+    #
+    # print(mcmc.summary())
+    # summary_dict = mcmc.summary()
+    #
+    # df_summary = pd.DataFrame(summary_dict).T  # transpose to make parameters as rows
+    # df_summary.to_csv(f"mcmc_summary_{Variable}.csv")
+    #
+    # with open(f"mcmc_summary_{Variable}.txt", "w") as f:
+    #     f.write(df_summary.to_string())
 
 
 
