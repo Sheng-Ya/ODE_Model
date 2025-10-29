@@ -4,10 +4,16 @@ import pandas as pd
 import seaborn as sns
 import torch
 from SALib import ProblemSpec
+from autoemulate.calibration.history_matching import HistoryMatchingWorkflow
 from gpytorch.likelihoods import MultitaskGaussianLikelihood
+from AutoEmulate_Simulator import Cardiopulmonary
 
 from SALib.plotting.bar import plot as barplot
 from SALib.analyze import sobol
+from Entire_system.sobol_analyze_NIMP import analyze_NIMP
+from scipy.special import binom
+from scipy.stats import norm
+
 from SALib.analyze.sobol import analyze
 from SALib.util import scale_samples
 # from SALib.sample import saltelli
@@ -38,7 +44,7 @@ Variable = "HR"
 # change x2
 X_all = np.load(f'NROY_Points_HR.npy', allow_pickle=True)
 Param_ranges = np.load(f'NROY_Params_HR.npy', allow_pickle=True).item()
-GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/HR_GaussianProcessMatern32_10000.joblib").model
+GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/HR_GaussianProcessMatern32_10000.joblib")
 
 # HR, EDP, ESP, Max RA pressure has
 # [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
@@ -245,10 +251,35 @@ subset_bounds = [sp['bounds'][i] for i in subset_idx]
 
 
 sp_subset = ProblemSpec({
-    'names': subset_vars
+    'names': subset_vars,
+    'bounds': subset_bounds
 })
 
-N = 38
+param_ranges: dict[str, tuple[float, float]] = {
+    str(name): (float(b[0]), float(b[1]))
+    if str(name) in subset_vars
+    else (np.mean([float(b[0]), float(b[1])]), np.mean([float(b[0]), float(b[1])]))
+    for name, b in zip(sp_subset["names"], sp_subset["bounds"])
+}
+
+Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=["Heart Rate"])
+
+
+hmw = HistoryMatchingWorkflow(
+    simulator=Simulator,
+    result=GaussianProcess_final,
+    observations={"HR": (1.1, 0.1)},
+    # optional parameters
+    threshold=3.0,
+    random_seed=42,
+    # train_x=X,
+    # train_y=Result,
+    calibration_params=subset_vars,
+)
+
+
+
+N = 3899
 # N = 3899
 D = len(subset_idx)
 # sample_size = N * (2 * D + 2)
@@ -289,20 +320,136 @@ for i in range(N):
 
 X = torch.from_numpy(saltelli_sequence.astype(np.float32))
 
-Result, _ = GaussianProcess_final.predict_mean_and_variance(X)
-Result = Result.detach().cpu().numpy()
-A = sp['bounds']
+Result_tensor, Var_tensor = GaussianProcess_final.model.predict_mean_and_variance(X)
+Result = Result_tensor.detach().cpu().numpy()[:,0]
+Var = Var_tensor.detach().cpu().numpy()[:,0]
 
-X_scales = scale_samples(saltelli_sequence, sp)
+print(max(Result))
 
-A = analyze(sp, Result[:sample_size], calc_second_order=False)
+Implaus = hmw.calculate_implausibility(Result_tensor, Var_tensor)
+Implaus = Implaus.detach().cpu().numpy()[:,0]
+
+
+
+## added code for removing entire A/B if even a single permutation is outside of the implausibility of 3
+block_length = D + 2
+valid_indices = []
+
+for i in range(N):
+    # Get implausibility for this block
+    start = i * block_length
+    end = start + block_length
+    block_implaus = Implaus[start:end]  # shape (block_length,)
+
+    # Count how many rows in the block are implausible
+    n_implaus = np.sum(block_implaus > 3.0)  # or whatever threshold you use
+
+    # Keep this block if at least 3 rows are implausible
+    if n_implaus == 0:
+        valid_indices.append(i)
+
+# Now create a filtered saltelli_sequence with only valid blocks
+filtered_saltelli = np.zeros((len(valid_indices) * block_length, D))
+filtered_Implaus = np.zeros(len(valid_indices) * block_length)
+filtered_Result = np.zeros(len(valid_indices) * block_length)
+
+index = 0
+for i in valid_indices:
+    start = i * block_length
+    end = start + block_length
+    filtered_saltelli[index:index + block_length, :] = saltelli_sequence[start:end, :]
+    filtered_Implaus[index:index + block_length] = Implaus[start:end]
+    filtered_Result[index:index + block_length] = Result[start:end]
+    index += block_length
+
+print(f"Number of base A/B blocks remaining: {len(valid_indices)}")
 
 # Just HR plot
 fig, ax1 = plt.subplots()
-sns.kdeplot(Result, fill=True)
+sns.kdeplot(filtered_Result, fill=True)
 
 ax1.set_title("Heart Rate")
 ax1.set_xlabel("Value")
 ax1.set_ylabel("Density")
+plt.tight_layout()
+plt.show()
+
+X_scaled = scale_samples(filtered_saltelli, sp_subset)
+
+ST = np.zeros((0, D), dtype=float)
+S1 = np.zeros((0, D), dtype=float)
+S2 = np.zeros((0, int(binom(D, 2))), dtype=float)
+
+ST_std = np.zeros((0, D), dtype=float)
+S1_std = np.zeros((0, D), dtype=float)
+S2_std = np.zeros((0, int(binom(D, 2))), dtype=float)
+
+S = analyze_NIMP(sp_subset, filtered_Result.copy(), calc_second_order=False, print_to_console=True)
+
+T_Si, first_Si, (_, second_Si) = sobol.Si_to_pandas_dict(S)
+
+ST = np.vstack((ST, T_Si["ST"].reshape(1, -1)))
+S1 = np.vstack((S1, first_Si["S1"].reshape(1, -1)))
+
+conf_level = 0.95
+z = norm.ppf(0.5 + conf_level / 2)
+
+ST_std = np.vstack((ST_std, T_Si["ST_conf"].reshape(1, -1) / z))
+S1_std = np.vstack((S1_std, first_Si["S1_conf"].reshape(1, -1) / z))
+
+# # Just HR plot
+# fig, ax1 = plt.subplots()
+# sns.kdeplot(Result, fill=True)
+#
+# ax1.set_title("Heart Rate")
+# ax1.set_xlabel("Value")
+# ax1.set_ylabel("Density")
+# plt.tight_layout()
+# plt.show()
+
+
+# --- Convert to DataFrame for plotting ---
+param_names = sp_subset['names']  # assuming this exists
+total = pd.DataFrame({
+    "Parameter": param_names,
+    "ST": ST.flatten(),
+    "ST_std": ST_std.flatten(),
+    "S1": S1.flatten(),
+    "S1_std": S1_std.flatten()
+}).set_index("Parameter")
+
+# --- Sort by Total-order sensitivity ---
+ranked = total.sort_values("ST", ascending=False)
+
+# --- Bar plot ---
+fig, ax = plt.subplots(figsize=(6, 12))
+ranked["ST"].plot(kind="barh", xerr=ranked["ST_std"], ax=ax, color="skyblue", edgecolor="k")
+ax.invert_yaxis()
+# ax.set_xscale("log")
+ax.set_title("Sobol Total-Order Sensitivities (Ranked)", fontsize=14)
+ax.set_xlabel("Total-order index (ST)")
+
+# Annotate each bar with rank
+for i, (name, value) in enumerate(zip(ranked.index, ranked["ST"])):
+    ax.text(value * 1.05, i, f"#{i+1}", va="center", ha="left", fontsize=9, color="blue")
+
+plt.tight_layout()
+plt.show()
+
+
+ranked = total.sort_values("S1", ascending=False)
+
+# --- Bar plot ---
+fig, ax = plt.subplots(figsize=(6, 12))
+ranked["S1"].plot(kind="barh", xerr=ranked["S1_std"], ax=ax, color="skyblue", edgecolor="k")
+ax.invert_yaxis()
+# ax.set_xscale("log")
+ax.set_title("Sobol First-Order Sensitivities (Ranked)", fontsize=14)
+ax.set_xlabel("First-order index (S1)")
+
+# Annotate each bar with rank
+for i, (name, value) in enumerate(zip(ranked.index, ranked["S1"])):
+    ax.text(value * 1.05, i, f"#{i+1}", va="center", ha="left", fontsize=9, color="blue")
+
 plt.tight_layout()
 plt.show()
