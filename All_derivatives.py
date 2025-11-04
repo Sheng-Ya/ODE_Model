@@ -184,10 +184,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # P_musc, dP_musc_dt = calculate_single_P_musc_dP_dt(time_since_last_breath, (t1, t2), VAflow, VD, tolerance, E_rs, R_rs, P_ao)
 
     # for cardiovascular controller
-    if time_since_last_breath <= TI:
-        d_VE_integral_dt = VE_flow
-    else:
-        d_VE_integral_dt = VE_flow  # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
+    d_VE_integral_dt = VE_flow  # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # ============================================================================
     # CARDIOVASCULAR CONTROLLER
@@ -974,9 +971,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    # if 250 < t:
-    #     MRCO2 = 0.8 / 60 - MRBCO2
-    #     MRO2 = 0.85 / 60 - MRBO2
+    if 100 < t:
+        MRCO2 = 0.8 / 60 - MRBCO2
+        MRO2 = 0.85 / 60 - MRBO2
 
     # if 200 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
@@ -1128,21 +1125,21 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
     # Fetch delayed values
-    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
-    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.97)
+    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
+    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
+    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
+    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
 
-    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
-    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
-    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
-    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 3.97)
+    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
+    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
+    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
+    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
 
-    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
-    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
+    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 7.811885872859872)
+    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 7.811885872859872)
 
-    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, 3.8576)
-    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 4.2748)
+    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, 7.811885872859872)
+    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 2.7719269200056793)
 
     # heart period
     sigma_Ts = GT_s * np.log(max(f_sh_delay2_s, fes_min) - fes_min + 1)
@@ -1456,6 +1453,11 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value
 
+    # j = updates["j"].item()
+    #
+    # if updates["phi"][j] > 0 and t > 250:
+    #     print(t)
+
 
     keys_and_values = zip(
         [  # Cardio inputs
@@ -1507,8 +1509,6 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value
-
-
 
     return [# cardio derivatives
             dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,

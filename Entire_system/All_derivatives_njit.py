@@ -185,10 +185,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # P_musc, dP_musc_dt = calculate_single_P_musc_dP_dt(time_since_last_breath, (t1, t2), VAflow, VD, tolerance, E_rs, R_rs, P_ao)
 
     # for cardiovascular controller
-    if time_since_last_breath <= TI:
-        d_VE_integral_dt = VE_flow
-    else:
-        d_VE_integral_dt = VE_flow  # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
+    d_VE_integral_dt = VE_flow  # doesn't matter if this is VE_flow or 0 as NT only considers inspiration
 
     # ============================================================================
     # CARDIOVASCULAR CONTROLLER
@@ -705,8 +702,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # VT_sa = V_sa + Vu_sa
     # should be + ?, edit: removed P_thor from here. Ignore
 
-    AA = (VT_lv + VT_rv + VT_la + VT_ra + (V_sa + Vu_sa) + VT_amv + VT_rmv + (V_ev + Vu_ev) + VT_sv + VT_hv + VT_bv +
-          (V_s_peripheral + Vu_jp) + VT_vc + VT_pa + VT_pp + VT_pv)
+    # AA = (VT_lv + VT_rv + VT_la + VT_ra + (V_sa + Vu_sa) + VT_amv + VT_rmv + (V_ev + Vu_ev) + VT_sv + VT_hv + VT_bv +
+    #       (V_s_peripheral + Vu_jp) + VT_vc + VT_pa + VT_pp + VT_pv)
 
     # ============================================================================
     # GAS EXCHANGE

@@ -810,7 +810,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    # X = finite_diff.sample(sp, 500)
+    X = finite_diff.sample(sp, 500)
     # X = X[0::184, :]
     #
     # X_3 = X[41375:,:]

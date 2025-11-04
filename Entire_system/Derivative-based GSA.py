@@ -64,7 +64,7 @@ mask_full = np.repeat(mask_blocks, block_size)
 X = X[mask_full]
 Result = Result[mask_full]
 
-HR = Result[:, 0]
+HR = Result[:, 2]
 
 # Bioeng515 has the LHS results
 

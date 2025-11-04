@@ -101,9 +101,9 @@ sp = ProblemSpec({
 # [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
 # [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         # gas
-        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
+        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
+        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -246,8 +246,8 @@ sp = ProblemSpec({
 
 # change
 #     # HR: 17 parameters contribute 90 % sensitivity
-subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
- 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
 # Max RV Pressure: 46 parameters contribute 90% sensitivity
 # subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
@@ -256,6 +256,17 @@ subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1
 #                'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
 #                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
 #                'KE_lv', 'theta_tr_max', 'Wc_v']
+# exercise
+subset_vars = ['V_tot', 'Vu_sv0', 'T0', 'E_rs', 'R_rs', 'GV_sv', 'GT_s', 'V0_dead', 'G_ap',
+ 'theta_v', 'GT_v', 'GV_dead', 'AT', 'VA_rest', 'Io_sh', 'P_n_max', 'Wp_v',
+ 'fev_o', 'C_pv', 'C_O2_param1', 'Fi_O2', 'fab_o', 'Wb_sh', 'k_ab', 'Vu_rv',
+ 'f_acCO2_n', 'k_ac', 'Yv_max', 'Vu_jp', 'Vu_ev0', 'fes_o', 'C_sv', 'Wc_v',
+ 'tauMR', 'P_n', 'fev_inf', 'kev', 'PaO2_ac_n', 'Kv_tr', 'C_pp', 'Tc', 'Ysh_max',
+ 'KcCO2', 'PaCO2_n', 'fall_time_ven', 'f_ac_max', 'Kv_mi', 'C2', 'f_ab_max',
+ 'R_pv', 'MO2_bp', 'Kp_tr', 'Io_sv', 'Kp_mi', 'KE_lv', 'theta_tr_max', 'Io_met',
+ 'kes', 'phi_max', 'theta_mi_max', 'K2', 'a2', 'f_ac_min', 'R_bpn', 'GR_amp',
+ 'f_ab_min', 'Vu_amv0', 'KE_rv', 'GEmax_rv', 'Cvb_O2_n', 'Vu_bv', 'Cvam_O2_n',
+ 'kcc_sh']
 
 # #   EDP: 83 parameters contribute 90% sensitivity
 # subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
@@ -332,15 +343,17 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # LOAD EMULATOR
 # ----------------------------
 # change
-Variable = "HR"
+Variable = "Max_RV_P"
 # GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
-GaussianProcess_final= joblib.load(f"best_GaussianProcessMatern32/best_emulator/{Variable}_GaussianProcessMatern32_10000.joblib")
+GaussianProcess_final= joblib.load(f"best_emulator/{Variable}_GaussianProcessMatern32_5000_exercise.joblib")
 # ----------------------------
 # OBSERVATION
 # ----------------------------
 # change
+# exercise
+observation = {"Max_RV_P": (45, 5)}
 # observation = {"EDP": (70, 3)}
-observation = {"HR": (1.1, 0.1)}
+# observation = {"HR": (1.1, 0.1)}
 # observation = {"Max_RV_P": (25, 2)}
 # observation = {"EDV": (163, 23)}
 # observation = {"ESP": (105, 5)}
@@ -388,10 +401,10 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    _ = hmw.run_waves(n_waves=1, n_simulations=20, n_test_samples=10000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
+    _ = hmw.run_waves(n_waves=1, n_simulations=20, n_test_samples=150000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
 
-    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{Variable}_10000_wave_{(len(hmw.wave_results)-1)}.png")
-    print(len(hmw.wave_results)-1)
+    # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{Variable}_10000_wave_{(len(hmw.wave_results)-1)}.png")
+    # print(len(hmw.wave_results)-1)
     # hmw.plot_wave(1, fname="save_RV_max_1.png")
 
     # Get the last wave results

@@ -301,8 +301,8 @@ Parameters = {
     # ignore
     "D2": -5,
     "K2_vc": 0.4,
-    "PACO2_Delay_IC": 40,
-    "PAO2_Delay_IC": 100,
+    "PACO2_Delay_IC": 38.59358953135121,
+    "PAO2_Delay_IC": 85.02110241023517,
     "P_atm": 760,
     "P_ws": 47,
     "Z": 0.0227,
