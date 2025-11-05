@@ -935,7 +935,7 @@ if __name__ == "__main__":
             [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
             [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
             [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
+            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper],
             [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
             [3 * lower, 3 * upper], [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper],
@@ -1014,7 +1014,7 @@ if __name__ == "__main__":
     # X_1 = X[:41374, :]
     # X_2 = np.array([X[41375,:]])
     # X = np.concatenate((X_1, X_2, X_3))
-    # np.save("Subset_DGSM_500_X_samples_rest_90.npy", X)
+    # np.save("Subset_DGSM_500_X_samples_rest_20.npy", X)
 
     X = np.load('Subset_DGSM_500_X_samples_rest_90.npy')
     #
