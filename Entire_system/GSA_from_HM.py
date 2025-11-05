@@ -37,14 +37,15 @@ from sklearn.model_selection import KFold
 # X_all = np.load('LHCS/EDP_LHCS_200000_X_sample_rest.npy')[:150000]
 # Result_all = np.load('LHCS/Results_LHCS_EDP_150000.npy')[:,0]
 
-# change x2
+# change
+Variable = "P_sys"
 size = 5000
-Variable = "HR"
+observation={"P_sys": (105, 5)}
+calc_second_order = False
 
-# change x2
-X_all = np.load(f'NROY_Points_HR.npy', allow_pickle=True)
-Param_ranges = np.load(f'NROY_Params_HR.npy', allow_pickle=True).item()
-GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/HR_GaussianProcessMatern32_10000.joblib")
+X_all = np.load(f'NROY_Points_{Variable}_exercise.npy', allow_pickle=True)
+Param_ranges = np.load(f'NROY_Params_{Variable}_exercise.npy', allow_pickle=True).item()
+GaussianProcess_final= joblib.load(f"best_GaussianProcessMatern32/best_emulator/{Variable}_GaussianProcessMatern32_{size}.joblib")
 
 # HR, EDP, ESP, Max RA pressure has
 # [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
@@ -56,6 +57,7 @@ GaussianProcess_final= joblib.load("best_GaussianProcessMatern32/best_emulator/H
 # [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
 # [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
 
+# change exercise/rest
 lower = 0.5
 upper = 1.5
 #
@@ -113,6 +115,7 @@ sp = ProblemSpec({
     ],
 
     'bounds': [
+        # change
         # gas
         [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
@@ -176,7 +179,7 @@ sp = ProblemSpec({
         [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
         [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
         [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
+        [11.76 * lower, 11.76 * upper], [92 *  lower, 92 * 1.05], [112 * 0.9, 112 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
         [3 * lower, 3 * upper], [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper],
@@ -233,12 +236,83 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
         [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
+        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * 0.95, 0.9 * 1.05],
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
-subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
- 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+# change
+# HR
+# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+# exercise
+# subset_vars = ['T0', 'GT_s', 'GT_v', 'fev_o', 'Fi_O2', 'AT', 'V_tot', 'Yv_max', 'Io_sh', 'R_rs',
+#  'E_rs', 'Wp_v', 'G_ap', 'P_n_max', 'Ysh_max']
+
+# SP
+subset_vars = ['V_tot', 'Vu_sv0', 'P_n', 'C2', 'PaCO2_n', 'kes', 'a2', 'V0_dead', 'fes_o', 'R_rs',
+               'E_rs', 'GV_dead', 'Vu_ev0', 'K2', 'Vu_jp', 'C_pv', 'fes_min', 'R_pv', 'R_sa',
+               'Fi_O2', 'Cvrm_O2_n', 'C_O2_param1', 'fab_o', 'rise_time_ven', 'fall_time_ven',
+               'GV_sv', 'C_pp', 'Kv_tr']
+# exercise
+# subset_vars = ['V_tot', 'Vu_sv0', 'GV_sv', 'R_rs', 'G_ap', 'R_sa', 'fes_o', 'P_n', 'Fi_O2',
+#  'E_rs', 'fab_o', 'C_pv', 'rise_time_ven', 'GT_v', 'Vu_ev0', 'f_acCO2_n', 'C_sv',
+#  'Vu_jp', 'fall_time_ven', 'T0', 'Wc_v', 'C_O2_param1', 'Kv_mi', 'k_ab',
+#  'V0_dead', 'C_pp', 'Kp_mi', 'GV_dead', 'Wb_sh', 'fev_inf', 'Kv_tr', 'fev_o',
+#  'Wp_v', 'Ysh_max', 'PaO2_ac_n', 'kev', 'theta_v', 'AT', 'tauMR', 'VA_rest',
+#  'P_n_max', 'GT_s', 'R_pv', 'f_ab_max', 'k_ac', 'GR_amp', 'f_ac_max', 'Yv_max',
+#  'Io_met', 'theta_mi_max', 'KE_lv', 'Kp_tr', 'Io_sh', 'MO2_bp', 'KcCO2', 'Tc',
+#  'Vu_amv0', 'theta_tr_max', 'phi_max', 'Vu_bv', 'kes', 'PaCO2_n', 'f_ac_min']
+
+# # DP
+# subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
+#                'C_pp', 'Vu_jp', 'R_bpn', 'T0', 'fes_o', 'C_pv', 'PaCO2_n', 'R_sp0', 'V_tot',
+#                'GV_sv', 'kes', 'K2', 'P_n', 'k_ab', 'Wb_sh', 'Kp_tr', 'Cvrm_O2_n', 'fev_inf',
+#                'theta_mi_max', 'Kv_mi', 'kev', 'fev_o', 'KE_lv', 'Emax_lv0', 'MO2_bp', 'R_pv',
+#                'f_acCO2_n', 'GT_s', 'Kp_mi', 'theta_spn', 'theta_shn', 'Wc_v', 'kcc_sv',
+#                'Vu_bv', 'Vu_sv0', 'E_rs', 'Kv_tr', 'Cvb_O2_n', 'C_sv', 'PaO2_ac_n', 'C_jp',
+#                'Wb_sp', 'f_ac_max', 'Io_met', 'GT_v', 'f_ab_min', 'Io_sv', 'V0_dead', 'Vu_vc',
+#                'GR_ep', 'fall_time_ven', 'f_ab_max', 'KcCO2', 'Cvam_O2_n', 'k_ac',
+#                'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
+#                'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
+#                'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
+# exercise
+# subset_vars = ['k_ab', 'Wb_sh', 'theta_v', 'Wp_v', 'G_ap', 'kev', 'fev_inf', 'Io_sh', 'AT',
+#  'fab_o', 'phi_max', 'C_O2_param1', 'P_n', 'MO2_bp', 'f_ac_max', 'tauMR',
+#  'P_n_max', 'Kv_mi', 'f_ab_max', 'GT_s', 'GT_v', 'V_tot', 'VA_rest', 'Yv_max',
+#  'Io_met', 'fev_o', 'PaO2_ac_n', 'fes_o', 'R_pv', 'GV_sv', 'Io_sv', 'Kp_mi',
+#  'E_rs', 'Fi_O2', 'Vu_ev0', 'V0_dead', 'Vu_amv0', 'KcCO2', 'C_pp', 'Vu_sv0',
+#  'theta_mi_max', 'GR_amp', 'theta_spn', 'Vu_jp', 'f_acCO2_n', 'fall_time_ven',
+#  'k_ac', 'f_ab_min', 'Ysh_max', 'Kv_tr', 'f_ac_min', 'C_sv', 'kes', 'KE_lv',
+#  'R_bpn', 'Io_v', 'Wc_v', 'T0', 'C_pv', 'GV_dead', 'Vu_bv', 'KE_rv', 'Cvam_O2_n',
+#  'Cvrm_O2_n', 'Vu_vc', 'scale_param4', 'R_rs', 'theta_tr_max', 'Cvb_O2_n',
+#  'theta_shn', 'fes_min', 'kcc_sh', 'Kp_tr', 'R_sp0', 'P0_lv', 'Wb_sp', 'MO2_ampn',
+#  'Wc_sh']
+
+# Max RV Pressure: 46 parameters contribute 90% sensitivity
+# subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
+#                'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
+#                'KcCO2', 'Fi_O2', 'Wb_sh', 'C_pv', 'Kv_tr', 'kes', 'fes_o', 'MO2_bp', 'fab_o',
+#                'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
+#                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
+#                'KE_lv', 'theta_tr_max', 'Wc_v']
+
+# subset_vars = ['V_tot', 'Vu_sv0', 'E_rs', 'R_rs', 'GV_sv', 'GV_dead', 'V0_dead', 'theta_v',
+#  'C_O2_param1', 'Wp_v', 'G_ap', 'C_pv', 'VA_rest', 'Wc_v', 'Wb_sh', 'AT', 'Vu_jp',
+#  'rise_time_ven', 'k_ab', 'Vu_ev0', 'k_ac', 'f_acCO2_n', 'Io_sh', 'fab_o',
+#  'Kv_tr', 'Yv_max', 'tauMR', 'kev', 'PaO2_ac_n', 'P_n_max', 'fev_o', 'Fi_O2',
+#  'C_pp', 'fes_o', 'GT_v', 'P_n', 'C_sv', 'KcCO2', 'fev_inf', 'GT_s', 'PaCO2_n',
+#  'C2', 'MO2_bp', 'T0', 'Ysh_max', 'f_ac_max', 'Tc', 'Kp_tr', 'f_ab_max',
+#  'fall_time_ven', 'theta_tr_max', 'R_po', 'a2', 'Kv_mi', 'KE_lv', 'kes', 'Io_sv',
+#  'Kp_mi', 'GR_amp', 'Io_met', 'R_pv', 'KE_rv', 'f_ac_min', 'K2', 'Cvb_O2_n',
+#  'phi_max', 'f_ab_min', 'Vu_bv', 'R_bpn', 'theta_mi_max', 'scale_param4',
+#  'kcc_sh', 'Rvc_n']
+
+# # Minute Ventilation: 7 parameters contribute 90% sensitivity
+# subset_vars = ['R_rs', 'PaCO2_n', 'E_rs', 'C2', 'V0_dead', 'GV_dead', 'V_tot']
+# # exercise
+# subset_vars = ['R_rs', 'E_rs', 'GV_dead', 'V0_dead', 'PaCO2_n', 'VA_rest', 'KcCO2', 'V_tot',
+#  'C_O2_param1', 'C2', 'MO2_bp', 'KcMRV']
+
 
 subset_vars = [name for name in sp["names"] if name in subset_vars]
 
@@ -264,11 +338,10 @@ param_ranges: dict[str, tuple[float, float]] = {
 
 Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=["Heart Rate"])
 
-
 hmw = HistoryMatchingWorkflow(
     simulator=Simulator,
     result=GaussianProcess_final,
-    observations={"HR": (1.1, 0.1)},
+    observations=observation,
     # optional parameters
     threshold=3.0,
     random_seed=42,
@@ -279,11 +352,18 @@ hmw = HistoryMatchingWorkflow(
 
 
 
-N = 3899
-# N = 3899
+N = X_subset.shape[0] // 2
 D = len(subset_idx)
-# sample_size = N * (2 * D + 2)
-sample_size = (D + 2) * N
+
+print(f"N = {N}")
+print(f"D = {D}")
+
+
+if calc_second_order:
+    sample_size = N * (2 * D + 2)
+else:
+    sample_size = (D + 2) * N
+
 skip_values = 0
 
 base_sequence = np.zeros((N + skip_values, 2 * D),dtype=float)
@@ -310,13 +390,13 @@ for i in range(N):
 
     # Cross-sample elements of "A" into "B"
     # Only needed if you're doing second-order indices (true by default)
-    # if calc_second_order:
-    #     for k in range(D):
-    #         # Start with all columns from B
-    #         saltelli_sequence[index, :] = base_sequence[i, D:]
-    #         # Replace the k-th column with A
-    #         saltelli_sequence[index, k] = base_sequence[i, k]
-    #         index += 1
+    if calc_second_order:
+        for k in range(D):
+            # Start with all columns from B
+            saltelli_sequence[index, :] = base_sequence[i, D:]
+            # Replace the k-th column with A
+            saltelli_sequence[index, k] = base_sequence[i, k]
+            index += 1
 
 X = torch.from_numpy(saltelli_sequence.astype(np.float32))
 
@@ -324,34 +404,24 @@ Result_tensor, Var_tensor = GaussianProcess_final.model.predict_mean_and_varianc
 Result = Result_tensor.detach().cpu().numpy()[:,0]
 Var = Var_tensor.detach().cpu().numpy()[:,0]
 
-print(max(Result))
-
 Implaus = hmw.calculate_implausibility(Result_tensor, Var_tensor)
 Implaus = Implaus.detach().cpu().numpy()[:,0]
 
 
 
 ## added code for removing entire A/B if even a single permutation is outside of the implausibility of 3
-block_length = D + 2
-valid_indices = []
+block_length = 2 * D + 2 if calc_second_order else D + 2
+blocks = Implaus.reshape(N, block_length)
+valid_mask = np.all(blocks <= 3.0, axis=1)  # True if all implausibilities ≤ 3.0
+valid_indices = np.where(valid_mask)[0]
 
-for i in range(N):
-    # Get implausibility for this block
-    start = i * block_length
-    end = start + block_length
-    block_implaus = Implaus[start:end]  # shape (block_length,)
+# Create a mask over all rows
+row_mask = np.repeat(valid_mask, block_length)
 
-    # Count how many rows in the block are implausible
-    n_implaus = np.sum(block_implaus > 3.0)  # or whatever threshold you use
-
-    # Keep this block if at least 3 rows are implausible
-    if n_implaus == 0:
-        valid_indices.append(i)
-
-# Now create a filtered saltelli_sequence with only valid blocks
-filtered_saltelli = np.zeros((len(valid_indices) * block_length, D))
-filtered_Implaus = np.zeros(len(valid_indices) * block_length)
-filtered_Result = np.zeros(len(valid_indices) * block_length)
+# Filter everything in one go
+filtered_saltelli = saltelli_sequence[row_mask]
+filtered_Implaus = Implaus[row_mask]
+filtered_Result = Result[row_mask]
 
 index = 0
 for i in valid_indices:
@@ -363,12 +433,14 @@ for i in valid_indices:
     index += block_length
 
 print(f"Number of base A/B blocks remaining: {len(valid_indices)}")
+print(f"Number of base A/B blocks originally: {N}")
+
 
 # Just HR plot
 fig, ax1 = plt.subplots()
 sns.kdeplot(filtered_Result, fill=True)
 
-ax1.set_title("Heart Rate")
+ax1.set_title(f"Filtered {Variable}")
 ax1.set_xlabel("Value")
 ax1.set_ylabel("Density")
 plt.tight_layout()
@@ -378,13 +450,11 @@ X_scaled = scale_samples(filtered_saltelli, sp_subset)
 
 ST = np.zeros((0, D), dtype=float)
 S1 = np.zeros((0, D), dtype=float)
-S2 = np.zeros((0, int(binom(D, 2))), dtype=float)
 
 ST_std = np.zeros((0, D), dtype=float)
 S1_std = np.zeros((0, D), dtype=float)
-S2_std = np.zeros((0, int(binom(D, 2))), dtype=float)
 
-S = analyze_NIMP(sp_subset, filtered_Result.copy(), calc_second_order=False, print_to_console=True)
+S = analyze_NIMP(sp_subset, filtered_Result.copy(), calc_second_order=calc_second_order, print_to_console=True)
 
 T_Si, first_Si, (_, second_Si) = sobol.Si_to_pandas_dict(S)
 
@@ -396,16 +466,6 @@ z = norm.ppf(0.5 + conf_level / 2)
 
 ST_std = np.vstack((ST_std, T_Si["ST_conf"].reshape(1, -1) / z))
 S1_std = np.vstack((S1_std, first_Si["S1_conf"].reshape(1, -1) / z))
-
-# # Just HR plot
-# fig, ax1 = plt.subplots()
-# sns.kdeplot(Result, fill=True)
-#
-# ax1.set_title("Heart Rate")
-# ax1.set_xlabel("Value")
-# ax1.set_ylabel("Density")
-# plt.tight_layout()
-# plt.show()
 
 
 # --- Convert to DataFrame for plotting ---
@@ -421,12 +481,14 @@ total = pd.DataFrame({
 # --- Sort by Total-order sensitivity ---
 ranked = total.sort_values("ST", ascending=False)
 
+ranked.to_csv(f"Plot_abstract/{Variable}_sensitivities.csv", index=True)
+
 # --- Bar plot ---
 fig, ax = plt.subplots(figsize=(6, 12))
 ranked["ST"].plot(kind="barh", xerr=ranked["ST_std"], ax=ax, color="skyblue", edgecolor="k")
 ax.invert_yaxis()
 # ax.set_xscale("log")
-ax.set_title("Sobol Total-Order Sensitivities (Ranked)", fontsize=14)
+ax.set_title(f"{Variable} Sobol Total-Order Sensitivities (Ranked)", fontsize=14)
 ax.set_xlabel("Total-order index (ST)")
 
 # Annotate each bar with rank
@@ -453,3 +515,39 @@ for i, (name, value) in enumerate(zip(ranked.index, ranked["S1"])):
 
 plt.tight_layout()
 plt.show()
+
+
+if calc_second_order:
+    for j in range(D):
+        for k in range(j + 1, D):
+            print("%s %s %f %f" % (sp_subset["names"][j], sp_subset["names"][k],
+                                   S['S2'][j, k], S['S2_conf'][j, k]))
+
+    S2_list = second_Si["S2"]
+    S2_conf_list = second_Si["S2_conf"] / z
+
+    param_pairs = [(sp_subset["names"][i], sp_subset["names"][j]) for i in range(D) for j in range(i + 1, D)]
+
+
+    S2_df = pd.DataFrame({
+        "Parameter_pair": [" & ".join(pair) for pair in param_pairs],
+        "S2": np.array(S2_list).flatten(),
+        "S2_std": np.array(S2_conf_list).flatten()
+    }).sort_values("S2", ascending=False)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(8, 16))
+    S2_df.plot(
+        kind="barh",
+        x="Parameter_pair",
+        y="S2",
+        xerr="S2_std",
+        ax=ax,
+        color="skyblue",
+        edgecolor="k"
+    )
+    ax.invert_yaxis()
+    ax.set_title(f"{Variable} Sobol Second-Order Sensitivities", fontsize=14)
+    ax.set_xlabel("Second-order index (S2)")
+    plt.tight_layout()
+    plt.show()

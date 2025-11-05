@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyro
 import arviz as az
+import seaborn as sns
 
 from getdist.arviz_wrapper import arviz_to_mcsamples
 from getdist import plots
@@ -18,6 +19,7 @@ from autoemulate.calibration.bayes import BayesianCalibration
 from autoemulate.emulators import GaussianProcess
 from autoemulate.data.utils import set_random_seed
 from autoemulate.calibration.history_matching import HistoryMatching, HistoryMatchingWorkflow
+from scipy.stats import qmc
 from sklearn.model_selection import KFold
 from AutoEmulate_Simulator import Cardiopulmonary
 
@@ -34,6 +36,7 @@ pyro.set_rng_seed(random_seed)
 # ----------------------------
 # PROBLEM SPECIFICATION
 # ----------------------------
+# change rest
 lower, upper = 0.5, 1.5
 
 sp = ProblemSpec({
@@ -101,9 +104,9 @@ sp = ProblemSpec({
 # [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
 # [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
         # gas
-        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1],
+        [0.03255 * lower, 0.03255 * upper], [87 * 0.9, 87 * 1.1],
         [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper],
+        [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper],
         [346000 * lower, 346000 * upper],
         # [0.0009 * lower, 0.0009 * upper],
         # resp control
@@ -163,7 +166,7 @@ sp = ProblemSpec({
         [3.6 * lower, 3.6 * upper], [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper],
         [53 * lower, 53 * upper], [6 * lower, 6 * upper], [6 * lower, 6 * upper],
         [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * upper], [112 * lower, 112 * upper],
+        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
         [3 * lower, 3 * upper], [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper],
@@ -220,7 +223,7 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper], [1.6 * lower, 1.6 * upper], [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper], [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper],
         [80 * lower, 80 * upper], [0.05 * lower, 0.05 * upper], [0.1 * lower, 0.1 * upper],
-        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.85 * 0.9, 0.85 * 1.1],
+        [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * 0.95, 0.9 * 1.05],
         [0.0872665 * lower, 0.0872665 * upper], [0.3 * lower, 0.3 * upper]]
 })
 
@@ -249,6 +252,10 @@ sp = ProblemSpec({
 # subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
 #  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
+# exercise
+# subset_vars = {'T0', 'GT_s', 'GT_v', 'fev_o', 'Fi_O2', 'AT', 'V_tot', 'Yv_max', 'Io_sh', 'R_rs',
+#  'E_rs', 'Wp_v', 'G_ap', 'P_n_max', 'Ysh_max'}
+
 # Max RV Pressure: 46 parameters contribute 90% sensitivity
 # subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
 #                'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
@@ -257,16 +264,17 @@ sp = ProblemSpec({
 #                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
 #                'KE_lv', 'theta_tr_max', 'Wc_v']
 # exercise
-subset_vars = ['V_tot', 'Vu_sv0', 'T0', 'E_rs', 'R_rs', 'GV_sv', 'GT_s', 'V0_dead', 'G_ap',
- 'theta_v', 'GT_v', 'GV_dead', 'AT', 'VA_rest', 'Io_sh', 'P_n_max', 'Wp_v',
- 'fev_o', 'C_pv', 'C_O2_param1', 'Fi_O2', 'fab_o', 'Wb_sh', 'k_ab', 'Vu_rv',
- 'f_acCO2_n', 'k_ac', 'Yv_max', 'Vu_jp', 'Vu_ev0', 'fes_o', 'C_sv', 'Wc_v',
- 'tauMR', 'P_n', 'fev_inf', 'kev', 'PaO2_ac_n', 'Kv_tr', 'C_pp', 'Tc', 'Ysh_max',
- 'KcCO2', 'PaCO2_n', 'fall_time_ven', 'f_ac_max', 'Kv_mi', 'C2', 'f_ab_max',
- 'R_pv', 'MO2_bp', 'Kp_tr', 'Io_sv', 'Kp_mi', 'KE_lv', 'theta_tr_max', 'Io_met',
- 'kes', 'phi_max', 'theta_mi_max', 'K2', 'a2', 'f_ac_min', 'R_bpn', 'GR_amp',
- 'f_ab_min', 'Vu_amv0', 'KE_rv', 'GEmax_rv', 'Cvb_O2_n', 'Vu_bv', 'Cvam_O2_n',
- 'kcc_sh']
+# subset_vars = ['V_tot', 'Vu_sv0', 'E_rs', 'R_rs', 'GV_sv', 'GV_dead', 'V0_dead', 'theta_v',
+#  'C_O2_param1', 'Wp_v', 'G_ap', 'C_pv', 'VA_rest', 'Wc_v', 'Wb_sh', 'AT', 'Vu_jp',
+#  'rise_time_ven', 'k_ab', 'Vu_ev0', 'k_ac', 'f_acCO2_n', 'Io_sh', 'fab_o',
+#  'Kv_tr', 'Yv_max', 'tauMR', 'kev', 'PaO2_ac_n', 'P_n_max', 'fev_o', 'Fi_O2',
+#  'C_pp', 'fes_o', 'GT_v', 'P_n', 'C_sv', 'KcCO2', 'fev_inf', 'GT_s', 'PaCO2_n',
+#  'C2', 'MO2_bp', 'T0', 'Ysh_max', 'f_ac_max', 'Tc', 'Kp_tr', 'f_ab_max',
+#  'fall_time_ven', 'theta_tr_max', 'R_po', 'a2', 'Kv_mi', 'KE_lv', 'kes', 'Io_sv',
+#  'Kp_mi', 'GR_amp', 'Io_met', 'R_pv', 'KE_rv', 'f_ac_min', 'K2', 'Cvb_O2_n',
+#  'phi_max', 'f_ab_min', 'Vu_bv', 'R_bpn', 'theta_mi_max', 'scale_param4',
+#  'kcc_sh', 'Rvc_n']
+
 
 # #   EDP: 83 parameters contribute 90% sensitivity
 # subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
@@ -280,16 +288,39 @@ subset_vars = ['V_tot', 'Vu_sv0', 'T0', 'E_rs', 'R_rs', 'GV_sv', 'GT_s', 'V0_dea
 #                'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
 #                'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
 #                'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
+# exercise
+# subset_vars = ['k_ab', 'Wb_sh', 'theta_v', 'Wp_v', 'G_ap', 'kev', 'fev_inf', 'Io_sh', 'AT',
+#  'fab_o', 'phi_max', 'C_O2_param1', 'P_n', 'MO2_bp', 'f_ac_max', 'tauMR',
+#  'P_n_max', 'Kv_mi', 'f_ab_max', 'GT_s', 'GT_v', 'V_tot', 'VA_rest', 'Yv_max',
+#  'Io_met', 'fev_o', 'PaO2_ac_n', 'fes_o', 'R_pv', 'GV_sv', 'Io_sv', 'Kp_mi',
+#  'E_rs', 'Fi_O2', 'Vu_ev0', 'V0_dead', 'Vu_amv0', 'KcCO2', 'C_pp', 'Vu_sv0',
+#  'theta_mi_max', 'GR_amp', 'theta_spn', 'Vu_jp', 'f_acCO2_n', 'fall_time_ven',
+#  'k_ac', 'f_ab_min', 'Ysh_max', 'Kv_tr', 'f_ac_min', 'C_sv', 'kes', 'KE_lv',
+#  'R_bpn', 'Io_v', 'Wc_v', 'T0', 'C_pv', 'GV_dead', 'Vu_bv', 'KE_rv', 'Cvam_O2_n',
+#  'Cvrm_O2_n', 'Vu_vc', 'scale_param4', 'R_rs', 'theta_tr_max', 'Cvb_O2_n',
+#  'theta_shn', 'fes_min', 'kcc_sh', 'Kp_tr', 'R_sp0', 'P0_lv', 'Wb_sp', 'MO2_ampn',
+#  'Wc_sh']
+
 
 # # EDV: 12 parameters contribute 90% sensitivity
 # subset_vars = ['V_tot', 'Vu_sv0', 'Emax_lv0', 'T0', 'Vu_ev0', 'Vu_jp', 'fall_time_ven', 'C_pv',
 #                 'C_O2_param1', 'Kv_tr', 'C_pp', 'KE_lv']
 
 # #   Systolic Pressure: 28 parameters contribute 90% sensitivity
-# subset_vars = ['V_tot', 'Vu_sv0', 'P_n', 'C2', 'PaCO2_n', 'kes', 'a2', 'V0_dead', 'fes_o', 'R_rs',
-#                'E_rs', 'GV_dead', 'Vu_ev0', 'K2', 'Vu_jp', 'C_pv', 'fes_min', 'R_pv', 'R_sa',
-#                'Fi_O2', 'Cvrm_O2_n', 'C_O2_param1', 'fab_o', 'rise_time_ven', 'fall_time_ven',
-#                'GV_sv', 'C_pp', 'Kv_tr']
+subset_vars = ['V_tot', 'Vu_sv0', 'P_n', 'C2', 'PaCO2_n', 'kes', 'a2', 'V0_dead', 'fes_o', 'R_rs',
+               'E_rs', 'GV_dead', 'Vu_ev0', 'K2', 'Vu_jp', 'C_pv', 'fes_min', 'R_pv', 'R_sa',
+               'Fi_O2', 'Cvrm_O2_n', 'C_O2_param1', 'fab_o', 'rise_time_ven', 'fall_time_ven',
+               'GV_sv', 'C_pp', 'Kv_tr']
+# exercise
+# subset_vars = ['V_tot', 'Vu_sv0', 'GV_sv', 'R_rs', 'G_ap', 'R_sa', 'fes_o', 'P_n', 'Fi_O2',
+#  'E_rs', 'fab_o', 'C_pv', 'rise_time_ven', 'GT_v', 'Vu_ev0', 'f_acCO2_n', 'C_sv',
+#  'Vu_jp', 'fall_time_ven', 'T0', 'Wc_v', 'C_O2_param1', 'Kv_mi', 'k_ab',
+#  'V0_dead', 'C_pp', 'Kp_mi', 'GV_dead', 'Wb_sh', 'fev_inf', 'Kv_tr', 'fev_o',
+#  'Wp_v', 'Ysh_max', 'PaO2_ac_n', 'kev', 'theta_v', 'AT', 'tauMR', 'VA_rest',
+#  'P_n_max', 'GT_s', 'R_pv', 'f_ab_max', 'k_ac', 'GR_amp', 'f_ac_max', 'Yv_max',
+#  'Io_met', 'theta_mi_max', 'KE_lv', 'Kp_tr', 'Io_sh', 'MO2_bp', 'KcCO2', 'Tc',
+#  'Vu_amv0', 'theta_tr_max', 'phi_max', 'Vu_bv', 'kes', 'PaCO2_n', 'f_ac_min']
+
 
 #    # Max RA Pressure: 89 parameters contribute 90 % sensitivity
 # subset_vars = ['a2', 'Vu_sv0', 'MO2_bp', 'PaCO2_n', 'C2', 'G_ap', 'Wp_v', 'R_rs', 'kes',
@@ -310,6 +341,9 @@ subset_vars = ['V_tot', 'Vu_sv0', 'T0', 'E_rs', 'R_rs', 'GV_sv', 'GT_s', 'V0_dea
 
 # # Minute Ventilation: 7 parameters contribute 90% sensitivity
 # subset_vars = ['R_rs', 'PaCO2_n', 'E_rs', 'C2', 'V0_dead', 'GV_dead', 'V_tot']
+# exercise
+# subset_vars = ['R_rs', 'E_rs', 'GV_dead', 'V0_dead', 'PaCO2_n', 'VA_rest', 'KcCO2', 'V_tot',
+#  'C_O2_param1', 'C2', 'MO2_bp', 'KcMRV']
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -342,21 +376,30 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # ----------------------------
 # LOAD EMULATOR
 # ----------------------------
-# change
-Variable = "Max_RV_P"
+# change (emulator for rest/exercise)
+Variable = "P_sys"
 # GaussianProcess_final = joblib.load("best_emulator/Max_RV_P_GaussianProcessMatern32_5000.joblib")
-GaussianProcess_final= joblib.load(f"best_emulator/{Variable}_GaussianProcessMatern32_5000_exercise.joblib")
+GaussianProcess_final= joblib.load(f"best_GaussianProcessMatern32/best_emulator/{Variable}_GaussianProcessMatern32_5000.joblib")
 # ----------------------------
 # OBSERVATION
 # ----------------------------
 # change
-# exercise
-observation = {"Max_RV_P": (45, 5)}
+# # exercise
+# observation = {"EDP": (70, 3)}
+# observation = {"HR": (2, 0.2)}
+# observation = {"Max_RV_P": (45, 5)}
+# observation = {"EDV": (163, 23)}
+# observation = {"ESP": (130, 5)}
+# observation = {"Max_RA_P": (7, 1)}
+# observation = {"PaO2": (87.5, 4.2)}
+# observation = {"Minute_vent": (45, 5)}
+
+# # rest
 # observation = {"EDP": (70, 3)}
 # observation = {"HR": (1.1, 0.1)}
 # observation = {"Max_RV_P": (25, 2)}
 # observation = {"EDV": (163, 23)}
-# observation = {"ESP": (105, 5)}
+observation = {"P_sys": (105, 5)}
 # observation = {"Max_RA_P": (7, 1)}
 # observation = {"PaO2": (87.5, 4.2)}
 # observation = {"Minute_vent": (6.5, 0.5)}
@@ -401,9 +444,65 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    _ = hmw.run_waves(n_waves=1, n_simulations=20, n_test_samples=150000, refit_on_all_data=False, refit_emulator_on_last_wave=False)
 
-    # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{Variable}_10000_wave_{(len(hmw.wave_results)-1)}.png")
+    size = 150000
+    # X = np.load("Max_RV_P_LHCS_10000_X_sample_exercise_20.npy")
+    # Result = np.load(f'Result_LHCS_Max_RV_10000_exercise_20.npy')[:, 0]
+    # X[:, 211] = 0.0
+    # X[1, 211] = 1000000.1
+    # mask = Result != 0
+    # X = X[mask, :]
+    # Result = Result[mask]
+
+    # nan_mask = ~np.isnan(Result)  # True for rows without NaN
+    # X = X[nan_mask, :]
+    # Result = Result[nan_mask]
+    #
+    # # get the mean of the column
+    # col_mean = Result.mean(axis=0)
+    # col_std = Result.std(axis=0)
+    # # 3 std to remove outliers
+    # mask = (Result >= (col_mean - 3 * col_std)) & (Result <= (col_mean + 3 * col_std))
+    # X = X[mask, :]
+    # Result = Result[mask]
+    #
+    # mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
+    # X = X[:, mask]
+    #
+    # # idx = np.random.choice(len(Result), size=10000, replace=False)
+    # # X = X[:5000, :]
+    # # Result = Result[:5000]
+    #
+    # X= torch.tensor(X, dtype=torch.float32)
+    #
+    #
+    # Result_tensor, Var_tensor = GaussianProcess_final.model.predict_mean_and_variance(X)
+    # Result = Result_tensor.detach().cpu().numpy()[:, 0]
+    # Var = Var_tensor.detach().cpu().numpy()[:, 0]
+    # X = X.cpu().numpy() if X.is_cuda else X.numpy()
+    #
+    # # Just HR plot
+    # fig, ax1 = plt.subplots()
+    # sns.kdeplot(X[:, 61], fill=True)
+    #
+    # ax1.set_title(f"mean")
+    # ax1.set_xlabel("Value")
+    # ax1.set_ylabel("Density")
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # fig, ax1 = plt.subplots()
+    # sns.kdeplot(Result, fill=True)
+    #
+    # ax1.set_title(f"mean")
+    # ax1.set_xlabel("Value")
+    # ax1.set_ylabel("Density")
+    # plt.tight_layout()
+    # plt.show()
+
+    _ = hmw.run_waves(n_waves=1, n_simulations=20, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False)
+
+    # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{Variable}_{size}_wave_{(len(hmw.wave_results)-1)}.png")
     # print(len(hmw.wave_results)-1)
     # hmw.plot_wave(1, fname="save_RV_max_1.png")
 
@@ -418,8 +517,8 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save ("NROY_Points_HR.npy", nroy_points)
-    np.save("NROY_Params_HR.npy", params_post_hm)
+    np.save (f"NROY_Points_{Variable}_exercise.npy", nroy_points)
+    np.save(f"NROY_Params_{Variable}_exercise.npy", params_post_hm)
 
     #
     # model_post_hm = hmw.emulator  # Use the emulator from history matching
