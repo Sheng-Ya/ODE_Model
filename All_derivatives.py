@@ -244,12 +244,12 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     # Muscle pump activation
     # alp ranges between 0 (beginning of muscle contraction) and 1
-    alp = (t % Tc) / Tc
+    alp = (t % T_im) / T_im
 
     # Muscle pump function
     if (Tc / T_im) >= alp >= 0:
         psi = np.sin(np.pi * (T_im / Tc) * alp)
-    elif (Tc / T_im) <= alp <= 1:
+    else:
         psi = 0
 
     P_im = A_im * psi  # Muscle pump pressure
@@ -260,27 +260,26 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     VT_change = VT - VT_n  # units of L
     T_resp = t1 + t2
     TE = t2
-    P_abdmax = P_abdmax_n + g_abd * VT_change
+    # P_abdmax = P_abdmax_n + g_abd * VT_change
     P_thormax = P_thormax_n + g_thor * VT_change
-    P_abdmin = P_abdmin_n + g_abd * VT_change
+    # P_abdmin = P_abdmin_n + g_abd * VT_change
     P_thormin = P_thormin_n + g_thor * VT_change
 
     S = time_since_last_breath / T_resp
 
     if 0 <= time_since_last_breath < TI:
         P_thor = P_thormax - (P_thormax - P_thormin) * (T_resp / TI) * S
-
-    elif TI <= time_since_last_breath <= T_resp:
+    else:
         P_thor = P_thormax - (P_thormax - P_thormin) * ((TI + TE - T_resp * S) / TE)
 
-    if 0 <= time_since_last_breath < (TI / 2):
-        P_abd = P_abdmax - (P_abdmax - P_abdmin) * (T_resp / (TI / 2)) * S
-
-    elif (TI / 2) <= time_since_last_breath < TI:
-        P_abd = P_abdmin
-
-    elif TI <= time_since_last_breath <= T_resp:
-        P_abd = P_abdmax - (P_abdmax - P_abdmin) * ((TI + TE - T_resp * S) / TE)
+    # if 0 <= time_since_last_breath < (TI / 2):
+    #     P_abd = P_abdmax - (P_abdmax - P_abdmin) * (T_resp / (TI / 2)) * S
+    #
+    # elif (TI / 2) <= time_since_last_breath < TI:
+    #     P_abd = P_abdmin
+    #
+    # elif TI <= time_since_last_breath <= T_resp:
+    #     P_abd = P_abdmax - (P_abdmax - P_abdmin) * ((TI + TE - T_resp * S) / TE)
 
     # added P_thor to only the pulmonary compartments
     if VT_pa > Vu_pa:
@@ -667,16 +666,16 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_vc = 0
         Vu_vc = VT_vc
 
-    if V_vc < Vu_vc:
-        if t != 0:
-            P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor  # + source_values
-        else:
-            P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor
-    else:
-        if t != 0:
-            P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor  # + source_values
-        else:
-            P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
+    # if V_vc < Vu_vc:
+    #     if t != 0:
+    #         P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor  # + source_values
+    #     else:
+    #         P_vc = D2 + K2_vc * np.exp(V_vc / Vvc_min) + P_thor
+    # else:
+    #     if t != 0:
+    #         P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor  # + source_values
+    #     else:
+    P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
 
     # P_vc = V_vc / 10.5 + P_thor
 
@@ -711,15 +710,16 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     Q_sp = (P_sp - P_sv) / R_sp
 
-    P_s = P_abd
-
-    if P_vc < P_s:
-        R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))
-    else:
-        R_sv = R_sv_n
+    # P_s = P_abd
+    # AA = P_s
+    #
+    # if P_vc < P_s:
+    #     R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))
+    # else:
+    #     R_sv = R_sv_n
 
     if P_sv >= P_vc:
-        Q_sv = (P_sv - P_vc) / R_sv
+        Q_sv = (P_sv - P_vc) / R_sv_n
     else:
         Q_sv = 0
 
@@ -760,7 +760,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_hv = VT_hv / C_hv
         # Vu_hv = VT_hv
 
-    Q_hp = (P_sp - P_hv) / R_hp
+    Q_hp = max(((P_sp - P_hv) / R_hp), 0.0001)
 
     P_h = 0
 
@@ -787,7 +787,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         P_rmv = VT_rmv / C_rmv
         # Vu_rmv = VT_rmv
 
-    Q_rmp = (P_sp - P_rmv) / R_rmp
+    Q_rmp = max((P_sp - P_rmv) / R_rmp, 0.0001)
 
     P_rm = 0
 
@@ -822,7 +822,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             Vu_amv = VT_amv
         # P_amv = P_0 + P_im
 
-    Q_amp = (P_sp - P_amv) / R_amp
+    Q_amp = max(((P_sp - P_amv) / R_amp), 0.0001)
 
     P_am = 0
 
@@ -1094,8 +1094,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         K = K_H
     elif PaO2_ac_n <= Pa_O2 < Pa_O2_lower:
         K = K_H - (scale_param6 * (Pa_O2 - Pa_O2_lower) / scale_param7)
-    else:
-        K = K_H - scale_param8
+    # else:
+    #     K = K_H - scale_param8
 
     phi_ac = ((f_ac_max + f_ac_min * np.exp((Pa_O2 - PaO2_ac_n) / k_ac)) / (1 + np.exp((Pa_O2 - PaO2_ac_n) / k_ac)) *
               (K * np.log(Pa_CO2 / PaCO2_n) + f_acCO2_n))

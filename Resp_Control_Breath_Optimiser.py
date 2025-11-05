@@ -171,8 +171,8 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     dV2_dt2_values_squared = ((1 / R_rs) * ((dP_musc_dt - P_ao) -
                                                       E_rs * dV_dt_values)) ** 2
 
-    E1_n = (1 - np.clip(P_musc / Pmax, 0, 1)) ** n
-    E2_n = (1 - np.clip(dP_musc_dt / Pmax_dot, -1, 1)) ** n
+    E1_n = (1 - np.clip((P_musc / Pmax), 0, 0.999999)) ** n
+    E2_n = (1 - np.clip((np.abs(dP_musc_dt) / Pmax_dot), 0, 0.999999)) ** n
 
     # Compute inspiratory and expiratory integrals
     with np.errstate(divide='ignore', invalid='ignore'):
