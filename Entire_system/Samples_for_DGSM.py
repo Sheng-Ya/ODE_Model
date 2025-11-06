@@ -522,7 +522,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         os.remove(save_path)
 
     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-    block_size = 301
+    block_size = len(param_samples[0]) + 1
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     for i, block in enumerate(param_blocks):
@@ -578,7 +578,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 #     if os.path.exists(save_path):
 #         os.remove(save_path)
 #
-#     block_size = 301
+#     block_size = len(param_samples[0]) + 1
 #     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 #
 #     for w, block in enumerate(param_blocks):
@@ -1016,7 +1016,7 @@ if __name__ == "__main__":
     # X = np.concatenate((X_1, X_2, X_3))
     # np.save("Subset_DGSM_500_X_samples_rest_20.npy", X)
 
-    X = np.load('Subset_DGSM_500_X_samples_rest_90.npy')
+    X = np.load('Subset_DGSM_500_X_samples_rest_50.npy')
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
@@ -1031,7 +1031,7 @@ if __name__ == "__main__":
 
     # print(Result)
 
-    np.save('Subset_DGSM_500_Result_rest_90.npy', Result)
+    np.save('Subset_DGSM_500_Result_rest_50.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 
