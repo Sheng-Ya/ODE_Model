@@ -711,7 +711,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Q_sp = (P_sp - P_sv) / R_sp
 
     # P_s = P_abd
-    # AA = P_s
+
     #
     # if P_vc < P_s:
     #     R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))
