@@ -984,7 +984,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # CvbO2 is NOT the same as CBO2 (CBO2 doesn't include haemoglobin), but here CvbCO2 is the SAME as CBCO2 (just the curve)
 
     # brain
-    PvbO2 = CBO2 / alpha_O2  # henry
+    PvbO2 = max(CBO2 / alpha_O2, 1)  # henry
     PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (
                 1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
 
