@@ -1440,7 +1440,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr", "V_shift1", "AR_mi", "AR_tr", "AA"],
 
         [  # Corresponding values
-            P_sa, Q_bp, Q_hp, Q_rmp, Q_amp,
+            P_sa, Q_bp, Q_hp, Q_rmp, Q_amp, Q_sp, Q_ep,
             Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv,
             Pmax_la, Pmax_ra, VT_rv, VT_ra,
             VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv,
