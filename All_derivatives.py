@@ -1347,7 +1347,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      d_VE_integral_dt,
 
      # just for plotting purposes
-     Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv, Pmax_la, Pmax_ra,
+     Q_sp, Q_ep, Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv, Pmax_la, Pmax_ra,
      P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa, P_bv, R_bv, Q_ev,
      R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, CaO2, CvO2, CaCO2,
      CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt, CTO2, CvtO2, MRTO2, CvbO2,
