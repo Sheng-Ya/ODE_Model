@@ -1424,7 +1424,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
     keys_and_values = zip(
         [
             # Cardio control inputs
-            "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp",
+            "P_sa", "Q_bp", "Q_hp", "Q_rmp", "Q_amp", "Q_sp", "Q_ep",
 
             # Gas exchange inputs
             "Q_pp", "Q_la",
