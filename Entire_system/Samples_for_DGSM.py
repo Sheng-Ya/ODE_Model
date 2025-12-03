@@ -179,7 +179,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         t_span = [0, max_time]
     else:
         IC_current = IC_initial.copy()
-        t_span = [max_time, max_time + 250]
+        t_span = [max_time, max_time + 100]
 
     # Cardio parameters
     (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
@@ -503,7 +503,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=400, IC_initial=None, breath_coef=None):
     try:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
@@ -1016,7 +1016,7 @@ if __name__ == "__main__":
     # X = np.concatenate((X_1, X_2, X_3))
     # np.save("Subset_DGSM_500_X_samples_rest_20.npy", X)
 
-    X = np.load('Subset_DGSM_500_X_samples_rest_50.npy')
+    X = np.load('Subset_DGSM_500_X_samples_rest_20.npy')[14880:14880+240*2, :]
     #
     # X_fail = X_load[41374,:]
     # np.save('Fail_250_X_sample_41374_HR_P_sys_P_dia_exercise.npy', X_fail)
@@ -1024,9 +1024,10 @@ if __name__ == "__main__":
     param_samples = [dict(zip(param_keys, row)) for row in X]
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
-    A = param_samples[0]
+    A = len(param_samples[0]) + 1
+    AA = param_samples[0]
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=120)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)

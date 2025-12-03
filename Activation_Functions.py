@@ -54,6 +54,33 @@ def activation_U(beta, atr, T, Tsys):
 #     return phi
 
 
+# @njit
+# def activation_H(ti, atr, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1):
+#     tr_atr = rise_time_atr * T
+#     td_atr = fall_time_atr * T
+#     tr_ven = rise_time_ven * T
+#     td_ven = fall_time_ven * T
+#
+#     if ti <= ahead1 * T:
+#         t_la = ti + (1-ahead1) * T
+#     else:
+#         t_la = ti - ahead1 * T
+#
+#     if atr == 1:
+#         if t_la <= tr_atr:
+#             return 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
+#         elif t_la <= td_atr:
+#             return 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
+#         else:
+#             return 0.0
+#     else:
+#         if ti <= tr_ven:
+#             return 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
+#         elif ti <= td_ven:
+#             return 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
+#         else:
+#             return 0.0
+
 @njit
 def activation_H(ti, atr, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1):
     tr_atr = rise_time_atr * T
@@ -67,12 +94,28 @@ def activation_H(ti, atr, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_t
         t_la = ti - ahead1 * T
 
     if atr == 1:
+        # --- first peak (existing atrial one) ---
         if t_la <= tr_atr:
-            return 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
+            phi1 = 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
         elif t_la <= td_atr:
-            return 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
+            phi1 = 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
         else:
-            return 0.0
+            phi1 = 0.0
+
+        # --- second peak (same shape as ventricular) ---
+        if ti <= tr_ven:
+            phi2 = 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
+        elif ti <= td_ven:
+            phi2 = 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
+        else:
+            phi2 = 0.0
+
+        def smooth_max(a, b, eps=0.02):
+            # eps controls smoothness — smaller = sharper but still smooth
+            return a + eps * np.log1p(np.exp((b - a) / eps))
+
+        # return phi1 + 0.2 * phi2   # two peaks added
+        return smooth_max(phi1, 0.2 * phi2)
     else:
         if ti <= tr_ven:
             return 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))

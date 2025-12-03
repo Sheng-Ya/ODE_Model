@@ -491,7 +491,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     if t != 0:
     #         P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor  # + source_values
     #     else:
-    P_vc = D1 + K1_vc * (V_vc - Vu_vc) + P_thor
+    P_vc = D1 + K1_vc * (VT_vc - Vu_vc) + P_thor
 
     # P_vc = V_vc / 10.5 + P_thor
 
