@@ -484,7 +484,7 @@ Parameters = {
     "shift_param4": 0.3,
     "Pa_O2_lower": 80,
     "rise_time_atr": 0.05,
-    "fall_time_atr": 0.2,
+    "fall_time_atr": 0.4,
     "rise_time_ven": 0.15,
     "fall_time_ven": 0.3,
     "ahead1": 0.9,

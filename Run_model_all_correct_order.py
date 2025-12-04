@@ -145,7 +145,7 @@ IC_cardio_contr = np.array([Initial_Conditions[key] for key in required_cardio_c
 num_cardio_control = len(required_cardio_control_keys)
 
 # resp control ventilation
-required_resp_control_keys = ["VE_integral"]
+required_resp_control_keys = ["VE_integral", "x_l", "v_l", "x_r", "v_r"]
 IC_resp_contr = np.array([Initial_Conditions[key] for key in required_resp_control_keys], dtype=float)
 num_resp_control = len(required_resp_control_keys)
 
@@ -640,13 +640,23 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    plt.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["AA"][index - 10000:index],
-             label="Heart Volume")
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["AA"][index - 10000:index], label="x_l", color="k")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+    # # plt.show()
+    ax2 = ax1.twinx()
+    # ax2.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["phi"][index - 10000:index],
+    #          label="phi")
+    ax2.plot(Next_Conditions["time_history"][index - 10000:index], (Next_Conditions["VT_la"][index - 10000:index] + Next_Conditions["VT_rv"][index - 10000:index] + Next_Conditions["VT_ra"][index - 10000:index] + Next_Conditions["VT_lv"][index - 10000:index]),
+             label="total blood volume")
+    # ax2.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["Qi_lv"][index - 10000:index],
+    #          label="total blood volume")
     # plt.plot(Next_Conditions["VT_la"][index - 5000:index], Next_Conditions["P_la"][index - 5000:index],
     #          label="LA")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Volume (mL)")
-    plt.legend()
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.legend(loc="upper right")
     plt.show()
 
     fig, ax1 = plt.subplots()
