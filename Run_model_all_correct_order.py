@@ -703,7 +703,7 @@ if __name__ == "__main__":
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="darkorange")
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_rv"][:index], label="Pmax_rv",
              color="dimgrey")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ra"][:index], label="P_ra", color="g")
+    ax2.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["Q_la"][index - 10000:index], label="Q_la", color="g")
 
     ax2.set_ylabel("Flow (mL/s)")
     # plt.title("Pressure-Volume Traces")
