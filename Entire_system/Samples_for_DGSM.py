@@ -24,7 +24,7 @@ from All_Next_Conditions import Next_Conditions
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 20000
 
-max_time = 150 # Maximum time limit to avoid infinite loops
+max_time = 100 # Maximum time limit to avoid infinite loops
 
 # First iteration
 # get the first derivative and outputs from all the separated systems

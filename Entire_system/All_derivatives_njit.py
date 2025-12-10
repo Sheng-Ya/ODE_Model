@@ -258,6 +258,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # p_im is 0 in resting conditions
     # P_im = 0
 
+    # p_im is 0 in resting conditions
+    P_im = 0
+
     VT_change = VT - VT_n  # units of L
     T_resp = t1 + t2
     TE = t2
@@ -340,24 +343,27 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # changing from 25 to 10 will move up the PV curve for phi_atr
     # V_shift1 =   30 - (2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
-    V_shift1 = shift_param1 / (shift_param2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + (
-                phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
-
-    # V_shift1 = - 20 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra)))
-    V_shift2 = shift_param3 / (shift_param4 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + (
-                phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
+    # V_shift1 = shift_param1 / (shift_param2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + (
+    #             phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
+    #
+    # # V_shift1 = - 20 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra)))
+    # V_shift2 = shift_param3 / (shift_param4 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + (
+    #             phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
     # V_shift1 = 0
     # V_shift2 = 0
 
-    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * VT_lv) - 1) + P_thor
-    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra - V_shift1) + (1 - phi_atr) * P0_ra * (
-                np.exp(KE_ra * (VT_ra - V_shift1)) - 1) + P_thor
-    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * VT_rv) - 1) + P_thor
-    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la - V_shift2) + (1 - phi_atr) * P0_la * (
-                np.exp(KE_la * (VT_la - V_shift2)) - 1) + P_thor
+    g = 1.0
+    V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
+    P_peri = np.exp((V_heart_peri - 260) / 40)
+
+    P_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + g * P_peri
+    P_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + 1/g * P_peri
+    P_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + g * P_peri
+    P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + 1/g * P_peri
+
 
     # aortic valve
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_lv - P_sa) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_lv - P_sa) / delta_P))
     if abs(valve_signal) < 1e-8:
         theta_ao = theta_min
 
@@ -370,16 +376,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     AR_ao = valve_signal * ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
 
     # Flow with smooth transition
-    Q_lv = valve_signal * (np.sqrt(np.maximum(Pmax_lv - P_sa, 0)) * AR_ao * R_ao)
+    Q_lv = valve_signal * (np.sqrt(np.maximum(P_lv - P_sa, 0)) * AR_ao * R_ao)
 
     # Dynamics with smooth transition
-    d2theta_ao_dt2 = valve_signal * ((Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt +
+    d2theta_ao_dt2 = valve_signal * ((P_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt +
                                      Kb_ao * Q_lv * np.cos(theta_ao) - Kv_ao * Q_lv * np.sin(2 * theta_ao))
 
-    P_lv = Pmax_lv
     ####################################
 
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_la - P_lv) / delta_P))
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
         theta_mi = theta_min  # minimum angle (closed)
@@ -393,16 +398,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     AR_mi = valve_signal * ((1 - np.cos(theta_mi)) ** 2) / ((1 - np.cos(theta_mi_max)) ** 2)
 
     # Flow with smooth transition
-    Qi_lv = valve_signal * (np.sqrt(np.maximum(Pmax_la - P_lv, 0)) * AR_mi * R_mi)
+    Qi_lv = valve_signal * (np.sqrt(np.maximum(P_la - P_lv, 0)) * AR_mi * R_mi)
 
     # Dynamics with smooth transition
-    d2theta_mi_dt2 = valve_signal * ((Pmax_la - P_lv) * Kp_mi * np.cos(theta_mi) - Kf_mi * dtheta_mi_dt +
+    d2theta_mi_dt2 = valve_signal * ((P_la - P_lv) * Kp_mi * np.cos(theta_mi) - Kf_mi * dtheta_mi_dt +
                                      Kb_mi * Qi_lv * np.cos(theta_mi) - Kv_mi * Qi_lv * np.sin(2 * theta_mi))
 
-    P_la = Pmax_la
-
     ####################################
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_rv - P_pa) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_rv - P_pa) / delta_P))
 
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
@@ -421,15 +424,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     AR_po = valve_signal * ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
 
     # Flow with smooth transition
-    Q_rv = valve_signal * (np.sqrt(np.maximum(Pmax_rv - P_pa, 0)) * AR_po * R_po)
+    Q_rv = valve_signal * (np.sqrt(np.maximum(P_rv - P_pa, 0)) * AR_po * R_po)
 
     # Dynamics with smooth transition
-    d2theta_po_dt2 = valve_signal * ((Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt +
+    d2theta_po_dt2 = valve_signal * ((P_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt +
                                      Kb_po * Q_rv * np.cos(theta_po) - Kv_po * Q_rv * np.sin(2 * theta_po))
 
-    P_rv = Pmax_rv
     ####################################
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_ra - P_rv) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_ra - P_rv) / delta_P))
 
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
@@ -448,14 +450,12 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     AR_tr = valve_signal * ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
 
     # Flow with smooth transition
-    Qi_rv = valve_signal * (np.sqrt(np.maximum(Pmax_ra - P_rv, 0)) * AR_tr * R_tr)
+    Qi_rv = valve_signal * (np.sqrt(np.maximum(P_ra - P_rv, 0)) * AR_tr * R_tr)
 
     # Dynamics with smooth transition
-    d2theta_tr_dt2 = valve_signal * ((Pmax_ra - P_rv) * Kp_tr * np.cos(theta_tr) -
-                                     Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(theta_tr) - Kv_tr * Qi_rv * np.sin(
-                2 * theta_tr))
+    d2theta_tr_dt2 = valve_signal * ((P_ra - P_rv) * Kp_tr * np.cos(theta_tr) - Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv *
+                                     np.cos(theta_tr) - Kv_tr * Qi_rv * np.sin(2 * theta_tr))
 
-    P_ra = Pmax_ra
     ####################################
 
     Q_la = (P_pv - P_la) / R_pv

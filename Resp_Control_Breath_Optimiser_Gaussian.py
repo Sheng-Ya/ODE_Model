@@ -1,6 +1,6 @@
 import math
 import numpy as np
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 from scipy.integrate import simpson
 from numba import njit
 
@@ -120,6 +120,8 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     Optimized Objective function
     """
     t1, t2 = initial_guess
+    # n_steps = int(np.round((t1 + t2) / dt)) + 1
+    # times = np.linspace(0, t1 + t2, n_steps)
 
     T_cycle = t1 + t2
     # Use the *same* base_times for every evaluation
@@ -136,7 +138,10 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     inspire_index = int(np.round(t1 / dt))
     dV2_dt2_values_squared = ((1 / R_rs) * ((dP_musc_dt - P_ao) -
-                                                      E_rs * dV_dt_values)) ** 2
+                                            E_rs * dV_dt_values)) ** 2
+
+    # E1_n = (1 - (P_musc / Pmax)) ** n
+    # E2_n = (1 - (np.abs(dP_musc_dt) / Pmax_dot)) ** n
 
     E1_n = (1 - np.clip((P_musc / Pmax), 0, 0.999999)) ** n
     E2_n = (1 - np.clip((np.abs(dP_musc_dt) / Pmax_dot), 0, 0.999999)) ** n
@@ -150,6 +155,10 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     integral_inspire = simpson(integrand_inspire)
     integral_expire = simpson(integrand_expire)
+
+    plt.plot(volume_signal)
+    # plt.plot(dV_dt_values)
+    plt.show()  # compare euler to analytical solution
 
     WI = (1 / (t1 + t2)) * integral_inspire
     WE = (1 / (t1 + t2)) * integral_expire

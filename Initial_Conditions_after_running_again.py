@@ -85,6 +85,8 @@ Initial_Conditions = {
   'v_l': 0,
   'x_r': 0,
   'v_r': 0,
+  'Q_la': 339.44555705239895,
+  'Q_ra': 156.99194672360375,
 }
 
 # Initial_Conditions = {

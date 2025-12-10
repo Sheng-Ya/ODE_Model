@@ -145,7 +145,7 @@ IC_cardio_contr = np.array([Initial_Conditions[key] for key in required_cardio_c
 num_cardio_control = len(required_cardio_control_keys)
 
 # resp control ventilation
-required_resp_control_keys = ["VE_integral", "x_l", "v_l", "x_r", "v_r"]
+required_resp_control_keys = ["VE_integral"]
 IC_resp_contr = np.array([Initial_Conditions[key] for key in required_resp_control_keys], dtype=float)
 num_resp_control = len(required_resp_control_keys)
 
@@ -587,22 +587,40 @@ if __name__ == "__main__":
 
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
 
-    # RA
-    plt.plot(Next_Conditions["all_time"], Next_Conditions["dVT_ra_dt_store"],
-             label="dVT_la_dt_store")
-    # plt.plot(Next_Conditions["VT_la"][index - 5000:index], Next_Conditions["P_la"][index - 5000:index],
-    #          label="LA")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Volume (mL)")
-    plt.legend()
+    fig, ax1 = plt.subplots()
+    print(len(Next_Conditions["time_history"][:index]))
+
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["time_since_beat"][:index], label="time_since_beat", color="g")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ra"][:index], label="P_ra", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_vc"][:index], label="P_vc", color="k")
+
+
+    ax1.set_xlabel("Time (s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
+    ax2 = ax1.twinx()
+    #
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="P_peri", color="r")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="phi_atr", color="k")
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="phi", color="c")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR averaged", color="r")
+    # # ax2.set_ylabel("Flow (mL/s)", color="k")
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    # #
     plt.show()
 
     fig, ax1 = plt.subplots()
     print(len(Next_Conditions["time_history"][:index]))
 
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["time_since_beat"][:index], label="time_since_beat", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="phi", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="phi_atr", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="b")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="k")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="P_sv", color="m")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_ev"][:index], label="P_ev", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_vc"][:index], label="P_vc", color="g")
 
     ax1.set_xlabel("Time (s)")
     ax1.tick_params(axis='y', labelcolor="k")

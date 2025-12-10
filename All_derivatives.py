@@ -1,7 +1,7 @@
 import numpy as np
 import math
 from Test_controller import source
-from Activation_Functions import activation_H, activation_F
+from Activation_Functions import activation_H
 from Resp_Control_Breath_Optimiser import calculate_single_V_dV_dt
 from numba import njit
 
@@ -89,9 +89,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV,
 
         # Resp control state variable
-        VE_integral,
-
-        x_l, v_l, x_r, v_r
+        VE_integral
     ) = state
 
     # ============================================================================
@@ -348,10 +346,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_shift2 = 0
     g = 0
     P_peri = 0
-    g = 1.1
+    g = 1.2
+    l = 3
     V_peri = 20
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv + V_peri
-    P_peri = np.exp((V_heart_peri - 280) / 20)
+    P_peri = np.exp((V_heart_peri - 280) / 80)
 
     # AV Piston Parameters from Maksuti et al. (2015)
     Iavp = 0.1
@@ -361,8 +360,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     A1_r = 20
     A2_r = 20
 
-
-    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/g * P_peri
+    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
     # Pmax_lv = phi * Emax_lv * (VT_lv - (Vu_lv - x_l * A2_l)) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - (Vu_lv - x_l * A2_l))) - 1) + P_thor + 1/g * P_peri
 
 
@@ -556,7 +554,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     d2theta_mi_dt2 = 0.0
     #     P_la = Pmax_la
 
-    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + g * P_peri
+    # Pmax_la with reduced pericardial coupling to prevent kink at minimum volume
+    # Use 0.5 * P_peri instead of g * P_peri for atria to avoid excessive coupling
+    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + l * P_peri
     # Pmax_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
@@ -624,25 +624,27 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     P_rv = Pmax_rv
 
+    # Pmax_ra with reduced pericardial coupling to prevent kink at minimum volume
+    # Use 0.5 * P_peri instead of 1 * P_peri for atria to avoid excessive coupling
     Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + g * P_peri
     # Pmax_ra = phi_atr * Emax_ra * (VT_ra - (Vu_ra + x_r * A1_r)) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - (Vu_ra + x_r * A1_r))) - 1) + P_thor + g * P_peri
 
     # Piston dynamics
 
-    force_v_l = activation_F(t - time_since_beat, 0, T) * 2000
-    force_a_l = activation_F(t - time_since_beat, 1, T) * 1000
-    force_v_r = activation_F(t - time_since_beat, 0, T) * 2000
-    force_a_r = activation_F(t - time_since_beat, 1, T) * 1000
+    # force_v_l = activation_F(t - time_since_beat, 0, T) * 2000
+    # force_a_l = activation_F(t - time_since_beat, 1, T) * 1000
+    # force_v_r = activation_F(t - time_since_beat, 0, T) * 2000
+    # force_a_r = activation_F(t - time_since_beat, 1, T) * 1000
 
-    F_hydraulic_l = (P_lv * A2_l) - (P_la * A1_l)
-    F_contraction_l = force_v_l + force_a_l
-    dv_l_dt = (F_contraction_l + F_hydraulic_l - Ravp * v_l - 2000 * (x_l - 0)) / Iavp
-    dx_l_dt = v_l
-
-    F_hydraulic_r = (P_rv * A2_r) - (Pmax_ra * A1_r)
-    F_contraction_r = force_v_r + force_a_r
-    dv_r_dt = (F_contraction_r + F_hydraulic_r - Ravp * v_r - 2000 * (x_r - 0)) / Iavp
-    dx_r_dt = v_r
+    # F_hydraulic_l = (P_lv * A2_l) - (P_la * A1_l)
+    # F_contraction_l = force_v_l + force_a_l
+    # dv_l_dt = (F_contraction_l + F_hydraulic_l - Ravp * v_l - 2000 * (x_l - 0)) / Iavp
+    # dx_l_dt = v_l
+    #
+    # F_hydraulic_r = (P_rv * A2_r) - (Pmax_ra * A1_r)
+    # F_contraction_r = force_v_r + force_a_r
+    # dv_r_dt = (F_contraction_r + F_hydraulic_r - Ravp * v_r - 2000 * (x_r - 0)) / Iavp
+    # dx_r_dt = v_r
     ####################################
 
     # if Pmax_ra > P_rv:
@@ -761,9 +763,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # dVT_ra_dt = Q_ra - Qi_rv_from_ra
     dVT_rv_dt = Qi_rv - Q_rv
 
-
-    AA = x_l
-
     # Dynamics with smooth transition
     d2theta_tr_dt2 = valve_signal * ((Pmax_ra - P_rv) * Kp_tr * np.cos(theta_tr) -
                                      Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(
@@ -789,6 +788,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         # Vu_sv = VT_sv
 
     Q_sp = (P_sp - P_sv) / R_sp
+
+    AA = P_peri
 
     # P_s = P_abd
 
@@ -919,11 +920,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         R_amv = R_amv_n * ((P_amv - P_vc) / (P_amv - P_am))
     else:
         R_amv = R_amv_n
-
-    if P_amv >= P_vc:
-        Q_amv = (P_amv - P_vc) / R_amv
-    else:
-        Q_amv = 0
 
     Q_amv = (P_amv - P_vc) / R_amv
 
@@ -1174,7 +1170,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # exp_arg = np.clip((P_tilda - P_n) / k_ab, -40, 40)  # Prevent overflow
     P_n_resultant = P_n + I * (P_n_max - P_n)
     dP_n_current_dt = (-P_n_current + P_n_resultant)  / tau_p
-    
+
     exp_arg = (P_tilda - P_n_current) / k_ab
     f_ab = (f_ab_min + f_ab_max * np.exp(exp_arg)) / (1 + np.exp(exp_arg))
     dP_tilda_dt = (P_sa + tau_z * dP_sa_dt - P_tilda) / tau_p
@@ -1352,8 +1348,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             # resp control derivatives
             d_VE_integral_dt,
 
-            dx_l_dt, dv_l_dt, dx_r_dt, dv_r_dt,
-
             # just for plotting purposes
             Q_sp, Q_ep, Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv, Pmax_la,
             Pmax_ra, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa,
@@ -1390,9 +1384,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      dPa_O2_dt, dPa_CO2_dt, PA_O2, PA_CO2, PCSFCO2, MRTO2, MRTCO2, CTO2, CvtCO2, CBO2, CvbCO2, MRV,
 
      # Resp control state variable
-     VE_integral,
-
-     x_l, v_l, x_r, v_r
+     VE_integral
     ) = state
 
     Input_Parameters = np.array(Input_Parameters)
@@ -1439,8 +1431,6 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
      # resp control derivatives
      d_VE_integral_dt,
-
-     dx_l_dt, dv_l_dt, dx_r_dt, dv_r_dt,
 
      # just for plotting purposes
      Q_sp, Q_ep, Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_ra, P_la, P_lv, P_rv, Pmax_lv, Pmax_rv, Pmax_la, Pmax_ra,
@@ -1626,6 +1616,4 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
             # resp control derivatives
             d_VE_integral_dt,
-
-            dx_l_dt, dv_l_dt, dx_r_dt, dv_r_dt,
     ]
