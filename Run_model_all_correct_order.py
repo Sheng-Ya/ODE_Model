@@ -701,7 +701,7 @@ if __name__ == "__main__":
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la", color="m")
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_lv"][:index], label="Pmax_lv", color="y")
     # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sa"][:index], label="P_sa", color="darkorange")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_rv"][:index], label="Pmax_rv",
+    ax2.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["Q_ra"][index - 10000:index], label="Q_ra",
              color="dimgrey")
     ax2.plot(Next_Conditions["time_history"][index - 10000:index], Next_Conditions["Q_la"][index - 10000:index], label="Q_la", color="g")
 
