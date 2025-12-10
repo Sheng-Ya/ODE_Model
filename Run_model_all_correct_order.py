@@ -680,14 +680,14 @@ if __name__ == "__main__":
     fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi_atr"][:index], label="Activation Atrium Function", color="k")
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["phi"][:index], label="Activation Ventricle Function", color="m")
-    ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_tr"][:index],
-             label="Tricuspid valve flow", color="r")  #
-    ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_mi"][:index],
-             label="Mitral valve flow", color="b")  #
-    # ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_ao"][:index],
-    #          label="Aortic valve flow", color="b")  #
-    # ax1.plot(Next_Conditions["time_history"][:index], 57.2958 * Next_Conditions["theta_po"][:index],
-    #          label="Pulmonary valve flow", color="c")  #
+    ax1.plot(Next_Conditions["time_history"][index - 10000:index], 57.2958 * Next_Conditions["theta_tr"][index - 10000:index],
+             label="Tricuspid valve angle", color="r")  #
+    ax1.plot(Next_Conditions["time_history"][index - 10000:index], 57.2958 * Next_Conditions["theta_mi"][index - 10000:index],
+             label="Mitral valve angle", color="b")  #
+    ax1.plot(Next_Conditions["time_history"][index - 10000:index], 57.2958 * Next_Conditions["theta_ao"][index - 10000:index],
+             label="Aortic valve angle", color="k")  #
+    ax1.plot(Next_Conditions["time_history"][index - 10000:index], 57.2958 * Next_Conditions["theta_po"][index - 10000:index],
+             label="Pulmonary valve angle", color="c")  #
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Valve_angle")
