@@ -493,6 +493,17 @@ def simulate():
     Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
     Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
 
+    Total_Volume = V_ra + V_rv + V_lv + V_la
+    peaks, _ = find_peaks(Total_Volume, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-Total_Volume, distance=int(1000), prominence=1)
+
+    last_10_troughs_Total_Volume = troughs[-10:-1]
+    last_10_min_Total_Volume = Total_Volume[last_10_troughs_Total_Volume]
+    last_10_peaks_Total_Volume = peaks[-10:-1]
+    last_10_max_Total_Volume = Total_Volume[last_10_peaks_Total_Volume]
+    Pericardial_Volume_difference = np.mean(last_10_max_Total_Volume - last_10_min_Total_Volume)
+    Vol_percentage_change = Pericardial_Volume_difference / np.mean(last_10_max_Total_Volume)
+
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
     print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(last_10_max_V_rv), np.mean(last_10_min_V_rv),
@@ -501,7 +512,7 @@ def simulate():
             np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
             np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
             np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal,
-            Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2)
+            Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change)
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),

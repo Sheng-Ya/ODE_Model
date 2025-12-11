@@ -266,7 +266,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10]):
         # Integration failed or early termination
-        return [0.0]*26, None, None, None
+        return [0.0]*27, None, None, None
 
     Input_Parameters = [g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -310,7 +310,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if ODE_solution.status == -1:
         # Integration failed or early termination
-        return [0.0]*26, None, None, None
+        return [0.0]*27, None, None, None
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
@@ -454,8 +454,19 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     Pa_O2 = np.mean(local_updates["Pa_O2_every_store"])
     Pa_CO2 = np.mean(local_updates["Pa_CO2_every_store"])
 
+    Total_Volume = V_ra + V_rv + V_lv + V_la
+    peaks, _ = find_peaks(Total_Volume, distance=int(1000), prominence=1)
+    troughs, _ = find_peaks(-Total_Volume, distance=int(1000), prominence=1)
 
-    print(max_tidal, Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2)
+    last_10_troughs_Total_Volume = troughs[-10:-1]
+    last_10_min_Total_Volume = Total_Volume[last_10_troughs_Total_Volume]
+    last_10_peaks_Total_Volume = peaks[-10:-1]
+    last_10_max_Total_Volume = Total_Volume[last_10_peaks_Total_Volume]
+    Pericardial_Volume_difference = np.mean(last_10_max_Total_Volume - last_10_min_Total_Volume)
+    Vol_percentage_change = Pericardial_Volume_difference / np.mean(last_10_max_Total_Volume)
+
+
+    print(max_tidal, Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change)
 
     IC_current = ODE_solution.y[:, -1]
 
@@ -466,7 +477,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
           np.mean(last_10_min_V_la), np.mean(last_10_max_V_la), np.mean(last_10_min_P_la), np.mean(last_10_max_P_la),
           np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
           np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal, Minute_Ventilation,
-             cardiac_output, Pa_O2, Pa_CO2],
+             cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change],
             IC_current, local_updates,
             [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10])
 
@@ -484,7 +495,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=400, IC_initial=N
     except Exception:
         signal.alarm(0)  # Cancel timeout
         print("too slow")
-        return ([0.0]*26, None, None, None)
+        return ([0.0]*27, None, None, None)
 
 def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay2.npy'):
     results_all = []
@@ -507,7 +518,7 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
         if base_result[0] == 0:  # Adjust this condition to your failure criteria
             print(f"Skipping block {i + 1} due to base failure.")
-            results_all.extend(np.zeros((block_size, 26)))
+            results_all.extend(np.zeros((block_size, 27)))
             np.save(save_path, np.array(results_all))
             continue
 
