@@ -49,7 +49,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 80 # Maximum time limit to avoid infinite loops
+max_time = 149.249 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 # 206.01888511283522
 
@@ -161,7 +161,7 @@ IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
 
 def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
-    dt = 0.001
+    dt = 0.001 # must edit in Resp_Control_Breath_Optimiser too
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
     tolerance = 0.0001
 
@@ -196,16 +196,30 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     t2_clean = np.array(optimal_t2)
 
     # Fit a polynomial (or linear)
-    t1_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t1_clean)], t1_clean[~np.isnan(t1_clean)], deg=6))
-    t2_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t2_clean)], t2_clean[~np.isnan(t2_clean)], deg=6))
+    t1_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t1_clean)], t1_clean[~np.isnan(t1_clean)], deg=10))
+    t2_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t2_clean)], t2_clean[~np.isnan(t2_clean)], deg=10))
 
-    c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
-    d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
+    c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6], t1_poly.c[7], t1_poly.c[8], t1_poly.c[9], t1_poly.c[10]
+    d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6], t2_poly.c[7], t2_poly.c[8], t2_poly.c[9], t2_poly.c[10]
 
-    print("Best fit equation for t1:", c0, c1, c2, c3, c4, c5, c6)
-    print("Best fit equation for t2:", d0, d1, d2, d3, d4, d5, d6)
+    print("Best fit equation for t1:", c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)
+    print("Best fit equation for t2:", d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10)
 
-    return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
+    # VAflow_fit = np.linspace(min(VAflow_clean[~np.isnan(t1_clean)]), max(VAflow_clean[~np.isnan(t2_clean)]), 200)
+
+    # plt.figure(figsize=(14, 6))
+    # plt.plot(VAflow_clean[~np.isnan(t1_clean)], t1_clean[~np.isnan(t1_clean)], 'bo', markersize=3, label='Optimal Inspiration Time')
+    # plt.plot(VAflow_fit, t1_poly(VAflow_fit), 'b-', linewidth=2, label='Inspiration Time Fit')
+    # plt.plot(VAflow_clean[~np.isnan(t2_clean)], t2_clean[~np.isnan(t2_clean)], 'ro', markersize=3, label='Optimal Expiration Time')
+    # plt.plot(VAflow_fit, t2_poly(VAflow_fit), 'r-', linewidth=2, label='Expiration Time Fit')
+    # plt.xlabel("Minute Ventilation (L/s)")
+    # plt.ylabel("Optimised Breathing Time (s)")
+    # # plt.title("Average t1 and t2 vs VAflow with Best-Fit Curves")
+    # plt.legend()
+    # # plt.grid(True)
+    # plt.show()
+
+    return c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10
 
 
 
@@ -290,9 +304,9 @@ def simulate():
      "fall_time_ven", "ahead1", "theta_min", "delta_P"])
 
     # determine the correct breathing profile
-    c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (48.92693725193208, -179.74646224211781, 264.27143316201295, -198.28758319871972, 80.40967379469735, -17.564780238421623, 2.5264258177929397, 55.00594575959806, -207.90124250008992, 316.0780969325858, -247.41199356123695, 106.2717194407992, -25.181430356782283, 3.730524696373403)
-    # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (minimise_breathing(Next_Conditions["t1_store"][0],
-    # Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao))
+    # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (48.92693725193208, -179.74646224211781, 264.27143316201295, -198.28758319871972, 80.40967379469735, -17.564780238421623, 2.5264258177929397, 55.00594575959806, -207.90124250008992, 316.0780969325858, -247.41199356123695, 106.2717194407992, -25.181430356782283, 3.730524696373403)
+    c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10 = (minimise_breathing(Next_Conditions["t1_store"][0],
+    Next_Conditions["t2_store"][0], GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao))
 
     Input_Parameters = [g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -307,7 +321,7 @@ def simulate():
     grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
     phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
     MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
-    n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6,
+    n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10,
     # added params
     Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
     Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,

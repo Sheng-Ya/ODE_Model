@@ -94,7 +94,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     # PARAMETER EXTRACTION
     # ============================================================================
-    (g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
+    (g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
      L_sa, R_sa, D1, K1_vc, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
      C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
@@ -107,19 +107,21 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
      phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
      MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
-     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6,
+     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7,
+     d8, d9, d10,
      # added params
      Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
      Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
      R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
      Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vvc_max, Vu_pa, Vu_pp,
-     Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
+     Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv,
+     tau_Vev,
      tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
      tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
      Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P
+     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale
     ) = Input_Parameters
 
     # Determine the correct index based on t
@@ -165,9 +167,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
         time_since_last_breath = t - finish_breath_time
 
-        t1 = c0 * VAflow ** 6 + c1 * VAflow ** 5 + c2 * VAflow ** 4 + c3 * VAflow ** 3 + c4 * VAflow ** 2 + c5 * VAflow + c6
-        t2 = d0 * VAflow ** 6 + d1 * VAflow ** 5 + d2 * VAflow ** 4 + d3 * VAflow ** 3 + d4 * VAflow ** 2 + d5 * VAflow + d6
-
+        t1 = c0 * VAflow ** 10 + c1 * VAflow ** 9 + c2 * VAflow ** 8 + c3 * VAflow ** 7 + c4 * VAflow ** 6 + c5 * VAflow ** 5 + c6 * VAflow ** 4 + c7 * VAflow ** 3 + c8 * VAflow ** 2 + c9 * VAflow + c10
+        t2 = d0 * VAflow ** 10 + d1 * VAflow ** 9 + d2 * VAflow ** 8 + d3 * VAflow ** 7 + d4 * VAflow ** 6 + d5 * VAflow ** 5 + d6 * VAflow ** 4 + d7 * VAflow ** 3 + d8 * VAflow ** 2 + d9 * VAflow + d10
     # ============================================================================
     # RESPIRATORY MECHANICS
     # ============================================================================
@@ -348,10 +349,12 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_shift1 = 0
     # V_shift2 = 0
 
-    l = 1.0
-    r = 1.0
+    r = 1.2
+    l = 3
+    V_nominal = 280
+    V_scale = 40
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
-    P_peri = np.exp((V_heart_peri - 260) / 40)
+    P_peri = np.exp((V_heart_peri - V_nominal) / V_scale)
 
     P_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
     P_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + r * P_peri

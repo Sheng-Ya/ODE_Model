@@ -443,7 +443,7 @@ Parameters = {
     "Kb_mi": 2,
     "Kv_mi": 7,
     "theta_mi_max": 1.309,
-    "Kp_po": 3000,
+    "Kp_po": 2000,
     "Kf_po": 2000,
     "Kb_po": 5,
     "Kv_po": 10,

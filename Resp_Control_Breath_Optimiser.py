@@ -8,7 +8,7 @@ from numba import njit
 t1_upper_bound = 2.5
 t2_upper_bound = 3.8
 T_max = t1_upper_bound + t2_upper_bound
-n_steps = int(np.round(T_max / 0.0001)) + 1
+n_steps = int(np.round(T_max / 0.001)) + 1
 base_times = np.linspace(0, T_max, n_steps)
 
 
@@ -29,20 +29,12 @@ def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
 
 
 @njit
-def gaussian_integral(t1, z, B, tau):
-    # Compute constants
-    mu = t1 + 0.5 * B * tau
-
-    # constant exponent term K
-    term1 = - (t1 * t1) / tau
-    term2 = (mu ** 2) / tau
-    K = term1 + term2
-
+def gaussian_integral(mu, z, pref, tau):
     # erf argument
-    arg = (z - mu) / math.sqrt(tau)
+    arg = (z - mu) / np.sqrt(tau)
 
     # full integral
-    return math.exp(K) * 0.5 * math.sqrt(math.pi * tau) * math.erf(arg)
+    return pref * math.erf(arg)
 
 
 @njit
@@ -54,14 +46,13 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     t1, t2 = initial_guess
     a1, a2, Pt1, Vt1, tau, B = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
 
-    V = np.zeros(len(times))
+    V = np.empty(len(times))
 
     # Breathing cycle patterns
-    mask_0_t1 = times <= t1
-    mask_t1_t2 = ~mask_0_t1
+    split_idx = np.searchsorted(times, t1, side="right")
 
-    x = times[mask_0_t1]
-    z = times[mask_t1_t2]
+    x = times[:split_idx]
+    z = times[split_idx:]
 
     # Compute constants for solution
     c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (
@@ -70,18 +61,32 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
     d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
 
     # Calculate for 0 <= times <= t1
-    V[mask_0_t1] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
+    V[:split_idx] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
                     (a2 / E_rs) * (x ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * x +
                     (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
                     c1 * np.exp(-B * x) + d1)
 
-    I0 = gaussian_integral(t1, t1, B, tau)
+    # Compute constants
+    mu = t1 + 0.5 * B * tau
 
-    I_z = np.array([gaussian_integral(t1, zi, B, tau) for zi in z])
+    # constant exponent term K
+    term1 = - (t1 * t1) / tau
+    term2 = (mu ** 2) / tau
+    K = term1 + term2
+    pref = np.exp(K) * 0.5 * np.sqrt(np.pi * tau)
+
+    I0 = gaussian_integral(mu, t1, pref, tau)
+
+    I_z = np.empty(len(z))
+    for i in range(len(z)):
+        I_z[i] = gaussian_integral(mu, z[i], pref, tau)
+
     integral = I_z - I0
-    constant = (Vt1 / math.exp(-B * t1)) # - (Pt1 / R_rs) * I0
+    constant = (Vt1 / np.exp(-B * t1)) # - (Pt1 / R_rs) * I0
 
-    V[mask_t1_t2] = (Pt1 / R_rs) * np.exp(-B * z) * integral + constant * np.exp(-B * z)
+    expBz = np.exp(-B * z)
+
+    V[split_idx:] = (Pt1 / R_rs) * expBz * integral + constant * expBz
 
     return V
 
@@ -94,22 +99,24 @@ def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, 
     t1, t2 = initial_guess
     a1, a2, Pt1, _, tau, _ = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
 
-    P_musc = np.zeros(len(times))
-    dP_musc_dt = np.zeros(len(times))
+    P_musc = np.empty(len(times))
+    dP_musc_dt = np.empty(len(times))
 
     # Breathing cycle patterns
-    mask_0_t1 = times <= t1
-    mask_t1_t2 = ~mask_0_t1
+    split_idx = np.searchsorted(times, t1, side="right")
+
+    x = times[:split_idx]
+    z = times[split_idx:]
 
     # Calculate P_musc for 0 <= times <= t1
-    P_musc[mask_0_t1] = a1 * times[mask_0_t1] + a2 * (times[mask_0_t1] ** 2)
-    dP_musc_dt[mask_0_t1] = a1 + 2 * a2 * times[mask_0_t1]
+    P_musc[:split_idx] = a1 * x + a2 * (x ** 2)
+    dP_musc_dt[:split_idx] = a1 + 2 * a2 * x
 
     # Calculate P_musc for t1 <= times <= t1 + t2
-    P_musc[mask_t1_t2] = Pt1 * np.exp((-(times[mask_t1_t2] - t1) ** 2) / tau)
+    P_musc[split_idx:] = Pt1 * np.exp((-(z - t1) ** 2) / tau)
     # P_musc = np.minimum(P_musc, Pmax)
 
-    dP_musc_dt[mask_t1_t2] = P_musc[mask_t1_t2] * (- 2 * (times[mask_t1_t2] - t1) / tau)
+    dP_musc_dt[split_idx:] = P_musc[split_idx:] * (- 2 * (z - t1) / tau)
 
     return P_musc, dP_musc_dt
 
@@ -121,12 +128,12 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     """
     t1, t2 = initial_guess
 
+    # In objective()
     T_cycle = t1 + t2
-    # Use the *same* base_times for every evaluation
-    times = base_times
-    # We'll only care about t in [0, T_cycle]
-    mask_cycle = times <= T_cycle
-    times = times[mask_cycle]
+
+    # Use base_times up to T_cycle without boolean masks
+    cycle_idx = np.searchsorted(base_times, T_cycle, side="right")
+    times = base_times[:cycle_idx]
 
     lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao = required_params
 
@@ -134,7 +141,16 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     volume_signal = calculate_V_dV_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
     dV_dt_values = (P_musc - P_ao - E_rs * volume_signal) / R_rs
 
-    inspire_index = int(np.round(t1 / dt))
+    # inspire_index = int(np.round(t1 / dt))
+    # Inspiratory index consistent with times
+    inspire_index = np.searchsorted(times, t1, side="right")
+
+    # Safety clamps (just in case)
+    if inspire_index < 1:
+        inspire_index = 1
+    elif inspire_index > len(times) - 1:
+        inspire_index = len(times) - 1
+
     dV2_dt2_values_squared = ((1 / R_rs) * ((dP_musc_dt - P_ao) -
                                                       E_rs * dV_dt_values)) ** 2
 
@@ -148,8 +164,10 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     integrand_expire = dV2_dt2_values_squared[inspire_index:]
 
-    integral_inspire = simpson(integrand_inspire)
-    integral_expire = simpson(integrand_expire)
+    dt_base = times[1] - times[0]  # uniform for your linspace
+
+    integral_inspire = simpson(integrand_inspire, dx=dt_base)
+    integral_expire = simpson(integrand_expire, dx=dt_base)
 
     WI = (1 / (t1 + t2)) * integral_inspire
     WE = (1 / (t1 + t2)) * integral_expire
@@ -186,7 +204,7 @@ def calculate_single_V_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_
         V = ((a1 / E_rs) * t - (a1 * R_rs / (E_rs ** 2)) +
              (a2 / E_rs) * (t ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t +
              (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
-             c1 * np.exp((-E_rs / R_rs) * t) + d1)
+             c1 * np.exp(-B * t) + d1)
         dV_dt = (1 / R_rs) * (a1 * t + a2 * (t ** 2) - E_rs * V)
     else:
         V = (Pt1 / (R_rs * (B - 1 / tau))) * np.exp((-1 / tau) * (t - t1)) + np.exp(-B * t) * c2
@@ -208,4 +226,4 @@ def calculate_single_V_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_
     # b = (B + 2 * t1 / tau)
     # c = (t1 ** 2) / tau
     #
-    # V[mask_t1_t2] = math.sqrt(math.pi/a) * math.exp((b ** 2) / (4 * a) - c)
+    # V[mask_t1_t2] = np.sqrt(np.pi/a) * np.exp((b ** 2) / (4 * a) - c)

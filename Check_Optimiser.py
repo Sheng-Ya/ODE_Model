@@ -54,7 +54,7 @@ from Resp_Control_Breath_Optimiser import objective
 # })
 
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-tolerance = 0.0001
+tolerance = 0.001
 
 # ------------------------------
 # FIXED VALUES
@@ -77,14 +77,14 @@ initial_guess = [1.5, 1.85]
 for R_rs in R_rs_values:
 
     required_params = [
-        params["lambda1"],
-        params["lambda2"],
-        params["n"],
-        params["Pmax"],
-        params["Pmax_dot"],
-        E_rs_const,   # <--- constant
-        R_rs,         # <--- only variable
-        params["P_ao"]
+        0.3,
+        0.489,
+        1.101,
+        100,
+        1000,
+        E_rs_const,  # <----- varies
+        R_rs,  # <----- varies
+        0.0,
     ]
 
     # val = objective(
@@ -92,7 +92,7 @@ for R_rs in R_rs_values:
     #     required_params=required_params,
     #     VAflow=VAflow,
     #     VD=VD,
-    #     dt=0.0001,
+    #     dt=0.001,
     #     tolerance=tolerance,
     # )
     #
@@ -102,7 +102,7 @@ for R_rs in R_rs_values:
         res = minimize(
             objective,
             x0=np.array(initial_guess[-2:]),
-            args=(required_params, VAflow, VD, 0.0001, tolerance),
+            args=(required_params, VAflow, VD, 0.001, tolerance),
             method='COBYLA',
             bounds=bounds
         )
@@ -150,7 +150,7 @@ plt.show()
 
 
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-tolerance = 0.0001
+tolerance = 0.001
 
 # ------------------------------
 # FIXED VALUES
@@ -173,21 +173,21 @@ initial_guess = [1.5, 1.85]
 for E_rs in E_rs_values:
 
     required_params = [
-        params["lambda1"],
-        params["lambda2"],
-        params["n"],
-        params["Pmax"],
-        params["Pmax_dot"],
-        E_rs,          # <--- only parameter that varies
-        R_rs_const,    # <--- fixed
-        params["P_ao"]
+        0.3,
+        0.489,
+        1.101,
+        100,
+        1000,
+        E_rs,  # <----- varies
+        R_rs_const,  # <----- varies
+        0.0,
     ]
 
     try:
         res = minimize(
             objective,
             x0=np.array(initial_guess[-2:]),
-            args=(required_params, VAflow, VD, 0.0001, tolerance),
+            args=(required_params, VAflow, VD, 0.001, tolerance),
             method='COBYLA',
             bounds=bounds
         )
@@ -233,7 +233,7 @@ plt.show()
 
 
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-tolerance = 0.0001
+tolerance = 0.001
 
 # ------------------------------
 # FIXED VAflow
@@ -266,21 +266,21 @@ for idx in range(len(E_flat)):
     R_rs = R_flat[idx]
 
     required_params = [
-        params["lambda1"],
-        params["lambda2"],
-        params["n"],
-        params["Pmax"],
-        params["Pmax_dot"],
+        0.3,
+        0.489,
+        1.101,
+        100,
+        1000,
         E_rs,     # <----- varies
         R_rs,     # <----- varies
-        params["P_ao"],
+        0.0,
     ]
 
     try:
         res = minimize(
             objective,
             x0=np.array(initial_guess[-2:]),
-            args=(required_params, VAflow, VD, 0.0001, tolerance),
+            args=(required_params, VAflow, VD, 0.001, tolerance),
             method='COBYLA',
             bounds=bounds
         )
@@ -394,7 +394,7 @@ plt.show()
 
 
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-tolerance = 0.0001
+tolerance = 0.001
 
 VAflow_vals = np.linspace(0.06, 1, 200)
 VAflow_repeated = np.repeat(VAflow_vals, 3)
@@ -408,9 +408,18 @@ initial_guess = [1.5, 1.85]
 
 for idx, VAflow in enumerate(VAflow_repeated):
     VD_volume = VD[idx]
-    required_params = [params["lambda1"], params["lambda2"], params["n"], params["Pmax"], params["Pmax_dot"], params["E_rs"], params["R_rs"], params["P_ao"]]
+    required_params = [
+        0.3,
+        0.489,
+        1.101,
+        100,
+        1000,
+        21.9,  # <----- varies
+        3.02,  # <----- varies
+        0.0,
+    ]
     try:
-        res = minimize(objective, x0=np.array(initial_guess[-2:]), args=(required_params, VAflow, VD_volume, 0.0001, tolerance), method='COBYLA', bounds=bounds)
+        res = minimize(objective, x0=np.array(initial_guess[-2:]), args=(required_params, VAflow, VD_volume, 0.001, tolerance), method='COBYLA', bounds=bounds)
         # res = minimize(objective, x0=Next_Conditions["Nd"][-2:], method='COBYLA', bounds=bounds)
         if res.success:
             t1_opt, t2_opt = res.x
@@ -463,9 +472,9 @@ plt.show()
 
 
 
-# dt = 0.0001
+# dt = 0.001
 # bounds = [(1, 3), (1.5, 6)]  # [t1, t2] bounds
-# tolerance = 0.0001
+# tolerance = 0.001
 # opt = BreathOptimiser(params, VAflow, VD, dt, tolerance)
 #
 # t1_vals = np.linspace(1, 3, 30)

@@ -125,50 +125,49 @@ num_resp_control = len(required_resp_control_keys)
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
 def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
-    try:
-        dt = 0.0001 # must edit in Resp_Control_Breath_Optimiser too
-        bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-        tolerance = 0.0001
+    dt = 0.001 # must edit in Resp_Control_Breath_Optimiser too
+    bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
+    tolerance = 0.0001
 
-        VAflow_vals = np.linspace(0.06, 1, 200)
-        VAflow_repeated = np.repeat(VAflow_vals, 3)
+    VAflow_vals = np.linspace(0.06, 1, 200)
+    VAflow_repeated = np.repeat(VAflow_vals, 3)
 
-        VD = GV_dead * VAflow_repeated + V0_dead
+    VD = GV_dead * VAflow_repeated + V0_dead
 
-        optimal_t1 = []
-        optimal_t2 = []
-        initial_guess = [t1, t2]
+    optimal_t1 = []
+    optimal_t2 = []
+    initial_guess = [t1, t2]
 
-        for idx, VAflow in enumerate(VAflow_repeated):
-            VD_volume = VD[idx]
-            required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
+    for idx, VAflow in enumerate(VAflow_repeated):
+        VD_volume = VD[idx]
+        required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
 
-            res = minimize(objective, x0= np.array(initial_guess[-2:]),
-                           args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
-            t1_opt, t2_opt = res.x
-            optimal_t1.append(t1_opt)
-            optimal_t2.append(t2_opt)
-            initial_guess.extend(res.x)
+        res = minimize(objective, x0= np.array(initial_guess[-2:]),
+                       args=(required_params, VAflow, VD_volume, dt, tolerance), method='COBYLA', bounds=bounds)
+        t1_opt, t2_opt = res.x
+        optimal_t1.append(t1_opt)
+        optimal_t2.append(t2_opt)
+        initial_guess.extend(res.x)
 
 
-        # Convert to arrays for indexing
-        VAflow_clean = np.array(VAflow_repeated)
-        t1_clean = np.array(optimal_t1)
-        t2_clean = np.array(optimal_t2)
+    # Convert to arrays for indexing
+    VAflow_clean = np.array(VAflow_repeated)
+    t1_clean = np.array(optimal_t1)
+    t2_clean = np.array(optimal_t2)
 
-        # Fit a polynomial (or linear)
-        t1_poly = np.poly1d(np.polyfit(VAflow_clean, t1_clean, deg=6))
-        t2_poly = np.poly1d(np.polyfit(VAflow_clean, t2_clean, deg=6))
+    # Fit a polynomial (or linear)
+    t1_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t1_clean)], t1_clean[~np.isnan(t1_clean)], deg=10))
+    t2_poly = np.poly1d(np.polyfit(VAflow_clean[~np.isnan(t2_clean)], t2_clean[~np.isnan(t2_clean)], deg=10))
 
-        c0, c1, c2, c3, c4, c5, c6 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[4], t1_poly.c[5], t1_poly.c[6]
-        d0, d1, d2, d3, d4, d5, d6 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[4], t2_poly.c[5], t2_poly.c[6]
+    c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = t1_poly.c[0], t1_poly.c[1], t1_poly.c[2], t1_poly.c[3], t1_poly.c[
+        4], t1_poly.c[5], t1_poly.c[6], t1_poly.c[7], t1_poly.c[8], t1_poly.c[9], t1_poly.c[10]
+    d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10 = t2_poly.c[0], t2_poly.c[1], t2_poly.c[2], t2_poly.c[3], t2_poly.c[
+        4], t2_poly.c[5], t2_poly.c[6], t2_poly.c[7], t2_poly.c[8], t2_poly.c[9], t2_poly.c[10]
 
-        print("Best fit equation for t1:", t1_poly)
-        print("Best fit equation for t2:", t2_poly)
-    except:
-        return 0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    print("Best fit equation for t1:", t1_poly)
+    print("Best fit equation for t2:", t2_poly)
 
-    return c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6
+    return c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10
 
 
 def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=None, breath_coef=None):
@@ -242,7 +241,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     DV_sv, DT_s, DT_v, Dmet, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
      Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P
+     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale
      ) = \
     (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
     "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
@@ -256,16 +255,16 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     "Dmet", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
     "scale_param1", "scale_param2", "scale_param3", "scale_param4", "scale_param5", "scale_param6", "scale_param7",
     "Pa_O2_lower", "rise_time_atr",
-    "rise_time_ven", "fall_time_ven", "ahead1", "theta_min", "delta_P"])
+    "rise_time_ven", "fall_time_ven", "ahead1", "theta_min", "delta_P", "r", "l", "V_nominal", "V_scale"])
 
     # determine the correct breathing profile
     if breath_coef is None:
-        c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = minimise_breathing(1.5,
+        c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10 = minimise_breathing(1.5,
         1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao)
     else:
-        c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = breath_coef
+        c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10 = breath_coef
 
-    if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6]):
+    if all(x == 0 for x in [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10]):
         # Integration failed or early termination
         return [0.0]*26, None, None, None
 
@@ -282,7 +281,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
      grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
      phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
      MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
-     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6,
+     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10,
      # added params
      Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
      Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
@@ -294,7 +293,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
      DV_sv, DT_s, DT_v, Dmet, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
      Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P]
+     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -469,7 +468,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
           np.mean(last_10_max_P_lv_deriv), np.mean(last_10_max_P_rv_deriv), max_tidal, Minute_Ventilation,
              cardiac_output, Pa_O2, Pa_CO2],
             IC_current, local_updates,
-            [c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6])
+            [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10])
 
 
 def timeout_handler(signum, frame):
@@ -682,7 +681,8 @@ if __name__ == "__main__":
             # further added
             "scale_param1", "scale_param2", "scale_param3", "scale_param4",
             "scale_param5", "scale_param6", "scale_param7", "Pa_O2_lower",
-            "rise_time_atr", "rise_time_ven", "fall_time_ven", "ahead1", "theta_min"
+            "rise_time_atr", "rise_time_ven", "fall_time_ven", "ahead1",
+            "theta_min", "r", "l", "V_nominal", "V_scale"
         ],
 
         'bounds': [
@@ -739,7 +739,7 @@ if __name__ == "__main__":
             # added params
             [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper],
             [2000 * lower, 2000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-            [3000 * lower, 3000 * upper], [2000 * lower, 2000 * upper], [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
             [3000 * lower, 3000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
             [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
             [350 * lower, 350 * upper], [0.00134 * 0.9, 0.00134 * 1.1], [2.6 * 0.9, 2.6 * 1.1], [3.03e-5 * 0.9, 3.03e-5 * 1.1],
@@ -767,7 +767,7 @@ if __name__ == "__main__":
             [4.9 * lower, 4.9 * upper], [1.5 * lower, 1.5 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.5 * lower, 0.5 * upper], [1.2 * lower, 1.2 * upper], [30 * lower, 30 * upper], [80 * lower, 80 * upper],
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [3 * lower, 3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
 
     param_keys = list(sp["names"])

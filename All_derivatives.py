@@ -108,7 +108,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
      phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
      MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
-     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6,
+     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10,
      # added params
      Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
      Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
@@ -164,8 +164,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
         time_since_last_breath = t - finish_breath_time
 
-        t1 = c0 * VAflow**6 + c1 * VAflow**5 + c2 * VAflow**4 + c3 * VAflow**3 + c4 * VAflow**2 + c5 * VAflow + c6
-        t2 = d0 * VAflow**6 + d1 * VAflow**5 + d2 * VAflow**4 + d3 * VAflow**3 + d4 * VAflow**2 + d5 * VAflow + d6
+        t1 = c0 * VAflow**10 + c1 * VAflow**9 + c2 * VAflow**8 + c3 * VAflow**7 + c4 * VAflow**6 + c5 * VAflow**5 + c6 * VAflow**4 + c7 * VAflow**3 + c8 * VAflow**2 + c9 * VAflow + c10
+        t2 = d0 * VAflow**10 + d1 * VAflow**9 + d2 * VAflow**8 + d3 * VAflow**7 + d4 * VAflow**6 + d5 * VAflow**5 + d6 * VAflow**4 + d7 * VAflow**3 + d8 * VAflow**2 + d9 * VAflow + d10
 
     # ============================================================================
     # RESPIRATORY MECHANICS
@@ -348,9 +348,10 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     P_peri = 0
     g = 1.2
     l = 3
-    V_peri = 20
-    V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv + V_peri
-    P_peri = np.exp((V_heart_peri - 280) / 80)
+    V_nominal = 280
+    V_scale = 40
+    V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
+    P_peri = np.exp((V_heart_peri - V_nominal) / V_scale)
 
     # AV Piston Parameters from Maksuti et al. (2015)
     Iavp = 0.1
