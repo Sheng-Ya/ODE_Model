@@ -493,50 +493,50 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=400, IC_initial=N
         print("too slow")
         return ([0.0]*27, None, None, None)
 
-# def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay2.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-#     block_size = len(param_samples[0]) + 1
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for i, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#
-#         # Run only the base sample first
-#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-#
-#         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
-#         if base_result[0] == 0:  # Adjust this condition to your failure criteria
-#             print(f"Skipping block {i + 1} due to base failure.")
-#             results_all.extend(np.zeros((block_size, 27)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         # perturbations = block[1:]  # exclude the base sample
-#
-#         # Otherwise, run full block in parallel
-#         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-#             results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
-#             copy.deepcopy(storage_final), Old_Parameters, IC_final, breath_coef, minimise_coef) for params in block)
-#
-#         results_block = [res[0] for res in results_perturbations]
-#         # print(results_block)
-#         results_all.extend(results_block)
-#
-#         # Save chunk incrementally (appending)
-#         # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-#         # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
-#
-#         # Save after each block
-#         np.save(save_path, np.array(results_all))
-#
-#     return results_all
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay2.npy'):
+    results_all = []
+
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
+    block_size = len(param_samples[0]) + 1
+    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+
+    for i, block in enumerate(param_blocks):
+        base_sample = block[0]
+        copy_of_storage = copy.deepcopy(storage)
+
+        # Run only the base sample first
+        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+        minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
+
+        # If base sample fails (e.g. returns 0 or some error code), skip the whole block
+        if base_result[0] == 0:  # Adjust this condition to your failure criteria
+            print(f"Skipping block {i + 1} due to base failure.")
+            results_all.extend(np.zeros((block_size, 27)))
+            np.save(save_path, np.array(results_all))
+            continue
+
+        # perturbations = block[1:]  # exclude the base sample
+
+        # Otherwise, run full block in parallel
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
+            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
+            copy.deepcopy(storage_final), Old_Parameters, IC_final, breath_coef, minimise_coef) for params in block)
+
+        results_block = [res[0] for res in results_perturbations]
+        # print(results_block)
+        results_all.extend(results_block)
+
+        # Save chunk incrementally (appending)
+        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
+        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
+
+        # Save after each block
+        np.save(save_path, np.array(results_all))
+
+    return results_all
 
 
 def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef, minimise_coef):
@@ -545,61 +545,61 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
     # If coefficients differ, don't reuse breath_coef
     if next_minimise_coef != minimise_coef:
-        return simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
+        return safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
     else:
-        return simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+        return safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
 
 
-def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
-    results_all = []
-
-    if os.path.exists(save_path):
-        os.remove(save_path)
-
-    block_size = len(param_samples[0]) + 1
-    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-
-    for w, block in enumerate(param_blocks):
-        base_sample = block[0]
-        copy_of_storage = copy.deepcopy(storage)
-        print(f"Running base sample for block {w+1}...")
-
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-        minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-
-        print(f"Base sample result: {base_result}")
-
-        if base_result[0] == 0:
-            print(f"Skipping block {w + 1} due to base failure.")
-            results_all.extend(np.zeros((174, 3)))
-            np.save(save_path, np.array(results_all))
-            continue
-
-        results_perturbations = []
-        for j, params in enumerate(block):
-            print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
-            next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-            if next_minimise_coef != minimise_coef:
-                res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
-            else:
-                res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
-
-            # i = storage_final["i"].item() % BUFFER_LIMIT
-
-            print(f"Perturbation result: {res[0]}")
-            results_perturbations.append(res[0])
-
-        results_block = [base_result] + results_perturbations
-        results_all.extend(results_block)
-
-        # Save checkpoint files for debugging
-        np.save(f'IC_final_{w:03d}.npy', IC_final)
-        np.save(f'Next_final_{w:03d}.npy', storage_final)
-
-        np.save(save_path, np.array(results_all))
-        print(f"Block {w+1} finished and results saved.")
-
-    return results_all
+# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+#     results_all = []
+#
+#     if os.path.exists(save_path):
+#         os.remove(save_path)
+#
+#     block_size = len(param_samples[0]) + 1
+#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+#
+#     for w, block in enumerate(param_blocks):
+#         base_sample = block[0]
+#         copy_of_storage = copy.deepcopy(storage)
+#         print(f"Running base sample for block {w+1}...")
+#
+#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
+#
+#         print(f"Base sample result: {base_result}")
+#
+#         if base_result[0] == 0:
+#             print(f"Skipping block {w + 1} due to base failure.")
+#             results_all.extend(np.zeros((174, 3)))
+#             np.save(save_path, np.array(results_all))
+#             continue
+#
+#         results_perturbations = []
+#         for j, params in enumerate(block):
+#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
+#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
+#             if next_minimise_coef != minimise_coef:
+#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
+#             else:
+#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+#
+#             # i = storage_final["i"].item() % BUFFER_LIMIT
+#
+#             print(f"Perturbation result: {res[0]}")
+#             results_perturbations.append(res[0])
+#
+#         results_block = [base_result] + results_perturbations
+#         results_all.extend(results_block)
+#
+#         # Save checkpoint files for debugging
+#         np.save(f'IC_final_{w:03d}.npy', IC_final)
+#         np.save(f'Next_final_{w:03d}.npy', storage_final)
+#
+#         np.save(save_path, np.array(results_all))
+#         print(f"Block {w+1} finished and results saved.")
+#
+#     return results_all
 
 
 if __name__ == "__main__":
@@ -782,28 +782,21 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # X = X[0::184, :]
-    #
-    # X_3 = X[41375:,:]
-    # X_1 = X[:41374, :]
-    # X_2 = np.array([X[41375,:]])
-    # X = np.concatenate((X_1, X_2, X_3))
-    # np.save("Subset_DGSM_500_X_samples_rest_20.npy", X)
-    X = finite_diff.sample(sp, 500)
+    # np.save("DGSM_500_X_samples_rest_20.npy", X)
+    X = np.load("DGSM_500_X_samples_rest_20.npy")[115600:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     # param_samples = [Old_Parameters]
     print(f"Number of samples created: {len(X)}")
-    A = len(param_samples[0]) + 1
-    AA = param_samples[0]
-    print(AA)
+    # AA = param_samples[0]
+    # print(AA)
 
-    # Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=10)
-    Result = parallel_simulations(param_samples, Next_Conditions)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
 
-    np.save('Subset_DGSM_500_Result_rest_50.npy', Result)
+    np.save('DGSM_500_Result_rest_400_500.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 

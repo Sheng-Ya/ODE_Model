@@ -1297,43 +1297,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     Vu_amv = Vu_amv_check
 
-    if t <0.01:
-        print(np.array([time_since_beat,
-            HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
-            Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
-            Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
-            prev_flat_bit,
-
-            # for targets
-            P_rv, P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp,
-
-            # Gas exchange outputs
-            Pa_O2, Pa_CO2, Pb_CO2,
-            PA_O2, PA_CO2, Nt,
-
-            t1, t2, finish_breath_time, PamO2, PamCO2, PmbCO2,
-
-            dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
-            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt,
-            dtheta_ao_dt, d2theta_ao_dt2, dtheta_po_dt, d2theta_po_dt2, dtheta_mi_dt, d2theta_mi_dt2, dtheta_tr_dt,
-            d2theta_tr_dt2,
-
-            # cardio controller derivatives
-            dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
-            dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,
-            dR_sp_change_dt, dR_rmp_n_change_dt, dR_amp_n_change_dt, dVu_ev_change_dt, dVu_sv_change_dt,
-            dVu_rmv_change_dt, dVu_amv_change_dt, dEmax_lv_change_dt, dEmax_rv_change_dt, d_Ts_change_dt,
-            d_Tv_change_dt, dxb_O2_dt, dxb_CO2_dt, dxh_O2_dt, dxh_CO2_dt, dWh_dt, dxrm_O2_dt, dxrm_CO2_dt, dxam_O2_dt,
-            dxM_dt, dx_met_dt, dP_n_current_dt,
-
-            # gas exchange derivatives
-            dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
-            dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
-            dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
-
-            # resp control derivatives
-            d_VE_integral_dt]))
-
     # ============================================================================
     # RETURN ALL COMPUTED VALUES
     # ============================================================================
