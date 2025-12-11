@@ -54,10 +54,10 @@ Parameters = {
     # "KE_ra": 0.05,
     # "P0_lv": 1.5,
     # "P0_rv": 1.5,
-    "g_abd": 3.39,
+    # "g_abd": 3.39,
     # "g_thor": 6.8,
-    "P_abdmax_n": -1.0,
-    "P_abdmin_n": -2.5,
+    # "P_abdmax_n": -1.0,
+    # "P_abdmin_n": -2.5,
     # "P_thormax_n": -4.0,
     # "P_thormin_n": -9.0,
     # "VT_n": 0.73,
@@ -279,6 +279,8 @@ Parameters = {
     "VTCO2": 0.25,
     "VTO2": 0.25,
     "tau_MRV": 50.0,
+
+
     # "scale_param1": 4.9,
     # "scale_param2": 1.5,
     # "scale_param3": 0.3,
@@ -286,11 +288,7 @@ Parameters = {
     # "scale_param5": 0.5,
     # "scale_param6": 1.2,
     # "scale_param7": 30.0,
-    "scale_param8": 1.6,
-    # "shift_param1": 4.0,
-    # "shift_param2": 0.3,
-    # "shift_param3": 4.0,
-    # "shift_param4": 0.3,
+    # "scale_param8": 1.6,
     # "Pa_O2_lower": 80.0,
     # "rise_time_atr": 0.05,
     # "fall_time_atr": 0.1,
@@ -298,9 +296,10 @@ Parameters = {
     # "fall_time_ven": 0.3,
     # "ahead1": 0.9,
 
+    # "D2": -5,
+    # "K2_vc": 0.4,
+
     # ignore
-    "D2": -5,
-    "K2_vc": 0.4,
     "PACO2_Delay_IC": 38.59358953135121,
     "PAO2_Delay_IC": 85.02110241023517,
     "P_atm": 760,
@@ -312,8 +311,8 @@ Parameters = {
     "MRCO2": 0.2/60,
     "MRO2": 0.25/60,
     "lambda1": 0.3,
-    "lambda2": 0.05,
+    "lambda2": 0.489,
     "n": 1.101,
     "P_ao": 0.0,
-
+    "delta_P": 0.05,
 }

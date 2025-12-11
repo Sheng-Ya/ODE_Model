@@ -95,9 +95,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     # PARAMETER EXTRACTION
     # ============================================================================
-    (A_im, Tc, T_im, g_abd, g_thor, P_abdmax_n, P_abdmin_n, P_thormax_n, P_thormin_n, VT_n, C_pa,
+    (g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
-     L_sa, R_sa, D1, D2, K1_vc, K2_vc, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
+     L_sa, R_sa, D1, K1_vc, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
      C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
      Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
      Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
@@ -113,13 +113,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
      Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
      R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
-     Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vvc_max, Vvc_min, Vu_pa, Vu_pp,
+     Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vvc_max, Vu_pa, Vu_pp,
      Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
      tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
      tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
-     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7, scale_param8,
-     shift_param1, shift_param2, shift_param3, shift_param4, Pa_O2_lower, rise_time_atr, fall_time_atr, rise_time_ven,
+     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
+     Pa_O2_lower, rise_time_atr, rise_time_ven,
      fall_time_ven, ahead1, theta_min, delta_P
      ) = Input_Parameters
 
@@ -244,15 +244,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     # Muscle pump activation
     # alp ranges between 0 (beginning of muscle contraction) and 1
-    alp = (t % T_im) / T_im
+    # alp = (t % T_im) / T_im
 
-    # Muscle pump function
-    if (Tc / T_im) >= alp >= 0:
-        psi = np.sin(np.pi * (T_im / Tc) * alp)
-    else:
-        psi = 0
-
-    P_im = A_im * psi  # Muscle pump pressure
+    # # Muscle pump function
+    # if (Tc / T_im) >= alp >= 0:
+    #     psi = np.sin(np.pi * (T_im / Tc) * alp)
+    # else:
+    #     psi = 0
+    #
+    # P_im = A_im * psi  # Muscle pump pressure
 
     # p_im is 0 in resting conditions
     P_im = 0
@@ -333,8 +333,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         Vu_lv = VT_lv
 
     # activation function for contraction of the ventricle and atria
-    phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1)
-    phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1)
+    phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
+    phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
 
     # changing from 25 to 10 will move up the PV curve for phi_atr
     # V_shift1 =   30 - (2 * (phi * Emax_rv + (1 - phi) * P0_rv * KE_rv * (np.exp(KE_rv * VT_rv))) + 25 * (phi_atr * Emax_ra + (1 - phi_atr) * P0_ra * KE_ra * (np.exp(KE_ra * VT_ra))))
@@ -854,11 +854,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         R_hv = R_hv_n
 
-    if P_hv >= P_vc:
-        Q_hv = (P_hv - P_vc) / R_hv
-    else:
-        Q_hv = 0
-
     Q_hv = (P_hv - P_vc) / R_hv
 
     dVT_hv_dt = Q_hp - Q_hv
@@ -882,11 +877,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         R_rmv = R_rmv_n * ((P_rmv - P_vc) / (P_rmv - P_rm))
     else:
         R_rmv = R_rmv_n
-
-    if P_rmv >= P_vc:
-        Q_rmv = (P_rmv - P_vc) / R_rmv
-    else:
-        Q_rmv = 0
 
     Q_rmv = (P_rmv - P_vc) / R_rmv
 
@@ -1178,7 +1168,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # afferent chemoreflex pathway constant parameters
     if Pa_O2 >= Pa_O2_lower:
         K = K_H
-    elif PaO2_ac_n <= Pa_O2 < Pa_O2_lower:
+    else:
         K = K_H - (scale_param6 * (Pa_O2 - Pa_O2_lower) / scale_param7)
     # else:
     #     K = K_H - scale_param8

@@ -48,14 +48,14 @@ Parameters = {
 #     # Table 3. Vena Cava Parameters
 # vena_cava = {
     "D1": 0.3855,      # Parameter for P-V curve of vena cava
-    "D2": -5,          # Parameter for P-V curve of vena cava
+    # "D2": -5,          # Parameter for P-V curve of vena cava
     "K1_vc": 0.15,     # Parameter for P-V curve of vena cava
-    "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
+    # "K2_vc": 0.4,      # Parameter for P-V curve of vena cava
     "Kr_vc": 0.0001,    # Gain for vena cava flow resistance
     "Rvc_n": 0.0025,    # Nominal vena cava flow resistance # edited (changed to 0.0025 from xxx for better left atrial pressures, changed back to 0.025)
     "Vu_vc": 123,      # Vena cava unstressed volume
     "Vvc_max": 350,     # Maximum volume of vena cava
-    "Vvc_min": 50,      # Minimum volume of vena cava
+    # "Vvc_min": 50,      # Minimum volume of vena cava
 # }
 #
 #     # Table 4. Pulmonary Circulation Parameters
@@ -67,7 +67,7 @@ Parameters = {
     "R_pa": 0.023,          # Pulmonary arterial flow resistance (this value could raise RA pressure)
     "R_pp": 0.0894,         # Pulmonary peripheral flow resistance # edited to reduce CvtO2 oscillation # edited from 0.0894
     "R_pv": 0.0056,         # Pulmonary venous flow resistance # edited to remove the backflow
-    "Vu_pa": 1,            # Pulmonary arterial unstressed volume # edited for dgsm
+    "Vu_pa": 1.0,            # Pulmonary arterial unstressed volume # edited for dgsm
     "Vu_pp": 116.6775,     # Pulmonary peripheral unstressed volume
     "Vu_pv": 214,          # Pulmonary venous unstressed volume
 # }
@@ -77,7 +77,7 @@ Parameters = {
 #     "C_la": 4, # 19.23,          # Left atrial compliances changed
 #     "C_ra": 5, # 31.25,          # Right atrial compliances changed
     "s": 0.04,
-    "Ta": 2,
+    "Ta": 3,
     "KE_lv": 0.014, # 0.014      # End-diastolic P-V relationship in left ventricle # adjusted (changes a lot depending on whether it is 0.06 or 0.05)
     "KE_rv": 0.011, # 0.011       # End-diastolic P-V relationship in right ventricle Another model use 0.027
     # "KR_lv": 0.000375,     # Viscosity of left ventricle
@@ -87,7 +87,7 @@ Parameters = {
     "P0_la": 0.55,      # edited
     "KE_la": 0.05,
 
-    "Emax_ra": 0.30,    # edited
+    "Emax_ra": 0.34,    # edited
     "P0_ra": 0.55,      # edited
     "KE_ra": 0.07,
     "P0_lv": 1.5, # 1.5        # End-diastolic P-V relationship in left ventricle # another model use 1.0
@@ -95,25 +95,25 @@ Parameters = {
     # "R_la": 0.0025,         # Left atrial flow resistance
     # "R_ra": 0.0025,         # Right atrial flow resistance
     # "Tsys_0": 0.4,         # Duration of systole as function of heart rate (need to change Tsys0, T0, HR in initial/next conditions)
-    "Vu_la": 4,           # Left atrial unstressed volume
-    "Vu_lv": 5,       # Left ventricular unstressed volume
-    "Vu_ra": 4,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
-    "Vu_rv": 5,       # Right ventricular unstressed volume
+    "Vu_la": 10,           # Left atrial unstressed volume
+    "Vu_lv": 10,       # Left ventricular unstressed volume
+    "Vu_ra": 10,           # Right atrial unstressed volume (changing this doesn't affect atrial volume)
+    "Vu_rv": 10,       # Right ventricular unstressed volume
 # }
 
     # Table 6. Muscle Pump
 # muscle_pump = {
-    "A_im": 30,            # Peak value of intramuscular pressure # edited from 50
-    "Tc": 0.7,            # The overall duration of muscular contraction # edited to match dgsm
-    "T_im": 1.1,             # Duration of the muscular contraction-relaxation cycle # edited to match dgsm
+#     "A_im": 30,            # Peak value of intramuscular pressure # edited from 50
+#     "Tc": 0.7,            # The overall duration of muscular contraction # edited to match dgsm
+#     "T_im": 1.1,             # Duration of the muscular contraction-relaxation cycle # edited to match dgsm
 # }
 
     # Table 7. Respiratory Pump
 # respiratory_pump = {
-    "g_abd": 3.39,          # Constant gain factor linking tidal volume changes to abdominal pressure variations
+#     "g_abd": 3.39,          # Constant gain factor linking tidal volume changes to abdominal pressure variations
     "g_thor": 6.8,          # Constant gain factor linking tidal volume changes to intrathoracic pressure variations
-    "P_abdmax_n": -1,        # Basal value of abdominal pressure at the end of expiration # edited to match dgsm
-    "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
+    # "P_abdmax_n": -1,        # Basal value of abdominal pressure at the end of expiration # edited to match dgsm
+    # "P_abdmin_n": -2.5,     # Basal value of abdominal pressure at the end of inspiration
     "P_thormax_n": -0,      # Basal value of intrathoracic pressure at the end of expiration
     "P_thormin_n": -0,      # Basal value of intrathoracic pressure at the end of inspiration
     "VT_n": 0.73,           # Basal value of tidal volume
@@ -306,7 +306,7 @@ Parameters = {
     "Vu_amv0": 286.4,    # Basal level of active skeletal muscle venous unstressed volume
     "Vu_ev0": 607.8,     # Basal level of extra-splanchnic venous unstressed volume
     "Vu_rmv0": 190.95,    # Basal level of resting skeletal muscle venous unstressed volume
-    "Vu_sv0": 961.6,    # Basal level of splanchnic venous unstressed volume
+    "Vu_sv0": 1361.6,    # Basal level of splanchnic venous unstressed volume
 # }
 
 # Table 18: Parameters of Effectors for Reflex Control: Heart Period
@@ -343,7 +343,7 @@ Parameters = {
     "E_rs": 21.9, # 21.9,             # Overall elastance (cmH2O/l) # changed
     # "k_aw1": 1.85,            # Constant for upper airway pressure (cmH2O·s/l)
     # "k_aw2": 0.43,            # Constant for upper airway pressure (cmH2O·s^2/l^2)
-    "P_ao": 0,                # Airway pressure (cmH2O)
+    # "P_ao": 0,                # Airway pressure (cmH2O)
 # }
 
 # Table 21: Parameters of Ventilation Controller
@@ -360,11 +360,11 @@ Parameters = {
 
 # Table 22: Parameters of Breathing Pattern Optimizer
 # parameters_breathing_pattern_optimizer = {
-    "lambda1": 0.3,         # Weighting factor (Dimensionless) edited
-    "lambda2": 0.489,        # Weighting factor (Dimensionless) edited
-    "n": 1.101,              # Power index of efficiency factor (Dimensionless)
-    "Pmax": 50,              # Maximum inspiratory pressure (cmH2O) edited
-    "Pmax_dot": 500,        # Maximum pressure rate during inspiration (cmH2O/s)
+#     "lambda1": 0.3,         # Weighting factor (Dimensionless) edited
+#     "lambda2": 0.489,        # Weighting factor (Dimensionless) edited
+#     "n": 1.101,              # Power index of efficiency factor (Dimensionless)
+    "Pmax": 100,              # Maximum inspiratory pressure (cmH2O) edited
+    "Pmax_dot": 1000,        # Maximum pressure rate during inspiration (cmH2O/s)
 # }
 
 # Table 23: Parameters of the Gas Exchange and Mixing
@@ -379,26 +379,26 @@ Parameters = {
     "C2": 87,               # Max carbon dioxide concentration (mmol/l)
     # "Pd_CO2_IC": [39.5616, 39.6736, 39.8127, 40.0061, 40.3359], # Initial CO2 dead space conditions (mmHg)
     # "Pd_O2_IC": [104.3637, 104.2258, 104.0505, 103.8005, 103.3579], # Initial O2 dead space conditions (mmHg)
-    "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
-    "Fi_O2": 21.0379,       # Inspired fraction of O2 (%)
-    "K1": 13,               # Parameter for O2 dissociation equation (mmHg)
+    # "Fi_CO2": 0.0421,       # Inspired fraction of CO2 (%)
+    # "Fi_O2": 21.0379,       # Inspired fraction of O2 (%)
+    # "K1": 13,               # Parameter for O2 dissociation equation (mmHg)
     "K2": 194.4,            # Parameter for CO2 dissociation equation (mmHg)
     # "LCTV": 0.588,          # Lung to chemoreceptor vascular volume constant (l)
-    "PACO2_Delay_IC": 40.4448,      # Initial CO2 convection delay (mmHg)
+    # "PACO2_Delay_IC": 40.4448,      # Initial CO2 convection delay (mmHg)
     # "dPa_CO2_dt_IC": -0.2465,       # Initial CO2 rate of change (mmHg/s)
     # "PACO2_IC": 40.9432,            # Initial Condition for CO2 convection (mmHg)
     # "d2Pa_CO2_dt2_IC": 40.3928,   # Second order CO2 rate of change (mmHg/s^2)
-    "PAO2_Delay_IC": 103.1223,      # Initial O2 convection delay (mmHg)
+    # "PAO2_Delay_IC": 103.1223,      # Initial O2 convection delay (mmHg)
     # "dPa_O2_dt_IC": 0.3557,         # Initial O2 rate of change (mmHg/s)
     # "PAO2_IC": 102.5153,            # Initial Condition for O2 convection (mmHg)
     # "d2Pa_O2_dt2_IC": 103.1435,   # Second order O2 rate of change (mmHg/s^2)
-    "P_atm": 760,                    # Atmospheric pressure (mmHg) # CHANGED
-    "P_ws": 47,                      # Water vapor pressure (mmHg)
+    # "P_atm": 760,                    # Atmospheric pressure (mmHg) # CHANGED
+    # "P_ws": 47,                      # Water vapor pressure (mmHg)
     "T1": 1,                        # Time constant for cardiovascular mixing (s)
     "T2": 2,                        # Time constant for cardiovascular mixing (s)
     "VL_CO2": 3,                    # Lungs storage volume for CO2 (l)
     "VL_O2": 2.5,                   # Lungs storage volume for O2 (l)
-    "Z": 0.0227,                    # Molar conversion factor (l/mmol)
+    # "Z": 0.0227,                    # Molar conversion factor (l/mmol)
     "VB": 0.9,                      # Gas volume in brain (L)
 # }
 
@@ -408,8 +408,8 @@ Parameters = {
     # "h": 0.0183/1000,                    # Cerebral blood flow constant (ml/(100g·s))
     "KCCO2": 346000,                # CO2 central receptor constant (s·cm^-2·l^-1)
     "KCSFCO2": 20,                 # CO2 diffusion time constant in cerebrospinal fluid (s), changed to be faster to see if limit cycle is reached
-    "MRBCO2": 0.0009,               # Metabolic production rate of CO2 (1/s STPD)
-    "MRBO2": 0.000925,              # Metabolic production rate of O2 (1/s STPD)
+    # "MRBCO2": 0.0009,               # Metabolic production rate of CO2 (1/s STPD)
+    # "MRBO2": 0.000925,              # Metabolic production rate of O2 (1/s STPD)
     # "PbCO2IC": 48.5338,             # Initial condition for brain CO2 partial pressure (mmHg)
     # "SbCO2": 0.36/1000,                  # Dissociation slope for CO2 in the brain (ml·(100g·y)/mmHg) # convert to L
     # "SCO2": 0.0043,                 # Dissociation slope for CO2 in blood (mmHg^-1)
@@ -419,10 +419,10 @@ Parameters = {
 # parameters_body_tissues_compartment = {
 #     "Cv_CO2_IC": 0.5247,            # Initial mixed venous CO2 concentration (ml/ml)
 #     "Cv_O2_IC": 0.1639,             # Initial mixed venous O2 concentration (ml/ml)
-    "MRCO2": 0.2/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
-    "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD) brain O2 minused in gas exchange
-    "MRTCO2_basal": 0.2/60,            # Basal metabolic production rate for CO2 (l/min STPD)
-    "MRTO2_basal": 0.25/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
+#     "MRCO2": 0.2/60,               # Minimum metabolic production rate for CO2 (l/min STPD)
+#     "MRO2": 0.25/60,               # Minimum metabolic consumption rate for O2 (l/min STPD) brain O2 minused in gas exchange
+    # "MRTCO2_basal": 0.2/60,            # Basal metabolic production rate for CO2 (l/min STPD)
+    # "MRTO2_basal": 0.25/60,            # Basal metabolic consumption rate for O2 (l/min STPD)
     "tauMR": 50,                    # Metabolic rate time constant (s)
     "VTCO2": 0.25,                    # Body tissue storage volume for CO2 (l) # changed from 15
     "VTO2": 0.25,                      # Body tissue storage volume for O2 (l) # changed from 6
@@ -437,10 +437,6 @@ Parameters = {
     "Kf_ao": 5000,
     "Kb_ao": 2,
     "Kv_ao": 5,
-#     "Kp_ao": 500,
-#     "Kf_ao": 50,
-#     "Kb_ao": 2,
-#     "Kv_ao": 4,
     "theta_ao_max": 1.309,
     "Kp_mi": 2000,
     "Kf_mi": 500,
@@ -452,10 +448,6 @@ Parameters = {
     "Kb_po": 5,
     "Kv_po": 10,
     "theta_po_max": 1.309,
-    # "Kp_tr": 200,
-    # "Kf_tr": 1000,
-    # "Kb_tr": 1,
-    # "Kv_tr": 7,
     "Kp_tr": 3000,
     "Kf_tr": 500,
     "Kb_tr": 2,
@@ -477,19 +469,13 @@ Parameters = {
     "scale_param5": 0.5,
     "scale_param6": 1.2,
     "scale_param7": 30,
-    "scale_param8": 1.6,
-    "shift_param1": 4,
-    "shift_param2": 0.3,
-    "shift_param3": 4,
-    "shift_param4": 0.3,
     "Pa_O2_lower": 80,
-    "rise_time_atr": 0.1,
-    "fall_time_atr": 0.4,
+    "rise_time_atr": 0.05,
     "rise_time_ven": 0.15,
     "fall_time_ven": 0.3,
     "ahead1": 0.9,
     "theta_min": 0.0872665,
-    "delta_P": 0.05,
+    # "delta_P": 0.05,
 }
 
 # Parameters = {'A': 20.9, 'AT': 0.016666668, 'A_im': 30.0, 'B': 92.8, 'C': 10570.0, 'C2': 94.323814, 'C_O2_param1': 0.0015608842, 'C_O2_param2': 3.5407846, 'C_O2_param3': 3.03e-05, 'C_amv': 4.4, 'C_bv': 5.71, 'C_ev': 12.6021595, 'C_hv': 1.57, 'C_jp': 5.1168885, 'C_pa': 0.76, 'C_pp': 21.228539, 'C_pv': 25.669655, 'C_rmv': 3.28, 'C_sa': 0.28, 'C_sv': 25.770163, 'Cvam_O2_n': 0.08815333, 'Cvb_O2_n': 0.09052261, 'Cvh_O2_n': 0.057520334, 'Cvrm_O2_n': 0.20011526, 'D': -7.3836823, 'D1': 0.3855, 'DEmax_lv': 2.0, 'DEmax_rv': 2.0, 'DR_amp': 2.0, 'DR_ep': 2.0, 'DR_rmp': 2.0, 'DR_sp': 2.0, 'DT_s': 2.0, 'DT_v': 0.2, 'DV_amv': 5.0, 'DV_ev': 5.0, 'DV_rmv': 5.0, 'DV_sv': 5.0, 'Dmet': 4.0, 'E_rs': 13.06373, 'Emax_la': 0.35, 'Emax_lv0': 0.87741095, 'Emax_ra': 0.35, 'Emax_rv0': 0.40517095, 'Fi_CO2': 0.0421, 'Fi_O2': 30.029568, 'GEmax_lv': 0.24551241, 'GEmax_rv': 0.273231, 'GR_amp': 4.47, 'GR_ep': 2.6729898, 'GR_rmp': 2.47, 'GR_sp': 0.7780109, 'GT_s': -0.11474573, 'GT_v': 0.12126079, 'GV_amv': -28.29, 'GV_dead': 0.2471073, 'GV_ev': -74.21, 'GV_rmv': -28.29, 'GV_sv': -263.48398, 'G_ap': 13.952332, 'Io_met': 0.42811677, 'Io_sh': 0.658, 'Io_sp': 0.65, 'Io_sv': 0.5851593, 'Io_v': 0.22, 'K1_vc': 0.16082393, 'K2': 178.99307, 'KCCO2': 346000.0, 'KCSFCO2': 20.0, 'KE_la': 0.06445175, 'KE_lv': 0.010495906, 'KE_ra': 0.0708307, 'KE_rv': 0.011586004, 'K_H': 3.6883354, 'Kb_ao': 2.0, 'Kb_mi': 2.0, 'Kb_po': 5.0, 'Kb_tr': 2.0, 'KcCO2': 0.11893098, 'KcMRV': 1.0, 'Kf_ao': 5000.0, 'Kf_mi': 500.0, 'Kf_po': 2000.0, 'Kf_tr': 500.0, 'Kh_CO2': 11.11, 'KpCO2': 0.15837711, 'KpO2': 4.72e-09, 'Kp_ao': 1000.0, 'Kp_mi': 100.0, 'Kp_po': 1785.5186, 'Kp_tr': 130.59839, 'Kr_vc': 0.001, 'Krm_CO2': 142.8, 'Kv_ao': 5.0, 'Kv_mi': 7.0, 'Kv_po': 8.27662, 'Kv_tr': 3.8860948, 'L_pa': 0.00018, 'L_sa': 0.00022, 'MO2_ampn': 0.45851168, 'MO2_bp': 1.0967921, 'MO2_hpn': 0.4, 'MO2_rmp': 0.5043618, 'P0_la': 0.55, 'P0_lv': 1.6788163, 'P0_ra': 0.55, 'P0_rv': 1.4722053, 'PAMO2_nominal': 104.0, 'PO2_sh': 45.0, 'PO2_sp': 30.0, 'PO2_sv': 30.0, 'P_0': 3.93, 'P_abdmax_n': -1.0, 'P_abdmin_n': -2.5, 'P_n': 96.13526, 'P_n_max': 112.0, 'P_thormax_n': -4.0, 'P_thormin_n': -4, 'PaCO2_n': 36.039318, 'PaO2_ac_n': 35.239395, 'Pa_O2_lower': 80.0, 'Pmax': 100.0, 'Pmax_dot': 1000.0, 'R_amp0': 4.7661476, 'R_amv_n': 0.0833, 'R_ao': 350.0, 'R_bpn': 6.312542, 'R_bv_n': 0.075, 'R_ep0': 2.3037422, 'R_ev_n': 0.04, 'R_hpn': 19.71, 'R_hv_n': 0.24469315, 'R_mi': 246.57578, 'R_pa': 0.033236817, 'R_po': 378.93, 'R_pp': 0.10952646, 'R_pv': 0.09700368, 'R_rmp0': 4.5679336, 'R_rmv_n': 0.125, 'R_rs': 3.562436, 'R_sa': 0.07515636, 'R_sp0': 3.6745343, 'R_sv_n': 0.038, 'R_tr': 195.38086, 'Rvc_n': 0.06512741, 'T0': 0.40323877, 'T1': 1.0, 'T2': 2.0, 'T_im': 1.1136509, 'Ta': 2.0, 'Tc': 0.3979315, 'V0_dead': 0.19210498, 'VA_rest': 0.06628334, 'VB': 0.9, 'VL_CO2': 3.0, 'VL_O2': 2.5, 'VTCO2': 0.25, 'VTO2': 0.25, 'VT_n': 0.73, 'V_tot': 4818.3115, 'Vu_amv0': 214.70573, 'Vu_bv': 386.22208, 'Vu_ev0': 602.7552, 'Vu_hv': 49.593784, 'Vu_jp': 489.68472, 'Vu_la': 4.0, 'Vu_lv': 16.171349, 'Vu_pa': 1.0, 'Vu_pp': 134.53569, 'Vu_pv': 165.71053, 'Vu_ra': 4.0, 'Vu_rmv0': 125.05529, 'Vu_rv': 52.665028, 'Vu_sa': 1.0, 'Vu_sv0': 885.3988, 'Vu_vc': 142.35129, 'Vvc_max': 350.0, 'Vvc_min': 50.0, 'W_hn': 12660.0, 'Wb_sh': -1.7213833, 'Wb_sp': -1.035797, 'Wb_sv': -1.5311289, 'Wc_sh': 0.800884, 'Wc_sp': 2.3501709, 'Wc_sv': 1.716, 'Wc_v': 0.2924614, 'Wp_sh': -0.20147176, 'Wp_sp': -0.3997, 'Wp_sv': -0.52766645, 'Wp_v': -0.08721046, 'Wt_sh': 0.4, 'Wt_sp': 0.4, 'Wt_sv': 0.4, 'Wt_v': 0.4, 'Ysh_max': 20.0, 'Ysh_min': -0.0283, 'Ysp_max': 5.5, 'Ysp_min': -0.037, 'Ysv_max': 70.47197, 'Ysv_min': -0.4764506, 'Yv_max': 1.9, 'Yv_min': -0.0008, 'a2': 1.6896983, 'ahead1': 0.8807701, 'alpha2': 0.07291157, 'alpha_O2': 3.17e-05, 'beta2': 0.021709256, 'dc': 0.015, 'delta_P': 0.4173715, 'f_ab_max': 35.04449, 'f_ab_min': 2.6098804, 'f_acCO2_n': 1.0468378, 'f_ac_max': 9.138153, 'f_ac_min': 0.6669395, 'fab_o': 28.704922, 'fall_time_atr': 0.1, 'fall_time_ven': 0.2542506, 'fes_inf': 1.6007478, 'fes_max': 80.0, 'fes_min': 3.0173924, 'fes_o': 23.786322, 'fev_inf': 6.0673943, 'fev_o': 2.1744254, 'gM': 40.0, 'g_abd': 3.39, 'g_ccsh': 1.4082268, 'g_ccsp': 2.1704328, 'g_ccsv': 0.2, 'g_thor': 6.8, 'gam_O2': 30.0, 'gb_O2': 14.526971, 'gh_O2': 35.0, 'grm_O2': 16.781862, 'k_ab': 15.048384, 'k_ac': 34.63521, 'kcc_sh': 0.12545459, 'kcc_sp': 0.13, 'kcc_sv': 0.10884218, 'kcc_v': 0.0162, 'kes': 0.0984378, 'kev': 9.713776, 'kisc_sh': 6.0, 'kisc_sp': 2.0, 'kisc_sv': 2.0, 'kmet': 0.25839624, 'kr_am': 24.17, 'phi_max': 28.367245, 'phi_min': -2.6751063, 'rise_time_atr': 0.05, 'rise_time_ven': 0.15850285, 's': 0.04, 'scale_param1': 4.9, 'scale_param2': 1.6444576, 'scale_param3': 0.2020339, 'scale_param4': 20.790846, 'scale_param5': 0.5, 'scale_param6': 1.2, 'scale_param7': 30.0, 'scale_param8': 1.6, 'shift_param1': 4.0, 'shift_param2': 0.3, 'shift_param3': 4.0, 'shift_param4': 0.3, 'tauMR': 50.0, 'tau_CO2': 20.0, 'tau_Emax_lv': 8.0, 'tau_Emax_rv': 8.0, 'tau_M': 40.0, 'tau_MRV': 50.0, 'tau_O2': 10.0, 'tau_Ramp': 2.0, 'tau_Rep': 2.0, 'tau_Rrmp': 2.0, 'tau_Rsp': 2.0, 'tau_Ts': 2.0, 'tau_Tv': 1.5, 'tau_Vamv': 20.0, 'tau_Vev': 20.0, 'tau_Vrmv': 20.0, 'tau_Vsv': 20.0, 'tau_ac': 2.0, 'tau_ap': 2.0, 'tau_cc': 20.0, 'tau_isc': 30.0, 'tau_met': 10.0, 'tau_p': 2.076, 'tau_w': 5.0, 'tau_z': 0.8, 'theta_ao_max': 1.309, 'theta_mi_max': 1.7610633, 'theta_min': 0.11597809, 'theta_po_max': 0.9498662, 'theta_shn': 3.5987911, 'theta_spn': 9.053085, 'theta_svn': 17.63625, 'theta_tr_max': 1.4860394, 'theta_v': -0.96205395, 'x_sh': 53.0, 'x_sp': 6.0, 'x_sv': 6.0}

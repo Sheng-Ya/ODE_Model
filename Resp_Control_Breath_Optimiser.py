@@ -8,7 +8,7 @@ from numba import njit
 t1_upper_bound = 2.5
 t2_upper_bound = 3.8
 T_max = t1_upper_bound + t2_upper_bound
-n_steps = int(np.round(T_max / 0.001)) + 1
+n_steps = int(np.round(T_max / 0.0001)) + 1
 base_times = np.linspace(0, T_max, n_steps)
 
 
@@ -87,7 +87,7 @@ def calculate_V_dV_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao)
 
 
 @njit
-def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao, Pmax):
+def calculate_P_musc_dP_dt(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
     Updated method for calculating P_musc and dP_musc/dt
     """
@@ -130,7 +130,7 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao = required_params
 
-    P_musc, dP_musc_dt = calculate_P_musc_dP_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax)
+    P_musc, dP_musc_dt = calculate_P_musc_dP_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
     volume_signal = calculate_V_dV_dt(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao)
     dV_dt_values = (P_musc - P_ao - E_rs * volume_signal) / R_rs
 

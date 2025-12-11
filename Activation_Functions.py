@@ -105,7 +105,8 @@ def activation_U(beta, atr, T, Tsys):
 
 
 @njit
-def activation_H(ti, atr, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1):
+def activation_H(ti, atr, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1):
+    fall_time_atr = 1 - ahead1 + fall_time_ven
     tr_atr = rise_time_atr * T
     td_atr = fall_time_atr * T
     tr_ven = rise_time_ven * T
