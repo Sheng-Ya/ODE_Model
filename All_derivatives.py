@@ -58,7 +58,7 @@ def compute_mean_selected(HR_store, indices):
     return total / len(indices)
 
 
-@njit
+# @njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
     HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
     Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
@@ -120,7 +120,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
      scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
      Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P
+     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale
      ) = Input_Parameters
 
     # Determine the correct index based on t
@@ -179,7 +179,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     VT = VE_flow * (t1 + t2)    # Tidal volume
 
     # V = np.interp(time_since_last_breath, updates["current_times"], updates["V_current"])
-    tolerance = 1e-3
+    tolerance = 1e-4
     V, dV_dt = calculate_single_V_dV_dt(time_since_last_breath, (t1, t2), VAflow, VD, tolerance, E_rs, R_rs, P_ao)
     # P_musc, dP_musc_dt = calculate_single_P_musc_dP_dt(time_since_last_breath, (t1, t2), VAflow, VD, tolerance, E_rs, R_rs, P_ao)
 
@@ -344,12 +344,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_shift2 =  shift_param3 / (shift_param4 * (phi * Emax_lv + (1 - phi) * P0_lv * KE_lv * (np.exp(KE_lv * VT_lv))) + (phi_atr * Emax_la + (1 - phi_atr) * P0_la * KE_la * (np.exp(KE_la * VT_la))))
     # V_shift1 = 0
     # V_shift2 = 0
-    g = 0
-    P_peri = 0
-    g = 1.2
-    l = 3
-    V_nominal = 280
-    V_scale = 40
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
     P_peri = np.exp((V_heart_peri - V_nominal) / V_scale)
 
@@ -366,7 +360,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
 
     # Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor + g * P_peri
-    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/g * P_peri
+    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/r * P_peri
     # Pmax_rv = phi * Emax_rv * (VT_rv - (Vu_rv - x_r * A2_r)) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - (Vu_rv - x_r * A2_r))) - 1) + 1/g * P_peri
 
     # Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor + g * P_peri
@@ -627,7 +621,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Pmax_ra with reduced pericardial coupling to prevent kink at minimum volume
     # Use 0.5 * P_peri instead of 1 * P_peri for atria to avoid excessive coupling
-    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + g * P_peri
+    Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + r * P_peri
     # Pmax_ra = phi_atr * Emax_ra * (VT_ra - (Vu_ra + x_r * A1_r)) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - (Vu_ra + x_r * A1_r))) - 1) + P_thor + g * P_peri
 
     # Piston dynamics
@@ -1302,6 +1296,43 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
 
     Vu_amv = Vu_amv_check
+
+    if t <0.01:
+        print(np.array([time_since_beat,
+            HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
+            Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
+            Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every,
+            prev_flat_bit,
+
+            # for targets
+            P_rv, P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp,
+
+            # Gas exchange outputs
+            Pa_O2, Pa_CO2, Pb_CO2,
+            PA_O2, PA_CO2, Nt,
+
+            t1, t2, finish_breath_time, PamO2, PamCO2, PmbCO2,
+
+            dVT_pa_dt, dVT_pp_dt, dVT_pv_dt, dQ_pa_dt, dVT_la_dt, dVT_lv_dt, dVT_ra_dt, dVT_rv_dt, dVT_sv_dt,
+            dVT_bv_dt, dVT_hv_dt, dVT_rmv_dt, dVT_amv_dt, dP_sp_dt, dP_sa_dt, dQ_sa_dt, dVT_vc_dt,
+            dtheta_ao_dt, d2theta_ao_dt2, dtheta_po_dt, d2theta_po_dt2, dtheta_mi_dt, d2theta_mi_dt2, dtheta_tr_dt,
+            d2theta_tr_dt2,
+
+            # cardio controller derivatives
+            dtheta_change_O2_sp_dt, dtheta_change_CO2_sp_dt, dtheta_change_O2_sv_dt, dtheta_change_CO2_sv_dt,
+            dtheta_change_O2_sh_dt, dtheta_change_CO2_sh_dt, dP_tilda_dt, d_fac_dt, df_ap_dt, dR_ep_change_dt,
+            dR_sp_change_dt, dR_rmp_n_change_dt, dR_amp_n_change_dt, dVu_ev_change_dt, dVu_sv_change_dt,
+            dVu_rmv_change_dt, dVu_amv_change_dt, dEmax_lv_change_dt, dEmax_rv_change_dt, d_Ts_change_dt,
+            d_Tv_change_dt, dxb_O2_dt, dxb_CO2_dt, dxh_O2_dt, dxh_CO2_dt, dWh_dt, dxrm_O2_dt, dxrm_CO2_dt, dxam_O2_dt,
+            dxM_dt, dx_met_dt, dP_n_current_dt,
+
+            # gas exchange derivatives
+            dPd_1_O2_dt, dPd_1_CO2_dt, dPd_2_O2_dt, dPd_2_CO2_dt, dPd_3_O2_dt, dPd_3_CO2_dt, dPd_4_O2_dt,
+            dPd_4_CO2_dt, dPd_5_O2_dt, dPd_5_CO2_dt, dPa_O2_dt, dPa_CO2_dt, d2Pa_O2_dt2, d2Pa_CO2_dt2, dPA_O2_dt,
+            dPA_CO2_dt, dPCSFCO2_dt, dMRTO2_dt, dMRTCO2_dt, dCTO2_dt, dCvtCO2_dt, dCBO2_dt, dCvbCO2_dt, dMRV_dt,
+
+            # resp control derivatives
+            d_VE_integral_dt]))
 
     # ============================================================================
     # RETURN ALL COMPUTED VALUES

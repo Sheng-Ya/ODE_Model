@@ -49,7 +49,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 20000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 149.249 # Maximum time limit to avoid infinite loops
+max_time = 100 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 # 206.01888511283522
 
@@ -287,7 +287,7 @@ def simulate():
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
     Pa_O2_lower, rise_time_atr, rise_time_ven,
-    fall_time_ven, ahead1, theta_min, delta_P
+    fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale
      ) = \
     (new_params[k] if k in new_params else Parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
     "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
@@ -301,7 +301,7 @@ def simulate():
     "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
     "scale_param1", "scale_param2", "scale_param3", "scale_param4", "scale_param5", "scale_param6", "scale_param7",
     "Pa_O2_lower", "rise_time_atr", "rise_time_ven",
-     "fall_time_ven", "ahead1", "theta_min", "delta_P"])
+     "fall_time_ven", "ahead1", "theta_min", "delta_P", "r", "l", "V_nominal", "V_scale"])
 
     # determine the correct breathing profile
     # c0, c1, c2, c3, c4, c5, c6, d0, d1, d2, d3, d4, d5, d6 = (48.92693725193208, -179.74646224211781, 264.27143316201295, -198.28758319871972, 80.40967379469735, -17.564780238421623, 2.5264258177929397, 55.00594575959806, -207.90124250008992, 316.0780969325858, -247.41199356123695, 106.2717194407992, -25.181430356782283, 3.730524696373403)
@@ -333,7 +333,7 @@ def simulate():
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
      Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P]
+     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale]
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -498,11 +498,11 @@ def simulate():
     troughs, _ = find_peaks(-Total_Volume, distance=int(1000), prominence=1)
 
     last_10_troughs_Total_Volume = troughs[-10:-1]
-    last_10_min_Total_Volume = Total_Volume[last_10_troughs_Total_Volume]
+    mean_min_Total_Volume = np.mean(Total_Volume[last_10_troughs_Total_Volume])
     last_10_peaks_Total_Volume = peaks[-10:-1]
-    last_10_max_Total_Volume = Total_Volume[last_10_peaks_Total_Volume]
-    Pericardial_Volume_difference = np.mean(last_10_max_Total_Volume - last_10_min_Total_Volume)
-    Vol_percentage_change = Pericardial_Volume_difference / np.mean(last_10_max_Total_Volume)
+    mean_max_Total_Volume = np.mean(Total_Volume[last_10_peaks_Total_Volume])
+    Pericardial_Volume_difference = mean_max_Total_Volume - mean_min_Total_Volume
+    Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
 
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
     print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(last_10_min_P_sa),
