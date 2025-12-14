@@ -688,6 +688,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_vc = 0
         Vu_vc = VT_vc
 
+    P_vc = D1 + K1_vc * (VT_vc - Vu_vc) + P_thor
+
+
     if V_vc > 0:
         R_vc = Kr_vc * (Vvc_max / V_vc) ** 2 + Rvc_n
     else:
