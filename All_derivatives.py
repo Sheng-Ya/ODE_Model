@@ -1458,7 +1458,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
              Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, P_sa, VT_lv, VT_rv, P_rv,
              P_la, VT_la, VT_ra, P_ra,
-             prev_flat_bit, t1, t2, P_lv, phi_atr, V, VAflow, Q_pp, dVT_la_dt, dVT_ra_dt]
+             prev_flat_bit, t1, t2, P_lv, phi_atr, V, VAflow, Q_pp]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
