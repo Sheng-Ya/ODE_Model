@@ -347,13 +347,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
     P_peri = np.exp((V_heart_peri - V_nominal) / V_scale)
 
-    # AV Piston Parameters from Maksuti et al. (2015)
-    Iavp = 0.1
-    Ravp = 2*math.sqrt(2000*0.1)
-    A1_l = 20
-    A2_l = 20
-    A1_r = 20
-    A2_r = 20
+    # # AV Piston Parameters from Maksuti et al. (2015)
+    # Iavp = 0.1
+    # Ravp = 2*math.sqrt(2000*0.1)
+    # A1_l = 20
+    # A2_l = 20
+    # A1_r = 20
+    # A2_r = 20
 
     Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
     # Pmax_lv = phi * Emax_lv * (VT_lv - (Vu_lv - x_l * A2_l)) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - (Vu_lv - x_l * A2_l))) - 1) + P_thor + 1/g * P_peri
