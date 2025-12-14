@@ -1451,7 +1451,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
                 # Needed in cardio controller
                 "prev_flat_bit_store", "t1_store", "t2_store", "P_lv_store", "phi_atr_store", "tidal_store",
-                "VAflow_store", "Q_pp_store", "dVT_la_dt_store", "dVT_ra_dt_store"],
+                "VAflow_store", "Q_pp_store"],
 
             [time_since_beat,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
