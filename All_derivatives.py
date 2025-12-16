@@ -1433,7 +1433,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                     Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
                     f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
                     PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store,
-                    Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store, dVT_la_dt_store, dVT_ra_dt_store)
+                    Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store)
 
 
     # Cardiovascular Controller
