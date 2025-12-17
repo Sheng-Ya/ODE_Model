@@ -1,6 +1,6 @@
 import math
 import numpy as np
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 from scipy.integrate import simpson
 from numba import njit
 
@@ -164,7 +164,10 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
 
     integrand_expire = dV2_dt2_values_squared[inspire_index:]
 
-    dt_base = times[1] - times[0]  # uniform for your linspace
+    plt.plot(volume_signal)
+    plt.show()
+
+    dt_base = float(times[1] - times[0])
 
     integral_inspire = simpson(integrand_inspire, dx=dt_base)
     integral_expire = simpson(integrand_expire, dx=dt_base)
@@ -176,14 +179,6 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     return WI + lambda2 * WE
 
 
-
-
-
-
-
-
-
-
 @njit
 def calculate_single_V_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao):
     """
@@ -192,23 +187,34 @@ def calculate_single_V_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_
     # Precompute constants
     t1, t2 = initial_guess
     a1, a2, Pt1, Vt1, tau, B = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
-
-    # Compute constants for solution
-    c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (
-            np.exp(-B * t1) - 1)
-
-    d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
-    c2 = (Vt1 - (Pt1 / R_rs) / (B - 1 / tau)) / np.exp(-B * t1)
+    expBz = np.exp(-B * t)
 
     if t <= t1:
+        c1 = (Vt1 - ((a1 / E_rs) * t1 + (a2 / E_rs) * (t1 ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t1)) / (
+                np.exp(-B * t1) - 1)
+        d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
+
         V = ((a1 / E_rs) * t - (a1 * R_rs / (E_rs ** 2)) +
              (a2 / E_rs) * (t ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * t +
              (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
-             c1 * np.exp(-B * t) + d1)
+             c1 * expBz + d1)
         dV_dt = (1 / R_rs) * (a1 * t + a2 * (t ** 2) - E_rs * V)
     else:
-        V = (Pt1 / (R_rs * (B - 1 / tau))) * np.exp((-1 / tau) * (t - t1)) + np.exp(-B * t) * c2
-        dV_dt = (1 / R_rs) * (Pt1 * np.exp(-(t - t1) / tau) - E_rs * V)
+        mu = t1 + 0.5 * B * tau
+        term1 = - (t1 * t1) / tau
+        term2 = (mu ** 2) / tau
+        K = term1 + term2
+        pref = np.exp(K) * 0.5 * np.sqrt(np.pi * tau)
+
+        I0 = gaussian_integral(mu, t1, pref, tau)
+        I_z = gaussian_integral(mu, t, pref, tau)
+
+        integral = I_z - I0
+        constant = (Vt1 / np.exp(-B * t1))
+        V = (Pt1 / R_rs) * expBz * integral + constant * expBz
+
+        P_musc = Pt1 * np.exp((-(t - t1) ** 2) / tau)
+        dV_dt = (P_musc - P_ao - E_rs * V) / R_rs
 
     return V, dV_dt
 
