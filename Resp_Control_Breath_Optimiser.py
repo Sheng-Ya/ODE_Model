@@ -5,8 +5,8 @@ from scipy.integrate import simpson
 from numba import njit
 
 # outside objective, decide once:
-t1_upper_bound = 2.5
-t2_upper_bound = 3.8
+t1_upper_bound = 5
+t2_upper_bound = 7
 T_max = t1_upper_bound + t2_upper_bound
 n_steps = int(np.round(T_max / 0.001)) + 1
 base_times = np.linspace(0, T_max, n_steps)
