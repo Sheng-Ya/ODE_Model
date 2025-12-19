@@ -58,13 +58,34 @@ def compute_mean_selected(HR_store, indices):
     return total / len(indices)
 
 
-# @njit
+@njit
+def eval_spline(V, knots, coeffs):
+    # clip to domain
+    if V <= knots[0]:
+        i = 0
+    elif V >= knots[-1]:
+        i = len(knots) - 2
+    else:
+        i = np.searchsorted(knots, V) - 1
+
+    dx = V - knots[i]
+
+    # coeffs[:, i] = [a, b, c, d]
+    return (
+        coeffs[0, i]*dx**3
+        + coeffs[1, i]*dx**2
+        + coeffs[2, i]*dx
+        + coeffs[3, i]
+    )
+
+
+@njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
     HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
     Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
     f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history, PA_O2_every_store, PA_CO2_every_store,
     Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store, Pa_CO2_every_store, Pb_CO2_every_store,
-    PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store):
+    PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store, cs_t1, cs_t2, knots_1, knots_2):
     """
     Main derivative computation function with improved organization
     Computes all system derivatives in a single optimized function
@@ -108,7 +129,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
      grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
      phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
      MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
-     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10,
+     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
      # added params
      Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
      Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
@@ -153,7 +174,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
-    VAflow = max(VAflow, 0.01)
+    VAflow = max(VAflow, 0.04)
     VD = GV_dead * VAflow + V0_dead
 
     if time_since_last_breath > (t1 + t2) or t == 0:
@@ -164,9 +185,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
         time_since_last_breath = t - finish_breath_time
 
-        t1 = c0 * VAflow**10 + c1 * VAflow**9 + c2 * VAflow**8 + c3 * VAflow**7 + c4 * VAflow**6 + c5 * VAflow**5 + c6 * VAflow**4 + c7 * VAflow**3 + c8 * VAflow**2 + c9 * VAflow + c10
-        t2 = d0 * VAflow**10 + d1 * VAflow**9 + d2 * VAflow**8 + d3 * VAflow**7 + d4 * VAflow**6 + d5 * VAflow**5 + d6 * VAflow**4 + d7 * VAflow**3 + d8 * VAflow**2 + d9 * VAflow + d10
-
+        t1 = eval_spline(VAflow, knots_1, cs_t1)
+        t2 = eval_spline(VAflow, knots_2, cs_t2)
     # ============================================================================
     # RESPIRATORY MECHANICS
     # ============================================================================
@@ -674,8 +694,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # # Compute area ratio with smooth transition
     AR_tr = valve_signal * ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
-    P_vc = D1 + K1_vc * (VT_vc - Vu_vc) + P_thor
-
 
     # Flow with smooth transition
     Qi_rv = valve_signal * (np.sqrt(np.maximum(Pmax_ra - P_rv, 0)) * AR_tr * R_tr)
@@ -711,7 +729,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     Q_la = (P_pv - P_la) / R_pv
     # Q_la = max(0, np.sqrt(P_pv - P_la) * 350)
-    Q_pp = (P_pp - P_pv) / R_pp
+    Q_pp = max(((P_pp - P_pv) / R_pp), 0.0001)
 
     dVT_pa_dt = Q_rv - Q_pa
     dVT_pp_dt = Q_pa - Q_pp
@@ -787,7 +805,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     Q_sp = (P_sp - P_sv) / R_sp
 
-    AA = P_peri
+    AA = Wh_lv
 
     # P_s = P_abd
 
@@ -815,7 +833,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_bv = 0
         P_bv = VT_bv / C_bv
 
-    Q_bp = (P_sp - P_bv) / R_bp
+    # Q_bp = (P_sp - P_bv) / R_bp
+    Q_bp = max(((P_sp - P_bv) / R_bp), 0.0001)
 
     P_b = 0
 
@@ -824,10 +843,10 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         R_bv = R_bv_n
 
-    if P_bv >= P_vc:
-        Q_bv = (P_bv - P_vc) / R_bv
-    else:
-        Q_bv = 0
+    # if P_bv >= P_vc:
+    #     Q_bv = (P_bv - P_vc) / R_bv
+    # else:
+    #     Q_bv = 0
 
     Q_bv = (P_bv - P_vc) / R_bv
 
@@ -852,6 +871,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         R_hv = R_hv_n
 
+    # if P_hv >= P_vc:
+    #     Q_hv = (P_hv - P_vc) / R_hv
+    # else:
+    #     Q_hv = 0
+
     Q_hv = (P_hv - P_vc) / R_hv
 
     dVT_hv_dt = Q_hp - Q_hv
@@ -875,6 +899,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         R_rmv = R_rmv_n * ((P_rmv - P_vc) / (P_rmv - P_rm))
     else:
         R_rmv = R_rmv_n
+
+    # if P_rmv > P_vc:
+    #     Q_rmv = (P_rmv - P_vc) / R_rmv
+    # else:
+    #     Q_rmv = 0
 
     Q_rmv = (P_rmv - P_vc) / R_rmv
 
@@ -908,6 +937,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         R_amv = R_amv_n * ((P_amv - P_vc) / (P_amv - P_am))
     else:
         R_amv = R_amv_n
+
+    # if P_amv >= P_vc:
+    #     Q_amv = (P_amv - P_vc) / R_amv
+    # else:
+    #     Q_amv = 0
 
     Q_amv = (P_amv - P_vc) / R_amv
 
@@ -946,6 +980,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     Q_ev = (P_ev - P_vc) / R_ev
     # else:
     #     Q_ev = 0
+
     Q_ev = (P_ev - P_vc) / R_ev
 
     Q_vc = Q_ev + Q_sv + Q_bv + Q_hv + Q_rmv + Q_amv
@@ -1115,8 +1150,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     V_CO2 = VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (
-                    Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
+        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
         dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
 
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
@@ -1199,21 +1233,21 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
     # Fetch delayed values
-    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
-    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
-    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
-    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 5.725338528121857)
+    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
+    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
+    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
+    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
 
-    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
-    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
-    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
-    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 7.261875634917504)
+    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
+    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
+    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
+    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
 
-    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 7.811885872859872)
-    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 7.811885872859872)
+    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 4.141537075873976)
+    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 4.141537075873976)
 
-    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, 7.811885872859872)
-    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 2.7719269200056793)
+    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, 4.141537075873976)
+    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 3.1764205441300635)
 
     # heart period
     sigma_Ts = GT_s * np.log(max(f_sh_delay2_s, fes_min) - fes_min + 1)
@@ -1346,7 +1380,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             )
 
 
-def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters):
+def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2):
     """
     Main model derivatives function with improved organization
     Coordinates all system computations and updates
@@ -1433,7 +1467,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                     Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
                     f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
                     PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store,
-                    Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store)
+                    Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store, cs_t1, cs_t2, knots_1, knots_2)
 
 
     # Cardiovascular Controller
@@ -1446,7 +1480,8 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                 "Emax_lv_store", "Emax_rv_store", "f_sp_store", "f_sh_store",
                 "f_v_store", "f_sv_store", "phi_met_store", "HR_every_store", "Vu_ev_every_store",
                 "Vu_sv_every_store", "Vu_rmv_every_store", "Vu_amv_every_store", "Emax_lv_every_store",
-                "Emax_rv_every_store", "P_sa_store", "V_lv_store", "V_rv_store", "P_rv_store",
+                "Emax_rv_every_store", "theta_ao_store", "theta_po_store", "theta_mi_store", "theta_tr_store",
+                "P_sa_store", "V_lv_store", "V_rv_store", "P_rv_store",
                 "P_la_store", "V_la_store", "V_ra_store", "P_ra_store",
 
                 # Needed in cardio controller
@@ -1456,7 +1491,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             [time_since_beat,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
-             Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, P_sa, VT_lv, VT_rv, P_rv,
+             Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, theta_ao, theta_po, theta_mi, theta_tr, P_sa, VT_lv, VT_rv, P_rv,
              P_la, VT_la, VT_ra, P_ra,
              prev_flat_bit, t1, t2, P_lv, phi_atr, V, VAflow, Q_pp]
     ):
