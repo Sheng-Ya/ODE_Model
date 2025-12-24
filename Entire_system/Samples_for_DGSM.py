@@ -565,50 +565,50 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=400, IC_initial=N
         print("too slow")
         return ([0.0]*31, None, None, None)
 
-# def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay3.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-#     block_size = len(param_samples[0]) + 1
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for i, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#
-#         # Run only the base sample first
-#         base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-#
-#         # If base sample fails (e.g. returns 0 or some error code), skip the whole block
-#         if base_result[0] == 0:  # Adjust this condition to your failure criteria
-#             print(f"Skipping block {i + 1} due to base failure.")
-#             results_all.extend(np.zeros((block_size, 31)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         # perturbations = block[1:]  # exclude the base sample
-#
-#         # Otherwise, run full block in parallel
-#         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-#             results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
-#             copy.deepcopy(storage_final), Old_Parameters, IC_final, breath_coef, minimise_coef) for params in block)
-#
-#         results_block = [res[0] for res in results_perturbations]
-#         # print(results_block)
-#         results_all.extend(results_block)
-#
-#         # Save chunk incrementally (appending)
-#         # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-#         # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
-#
-#         # Save after each block
-#         np.save(save_path, np.array(results_all))
-#
-#     return results_all
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new.npy'):
+    results_all = []
+
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
+    block_size = len(param_samples[0]) + 1
+    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+
+    for i, block in enumerate(param_blocks):
+        base_sample = block[0]
+        copy_of_storage = copy.deepcopy(storage)
+
+        # Run only the base sample first
+        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+        minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
+
+        # If base sample fails (e.g. returns 0 or some error code), skip the whole block
+        if base_result[0] == 0:  # Adjust this condition to your failure criteria
+            print(f"Skipping block {i + 1} due to base failure.")
+            results_all.extend(np.zeros((block_size, 31)))
+            np.save(save_path, np.array(results_all))
+            continue
+
+        # perturbations = block[1:]  # exclude the base sample
+
+        # Otherwise, run full block in parallel
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
+            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
+            copy.deepcopy(storage_final), Old_Parameters, IC_final, breath_coef, minimise_coef) for params in block)
+
+        results_block = [res[0] for res in results_perturbations]
+        # print(results_block)
+        results_all.extend(results_block)
+
+        # Save chunk incrementally (appending)
+        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
+        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
+
+        # Save after each block
+        np.save(save_path, np.array(results_all))
+
+    return results_all
 
 
 def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef, minimise_coef):
@@ -640,72 +640,72 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
         return result, IC_final, storage_final, breath_coef
 
 
-def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
-    results_all = []
-
-    if os.path.exists(save_path):
-        os.remove(save_path)
-
-    block_size = len(param_samples[0]) + 1
-    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-
-    for w, block in enumerate(param_blocks):
-        base_sample = block[0]
-        copy_of_storage = copy.deepcopy(storage)
-        print(f"Running base sample for block {w+1}...")
-
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-        minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-
-        print(f"Base sample result: {base_result}")
-
-        if base_result[0] == 0:
-            print(f"Skipping block {w + 1} due to base failure.")
-            results_all.extend(np.zeros((block_size, 31)))
-            np.save(save_path, np.array(results_all))
-            continue
-
-        results_perturbations = []
-        for j, params in enumerate(block):
-            print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
-            next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-            storage_from_base = copy.deepcopy(storage_final)
-            IC_local = IC_final.copy()
-            if next_minimise_coef != minimise_coef:
-                for attempt in range(3):
-                    result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local)
-                    i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
-                    HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
-
-                    if (max(HR) - min(HR)) < 0.03:
-                        print(f"converged")
-                        break
-                    print(f"Not converged")
-            else:
-                for attempt in range(3):
-                    result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local, breath_coef=breath_coef)
-                    i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
-                    HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
-
-                    if (max(HR) - min(HR)) < 0.03:
-                        print(f"converged")
-                        break
-                    print(f"Not converged")
-
-            print(f"Perturbation result: {result}")
-            results_perturbations.append(result)
-
-        results_block = [base_result] + results_perturbations
-        results_all.extend(results_block)
-
-        # Save checkpoint files for debugging
-        np.save(f'IC_final_{w:03d}.npy', IC_final)
-        np.save(f'Next_final_{w:03d}.npy', storage_final)
-
-        np.save(save_path, np.array(results_all))
-        print(f"Block {w+1} finished and results saved.")
-
-    return results_all
+# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+#     results_all = []
+#
+#     if os.path.exists(save_path):
+#         os.remove(save_path)
+#
+#     block_size = len(param_samples[0]) + 1
+#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+#
+#     for w, block in enumerate(param_blocks):
+#         base_sample = block[0]
+#         copy_of_storage = copy.deepcopy(storage)
+#         print(f"Running base sample for block {w+1}...")
+#
+#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
+#
+#         print(f"Base sample result: {base_result}")
+#
+#         if base_result[0] == 0:
+#             print(f"Skipping block {w + 1} due to base failure.")
+#             results_all.extend(np.zeros((block_size, 31)))
+#             np.save(save_path, np.array(results_all))
+#             continue
+#
+#         results_perturbations = []
+#         for j, params in enumerate(block):
+#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
+#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
+#             storage_from_base = copy.deepcopy(storage_final)
+#             IC_local = IC_final.copy()
+#             if next_minimise_coef != minimise_coef:
+#                 for attempt in range(3):
+#                     result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local)
+#                     i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
+#                     HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
+#
+#                     if (max(HR) - min(HR)) < 0.03:
+#                         print(f"converged")
+#                         break
+#                     print(f"Not converged")
+#             else:
+#                 for attempt in range(3):
+#                     result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local, breath_coef=breath_coef)
+#                     i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
+#                     HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
+#
+#                     if (max(HR) - min(HR)) < 0.03:
+#                         print(f"converged")
+#                         break
+#                     print(f"Not converged")
+#
+#             print(f"Perturbation result: {result}")
+#             results_perturbations.append(result)
+#
+#         results_block = [base_result] + results_perturbations
+#         results_all.extend(results_block)
+#
+#         # Save checkpoint files for debugging
+#         np.save(f'IC_final_{w:03d}.npy', IC_final)
+#         np.save(f'Next_final_{w:03d}.npy', storage_final)
+#
+#         np.save(save_path, np.array(results_all))
+#         print(f"Block {w+1} finished and results saved.")
+#
+#     return results_all
 
 
 if __name__ == "__main__":
@@ -889,310 +889,19 @@ if __name__ == "__main__":
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
-    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[111826:,:]
-    Parameters = {
-    "beta2": 0.03255,
-    "C2": 87.0,
-    "K2": 194.4,
-    "a2": 1.819,
-    "alpha2": 0.05591,
-    "dc": 0.015,
-    "KCCO2": 346000.0,
-    "GV_dead": 0.1698,
-    "KcCO2": 0.2332,
-    "KcMRV": 1.0,
-    "KpCO2": 0.2025,
-    "KpO2": 4.72e-09,
-    "V0_dead": 0.1587,
-    "VA_rest": 0.0673,
-    "Pmax": 100.0,
-    "Pmax_dot": 1000.0,
-    "E_rs": 21.9,
-    "R_rs": 3.02,
-    "C_jp": 3.72,
-    "C_sa": 0.28,
-    "L_sa": 0.00022,
-    "R_sa": 0.2,
-    "C_amv": 4.4,
-    "C_bv": 5.71,
-    "C_ev": 10.0,
-    "C_hv": 1.57,
-    "C_rmv": 3.28,
-    "C_sv": 31.11,
-    "kr_am": 24.17,
-    "P_0": 3.93,
-    "R_amv_n": 0.0833,
-    "R_bv_n": 0.075,
-    "R_ev_n": 0.04,
-    "R_hv_n": 0.224,
-    "R_rmv_n": 0.125,
-    "R_sv_n": 0.038,
-    "D1": 0.3855,
-    "K1_vc": 0.15,
-    "Kr_vc": 0.0001,
-    "Rvc_n": 0.0025,
-    "C_pa": 0.76,
-    "C_pp": 15.8,
-    "C_pv": 25.37,
-    "L_pa": 0.00018,
-    "R_pa": 0.023,
-    "R_pp": 0.0894,
-    "R_pv": 0.0056,
-    "Emax_la": 0.34,
-    "P0_la": 0.55,
-    "Emax_ra": 0.34,
-    "P0_ra": 0.55,
-    "KE_la": 0.05,
-    "KE_ra": 0.07,
-    "P0_lv": 1.5,
-    "P0_rv": 1.5,
-    "g_thor": 6.8,
-    "P_thormax_n": -2.0,
-    "P_thormin_n": -6.0,
-    "VT_n": 0.73,
-    "s": 0.04,
-    "fab_o": 25.0,
-    "fes_o": 16.11,
-    "fes_inf": 2.1,
-    "fes_max": 80.0,
-    "fev_o": 3.2,
-    "fev_inf": 6.3,
-    "kes": 0.0675,
-    "kev": 7.06,
-    "Io_sh": 0.658,
-    "Io_sp": 0.65,
-    "Io_sv": 0.45,
-    "Io_v": 0.22,
-    "kcc_sh": 0.114,
-    "kcc_sp": 0.13,
-    "kcc_sv": 0.09,
-    "kcc_v": 0.0162,
-    "Ysh_max": 20.0,
-    "Ysh_min": -0.0283,
-    "Ysp_max": 5.5,
-    "Ysp_min": -0.037,
-    "Ysv_max": 64.9,
-    "Ysv_min": -0.437,
-    "Yv_max": 1.9,
-    "Yv_min": -0.0008,
-    "theta_v": -0.68,
-    "Wb_sh": -1.75,
-    "Wb_sp": -1.1375,
-    "Wb_sv": -1.1375,
-    "Wc_sh": 1.0,
-    "Wc_sp": 1.716,
-    "Wc_sv": 1.716,
-    "Wc_v": 0.2,
-    "Wp_sh": -0.2,
-    "Wp_sp": -0.3997,
-    "Wp_sv": -0.3997,
-    "Wp_v": -0.103,
-    "Wt_sh": 0.4,
-    "Wt_sp": 0.4,
-    "Wt_sv": 0.4,
-    "Wt_v": 0.4,
-    "Emax_lv0": 2.392,
-    "Emax_rv0": 1.412,
-    "fes_min": 2.66,
-    "GEmax_lv": 0.475,
-    "GEmax_rv": 0.282,
-    "GR_amp": 4.47,
-    "GR_ep": 1.94,
-    "GR_rmp": 2.47,
-    "GR_sp": 0.695,
-    "GV_amv": -28.29,
-    "GV_ev": -74.21,
-    "GV_rmv": -28.29,
-    "GV_sv": -265.4,
-    "R_amp0": 3.51,
-    "R_ep0": 1.655,
-    "R_rmp0": 5.27,
-    "R_sp0": 2.49,
-    "AT": 0.016666666667,
-    "g_ccsh": 1.0,
-    "g_ccsp": 1.5,
-    "g_ccsv": 0.2,
-    "kisc_sh": 6.0,
-    "kisc_sp": 2.0,
-    "kisc_sv": 2.0,
-    "PO2_sh": 45.0,
-    "PO2_sp": 30.0,
-    "PO2_sv": 30.0,
-    "theta_shn": 3.6,
-    "theta_spn": 13.32,
-    "theta_svn": 13.32,
-    "x_sh": 53.0,
-    "x_sp": 6.0,
-    "x_sv": 6.0,
-    "PaCO2_n": 40.0,
-    "f_ab_max": 47.78,
-    "f_ab_min": 2.52,
-    "k_ab": 11.76,
-    "P_n": 92.0,
-    "P_n_max": 112.0,
-    "f_acCO2_n": 1.4,
-    "f_ac_max": 12.3,
-    "f_ac_min": 0.835,
-    "k_ac": 29.27,
-    "K_H": 3.0,
-    "PaO2_ac_n": 45.0,
-    "G_ap": 11.76,
-    "GT_s": -0.13,
-    "GT_v": 0.09,
-    "T0": 0.58,
-    "A": 20.9,
-    "B": 92.8,
-    "C": 10570.0,
-    "D": -5.251,
-    "Cvb_O2_n": 0.14,
-    "gb_O2": 10.0,
-    "MO2_bp": 0.925,
-    "R_bpn": 6.57,
-    "Cvh_O2_n": 0.11,
-    "Cvrm_O2_n": 0.155,
-    "gh_O2": 35.0,
-    "grm_O2": 30.0,
-    "Kh_CO2": 11.11,
-    "Krm_CO2": 142.8,
-    "MO2_hpn": 0.4,
-    "MO2_rmp": 0.86,
-    "R_hpn": 19.71,
-    "W_hn": 12660.0,
-    "Cvam_O2_n": 0.1555,
-    "gam_O2": 30.0,
-    "gM": 40.0,
-    "Io_met": 0.4266,
-    "kmet": 0.18,
-    "MO2_ampn": 0.516,
-    "phi_max": 20.0,
-    "phi_min": -1.87,
-    "Kp_ao": 1000.0,
-    "Kf_ao": 5000.0,
-    "Kb_ao": 2.0,
-    "Kv_ao": 5.0,
-    "theta_ao_max": 1.309,
-    "Kp_mi": 2000.0,
-    "Kf_mi": 500.0,
-    "Kb_mi": 2.0,
-    "Kv_mi": 7.0,
-    "theta_mi_max": 1.309,
-    "Kp_po": 2000.0,
-    "Kf_po": 2000.0,
-    "Kb_po": 5.0,
-    "Kv_po": 10.0,
-    "theta_po_max": 1.309,
-    "Kp_tr": 3000.0,
-    "Kf_tr": 500.0,
-    "Kb_tr": 2.0,
-    "Kv_tr": 7.0,
-    "theta_tr_max": 1.309,
-    "alpha_O2": 3.17e-05,
-    "R_po": 350.0,
-    "R_mi": 350.0,
-    "R_tr": 350.0,
-    "R_ao": 350.0,
-    "C_O2_param1": 0.00134,
-    "C_O2_param2": 2.6,
-    "C_O2_param3": 3.03e-05,
-    "PAMO2_nominal": 104.0,
-    "Vu_sa": 1.0,
-    "Vu_bv": 279.49,
-    "Vu_hv": 93.16,
-    "Vu_jp": 579.76,
-    "Vu_vc": 123.0,
-    "Vvc_max": 350.0,
-    "Vu_pa": 1.0,
-    "Vu_pp": 116.6775,
-    "Vu_pv": 214.0,
-    "Vu_la": 10.0,
-    "Vu_lv": 10.0,
-    "Vu_ra": 10.0,
-    "Vu_rv": 10.0,
-    "V_tot": 5027.6,
-    "tau_Emax_lv": 8.0,
-    "tau_Emax_rv": 8.0,
-    "tau_Ramp": 2.0,
-    "tau_Rep": 2.0,
-    "tau_Rrmp": 2.0,
-    "tau_Rsp": 2.0,
-    "tau_Vamv": 20.0,
-    "tau_Vev": 20.0,
-    "tau_Vrmv": 20.0,
-    "tau_Vsv": 20.0,
-    "Vu_amv0": 286.4,
-    "Vu_ev0": 607.8,
-    "Vu_rmv0": 190.95,
-    "Vu_sv0": 1361.6,
-    "tau_cc": 20.0,
-    "tau_isc": 30.0,
-    "tau_p": 2.076,
-    "tau_z": 0.8,
-    "tau_ac": 2.0,
-    "tau_ap": 2.0,
-    "tau_Ts": 2.0,
-    "tau_Tv": 1.5,
-    "tau_CO2": 20.0,
-    "tau_O2": 10.0,
-    "tau_w": 5.0,
-    "tau_M": 40.0,
-    "tau_met": 10.0,
-    "DEmax_lv": 2.0,
-    "DEmax_rv": 2.0,
-    "DR_amp": 2.0,
-    "DR_ep": 2.0,
-    "DR_rmp": 2.0,
-    "DR_sp": 2.0,
-    "DV_amv": 5.0,
-    "DV_ev": 5.0,
-    "DV_rmv": 5.0,
-    "DV_sv": 5.0,
-    "DT_s": 2.0,
-    "DT_v": 0.2,
-    "Dmet": 4.0,
-    "Ta": 3.0,
-    "KE_lv": 0.014,
-    "KE_rv": 0.011,
-    "T1": 1.0,
-    "T2": 2.0,
-    "VL_CO2": 3.0,
-    "VL_O2": 2.5,
-    "KCSFCO2": 20.0,
-    "VB": 0.9,
-    "tauMR": 50.0,
-    "VTCO2": 0.25,
-    "VTO2": 0.25,
-    "tau_MRV": 50.0,
-    "scale_param1": 4.9,
-    "scale_param2": 1.5,
-    "scale_param3": 0.3,
-    "scale_param4": 26.6,
-    "scale_param5": 0.5,
-    "scale_param6": 1.2,
-    "scale_param7": 30.0,
-    "Pa_O2_lower": 80.0,
-    "rise_time_atr": 0.05,
-    "rise_time_ven": 0.15,
-    "fall_time_ven": 0.3,
-    "ahead1": 0.9,
-    "theta_min": 0.0872665,
-    "r": 1.2,
-    "l": 3.0,
-    "V_nominal": 280.0,
-    "V_scale": 40.0,
-}
+    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[:5720,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
-    param_samples[0] = Parameters
     print(f"Number of samples created: {len(X)}")
-    AA = param_samples[0]
-    print(AA)
+    # AA = param_samples[0]
+    # print(AA)
 
-    # Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=40)
-    Result = parallel_simulations(param_samples, Next_Conditions)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
 
-    np.save('DGSM_500_Result_rest_88_200.npy', Result)
+    np.save('DGSM_500_Result_rest_1_20.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 
