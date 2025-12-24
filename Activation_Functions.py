@@ -6,22 +6,120 @@ from numba import njit
 def frac(x):
     return x - math.floor(x)
 
-def activation_U(beta, atr, T, Tsys):
+
+@njit
+def activation_H(ti, atr, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1):
+    fall_time_atr = 1 - ahead1 + fall_time_ven
+    tr_atr = rise_time_atr * T
+    td_atr = fall_time_atr * T
+    tr_ven = rise_time_ven * T
+    td_ven = fall_time_ven * T
+
+    if ti <= ahead1 * T:
+        t_la = ti + (1-ahead1) * T
+    else:
+        t_la = ti - ahead1 * T
+
     if atr == 1:
-        U_t0 = 0.1
+        if t_la <= tr_atr:
+            return 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
+        elif t_la <= td_atr:
+            return 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
+        else:
+            return 0.0
     else:
-        U_t0 = 0
+        if ti <= tr_ven:
+            return 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
+        elif ti <= td_ven:
+            return 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
+        else:
+            return 0.0
 
-    U1 = frac(beta + U_t0)
+@njit
+def activation_H_derivative(ti, atr, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1):
 
-    if 0 <= U1 <= (Tsys / T):
-        phi = (np.sin(((np.pi * T) / Tsys) * U1)) ** 2
+    fall_time_atr = 1 - ahead1 + fall_time_ven
+    tr_atr = rise_time_atr * T
+    td_atr = fall_time_atr * T
+    tr_ven = rise_time_ven * T
+    td_ven = fall_time_ven * T
+
+    if ti <= ahead1 * T:
+        t_la = ti + (1 - ahead1) * T
     else:
-        phi = 0
+        t_la = ti - ahead1 * T
 
-    return phi
+    if atr == 1:
+        dphi_dt = np.where(t_la <= tr_atr,
+                           0.5 * (np.sin(np.pi * t_la / tr_atr)) * np.pi / tr_atr,
+                       np.where(t_la <= td_atr,
+                                -0.5 * (np.sin(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))) * (np.pi/(td_atr - tr_atr)),
+                                0))
+    else:
+        dphi_dt = np.where(ti <= tr_ven,
+                       0.5 * (np.sin(np.pi * ti / tr_ven)) * np.pi / tr_ven,
+                       np.where(ti <= td_ven,
+                                -0.5 * (np.sin(np.pi * (ti - tr_ven) / (td_ven - tr_ven))) * (np.pi/(td_ven - tr_ven)),
+                                0))
+
+    return dphi_dt
 
 
+
+
+#
+# def activation_Naghavi(t, atr, T, Tsys):
+#     tr = Tsys
+#
+#     ti = t % T
+#
+#     if ti <= 0.9 * T:
+#         t_la = ti + 0.1 * T
+#     else:
+#         t_la = ti - 0.9 * T
+#
+#     if atr == 1:
+#         phi = np.where(t_la <= tr,
+#                        0.5 * (1.0 - np.cos(np.pi * t_la / T)),
+#                        np.where(t_la <= T,
+#                                 0.5 * (np.exp(-(t_la - tr) * (1 / 0.025))),
+#                                 0))
+#     else:
+#         phi = np.where(ti <= tr,
+#                    0.5 * (1.0 - np.cos(np.pi * ti / T)),
+#                    np.where(ti <= T,
+#                             0.5 * (np.exp(-(ti - tr) * (1 / 0.025))),
+#                             0))
+#
+#     return phi
+
+
+# def g_function(t, atr, T):
+#     tmax = T
+#     ti = t % T
+#
+#     if ti <= 0.9 * T:
+#         t_la = ti + 0.1 * T
+#     else:
+#         t_la = ti - 0.9 * T
+#
+#     if atr == 1:
+#         if t_la < 0:
+#             phi = 0
+#         elif 0 <= t_la < tmax:
+#             phi = np.sin(np.pi * t_la / tmax) ** 2
+#         else:
+#             phi = 0
+#
+#     else:
+#         if ti < 0:
+#             phi = 0
+#         elif 0 <= ti < tmax:
+#             phi = np.sin(np.pi * ti / tmax) ** 2
+#         else:
+#             phi = 0
+#
+#     return phi
 
 # def activation_H(ti, atr, T):
 #     # rise and decrease
@@ -103,253 +201,28 @@ def activation_U(beta, atr, T, Tsys):
 #
 #     return force
 
-
-@njit
-def activation_H(ti, atr, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1):
-    fall_time_atr = 1 - ahead1 + fall_time_ven
-    tr_atr = rise_time_atr * T
-    td_atr = fall_time_atr * T
-    tr_ven = rise_time_ven * T
-    td_ven = fall_time_ven * T
-
-    if ti <= ahead1 * T:
-        t_la = ti + (1-ahead1) * T
-    else:
-        t_la = ti - ahead1 * T
-
-    if atr == 1:
-        if t_la <= tr_atr:
-            return 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
-        elif t_la <= td_atr:
-            return 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
-        else:
-            # Smooth exponential decay after deactivation time instead of hard cutoff
-            # This eliminates the kink at minimum volume when activation drops to zero
-            # decay_tau = 0.05 * T  # Time constant for smooth decay
-            # return 0.5 * (1.0 + np.cos(np.pi * (td_atr - tr_atr) / (td_atr - tr_atr))) * np.exp(-(t_la - td_atr) / decay_tau)
-            return 0.0
-    else:
-        if ti <= tr_ven:
-            return 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
-        elif ti <= td_ven:
-            return 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
-        else:
-            return 0.0
-
-# @njit
-# def activation_H(ti, atr, T, rise_time_atr, fall_time_atr, rise_time_ven, fall_time_ven, ahead1):
-#     tr_atr = rise_time_atr * T
-#     td_atr = fall_time_atr * T
-#     tr_ven = rise_time_ven * T
-#     td_ven = fall_time_ven * T
+# def activation_S(t, atr, T):
+#     # rise and decrease
+#     tr_atr = 0.05*T
+#     td_atr = 0.1*T
 #
-#     if ti <= ahead1 * T:
-#         t_la = ti + (1-ahead1) * T
+#     tr_ven = 0.15 * T
+#     td_ven = 0.3 * T
+#
+#     ti = t % T
+#
+#     if ti <= 0.9 * T:
+#         t_la = ti + 0.1 * T
 #     else:
-#         t_la = ti - ahead1 * T
+#         t_la = ti - 0.9 * T
 #
 #     if atr == 1:
-#         # --- first peak (existing atrial one) ---
-#         if t_la <= tr_atr:
-#             phi1 = 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
-#         elif t_la <= td_atr:
-#             phi1 = 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
-#         else:
-#             phi1 = 0.0
+#         phi1 = np.where(t_la <= tr_atr,
+#                         0.5 * (1.0 - np.cos(np.pi * t_la / tr_atr)),
+#                         0)
 #
-#         # --- second peak (same shape as ventricular) ---
-#         if ti <= tr_ven:
-#             phi2 = 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
-#         elif ti <= td_ven:
-#             phi2 = 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
-#         else:
-#             phi2 = 0.0
+#         phi2 = np.where(np.logical_and(t_la > tr_atr, t_la <= td_atr),
+#                         0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))),
+#                         0)
 #
-#         def smooth_max(a, b, eps=0.02):
-#             # eps controls smoothness — smaller = sharper but still smooth
-#             return a + eps * np.log1p(np.exp((b - a) / eps))
-#
-#         # return phi1 + 0.2 * phi2   # two peaks added
-#         return smooth_max(phi1, 0.2 * phi2)
-#     else:
-#         if ti <= tr_ven:
-#             return 0.5 * (1.0 - np.cos(np.pi * ti / tr_ven))
-#         elif ti <= td_ven:
-#             return 0.5 * (1.0 + np.cos(np.pi * (ti - tr_ven) / (td_ven - tr_ven)))
-#         else:
-#             return 0.0
-
-
-def activation_S(t, atr, T):
-    # rise and decrease
-    tr_atr = 0.05*T
-    td_atr = 0.1*T
-
-    tr_ven = 0.15 * T
-    td_ven = 0.3 * T
-
-    ti = t % T
-
-    if ti <= 0.9 * T:
-        t_la = ti + 0.1 * T
-    else:
-        t_la = ti - 0.9 * T
-
-    if atr == 1:
-        phi1 = np.where(t_la <= tr_atr,
-                        0.5 * (1.0 - np.cos(np.pi * t_la / tr_atr)),
-                        0)
-
-        phi2 = np.where(np.logical_and(t_la > tr_atr, t_la <= td_atr),
-                        0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))),
-                        0)
-
-    return phi1, phi2
-
-
-
-
-def activation_conduit(t, T):
-    # rise and decrease
-
-    td_ven = 0.3 * T
-    t_end = 0.9 * T
-    rise_end = 0.5 * T
-
-    ti = t % T
-
-    phi_cond = np.where(
-        ti < td_ven,
-        0,
-        np.where(
-            ti <= rise_end,
-            0.5 * (1 - np.cos(np.pi * (ti - td_ven) / (rise_end - td_ven))),
-            np.where(
-                ti <= t_end,
-                0.5 * (1 + np.cos(np.pi * (ti - rise_end) / (t_end - rise_end))),
-                0
-            )
-        )
-    )
-
-
-    # phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
-    #                     0.5 * (1.0 - np.cos(np.pi * (ti - (td_ven - 0.06)) / (t_end - (td_ven - 0.06)))),
-    #                     0)
-
-    # phi_cond = np.where(
-    #     ti < td_ven,
-    #     0,
-    #     np.where(np.logical_and(td_ven <= ti, ti <= rise_end),
-    #                     0.5 * (1.0 - np.cos(np.pi * (ti - (td_ven)) / (rise_end - (td_ven)))),
-    #                     np.where(ti <= t_end,
-    #                              1,
-    #                              0)))
-
-    # phi_cond = np.where(
-    #     ti < td_ven,
-    #     0,
-    #     np.where(np.logical_and(td_ven <= ti, ti <= rise_end),
-    #              1,
-    #              np.where(ti <= t_end,
-    #                       1,
-    #                       0)))
-
-    # phi_cond = np.where(
-    #     np.logical_and(td_ven - 0.06 <= ti, ti <= t_end),
-    #     0.5 * (1.0 - np.cos(np.pi * (ti - td_ven) / (rise_end - td_ven))),
-    #         0
-    #     )
-    # phi_cond = 2*phi_cond
-
-    # phi_cond = np.where(np.logical_and(td_ven - 0.06 <= ti, ti <= t_end), 1, 0)
-
-    return phi_cond
-
-
-def activation_H_derivative(t, atr, T):
-    # rise and decrease
-    tr_atr = 0.045*T
-    td_atr = 0.09*T
-
-    tr_ven = 0.15 * T
-    td_ven = 0.3 * T
-
-    ti = t % T
-
-    if ti <= 0.9 * T:
-        t_la = ti + 0.1 * T
-    else:
-        t_la = ti - 0.9 * T
-
-    if atr == 1:
-        dphi_dt = np.where(t_la <= tr_atr,
-                           0.5 * (np.sin(np.pi * t_la / tr_atr)) * np.pi / tr_atr,
-                       np.where(t_la <= td_atr,
-                                -0.5 * (np.sin(np.pi * (t_la - tr_atr) / (td_atr - tr_atr))) * (np.pi/(td_atr - tr_atr)),
-                                0))
-    else:
-        dphi_dt = np.where(ti <= tr_ven,
-                       0.5 * (np.sin(np.pi * ti / tr_ven)) * np.pi / tr_ven,
-                       np.where(ti <= td_ven,
-                                -0.5 * (np.sin(np.pi * (ti - tr_ven) / (td_ven - tr_ven))) * (np.pi/(td_ven - tr_ven)),
-                                0))
-
-    return dphi_dt
-
-
-
-
-
-def activation_Naghavi(t, atr, T, Tsys):
-    tr = Tsys
-
-    ti = t % T
-
-    if ti <= 0.9 * T:
-        t_la = ti + 0.1 * T
-    else:
-        t_la = ti - 0.9 * T
-
-    if atr == 1:
-        phi = np.where(t_la <= tr,
-                       0.5 * (1.0 - np.cos(np.pi * t_la / T)),
-                       np.where(t_la <= T,
-                                0.5 * (np.exp(-(t_la - tr) * (1 / 0.025))),
-                                0))
-    else:
-        phi = np.where(ti <= tr,
-                   0.5 * (1.0 - np.cos(np.pi * ti / T)),
-                   np.where(ti <= T,
-                            0.5 * (np.exp(-(ti - tr) * (1 / 0.025))),
-                            0))
-
-    return phi
-
-
-def g_function(t, atr, T):
-    tmax = T
-    ti = t % T
-
-    if ti <= 0.9 * T:
-        t_la = ti + 0.1 * T
-    else:
-        t_la = ti - 0.9 * T
-
-    if atr == 1:
-        if t_la < 0:
-            phi = 0
-        elif 0 <= t_la < tmax:
-            phi = np.sin(np.pi * t_la / tmax) ** 2
-        else:
-            phi = 0
-
-    else:
-        if ti < 0:
-            phi = 0
-        elif 0 <= ti < tmax:
-            phi = np.sin(np.pi * ti / tmax) ** 2
-        else:
-            phi = 0
-
-    return phi
+#     return phi1, phi2
