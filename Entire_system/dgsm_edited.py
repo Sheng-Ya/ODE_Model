@@ -71,8 +71,6 @@ def analyze(
         raise RuntimeError("Confidence level must be between 0-1.")
 
     dims = (N, D)
-    base = np.empty(N)
-    X_base = np.empty(dims)
     perturbed = np.empty(dims)
     X_perturbed = np.empty(dims)
     step = D + 1

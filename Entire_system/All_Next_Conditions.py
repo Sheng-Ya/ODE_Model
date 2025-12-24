@@ -61,5 +61,7 @@ Next_Conditions = {
     "VAflow_store": np.array([0.09847648290408695] * 40000),
 
     "Q_pp_store": np.array([69.64044710050975] * 40000),
+    "dP_rv_dt_store": np.array([0.0] * 40000),
+    "dP_lv_dt_store": np.array([0.0] * 40000),
 
 }

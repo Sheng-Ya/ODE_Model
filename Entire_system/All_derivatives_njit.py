@@ -1,6 +1,5 @@
 import numpy as np
-import math
-from Activation_Functions import activation_H
+from Activation_Functions import activation_H, activation_H_derivative
 from Resp_Control_Breath_Optimiser import calculate_single_V_dV_dt
 from numba import njit
 
@@ -290,8 +289,10 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     if 0 <= time_since_last_breath < TI:
         P_thor = P_thormax - (P_thormax - P_thormin) * (T_resp / TI) * S
+        dP_thor_dt = -(P_thormax - P_thormin) / TI
     else:
         P_thor = P_thormax - (P_thormax - P_thormin) * ((TI + TE - T_resp * S) / TE)
+        dP_thor_dt = (P_thormax - P_thormin) / TE
 
     # if 0 <= time_since_last_breath < (TI / 2):
     #     P_abd = P_abdmax - (P_abdmax - P_abdmin) * (T_resp / (TI / 2)) * S
@@ -356,6 +357,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # activation function for contraction of the ventricle and atria
     phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
     phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
+    dphi_dt = activation_H_derivative(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
 
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
     P_peri = np.exp((V_heart_peri - V_nominal) / V_scale)
@@ -814,10 +816,10 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     SvtO2 = (PvtO2_virt ** C_O2_param2) / (PvtO2_virt ** C_O2_param2 + scale_param4 ** C_O2_param2)
     CvtO2 = C_O2_param1 * 150 * SvtO2 + C_O2_param3 * PvtO2
 
-    Q_pp_1000 = Q_pp / 1000
     Q_bp_1000 = Q_bp / 1000
+    Q_pp_1000 = max(Q_pp / 1000, Q_bp_1000)
 
-    QT = Q_pp_1000 - Q_bp_1000
+    QT = max(Q_pp_1000 - Q_bp_1000, 0.0001)
 
     # overall CvO2 and CvCO2
     CvO2 = (Q_bp_1000 / Q_pp_1000) * CvbO2 + (QT / Q_pp_1000) * CvtO2
@@ -1029,6 +1031,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # phi_met_delay = phi_met
 
     dx_met_dt = (- x_met + phi_met_delay) / tau_met
+    dP_peri_dt = P_peri * (dVT_la_dt + dVT_lv_dt + dVT_ra_dt + dVT_rv_dt) / V_scale
+    dP_rv_dt = Emax_rv * (phi * dV_rv_dt + dphi_dt*(VT_rv - Vu_rv)) + P0_rv * (-dphi_dt * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + (1 - phi) * KE_rv * np.exp(KE_rv * (VT_rv - Vu_rv)) * dVT_rv_dt) + dP_thor_dt + 1/r * dP_peri_dt
+    dP_lv_dt = Emax_lv * (phi * dV_lv_dt + dphi_dt*(VT_lv - Vu_lv)) + P0_lv * (-dphi_dt * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + (1 - phi) * KE_lv * np.exp(KE_lv * (VT_lv - Vu_lv)) * dVT_lv_dt) + dP_thor_dt + 1/l * dP_peri_dt
 
     Vu_amv = Vu_amv_check
 
@@ -1042,7 +1047,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             prev_flat_bit,
 
             # for targets
-            P_rv, P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp, theta_ao, theta_po, theta_mi, theta_tr,
+            P_rv, P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp, theta_ao, theta_po, theta_mi, theta_tr, dP_rv_dt, dP_lv_dt,
 
             # Gas exchange outputs
             Pa_O2, Pa_CO2, Pb_CO2,
@@ -1123,7 +1128,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      prev_flat_bit,
 
      # for targets
-     P_rv, P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp, theta_ao, theta_po, theta_mi, theta_tr,
+     P_rv, P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp, theta_ao, theta_po, theta_mi, theta_tr, dP_rv_dt, dP_lv_dt,
 
      Pa_O2, Pa_CO2, Pb_CO2,
      PA_O2, PA_CO2, Nt,
@@ -1176,7 +1181,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                 "Emax_rv_every_store", "P_sa_store", "theta_ao_store", "theta_po_store", "theta_mi_store", "theta_tr_store",
                 "V_lv_store", "V_rv_store", "P_rv_store",
                 "P_la_store", "V_la_store", "V_ra_store", "P_ra_store", "P_lv_store", "phi_atr_store",
-                "tidal_store", "VAflow_store", "Q_pp_store",
+                "tidal_store", "VAflow_store", "Q_pp_store", "dP_rv_dt_store", "dP_lv_dt_store",
                 # Needed in cardio controller
                 "prev_flat_bit_store", "t1_store", "t2_store"],
 
@@ -1184,7 +1189,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
              Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, P_sa, theta_ao, theta_po, theta_mi, theta_tr, VT_lv, VT_rv, P_rv,
-             P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp,
+             P_la, VT_la, VT_ra, P_ra, P_lv, phi_atr, V, VAflow, Q_pp, dP_rv_dt, dP_lv_dt,
              prev_flat_bit, t1, t2]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value

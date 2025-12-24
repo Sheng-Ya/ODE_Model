@@ -1,27 +1,24 @@
 from SALib import ProblemSpec
-from SALib.plotting.bar import plot as barplot
 from scipy.stats import spearmanr
-
-# from SALib.analyze import dgsm
 import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
+from collections import OrderedDict
 
-X1 = np.load('DGSM_500_X_samples_rest_20.npy')[:25432,:]
-Result1 = np.load('Result_DGSM_0_88_rest_20.npy')
 
-X2 = np.load('DGSM_500_X_samples_rest_20.npy')[25432:57800,:]
-Result2 = np.load('Result_DGSM_88_200_rest_20.npy')
+
+X1 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[:57800,:]
+Result1 = np.load('Result_DGSM_rest_20_no_Pthor_1_200.npy')
+
+X2 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[57800:115600,:]
+Result2 = np.load('Result_DGSM_rest_20_no_Pthor_200_400.npy')
 #
-X3 = np.load('DGSM_500_X_samples_rest_20.npy')[57800:115600,:]
-Result3 = np.load('Result_DGSM_200_400_rest_20.npy')
-#
-X4 = np.load('DGSM_500_X_samples_rest_20.npy')[115600:,:]
-Result4 = np.load('DGSM_500_Result_rest_400_500.npy ')
+X3 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[115600:,:]
+Result3 = np.load('Result_DGSM_rest_20_no_Pthor_400_500.npy ')
 
 #
-Result = np.vstack((Result1, Result2, Result3, Result4))
-X = np.vstack((X1, X2, X3, X4))
+Result = np.vstack((Result1, Result2, Result3))
+X = np.vstack((X1, X2, X3))
 
 
 lower = 0.8
@@ -75,7 +72,7 @@ mask_full = np.repeat(mask_blocks, block_size)
 X = X[mask_full]
 Result = Result[mask_full]
 
-HR = Result[:, 25]
+HR = Result[:, 20]
 
 sp = ProblemSpec({
         'names': [
@@ -96,7 +93,7 @@ sp = ProblemSpec({
             "C_pv", "L_pa", "R_pa", "R_pp",
             "R_pv", "Emax_la", "P0_la", "Emax_ra",
             "P0_ra", "KE_la", "KE_ra", "P0_lv",
-            "P0_rv", "g_thor", "P_thormax_n", "P_thormin_n",
+            "P0_rv", # "g_thor", "P_thormax_n", "P_thormin_n",
             "VT_n", "s",
             # cardio control
             "fab_o", "fes_o", "fes_inf", "fes_max",
@@ -181,7 +178,7 @@ sp = ProblemSpec({
             [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.0056 * lower, 0.0056 * upper], [0.34 * lower, 0.34 * upper], [0.55 * lower, 0.55 * upper], [0.34 * lower, 0.34 * upper],
             [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [0.07 * lower, 0.07 * upper], [1.5 * lower, 1.5 * upper],
-            [1.5 * lower, 1.5 * upper], [6.8 * lower, 6.8 * upper], [-2 * 1.5, -2 * 0.5], [-6 * 1.5, -6 * 0.5],
+            [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * 1.5, -2 * 0.5], [-6 * 1.5, -6 * 0.5],
             [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
             # cardio control
             [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
@@ -247,6 +244,65 @@ sp = ProblemSpec({
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
             [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [3 * lower, 3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
+
+# output_names = [
+#     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
+#     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
+#     "Min RA Volume", "Max RA Volume", "Min RA Pressure A descent", "Max RA Pressure Atrial contraction",
+#     "Max RA Pressure Tricuspid Opening", "Min RA Pressure V descent",
+#     "Min LA Volume", "Max LA Volume", "Min LA Pressure A descent", "Max LA Pressure Atrial contraction",
+#     "Max LA Pressure Tricuspid Opening", "Min LA Pressure V descent",
+#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
+#     "Cardiac Output", "PaO2", "PaCO2", "Percentage Volume Change",
+#     "Stroke Volume", "Ejection Fraction"]
+#
+# dgsm_summary = OrderedDict()
+#
+# for col in range(Result.shape[1]):
+#
+#     Y = Result[:, col]
+#     output_label = output_names[col]
+#
+#     # Skip invalid outputs
+#     if not np.all(np.isfinite(Y)):
+#         print(f"Skipping {output_label} (non-finite values)")
+#         continue
+#
+#     # DGSM analysis
+#     Si = dgsm.analyze(sp, X, Y, print_to_console=False)
+#
+#     dgsm_vals = np.array(Si["dgsm"])
+#     names = np.array(Si["names"])
+#
+#     # Sort descending
+#     order = np.argsort(dgsm_vals)[::-1]
+#     dgsm_sorted = dgsm_vals[order]
+#     names_sorted = names[order]
+#
+#     # Cumulative sensitivity
+#     cumu = np.cumsum(dgsm_sorted)
+#     total = cumu[-1]
+#
+#     idx_90 = np.searchsorted(cumu, 0.9 * total) + 1
+#
+#     top_names_90 = names_sorted[:idx_90]
+#     top_dgsm_90 = dgsm_sorted[:idx_90]
+#
+#     dgsm_summary[output_label] = {
+#         "n_params_90": idx_90,
+#         "param_names": top_names_90,
+#         "dgsm_values": top_dgsm_90
+#     }
+#
+#     # ---- Console output ----
+#     print("\n" + "=" * 80)
+#     print(f"Output: {output_label}")
+#     print(f"Parameters contributing 90% sensitivity: {idx_90}")
+#     print("-" * 80)
+#     for name, val in zip(top_names_90, top_dgsm_90):
+#         print(f"{name:25s} : {val:.4e}")
+
+
 
 Si = dgsm.analyze(sp, X, HR, print_to_console=True)
 
