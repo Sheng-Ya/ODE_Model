@@ -505,15 +505,7 @@ def simulate():
     VDflow = (1 / (t1[-1] + t2[-1])) * VD
     Minute_Ventilation = (VAflow[-1] + VDflow) * 60
 
-    cardiac_output = np.concatenate((Next_Conditions["Q_pp_store"][i_buffer:], Next_Conditions["Q_pp_store"][:i_buffer]))
-    time_since_beat = np.concatenate((Next_Conditions["time_since_beat_store"][i_buffer:], Next_Conditions["time_since_beat_store"][:i_buffer]))
-
-    dtsb = np.diff(time_since_beat)
-    beat_idx = np.where(dtsb > 0)[0] + 1
-    beat_idx = beat_idx[-11:]
-
-    cardiac_output_beat_avg = np.array([np.mean(cardiac_output[b0:b1]) for b0, b1 in zip(beat_idx[:-1], beat_idx[1:])])
-
+    cardiac_output = np.mean(Next_Conditions["Q_pp_store"])
     Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
     Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
 
@@ -537,7 +529,7 @@ def simulate():
             np.mean(P_la[P_la_max_idx]), np.mean(P_la[open_idx3]), np.mean(P_la[P_la_descent2_idx]),
             np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
             np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
-            Minute_Ventilation, np.mean(cardiac_output_beat_avg), Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
+            Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),

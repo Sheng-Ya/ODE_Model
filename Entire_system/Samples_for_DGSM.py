@@ -492,6 +492,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     VDflow = (1 / (t1[-1] + t2[-1])) * VD
     Minute_Ventilation = (VAflow[-1] + VDflow) * 60
 
+    cardiac_output = np.mean(local_updates["Q_pp_store"])
     Pa_O2 = np.mean(local_updates["Pa_O2_every_store"])
     Pa_CO2 = np.mean(local_updates["Pa_CO2_every_store"])
 
@@ -523,15 +524,6 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
     dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    cardiac_output = np.concatenate((local_updates["Q_pp_store"][i_buffer:], local_updates["Q_pp_store"][:i_buffer]))
-    time_since_beat = np.concatenate((local_updates["time_since_beat_store"][i_buffer:], local_updates["time_since_beat_store"][:i_buffer]))
-
-    dtsb = np.diff(time_since_beat)
-    beat_idx = np.where(dtsb > 0)[0] + 1
-    beat_idx = beat_idx[-11:]
-
-    cardiac_output_beat_avg = np.array([np.mean(cardiac_output[b0:b1]) for b0, b1 in zip(beat_idx[:-1], beat_idx[1:])])
-
     print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
 
     IC_current = ODE_solution.y[:, -1]
@@ -545,7 +537,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
             np.mean(P_la[P_la_max_idx]), np.mean(P_la[open_idx3]), np.mean(P_la[P_la_descent2_idx]),
             np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
             np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal, Minute_Ventilation,
-            np.mean(cardiac_output_beat_avg), Pa_O2, Pa_CO2, Vol_percentage_change],
+            cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change],
             IC_current, local_updates,
             [cs_t1, cs_t2, knots_1, knots_2])
 
@@ -553,7 +545,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=400, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=600, IC_initial=None, breath_coef=None):
     try:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
@@ -565,7 +557,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=400, IC_initial=N
         print("too slow")
         return ([0.0]*31, None, None, None)
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new1.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -619,6 +611,10 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
     if next_minimise_coef != minimise_coef:
         for attempt in range(3):
             result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
+
+            if storage_final == None:
+                return ([0.0] * 31, None, None, None)
+
             i_buffer = storage_final["i"].item() % BUFFER_LIMIT
             HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
 
@@ -630,6 +626,10 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
     else:
         for attempt in range(3):
             result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+
+            if storage_final == None:
+                return ([0.0] * 31, None, None, None)
+
             i_buffer = storage_final["i"].item() % BUFFER_LIMIT
             HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
 
@@ -889,19 +889,19 @@ if __name__ == "__main__":
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
-    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[:5720,:]
+    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[114400:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=-1)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
 
-    np.save('DGSM_500_Result_rest_1_20.npy', Result)
+    np.save('DGSM_500_Result_rest_400_500.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 

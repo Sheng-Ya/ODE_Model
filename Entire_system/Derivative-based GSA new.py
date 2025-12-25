@@ -5,20 +5,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import OrderedDict
 
+X1 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[:11440,:]
+Result1 = np.load('New_Result_DGSM_1_40_rest_no_P_thor.npy')
 
-
-X1 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[:57800,:]
-Result1 = np.load('Result_DGSM_rest_20_no_Pthor_1_200.npy')
-
-X2 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[57800:115600,:]
-Result2 = np.load('Result_DGSM_rest_20_no_Pthor_200_400.npy')
+X2 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[11440:18876,:]
+Result2 = np.load('New_Result_DGSM_40_66_rest_no_P_thor.npy')
 #
-X3 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[115600:,:]
-Result3 = np.load('Result_DGSM_rest_20_no_Pthor_400_500.npy ')
+X3 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[31460:42900,:]
+Result3 = np.load('New_Result_DGSM_110_150_rest_no_P_thor.npy')
 
+X4 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[51480:55198,:]
+Result4 = np.load('New_Result_DGSM_180_193_rest_no_P_thor.npy')
+
+X5 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[71500:91520,:]
+Result5 = np.load('New_Result_DGSM_250_320_rest_no_P_thor.npy')
 #
-Result = np.vstack((Result1, Result2, Result3))
-X = np.vstack((X1, X2, X3))
+Result = np.vstack((Result1, Result2, Result3, Result4, Result5))
+X = np.vstack((X1, X2, X3, X4, X5))
 
 
 lower = 0.8
@@ -72,7 +75,7 @@ mask_full = np.repeat(mask_blocks, block_size)
 X = X[mask_full]
 Result = Result[mask_full]
 
-HR = Result[:, 20]
+HR = Result[:, 27]
 
 sp = ProblemSpec({
         'names': [
