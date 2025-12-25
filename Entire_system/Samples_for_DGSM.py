@@ -4,7 +4,7 @@ import signal
 import numpy as np
 # import torch
 from SALib import ProblemSpec
-# from SALib.sample import finite_diff
+from SALib.sample import finite_diff
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
@@ -524,7 +524,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
     dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
+    print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change, ODE_solution.y[:, -1])
 
     IC_current = ODE_solution.y[:, -1]
 
@@ -557,6 +557,30 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=600, IC_initial=N
         print("too slow")
         return ([0.0]*31, None, None, None)
 
+def run_basepoint(base_sample, storage_copy, old_Parameters):
+
+    base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(
+        base_sample, storage_copy, old_Parameters
+    )
+
+    minimise_coef = [
+        base_sample["GV_dead"],
+        base_sample["V0_dead"],
+        base_sample["E_rs"],
+        base_sample["R_rs"],
+    ]
+
+    if base_result[0] == 0:
+        return None
+
+    return {
+        "result": base_result,
+        "IC_final": IC_final,
+        "storage_final": storage_final,
+        "breath_coef": breath_coef,
+        "minimise_coef": minimise_coef,
+    }
+
 def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new1.npy'):
     results_all = []
 
@@ -567,30 +591,27 @@ def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_
     block_size = len(param_samples[0]) + 1
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
+
+    # run base points first
+    base_results = Parallel(n_jobs=n_jobs)(delayed(run_basepoint)(params[0], copy.deepcopy(storage), Old_Parameters)
+        for params in param_blocks)
+
+
+    # go through each base point and perturbation with the corresponding initial conditions
     for i, block in enumerate(param_blocks):
-        base_sample = block[0]
-        copy_of_storage = copy.deepcopy(storage)
+        base = base_results[i]
 
-        # Run only the base sample first
-        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-        minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-
-        # If base sample fails (e.g. returns 0 or some error code), skip the whole block
-        if base_result[0] == 0:  # Adjust this condition to your failure criteria
-            print(f"Skipping block {i + 1} due to base failure.")
+        if base is None: # base failed → whole block invalid
             results_all.extend(np.zeros((block_size, 31)))
             np.save(save_path, np.array(results_all))
             continue
 
-        # perturbations = block[1:]  # exclude the base sample
-
         # Otherwise, run full block in parallel
         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
             results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
-            copy.deepcopy(storage_final), Old_Parameters, IC_final, breath_coef, minimise_coef) for params in block)
+            copy.deepcopy(base["storage_final"]), Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
 
         results_block = [res[0] for res in results_perturbations]
-        # print(results_block)
         results_all.extend(results_block)
 
         # Save chunk incrementally (appending)
@@ -887,16 +908,16 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    # X = finite_diff.sample(sp, 500)
+    X = finite_diff.sample(sp, 3)
     # np.save("DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
-    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[114400:,:]
+    # X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[114400:,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=10)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # print(Result)
