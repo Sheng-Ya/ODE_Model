@@ -333,7 +333,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_la = VT_la - Vu_la
     else:
         V_la = 0
-        Vu_la = VT_la
+        # Vu_la = VT_la
 
     if VT_ra > Vu_ra:  # RA stressed volume is the total minus unstressed
         V_ra = VT_ra - Vu_ra
