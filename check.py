@@ -288,7 +288,7 @@ Parameters = {
     "ahead1": 0.9,
     "theta_min": 0.0872665,
     "r": 1.2,
-    "l": 3.0,
+    "l": 1.2,
     "V_nominal": 280.0,
     "V_scale": 40.0,
 }
