@@ -543,8 +543,8 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=600, IC_initial=N
         return ([0.0]*31, None, None, None)
 
 def run_basepoint(base_sample, storage_copy, old_Parameters):
-
-    base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(
+    # run all basepoints even if slow
+    base_result, IC_final, storage_final, breath_coef = simulate_cpu(
         base_sample, storage_copy, old_Parameters
     )
 
