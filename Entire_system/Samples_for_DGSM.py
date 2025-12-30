@@ -61,11 +61,6 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
     else:
         num_removed = 0
 
-    # if t != 0:
-    #     diff = np.abs(t - target_values)
-    #     if np.any(diff < 0.0001):
-    #         print(t)
-
     # Indices for slicing
     idx_resp_contr = num_cardio + num_cardio_control + num_gas + num_resp_control
 
