@@ -334,26 +334,26 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_la = VT_la - Vu_la
     else:
         V_la = 0
-        Vu_la = VT_la
+        # Vu_la = VT_la
 
     if VT_ra > Vu_ra:  # RA stressed volume is the total minus unstressed
         V_ra = VT_ra - Vu_ra
     else:
         V_ra = 0
-        Vu_ra = VT_ra
+        # Vu_ra = VT_ra
 
     if VT_rv > Vu_rv:  # RV stressed volume is the total minus unstressed
         V_rv = VT_rv - Vu_rv
     else:
         V_rv = 0
-        Vu_rv = VT_rv
+        # Vu_rv = VT_rv
 
     # V_lv can be growing but there should not be any flow (Q) into the ventricles?
     if VT_lv > Vu_lv:  # LV stressed volume is the total minus unstressed
         V_lv = VT_lv - Vu_lv
     else:
         V_lv = 0
-        Vu_lv = VT_lv
+        # Vu_lv = VT_lv
 
     # activation function for contraction of the ventricle and atria
     phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
@@ -579,6 +579,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # Pmax_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
+    AA = valve_signal
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
         theta_mi = theta_min  # minimum angle (closed)
@@ -808,8 +809,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         # Vu_sv = VT_sv
 
     Q_sp = (P_sp - P_sv) / R_sp
-
-    AA = Wh_lv
 
     # P_s = P_abd
 
@@ -1339,8 +1338,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dP_peri_dt = P_peri * (dVT_la_dt + dVT_lv_dt + dVT_ra_dt + dVT_rv_dt) / V_scale
     dP_rv_dt = Emax_rv * (phi * dV_rv_dt + dphi_dt*(VT_rv - Vu_rv)) + P0_rv * (-dphi_dt * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + (1 - phi) * KE_rv * np.exp(KE_rv * (VT_rv - Vu_rv)) * dVT_rv_dt) + dP_thor_dt + 1/r * dP_peri_dt
     dP_lv_dt = Emax_lv * (phi * dV_lv_dt + dphi_dt*(VT_lv - Vu_lv)) + P0_lv * (-dphi_dt * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + (1 - phi) * KE_lv * np.exp(KE_lv * (VT_lv - Vu_lv)) * dVT_lv_dt) + dP_thor_dt + 1/l * dP_peri_dt
-
-    AA = dP_lv_dt
 
     Vu_amv = Vu_amv_check
 

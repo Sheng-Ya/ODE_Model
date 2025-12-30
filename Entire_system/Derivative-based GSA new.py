@@ -5,23 +5,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import OrderedDict
 
-X1 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[:11440,:]
-Result1 = np.load('New_Result_DGSM_1_40_rest_no_P_thor.npy')
+X1 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[:57200,:]
+Result1 = np.load('DGSM_500_Result_rest_1_200.npy')
 
-X2 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[11440:18876,:]
-Result2 = np.load('New_Result_DGSM_40_66_rest_no_P_thor.npy')
+X2 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[57200:114400,:]
+Result2 = np.load('DGSM_500_Result_rest_200_400.npy')
 #
-X3 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[31460:42900,:]
-Result3 = np.load('New_Result_DGSM_110_150_rest_no_P_thor.npy')
+X3 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[114400:,:]
+Result3 = np.load('DGSM_500_Result_rest_400_500.npy')
 
-X4 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[51480:55198,:]
-Result4 = np.load('New_Result_DGSM_180_193_rest_no_P_thor.npy')
-
-X5 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[71500:91520,:]
-Result5 = np.load('New_Result_DGSM_250_320_rest_no_P_thor.npy')
-#
-Result = np.vstack((Result1, Result2, Result3, Result4, Result5))
-X = np.vstack((X1, X2, X3, X4, X5))
+Result = np.vstack((Result1, Result2, Result3))
+X = np.vstack((X1, X2, X3))
 
 
 lower = 0.8
@@ -248,62 +242,62 @@ sp = ProblemSpec({
             [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [3 * lower, 3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
 
-# output_names = [
-#     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
-#     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
-#     "Min RA Volume", "Max RA Volume", "Min RA Pressure A descent", "Max RA Pressure Atrial contraction",
-#     "Max RA Pressure Tricuspid Opening", "Min RA Pressure V descent",
-#     "Min LA Volume", "Max LA Volume", "Min LA Pressure A descent", "Max LA Pressure Atrial contraction",
-#     "Max LA Pressure Tricuspid Opening", "Min LA Pressure V descent",
-#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
-#     "Cardiac Output", "PaO2", "PaCO2", "Percentage Volume Change",
-#     "Stroke Volume", "Ejection Fraction"]
-#
-# dgsm_summary = OrderedDict()
-#
-# for col in range(Result.shape[1]):
-#
-#     Y = Result[:, col]
-#     output_label = output_names[col]
-#
-#     # Skip invalid outputs
-#     if not np.all(np.isfinite(Y)):
-#         print(f"Skipping {output_label} (non-finite values)")
-#         continue
-#
-#     # DGSM analysis
-#     Si = dgsm.analyze(sp, X, Y, print_to_console=False)
-#
-#     dgsm_vals = np.array(Si["dgsm"])
-#     names = np.array(Si["names"])
-#
-#     # Sort descending
-#     order = np.argsort(dgsm_vals)[::-1]
-#     dgsm_sorted = dgsm_vals[order]
-#     names_sorted = names[order]
-#
-#     # Cumulative sensitivity
-#     cumu = np.cumsum(dgsm_sorted)
-#     total = cumu[-1]
-#
-#     idx_90 = np.searchsorted(cumu, 0.9 * total) + 1
-#
-#     top_names_90 = names_sorted[:idx_90]
-#     top_dgsm_90 = dgsm_sorted[:idx_90]
-#
-#     dgsm_summary[output_label] = {
-#         "n_params_90": idx_90,
-#         "param_names": top_names_90,
-#         "dgsm_values": top_dgsm_90
-#     }
-#
-#     # ---- Console output ----
-#     print("\n" + "=" * 80)
-#     print(f"Output: {output_label}")
-#     print(f"Parameters contributing 90% sensitivity: {idx_90}")
-#     print("-" * 80)
-#     for name, val in zip(top_names_90, top_dgsm_90):
-#         print(f"{name:25s} : {val:.4e}")
+output_names = [
+    "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
+    "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
+    "Min RA Volume", "Max RA Volume", "Min RA Pressure A descent", "Max RA Pressure Atrial contraction",
+    "Max RA Pressure Tricuspid Opening", "Min RA Pressure V descent",
+    "Min LA Volume", "Max LA Volume", "Min LA Pressure A descent", "Max LA Pressure Atrial contraction",
+    "Max LA Pressure Tricuspid Opening", "Min LA Pressure V descent",
+    "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
+    "Cardiac Output", "PaO2", "PaCO2", "Percentage Volume Change",
+    "Stroke Volume", "Ejection Fraction"]
+
+dgsm_summary = OrderedDict()
+
+for col in range(Result.shape[1]):
+
+    Y = Result[:, col]
+    output_label = output_names[col]
+
+    # Skip invalid outputs
+    if not np.all(np.isfinite(Y)):
+        print(f"Skipping {output_label} (non-finite values)")
+        continue
+
+    # DGSM analysis
+    Si = dgsm.analyze(sp, X, Y, print_to_console=False)
+
+    dgsm_vals = np.array(Si["dgsm"])
+    names = np.array(Si["names"])
+
+    # Sort descending
+    order = np.argsort(dgsm_vals)[::-1]
+    dgsm_sorted = dgsm_vals[order]
+    names_sorted = names[order]
+
+    # Cumulative sensitivity
+    cumu = np.cumsum(dgsm_sorted)
+    total = cumu[-1]
+
+    idx_90 = np.searchsorted(cumu, 0.9 * total) + 1
+
+    top_names_90 = names_sorted[:idx_90]
+    top_dgsm_90 = dgsm_sorted[:idx_90]
+
+    dgsm_summary[output_label] = {
+        "n_params_90": idx_90,
+        "param_names": top_names_90,
+        "dgsm_values": top_dgsm_90
+    }
+
+    # ---- Console output ----
+    print("\n" + "=" * 80)
+    print(f"Output: {output_label}")
+    print(f"Parameters contributing 90% sensitivity: {idx_90}")
+    print("-" * 80)
+    for name, val in zip(top_names_90, top_dgsm_90):
+        print(f"{name:25s} : {val:.4e}")
 
 
 

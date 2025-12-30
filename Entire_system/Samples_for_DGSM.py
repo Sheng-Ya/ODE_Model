@@ -893,21 +893,19 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 3)
+    # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
-    # X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[114400:,:]
+    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[:57200,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=10)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
-    # print(Result)
-
-    np.save('DGSM_500_Result_rest_400_500.npy', Result)
+    np.save('DGSM_500_Result_rest_1_300.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 

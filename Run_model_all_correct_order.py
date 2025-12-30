@@ -784,68 +784,65 @@ if __name__ == "__main__":
     all_time = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi_atr"][index-40000:index], label="phi_atr", color="r")
-    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi"][index - 40000:index], label="phi", color="y")
-
-    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index - 40000:index], label="AA")
-
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_lv"][:index], label="Pmax_lv", color="k")
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Pressure (mmHg)")
     ax1.tick_params(axis='y', labelcolor="k")
     ax1.legend(loc="upper left")
     ax1.grid(True)
-    # # plt.show()
-    ax2 = ax1.twinx()
-    ax2.plot(sorted_times, dP_rv_dt_store, label="dP_rv_dt_store", color="b")
-    ax2.scatter(sorted_times[dP_rv_dt_idx], dP_rv_dt_store[dP_rv_dt_idx], color='k', marker='x', label="new Max dP_rv_dt")
-
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
     plt.show()
 
-
     fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][index-10000:index], Next_Conditions["AA"][index - 10000:index], label="AA")
-    # ax1.plot(Next_Conditions["time_history"][index-10000:index], Next_Conditions["P_rv"][index - 10000:index], label="P_rv")
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
+    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_lv"][index-40000:index], label="VT_lv", color="grey")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_lv"][index-40000:index], label="P_lv", color="k")
+    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_la"][index-40000:index], label="VT_la")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_ra"][index-40000:index], label="VT_ra")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Q_la"][index-40000:index], label="Q_la")
+    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Qi_lv"][index-40000:index], label="Qi_lv")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Q_lv"][index-40000:index], label="Q_lv")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index], label="P_peri")
 
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][index-10000:index], Next_Conditions["P_lv"][index - 10000:index], label="P_lv", color="k")
-    ax2.plot(Next_Conditions["time_history"][index-10000:index], Next_Conditions["phi"][index - 10000:index], label="phi", color="r")
-    ax2.legend(loc="upper right")
-    plt.show()
-
-
-    Total_Volume = Next_Conditions["AA"][index-40000:index]
-    time = Next_Conditions["time_history"][index-40000:index]
-
-    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
-    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
-
-    mean_min_Total_Volume = np.mean(Total_Volume[Total_Vol_min_idx])
-    mean_max_Total_Volume = np.mean(Total_Volume[Total_Vol_max_idx])
-    Pericardial_Volume_difference = mean_max_Total_Volume - mean_min_Total_Volume
-    Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
-
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index])
-    ax1.scatter(time[Total_Vol_min_idx], Total_Volume[Total_Vol_min_idx], color='r', marker='x', label="Detected Minima")
-    ax1.scatter(time[Total_Vol_max_idx], Total_Volume[Total_Vol_max_idx], color='k', marker='x', label="Detected Maxima")
     ax1.set_xlabel("Time (s)")
     ax1.legend(loc="upper left")
     ax2 = ax1.twinx()
-    ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
+    # ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
     ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
-    ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
-    ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
-    ax2.plot(sorted_times, phi_atr, label="phi_atr", color="blue")
-    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi"][index-40000:index], label="phi", color="r")
+    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_la"][index-40000:index], label="P_la", color="m")
+    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_lv"][index-40000:index], label="P_lv", color="k")
+    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index], label="P_peri", color="r")
+    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi_atr"][index-40000:index], label="phi_atr", color="c")
 
+    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_rv"][index-40000:index], label="VT_rv", color="y")
 
     ax2.legend(loc="upper right")
     plt.show()
+
+    # Total_Volume = Next_Conditions["AA"][index-40000:index]
+    # time = Next_Conditions["time_history"][index-40000:index]
+    #
+    # Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    # Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    #
+    # mean_min_Total_Volume = np.mean(Total_Volume[Total_Vol_min_idx])
+    # mean_max_Total_Volume = np.mean(Total_Volume[Total_Vol_max_idx])
+    # Pericardial_Volume_difference = mean_max_Total_Volume - mean_min_Total_Volume
+    # Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
+    #
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index])
+    # ax1.scatter(time[Total_Vol_min_idx], Total_Volume[Total_Vol_min_idx], color='r', marker='x', label="Detected Minima")
+    # ax1.scatter(time[Total_Vol_max_idx], Total_Volume[Total_Vol_max_idx], color='k', marker='x', label="Detected Maxima")
+    # ax1.set_xlabel("Time (s)")
+    # ax1.legend(loc="upper left")
+    # ax2 = ax1.twinx()
+    # ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
+    # ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
+    # ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
+    # ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
+    # ax2.plot(sorted_times, phi_atr, label="phi_atr", color="blue")
+    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi"][index-40000:index], label="phi", color="r")
+    # ax2.legend(loc="upper right")
+    # plt.show()
 
     V_ra = np.concatenate((Next_Conditions["V_ra_store"][i:], Next_Conditions["V_ra_store"][:i]))
     fig, ax1 = plt.subplots()
