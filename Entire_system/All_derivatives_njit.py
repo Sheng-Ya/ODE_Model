@@ -352,7 +352,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_lv = VT_lv - Vu_lv
     else:
         V_lv = 0
-        Vu_lv = VT_lv
+        # Vu_lv = VT_lv
 
     # activation function for contraction of the ventricle and atria
     phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
