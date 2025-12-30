@@ -345,7 +345,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         V_rv = VT_rv - Vu_rv
     else:
         V_rv = 0
-        Vu_rv = VT_rv
+        # Vu_rv = VT_rv
 
     # V_lv can be growing but there should not be any flow (Q) into the ventricles?
     if VT_lv > Vu_lv:  # LV stressed volume is the total minus unstressed
