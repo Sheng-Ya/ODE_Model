@@ -56,9 +56,6 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
             for j in range(num_removed):
                 all_time[(index + j) % BUFFER_LIMIT] = 0
 
-            # if num_removed != 6:
-            #     print(f"num_removed should be 6, got {num_removed}")
-            # raise ValueError(f"num_removed should be 6, got {num_removed}")
         else:
             num_removed = 0
     else:
