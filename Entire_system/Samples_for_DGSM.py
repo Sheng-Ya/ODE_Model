@@ -531,6 +531,7 @@ def timeout_handler(signum, frame):
 
 def safe_simulate_cpu(params, storage, old_parameters, timeout=600, IC_initial=None, breath_coef=None):
     try:
+        signal.alarm(0)
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
         result = simulate_cpu(params, storage, old_parameters, IC_initial, breath_coef)
