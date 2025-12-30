@@ -73,15 +73,6 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
     Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
 
-    # AA = list(Initial_Conditions_dict["all_time"])
-    # AAAAAAA = list(Initial_Conditions_dict["check_time"])
-
-    # # Debugging check for progress
-    # if t != 0:
-    #     diff = np.abs(t - target_values)
-    #     if np.any(diff < 0.0001):
-    #         print(t)
-
     return derivatives_all
 
 # gas exchange
