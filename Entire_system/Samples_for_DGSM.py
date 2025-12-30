@@ -901,7 +901,7 @@ if __name__ == "__main__":
             [4.9 * lower, 4.9 * upper], [1.5 * lower, 1.5 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.5 * lower, 0.5 * upper], [1.2 * lower, 1.2 * upper], [30 * lower, 30 * upper], [80 * lower, 80 * upper],
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [3 * lower, 3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [1.3 * lower, 1.3 * upper], [1.3 * lower, 1.3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
 
     param_keys = list(sp["names"])
