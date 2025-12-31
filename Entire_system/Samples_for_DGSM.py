@@ -339,8 +339,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     is_closed_po = theta_po <= theta_min
     close_idx2 = []
-    for k in range(N, len(theta_po)):
-        if is_closed_po[k] and not np.any(is_closed_po[k - N:k]):
+    for k in range(0, len(theta_po) - N):
+        if (not is_closed_po[k - 1]) and np.all(is_closed_po[k: k + N + 1]):
             close_idx2.append(k)
     close_idx2 = np.array(close_idx2)[-11:-1]
 
