@@ -324,7 +324,7 @@ def simulate():
     V_ra = np.concatenate((Next_Conditions["V_ra_store"][i_buffer:], Next_Conditions["V_ra_store"][:i_buffer]))
     V_la = np.concatenate((Next_Conditions["V_la_store"][i_buffer:], Next_Conditions["V_la_store"][:i_buffer]))
 
-    N = 10  # number of consecutive closed samples required
+    N = 30  # number of consecutive closed samples required
 
     is_open = theta_ao > theta_min
     open_idx1 = []
