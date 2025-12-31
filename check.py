@@ -186,7 +186,7 @@ Parameters = {
     "Kp_mi": 2000.0,
     "Kf_mi": 500.0,
     "Kb_mi": 2.0,
-    "Kv_mi": 7.0,
+    "Kv_mi": 10.0,
     "theta_mi_max": 1.309,
     "Kp_po": 2000.0,
     "Kf_po": 2000.0,
