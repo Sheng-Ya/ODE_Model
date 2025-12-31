@@ -363,8 +363,8 @@ def simulate():
 
     is_closed_mi = theta_mi <= theta_min
     close_idx3 = []
-    for k in range(N, len(theta_mi)):
-        if is_closed_mi[k] and not np.any(is_closed_mi[k - N:k]):
+    for k in range(0, len(theta_mi) - N):
+        if (not is_closed_mi[k-1]) and np.all(is_closed_mi[k : k + N + 1]):
             close_idx3.append(k)
     close_idx3 = np.array(close_idx3)[-11:-1]
 
