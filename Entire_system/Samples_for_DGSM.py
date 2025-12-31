@@ -4,7 +4,7 @@ import signal
 import numpy as np
 # import torch
 from SALib import ProblemSpec
-from SALib.sample import finite_diff
+# from SALib.sample import finite_diff
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
@@ -543,28 +543,32 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=600, IC_initial=N
         return ([0.0]*31, None, None, None)
 
 def run_basepoint(base_sample, storage_copy, old_Parameters):
-    # run all basepoints even if slow
-    base_result, IC_final, storage_final, breath_coef = simulate_cpu(
-        base_sample, storage_copy, old_Parameters
-    )
+    try:
+        # run all basepoints even if slow
+        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
+            base_sample, storage_copy, old_Parameters
+        )
 
-    minimise_coef = [
-        base_sample["GV_dead"],
-        base_sample["V0_dead"],
-        base_sample["E_rs"],
-        base_sample["R_rs"],
-    ]
+        minimise_coef = [
+            base_sample["GV_dead"],
+            base_sample["V0_dead"],
+            base_sample["E_rs"],
+            base_sample["R_rs"],
+        ]
 
-    if base_result[0] == 0:
+        if base_result[0] == 0:
+            return None
+
+        return {
+            "result": base_result,
+            "IC_final": IC_final,
+            "storage_final": storage_final,
+            "breath_coef": breath_coef,
+            "minimise_coef": minimise_coef,
+        }
+    except Exception as e:
+        print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
-
-    return {
-        "result": base_result,
-        "IC_final": IC_final,
-        "storage_final": storage_final,
-        "breath_coef": breath_coef,
-        "minimise_coef": minimise_coef,
-    }
 
 def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new1.npy'):
     results_all = []
@@ -894,8 +898,8 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
-    X = np.load("DGSM_500_X_samples_rest_20_no_Pthor.npy")[:57200,:]
+    # np.save("New_DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
+    X = np.load("New_DGSM_500_X_samples_rest_20_no_Pthor.npy")[:85800,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
