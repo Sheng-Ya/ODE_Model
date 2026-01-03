@@ -314,7 +314,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
     V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
 
-    N = 30  # number of consecutive closed samples required
+    N = 100  # number of consecutive closed samples required
 
     is_open = theta_ao > theta_min
     open_idx1 = []
@@ -335,42 +335,61 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     for k in range(N, len(theta_po)):
         if is_open_po[k] and not np.any(is_open_po[k - N:k]):
             open_idx2.append(k)
-    open_idx2 = np.array(open_idx2)[-11:-1]
+    open_idx2 = np.array(open_idx2)
 
     is_closed_po = theta_po <= theta_min
     close_idx2 = []
-    for k in range(0, len(theta_po) - N):
-        if (not is_closed_po[k - 1]) and np.all(is_closed_po[k: k + N + 1]):
+    for k in range(N, len(theta_po)):
+        if is_closed_po[k] and not np.any(is_closed_po[k - N:k]):
             close_idx2.append(k)
-    close_idx2 = np.array(close_idx2)[-11:-1]
+    close_idx2 = np.array(close_idx2)
 
     is_open_mi = theta_mi > theta_min
     open_idx3 = []
     for k in range(N, len(theta_mi)):
         if is_open_mi[k] and not np.any(is_open_mi[k - N:k]):
             open_idx3.append(k)
-    open_idx3 = np.array(open_idx3)[-11:-1]
+    open_idx3 = np.array(open_idx3)
 
     is_closed_mi = theta_mi <= theta_min
     close_idx3 = []
-    for k in range(0, len(theta_mi) - N):
-        if (not is_closed_mi[k - 1]) and np.all(is_closed_mi[k: k + N + 1]):
+    for k in range(N, len(theta_mi)):
+        if is_closed_mi[k] and not np.any(is_closed_mi[k - N:k]):
             close_idx3.append(k)
-    close_idx3 = np.array(close_idx3)[-11:-1]
+    close_idx3 = np.array(close_idx3)
 
     is_open_tr = theta_tr > theta_min
     open_idx4 = []
     for k in range(N, len(theta_tr)):
         if is_open_tr[k] and not np.any(is_open_tr[k - N:k]):
             open_idx4.append(k)
-    open_idx4 = np.array(open_idx4)[-11:-1]
+    open_idx4 = np.array(open_idx4)
 
     is_closed_tr = theta_tr <= theta_min
     close_idx4 = []
-    for k in range(0, len(theta_tr) - N):
-        if (not is_closed_tr[k - 1]) and np.all(is_closed_tr[k: k + N + 1]):
+    for k in range(N, len(theta_tr)):
+        if is_closed_tr[k] and not np.any(is_closed_tr[k - N:k]):
             close_idx4.append(k)
-    close_idx4 = np.array(close_idx4)[-11:-1]
+    close_idx4 = np.array(close_idx4)
+
+    pairs_po = np.array([
+        (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
+        for o, o_next in zip(open_idx2[:-1], open_idx2[1:])
+        if np.any((close_idx2 > o) & (close_idx2 < o_next))])
+
+    pairs_mi = np.array([
+        (o, close_idx3[(close_idx3 > o) & (close_idx3 < o_next)][-1])
+        for o, o_next in zip(open_idx3[:-1], open_idx3[1:])
+        if np.any((close_idx3 > o) & (close_idx3 < o_next))])
+
+    pairs_tr = np.array([
+        (o, close_idx4[(close_idx4 > o) & (close_idx4 < o_next)][-1])
+        for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
+        if np.any((close_idx4 > o) & (close_idx4 < o_next))])
+
+    pairs_po = pairs_po[-11:-1]
+    pairs_mi = pairs_mi[-11:-1]
+    pairs_tr = pairs_tr[-11:-1]
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
@@ -395,35 +414,18 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     # max pressure at atrial contraction
     P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    # # period of A descent when aortic valve is open -> get first min p
-    # j1 = np.searchsorted(close_idx1, open_idx1, side="right")
-    # valid1 = j1 < len(close_idx1)
-    # pairs1 = np.column_stack([open_idx1[valid1], close_idx1[j1[valid1]]])
-    # P_la_descent1_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs1])
-
     # period of V descent when mitral valve is open -> get second min la P
-    j3 = np.searchsorted(close_idx3, open_idx3, side="right")
-    valid3 = j3 < len(close_idx3)
-    pairs3 = np.column_stack([open_idx3[valid3], close_idx3[j3[valid3]]])
-    P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs3])
-    P_la_descent1_idx = np.array([c + np.argmin(P_la[c:o_next]) for (_, c), (o_next, _) in zip(pairs3[:-1], pairs3[1:])])
+    P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
+    P_la_descent1_idx = np.array([c + np.argmin(P_la[c:o_next]) for (_, c), (o_next, _) in zip(pairs_mi[:-1], pairs_mi[1:])])
+
 
     P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
     P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    # # period of A descent when pulmonary valve is open -> get first min p
-    # j2 = np.searchsorted(close_idx2, open_idx2, side="right")
-    # valid2 = j2 < len(close_idx2)
-    # pairs2 = np.column_stack([open_idx2[valid2], close_idx2[j2[valid2]]])
-    # P_ra_descent1_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs2])
-
     # period of V descent when tricuspid valve is open -> get second min la P
-    j4 = np.searchsorted(close_idx4, open_idx4, side="right")
-    valid4 = j4 < len(close_idx4)
-    pairs4 = np.column_stack([open_idx4[valid4], close_idx4[j4[valid4]]])
-    P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs4])
-    P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs4[:-1], pairs4[1:])])
+    P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
+    P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])])
 
 
     V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
@@ -437,11 +439,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
 
     P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
-    j = np.searchsorted(close_idx2, open_idx2, side="right")
-    valid = j < len(close_idx2)
-    pairs = np.column_stack([open_idx2[valid], close_idx2[j[valid]]])
-    P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs])
-    P_rv_min_idx = np.array([c + np.argmin(P_rv[c:o_next]) for (_, c), (o_next, _) in zip(pairs[:-1], pairs[1:])])
+    P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
+    P_rv_min_idx = np.array([c + np.argmin(P_rv[c:o_next]) for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])])
 
     # Get past 10 HR
     HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
@@ -513,12 +512,12 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     IC_current = ODE_solution.y[:, -1]
 
     return ([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
-            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[open_idx2]), np.mean(V_rv[close_idx2]),
+            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
-            np.mean(V_ra[close_idx4]), np.mean(V_ra[open_idx4]), np.mean(P_ra[P_ra_descent1_idx]),
-            np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[open_idx4]), np.mean(P_ra[P_ra_descent2_idx]),
-            np.mean(V_la[close_idx3]), np.mean(V_la[open_idx3]), np.mean(P_la[P_la_descent1_idx]),
-            np.mean(P_la[P_la_max_idx]), np.mean(P_la[open_idx3]), np.mean(P_la[P_la_descent2_idx]),
+            np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
+            np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
+            np.mean(V_la[pairs_mi[:, 1]]), np.mean(V_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent1_idx]),
+            np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
             np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
             np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal, Minute_Ventilation,
             cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change],
@@ -718,6 +717,59 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 #     return results_all
 
 
+# # code for running serially but for each base point separately
+# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+#     results_all = []
+#
+#     if os.path.exists(save_path):
+#         os.remove(save_path)
+#
+#     block_size = len(param_samples[0]) + 1
+#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+#
+#     for w, block in enumerate(param_blocks):
+#         base_sample = block[0]
+#         copy_of_storage = copy.deepcopy(storage)
+#         print(f"Running base sample for block {w+1}...")
+#
+#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
+#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
+#
+#         print(f"Base sample result: {base_result}")
+#
+#         if base_result[0] == 0:
+#             print(f"Skipping block {w + 1} due to base failure.")
+#             results_all.extend(np.zeros((174, 3)))
+#             np.save(save_path, np.array(results_all))
+#             continue
+#
+#         results_perturbations = []
+#         for j, params in enumerate(block):
+#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
+#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
+#             if next_minimise_coef != minimise_coef:
+#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
+#             else:
+#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+#
+#             # i = storage_final["i"].item() % BUFFER_LIMIT
+#
+#             print(f"Perturbation result: {res[0]}")
+#             results_perturbations.append(res[0])
+#
+#         results_block = [base_result] + results_perturbations
+#         results_all.extend(results_block)
+#
+#         # # Save checkpoint files for debugging
+#         # np.save(f'IC_final_{w:03d}.npy', IC_final)
+#         # np.save(f'Next_final_{w:03d}.npy', storage_final)
+#
+#         np.save(save_path, np.array(results_all))
+#         print(f"Block {w+1} finished and results saved.")
+#
+#     return results_all
+
+
 if __name__ == "__main__":
     lower = 0.8
     upper = 1.2
@@ -861,7 +913,7 @@ if __name__ == "__main__":
             [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
             # added params
             [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
             [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
             [3000 * lower, 3000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
             [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
@@ -890,7 +942,7 @@ if __name__ == "__main__":
             [4.9 * lower, 4.9 * upper], [1.5 * lower, 1.5 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.5 * lower, 0.5 * upper], [1.2 * lower, 1.2 * upper], [30 * lower, 30 * upper], [80 * lower, 80 * upper],
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.3 * lower, 1.3 * upper], [1.3 * lower, 1.3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [1.3 * lower, 1.3 * upper], [2.0 * lower, 2.0 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
 
     param_keys = list(sp["names"])
@@ -898,8 +950,8 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("New_DGSM_500_X_samples_rest_20_no_Pthor.npy", X)
-    X = np.load("New_DGSM_500_X_samples_rest_20_no_Pthor.npy")[:85800,:]
+    # np.save("DGSM_500_X_rest_20_no_Pthor.npy", X)
+    X = np.load("DGSM_500_X_rest_20_no_Pthor.npy")[:85800,:]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
@@ -909,7 +961,7 @@ if __name__ == "__main__":
     Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
-    np.save('DGSM_500_Result_rest_1_300.npy', Result)
+    np.save('DGSM_500_Result_rest_1_300_all.npy', Result)
     # np.save('All_params_DGSM_500_Result_HR_P_sys_P_dia_exercise_atria_251_500.npy', Result)
 
 

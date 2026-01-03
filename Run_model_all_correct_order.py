@@ -324,7 +324,7 @@ def simulate():
     V_ra = np.concatenate((Next_Conditions["V_ra_store"][i_buffer:], Next_Conditions["V_ra_store"][:i_buffer]))
     V_la = np.concatenate((Next_Conditions["V_la_store"][i_buffer:], Next_Conditions["V_la_store"][:i_buffer]))
 
-    N = 30  # number of consecutive closed samples required
+    N = 100  # number of consecutive closed samples required
 
     is_open = theta_ao > theta_min
     open_idx1 = []
@@ -345,42 +345,61 @@ def simulate():
     for k in range(N, len(theta_po)):
         if is_open_po[k] and not np.any(is_open_po[k - N:k]):
             open_idx2.append(k)
-    open_idx2 = np.array(open_idx2)[-11:-1]
+    open_idx2 = np.array(open_idx2)
 
     is_closed_po = theta_po <= theta_min
     close_idx2 = []
-    for k in range(0, len(theta_po) - N):
-        if (not is_closed_po[k-1]) and np.all(is_closed_po[k : k + N + 1]):
+    for k in range(N, len(theta_po)):
+        if is_closed_po[k] and not np.any(is_closed_po[k - N:k]):
             close_idx2.append(k)
-    close_idx2 = np.array(close_idx2)[-11:-1]
+    close_idx2 = np.array(close_idx2)
 
     is_open_mi = theta_mi > theta_min
     open_idx3 = []
     for k in range(N, len(theta_mi)):
         if is_open_mi[k] and not np.any(is_open_mi[k - N:k]):
             open_idx3.append(k)
-    open_idx3 = np.array(open_idx3)[-11:-1]
+    open_idx3 = np.array(open_idx3)
 
     is_closed_mi = theta_mi <= theta_min
     close_idx3 = []
-    for k in range(0, len(theta_mi) - N):
-        if (not is_closed_mi[k-1]) and np.all(is_closed_mi[k : k + N + 1]):
+    for k in range(N, len(theta_mi)):
+        if is_closed_mi[k] and not np.any(is_closed_mi[k - N:k]):
             close_idx3.append(k)
-    close_idx3 = np.array(close_idx3)[-11:-1]
+    close_idx3 = np.array(close_idx3)
 
     is_open_tr = theta_tr > theta_min
     open_idx4 = []
     for k in range(N, len(theta_tr)):
         if is_open_tr[k] and not np.any(is_open_tr[k - N:k]):
             open_idx4.append(k)
-    open_idx4 = np.array(open_idx4)[-11:-1]
+    open_idx4 = np.array(open_idx4)
 
     is_closed_tr = theta_tr <= theta_min
     close_idx4 = []
-    for k in range(0, len(theta_tr) - N):
-        if (not is_closed_tr[k-1]) and np.all(is_closed_tr[k : k + N + 1]):
+    for k in range(N, len(theta_tr)):
+        if is_closed_tr[k] and not np.any(is_closed_tr[k - N:k]):
             close_idx4.append(k)
-    close_idx4 = np.array(close_idx4)[-11:-1]
+    close_idx4 = np.array(close_idx4)
+
+    pairs_po = np.array([
+        (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
+        for o, o_next in zip(open_idx2[:-1], open_idx2[1:])
+        if np.any((close_idx2 > o) & (close_idx2 < o_next))])
+
+    pairs_mi = np.array([
+        (o, close_idx3[(close_idx3 > o) & (close_idx3 < o_next)][-1])
+        for o, o_next in zip(open_idx3[:-1], open_idx3[1:])
+        if np.any((close_idx3 > o) & (close_idx3 < o_next))])
+
+    pairs_tr = np.array([
+        (o, close_idx4[(close_idx4 > o) & (close_idx4 < o_next)][-1])
+        for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
+        if np.any((close_idx4 > o) & (close_idx4 < o_next))])
+
+    pairs_po = pairs_po[-11:-1]
+    pairs_mi = pairs_mi[-11:-1]
+    pairs_tr = pairs_tr[-11:-1]
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
@@ -401,42 +420,21 @@ def simulate():
     start_idx = start_idx[:n_pairs]
     end_idx = end_idx[:n_pairs]
 
-
     P_la = np.concatenate((Next_Conditions["P_la_store"][i_buffer:], Next_Conditions["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
     P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    # # period of A descent when aortic valve is open -> get first min p
-    # j1 = np.searchsorted(close_idx1, open_idx1, side="right")
-    # valid1 = j1 < len(close_idx1)
-    # pairs1 = np.column_stack([open_idx1[valid1], close_idx1[j1[valid1]]])
-    # P_la_descent1_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs1])
-
     # period of V descent when mitral valve is open -> get second min la P
-    j3 = np.searchsorted(close_idx3, open_idx3, side="right")
-    valid3 = j3 < len(close_idx3)
-    pairs3 = np.column_stack([open_idx3[valid3], close_idx3[j3[valid3]]])
-    P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs3])
-    P_la_descent1_idx = np.array([c + np.argmin(P_la[c:o_next]) for (_, c), (o_next, _) in zip(pairs3[:-1], pairs3[1:])])
-
+    P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
+    P_la_descent1_idx = np.array([c + np.argmin(P_la[c:o_next]) for (_, c), (o_next, _) in zip(pairs_mi[:-1], pairs_mi[1:])])
 
     P_ra = np.concatenate((Next_Conditions["P_ra_store"][i_buffer:], Next_Conditions["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
     P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    # # period of A descent when pulmonary valve is open -> get first min p
-    # j2 = np.searchsorted(close_idx2, open_idx2, side="right")
-    # valid2 = j2 < len(close_idx2)
-    # pairs2 = np.column_stack([open_idx2[valid2], close_idx2[j2[valid2]]])
-    # P_ra_descent1_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs2])
-
     # period of V descent when tricuspid valve is open -> get second min la P
-    j4= np.searchsorted(close_idx4, open_idx4, side="right")
-    valid4 = j4 < len(close_idx4)
-    pairs4 = np.column_stack([open_idx4[valid4], close_idx4[j4[valid4]]])
-    P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs4])
-    P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs4[:-1], pairs4[1:])])
-
+    P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
+    P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])])
 
     V_lv = np.concatenate((Next_Conditions["V_lv_store"][i_buffer:], Next_Conditions["V_lv_store"][:i_buffer]))
     peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
@@ -449,11 +447,8 @@ def simulate():
     last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
-    j = np.searchsorted(close_idx2, open_idx2, side="right")
-    valid = j < len(close_idx2)
-    pairs = np.column_stack([open_idx2[valid], close_idx2[j[valid]]])
-    P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs])
-    P_rv_min_idx = np.array([c + np.argmin(P_rv[c:o_next]) for (_, c), (o_next, _) in zip(pairs[:-1], pairs[1:])])
+    P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
+    P_rv_min_idx = np.array([c + np.argmin(P_rv[c:o_next]) for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])])
 
     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 
@@ -521,19 +516,20 @@ def simulate():
 
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
     print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
-            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[open_idx2]), np.mean(V_rv[close_idx2]),
-            np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
-            np.mean(V_ra[close_idx4]), np.mean(V_ra[open_idx4]), np.mean(P_ra[P_ra_descent1_idx]),
-            np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[open_idx4]), np.mean(P_ra[P_ra_descent2_idx]),
-            np.mean(V_la[close_idx3]), np.mean(V_la[open_idx3]), np.mean(P_la[P_la_descent1_idx]),
-            np.mean(P_la[P_la_max_idx]), np.mean(P_la[open_idx3]), np.mean(P_la[P_la_descent2_idx]),
-            np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
-            np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
-            Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
+          np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
+          np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
+          np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
+          np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
+          np.mean(V_la[pairs_mi[:, 1]]), np.mean(V_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent1_idx]),
+          np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
+          np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
+          np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
+          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
-            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[open_idx2]), np.mean(V_rv[close_idx2]),
+            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]),
+            np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
             IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
 
