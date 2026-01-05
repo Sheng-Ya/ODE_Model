@@ -2,7 +2,6 @@ import os
 import copy
 import signal
 import numpy as np
-# import torch
 from SALib import ProblemSpec
 # from SALib.sample import finite_diff
 from scipy.interpolate import CubicSpline
@@ -15,7 +14,7 @@ import tqdm_joblib
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks, savgol_filter
+from scipy.signal import find_peaks
 from All_derivatives_njit import model_derivatives
 from fixed_params import Parameters as Old_Parameters
 
@@ -40,19 +39,20 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = all_time[latest_nonzero_index]
         if t < latest_nonzero_value:
-            # num_removed = 6
-            index = -1
-
-            # Iterating through the buffer in circular order
-            for j in range(BUFFER_LIMIT):
-                logical_index = (latest_nonzero_index - j - 1) % BUFFER_LIMIT  # Traversing backwards
-                if all_time[logical_index] < t:
-                    index = (logical_index + 1) % BUFFER_LIMIT
-                    break
-
-            num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (
-                        actual_index - index)
-
+            # # num_removed = 6
+            # index = -1
+            #
+            # # Iterating through the buffer in circular order
+            # for j in range(BUFFER_LIMIT):
+            #     logical_index = (latest_nonzero_index - j - 1) % BUFFER_LIMIT  # Traversing backwards
+            #     if all_time[logical_index] < t:
+            #         index = (logical_index + 1) % BUFFER_LIMIT
+            #         break
+            #
+            # num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (
+            #             actual_index - index)
+            num_removed = 3
+            index = (actual_index - 3) % BUFFER_LIMIT
             for j in range(num_removed):
                 all_time[(index + j) % BUFFER_LIMIT] = 0
 
@@ -104,12 +104,6 @@ num_cardio_control = len(required_cardio_control_keys)
 required_resp_control_keys = ["VE_integral"]
 IC_resp_contr = np.array([Initial_Conditions[key] for key in required_resp_control_keys], dtype=float)
 num_resp_control = len(required_resp_control_keys)
-
-
-# # resp mechanics
-# required_resp_mech_keys = ["Vflow_ua"]
-# IC_resp_mech = np.array([Initial_Conditions[key] for key in required_resp_mech_keys], dtype=float)
-# num_resp_mech = len(required_resp_mech_keys)
 
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
@@ -942,8 +936,10 @@ if __name__ == "__main__":
             [4.9 * lower, 4.9 * upper], [1.5 * lower, 1.5 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.5 * lower, 0.5 * upper], [1.2 * lower, 1.2 * upper], [30 * lower, 30 * upper], [80 * lower, 80 * upper],
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.3 * lower, 1.3 * upper], [2.0 * lower, 2.0 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [1.3 * 0.8, 1.3 * 1.2], [2.0 * 0.8, 2.0 * 1.2], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
+
+    # NEED TO EDIT VB = 0.09 FOR FUTURE DGSM FOR QUICKER CONVERGENCE
 
     param_keys = list(sp["names"])
 

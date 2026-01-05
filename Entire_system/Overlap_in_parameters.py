@@ -44,21 +44,14 @@ if __name__ == "__main__":
     filename = "C:/Users/vanes/Desktop/Sensitivities for emulator.txt"  # change as needed
     output_params, param_counts = parse_sensitivity_file(filename)
 
-    # # ---- Per-output parameters ----
-    # print("\nPer-output parameter lists:")
-    # for output, params in output_params.items():
-    #     print(f"\n{output} ({len(params)} parameters)")
-    #     for p in sorted(params):
-    #         print(f"  {p}")
+    # ---- Global union ----
+    all_params = sorted(param_counts.keys())
+    print("\n" + "=" * 80)
+    print(f"Total unique parameters: {len(all_params)}")
+    print("=" * 80)
+    for p in all_params:
+        print(p)
 
-    # # ---- Global union ----
-    # all_params = sorted(param_counts.keys())
-    # print("\n" + "=" * 80)
-    # print(f"Total unique parameters: {len(all_params)}")
-    # print("=" * 80)
-    # for p in all_params:
-    #     print(p)
-    #
     # # ---- Counts ----
     # print("\n" + "=" * 80)
     # print("Parameter appearance counts (across outputs)")

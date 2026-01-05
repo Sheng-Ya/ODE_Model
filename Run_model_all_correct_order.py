@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, interp1d
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
 from scipy.signal import find_peaks, savgol_filter
@@ -20,7 +20,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 40000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 150 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -36,18 +36,19 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = all_time[latest_nonzero_index]
         if t < latest_nonzero_value:
-            # num_removed = 6
-            index = -1  # Set a default value for safety
-
-            # Iterating through the buffer in circular order
-            for j in range(BUFFER_LIMIT):
-                logical_index = (latest_nonzero_index - j - 1) % BUFFER_LIMIT  # Traversing backwards
-                if all_time[logical_index] < t:
-                    index = (logical_index + 1) % BUFFER_LIMIT
-                    break
-
-            num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
-
+            # # num_removed = 6
+            # index = -1  # Set a default value for safety
+            #
+            # # Iterating through the buffer in circular order
+            # for j in range(BUFFER_LIMIT):
+            #     logical_index = (latest_nonzero_index - j - 1) % BUFFER_LIMIT  # Traversing backwards
+            #     if all_time[logical_index] < t:
+            #         index = (logical_index + 1) % BUFFER_LIMIT
+            #         break
+            #
+            # num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (actual_index - index)
+            num_removed = 3
+            index = (actual_index - 3) % BUFFER_LIMIT
             for j in range(num_removed):
                 all_time[(index + j) % BUFFER_LIMIT] = 0
 
@@ -308,6 +309,32 @@ def simulate():
 
     # Post-processing: use buffer to get recent data
     i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT
+
+    all_time = np.concatenate((Next_Conditions["all_time"][i_buffer:], Next_Conditions["all_time"][:i_buffer]))
+    time_since_beat_store = np.concatenate((Next_Conditions["time_since_beat_store"][i_buffer:], Next_Conditions["time_since_beat_store"][:i_buffer]))
+    finish_breath_time = np.concatenate((Next_Conditions["finish_breath_time"][i_buffer:], Next_Conditions["finish_breath_time"][:i_buffer]))
+
+    dtb = np.diff(time_since_beat_store)
+    dtr = np.diff(finish_breath_time)
+    beat_idx = np.where(dtb > 0)[0] + 1
+    breath_idx = np.where(dtr > 0)[0] + 1
+    beat_idx = beat_idx[-1]
+    breath_idx = breath_idx[-1]
+    last_beat_t = all_time[beat_idx]
+    last_breath_t = all_time[breath_idx]
+
+    interp = interp1d(
+        ODE_solution.t,
+        ODE_solution.y,
+        axis=1,
+        kind="linear",
+        fill_value="extrapolate"
+    )
+
+    state_last_beat = interp(last_beat_t)
+    state_last_breath = interp(last_breath_t)
+    combined = np.concatenate((state_last_beat[:57], state_last_breath[57:]))
+    print(combined)
 
     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
     peaks, _ = find_peaks(P_sa, distance=int(500), prominence=1)
@@ -607,6 +634,20 @@ if __name__ == "__main__":
     # print(HR)
     print(len(Next_Conditions["time_history"][:index]))
 
+    # variables_to_plot = [
+    #     "CvbCO2", "CvbO2", "VAflow", "V", "Q_pp", "PvtCO2", "dV_dt"
+    # ]
+    #
+    # for key in variables_to_plot:
+    #     if key in Next_Conditions:  # Check if the key exists in updates
+    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+    #         plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel(key)
+    #         plt.title(f"Plot of {key} over Time")
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
 
 
     # # Set global style
@@ -642,19 +683,19 @@ if __name__ == "__main__":
     beat_mid_idx = [(b0 + b1) // 2 for b0, b1 in zip(beat_idx[:-1], beat_idx[1:])]
     print(np.mean(Q_pp_beat_avg), np.mean(Q_pp))
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(sorted_times, Q_pp, label="Q_pp")
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, Q_pp, label="Q_pp")
+    #
+    # # scatter plot all 10 points
+    # ax1.scatter(sorted_times[beat_mid_idx], Q_pp_beat_avg, color='g', marker='x', s=100, label="Last 10 flat values")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # plt.show()
 
-    # scatter plot all 10 points
-    ax1.scatter(sorted_times[beat_mid_idx], Q_pp_beat_avg, color='g', marker='x', s=100, label="Last 10 flat values")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
-
-    # HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
+    HR = np.concatenate((Next_Conditions["HR_store"][i:], Next_Conditions["HR_store"][:i]))
     # print(max(HR), min(HR))
     #
     # past_10_flat_segments = []
@@ -779,39 +820,30 @@ if __name__ == "__main__":
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i:], Next_Conditions["P_rv_store"][:i]))
     all_time = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pmax_lv"][:index], label="Pmax_lv", color="k")
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Pressure (mmHg)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
-
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_lv"][index-40000:index], label="VT_lv", color="grey")
-    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_lv"][index-40000:index], label="P_lv", color="k")
-    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_la"][index-40000:index], label="VT_la")
-    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_ra"][index-40000:index], label="VT_ra")
-    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Q_la"][index-40000:index], label="Q_la")
-    ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Qi_lv"][index-40000:index], label="Qi_lv")
-    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Q_lv"][index-40000:index], label="Q_lv")
-    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index], label="P_peri")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.legend(loc="upper left")
-    ax2 = ax1.twinx()
-    # ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
-    ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
-    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_la"][index-40000:index], label="P_la", color="m")
-    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_lv"][index-40000:index], label="P_lv", color="k")
-    ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index], label="P_peri", color="r")
-    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi_atr"][index-40000:index], label="phi_atr", color="c")
-
-    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_rv"][index-40000:index], label="VT_rv", color="y")
-
-    ax2.legend(loc="upper right")
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_lv"][index-40000:index], label="VT_lv", color="grey")
+    # # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_lv"][index-40000:index], label="P_lv", color="k")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_la"][index-40000:index], label="VT_la")
+    # # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_ra"][index-40000:index], label="VT_ra")
+    # # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Q_la"][index-40000:index], label="Q_la")
+    # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Qi_lv"][index-40000:index], label="Qi_lv")
+    # # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["Q_lv"][index-40000:index], label="Q_lv")
+    # # ax1.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index], label="P_peri")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.legend(loc="upper left")
+    # ax2 = ax1.twinx()
+    # # ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
+    # ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
+    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_la"][index-40000:index], label="P_la", color="m")
+    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["P_lv"][index-40000:index], label="P_lv", color="k")
+    # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["AA"][index-40000:index], label="P_peri", color="r")
+    # # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["phi_atr"][index-40000:index], label="phi_atr", color="c")
+    #
+    # # ax2.plot(Next_Conditions["time_history"][index-40000:index], Next_Conditions["VT_rv"][index-40000:index], label="VT_rv", color="y")
+    #
+    # ax2.legend(loc="upper right")
+    # plt.show()
 
     # Total_Volume = Next_Conditions["AA"][index-40000:index]
     # time = Next_Conditions["time_history"][index-40000:index]
@@ -840,27 +872,27 @@ if __name__ == "__main__":
     # ax2.legend(loc="upper right")
     # plt.show()
 
-    V_ra = np.concatenate((Next_Conditions["V_ra_store"][i:], Next_Conditions["V_ra_store"][:i]))
-    fig, ax1 = plt.subplots()
-    ax1.plot(sorted_times, V_ra, label="V_ra")
-
-    ax1.scatter(sorted_times[open_idx4], V_ra[open_idx4], color='b', marker='o', label="Valve Detected Maxima")
-    ax1.scatter(sorted_times[close_idx4], V_ra[close_idx4], color='k', marker='o', label="Valve Detected Minima")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-
-    ax2 = ax1.twinx()
-    ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
-    ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
-    ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
-    ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
-
-    ax2.legend(loc="upper right")
+    # V_ra = np.concatenate((Next_Conditions["V_ra_store"][i:], Next_Conditions["V_ra_store"][:i]))
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, V_ra, label="V_ra")
     #
-    plt.show()
+    # ax1.scatter(sorted_times[open_idx4], V_ra[open_idx4], color='b', marker='o', label="Valve Detected Maxima")
+    # ax1.scatter(sorted_times[close_idx4], V_ra[close_idx4], color='k', marker='o', label="Valve Detected Minima")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    #
+    # ax2 = ax1.twinx()
+    # ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
+    # ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
+    # ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
+    # ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
+    #
+    # ax2.legend(loc="upper right")
+    # #
+    # plt.show()
 
 
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
@@ -912,33 +944,33 @@ if __name__ == "__main__":
     P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs[:-1], pairs[1:])])
     P_ra_min_descent1 = P_ra[P_ra_descent1_idx]
 
+    # #
+    # plt.figure(figsize=(12, 6))
+    # # LA pressure
+    # plt.plot(sorted_times, P_ra, label="P_ra", linewidth=2)
+    # # Mark maxima during atrial upstroke
+    # plt.scatter(sorted_times[P_ra_max_idx], P_ra[P_ra_max_idx], zorder=5, label="Max P_ra during φ_atr ↑")
+    # plt.scatter(sorted_times[open_idx4], P_ra_valve_open, color='k', s=20, marker='o', label='Valve open')
+    # plt.scatter(sorted_times[P_ra_descent2_idx], P_ra_min_descent2, color='c', s=20, marker='o', label='V descent')
+    # plt.scatter(sorted_times[P_ra_descent1_idx], P_ra_min_descent1, color='r', s=20, marker='o', label='A descent')
     #
-    plt.figure(figsize=(12, 6))
-    # LA pressure
-    plt.plot(sorted_times, P_ra, label="P_ra", linewidth=2)
-    # Mark maxima during atrial upstroke
-    plt.scatter(sorted_times[P_ra_max_idx], P_ra[P_ra_max_idx], zorder=5, label="Max P_ra during φ_atr ↑")
-    plt.scatter(sorted_times[open_idx4], P_ra_valve_open, color='k', s=20, marker='o', label='Valve open')
-    plt.scatter(sorted_times[P_ra_descent2_idx], P_ra_min_descent2, color='c', s=20, marker='o', label='V descent')
-    plt.scatter(sorted_times[P_ra_descent1_idx], P_ra_min_descent1, color='r', s=20, marker='o', label='A descent')
-
-    # Secondary axis for phi_atr
-    ax = plt.gca()
-    ax2 = ax.twinx()
-    ax2.plot(sorted_times, phi_atr, linestyle="--", alpha=0.7, label="φ_atr")
-    ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
-    ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
-    ax2.set_ylabel("φ_atr")
-
-    # Labels & legend
-    ax.set_xlabel("Time index")
-    ax.set_ylabel("P_ra")
-    ax.legend(loc="upper left")
-    ax2.legend(loc="upper right")
-
-    plt.title("Right Atrial Pressure Peaks During Atrial Activation Upstroke")
-    plt.tight_layout()
-    plt.show()
+    # # Secondary axis for phi_atr
+    # ax = plt.gca()
+    # ax2 = ax.twinx()
+    # ax2.plot(sorted_times, phi_atr, linestyle="--", alpha=0.7, label="φ_atr")
+    # ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
+    # ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
+    # ax2.set_ylabel("φ_atr")
+    #
+    # # Labels & legend
+    # ax.set_xlabel("Time index")
+    # ax.set_ylabel("P_ra")
+    # ax.legend(loc="upper left")
+    # ax2.legend(loc="upper right")
+    #
+    # plt.title("Right Atrial Pressure Peaks During Atrial Activation Upstroke")
+    # plt.tight_layout()
+    # plt.show()
     #
     # Flows
     fig, ax1 = plt.subplots()
@@ -952,12 +984,12 @@ if __name__ == "__main__":
     #          label="Q$_{RV}$ (out of RV)")
     # ax1.plot(Next_Conditions["time_history"][index - 100000:index], Next_Conditions["Qi_rv"][index - 100000:index],
     #          label="Q$_{Tricuspid}$")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_vc"][:index],
-             label="Q$_{Vena Cava}$")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["VT_vc"][:index],
-             label="VT_vc")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_vc"][:index],
-             label="P_vc", linestyle="--", color="c")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index],
+             label="Pa_CO2")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index],
+    #          label="Pa_CO2")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index],
+    #          label="Pb_CO2", color="c")
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Flow (mL/s)")
@@ -1037,31 +1069,31 @@ if __name__ == "__main__":
 
     local_mins = starts[-11:-1]
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(sorted_times, V_la, label="V_la")
-    ax1.scatter(sorted_times[troughs], V_la[troughs], color='r', marker='o',label="Atrial max volume during V-wave")
-    ax1.scatter(sorted_times[open_idx1], V_la[open_idx1], color='b', marker='o', label="theta_ao EDV")
-
-    ax1.scatter(sorted_times[peaks], V_la[peaks], color='g', marker='x', label="Atrial ESV")
-    ax1.scatter(sorted_times[open_idx3], V_la[open_idx3], color='r', marker='x', label="theta_mi ESV")
-
-    ax1.scatter(sorted_times[local_mins], V_la[local_mins], color='k', marker='o', label="Atrial EDV")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-
-    ax2 = ax1.twinx()
-    ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
-    ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
-    ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
-    ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
-
-
-    ax2.legend(loc="upper right")
-
-    plt.show()
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, V_la, label="V_la")
+    # ax1.scatter(sorted_times[troughs], V_la[troughs], color='r', marker='o',label="Atrial max volume during V-wave")
+    # ax1.scatter(sorted_times[open_idx1], V_la[open_idx1], color='b', marker='o', label="theta_ao EDV")
+    #
+    # ax1.scatter(sorted_times[peaks], V_la[peaks], color='g', marker='x', label="Atrial ESV")
+    # ax1.scatter(sorted_times[open_idx3], V_la[open_idx3], color='r', marker='x', label="theta_mi ESV")
+    #
+    # ax1.scatter(sorted_times[local_mins], V_la[local_mins], color='k', marker='o', label="Atrial EDV")
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    #
+    # ax2 = ax1.twinx()
+    # ax2.plot(sorted_times, theta_ao, label="theta_ao", color="k")
+    # ax2.plot(sorted_times, theta_mi, label="theta_mi", color="c")
+    # ax2.plot(sorted_times, theta_po, label="theta_po", color="m")
+    # ax2.plot(sorted_times, theta_tr, label="theta_tr", color="tomato")
+    #
+    #
+    # ax2.legend(loc="upper right")
+    #
+    # plt.show()
 
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
 
@@ -1098,6 +1130,8 @@ if __name__ == "__main__":
 
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="r")
+    ax1.plot(time, state_variables[12, :], label = "VT_amv")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="Vu_amv")
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Firing rate (spikes/s)")
@@ -1107,7 +1141,7 @@ if __name__ == "__main__":
     # # plt.show()
     ax2 = ax1.twinx()
     ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="b")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="g")
+    # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="g")
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
     plt.show()
@@ -1292,30 +1326,6 @@ if __name__ == "__main__":
             continue
         color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
         plt.plot(solution.t, state_variables[i], label=label, color=color, linestyle='-', markersize=4)
-
-    plt.xlabel("Time")
-    plt.ylabel("State Variables")
-    plt.title("Evolution of State Variables Over Time")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
-
-
-    # Number of state variables
-    num_variables = state_variables.shape[0]
-    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
-
-    # Plot all state variables
-    plt.figure(figsize=(14, 10))
-
-    for i, label in enumerate(required_gas_keys):
-        if label in ["Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PCSFCO2", "MRTO2", "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV"]:  # Skip "VT_sv"
-            continue
-        color = colors[
-            i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-        plt.plot(solution.t, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
-                 color=color, linestyle='-', markersize=4)
 
     plt.xlabel("Time")
     plt.ylabel("State Variables")

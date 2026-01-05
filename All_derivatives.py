@@ -47,6 +47,9 @@ def get_delayed_value(t, delay, all_time, heart_index, buffer_limit, history_arr
     v1 = history_array[delay_index1]
     v0 = history_array[delay_index0]
 
+    if not (t0 <= delay_time <= t1):
+        return default_value
+
     return float(v0 + (v1 - v0) * (delay_time - t0) / (t1 - t0))
 
 @njit
@@ -147,6 +150,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # Determine the correct index based on t
     if t == 0:
         last_index = i % BUFFER_LIMIT
+    elif i < 4 and num_removed == 3:
+        last_index = i % BUFFER_LIMIT - 1
     else:
         last_index = (i - num_removed - 1) % BUFFER_LIMIT
 
@@ -167,10 +172,23 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         PamCO2 = compute_mean_selected(Pa_CO2_every_store, accepted_indices)
         PmbCO2 = compute_mean_selected(Pb_CO2_every_store, accepted_indices)
 
-    else:
+    elif t != 0:
         PamO2 = PamO2_store[last_index]  # previous mean value
         PamCO2 = PamCO2_store[last_index]  # previous mean value
         PmbCO2 = PmbCO2_store[last_index]  # previous mean value
+
+    else:
+        PamO2 = Pa_O2
+        PamCO2 = Pa_CO2
+
+        PvbO2 = max(CBO2 / alpha_O2, 1)  # henry
+        PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (1 + beta2 * PvbO2)
+        G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
+        R_bp = 1 / G_bp
+        P_bv = (VT_bv - Vu_bv) / C_bv if VT_bv >= Vu_bv else VT_bv / C_bv
+        Q_bp_1000 = max(((P_sp - P_bv) / R_bp), 0.0001) / 1000
+        Pb_CO2 = PvbCO2 + (PCSFCO2 - PvbCO2) * np.exp(-dc * ((Q_bp_1000 * KCCO2) ** scale_param5))
+        PmbCO2 = Pb_CO2
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
@@ -248,7 +266,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         Emax_lv = compute_mean_selected(Emax_lv_every_store, accepted_indices)
         Emax_rv = compute_mean_selected(Emax_rv_every_store, accepted_indices)
 
-    else:
+    elif t != 0:
         HR = HR_store[last_index]
         Vu_ev = Vu_ev_store[last_index]  # previous mean value
         Vu_sv = Vu_sv_store[last_index]  # previous mean value
@@ -257,7 +275,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         Emax_lv = Emax_lv_store[last_index]  # previous mean value
         Emax_rv = Emax_rv_store[last_index]  # previous mean value
 
-    Vu_amv_check = Vu_amv
+    else:
+        Vu_ev = max(Vu_ev_change + Vu_ev0, 0)
+        Vu_sv = max(Vu_sv_change + Vu_sv0, 0)
+        Vu_rmv = max(Vu_rmv_change + Vu_rmv0, 0)
+        Vu_amv = max(Vu_amv_change + Vu_amv0, 0)
+        Emax_lv = Emax_lv_change + Emax_lv0
+        Emax_rv = Emax_rv_change + Emax_rv0
 
     # ============================================================================
     # CARDIOVASCULAR SYSTEM
@@ -579,7 +603,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # Pmax_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
-    AA = valve_signal
+    AA = Vu_amv
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
         theta_mi = theta_min  # minimum angle (closed)
@@ -1046,8 +1070,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # Ta = LCTV / Q_la
     # Ta = 6  # decreased to have a smaller circular buffer
 
-    PA_O2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_O2_every_store, PAO2_Delay_IC)
-    PA_CO2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_CO2_every_store, PACO2_Delay_IC)
+    PA_O2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_O2_every_store, PA_O2)
+    PA_CO2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_CO2_every_store, PA_CO2)
 
     d2Pa_O2_dt2 = (PA_O2_delay - (T1 + T2) * dPa_O2_dt - Pa_O2) / (T1 * T2)
     d2Pa_CO2_dt2 = (PA_CO2_delay - (T1 + T2) * dPa_CO2_dt - Pa_CO2) / (T1 * T2)
@@ -1237,21 +1261,21 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
     # Fetch delayed values
-    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
-    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
-    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
-    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, 3.9818121621074654)
+    f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
+    f_sp_delay2_Rep = get_delayed_value(t, DR_ep, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
+    f_sp_delay2_Rrmp = get_delayed_value(t, DR_rmp, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
+    f_sp_delay2_Rsp = get_delayed_value(t, DR_sp, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
 
-    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
-    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
-    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
-    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, 4.252068253247038)
+    f_sv_delay5_Vu_ev = get_delayed_value(t, DV_ev, all_time, last_index, BUFFER_LIMIT, f_sv_history, f_sv)
+    f_sv_delay5_Vu_sv = get_delayed_value(t, DV_sv, all_time, last_index, BUFFER_LIMIT, f_sv_history, f_sv)
+    f_sv_delay5_Vu_rmv = get_delayed_value(t, DV_rmv, all_time, last_index, BUFFER_LIMIT, f_sv_history, f_sv)
+    f_sv_delay5_Vu_amv = get_delayed_value(t, DV_amv, all_time, last_index, BUFFER_LIMIT, f_sv_history, f_sv)
 
-    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 4.141537075873976)
-    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, 4.141537075873976)
+    f_sh_delay2_Emax_lv = get_delayed_value(t, DEmax_lv, all_time, last_index, BUFFER_LIMIT, f_sh_history, f_sh)
+    f_sh_delay2_Emax_rv = get_delayed_value(t, DEmax_rv, all_time, last_index, BUFFER_LIMIT, f_sh_history, f_sh)
 
-    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, 4.141537075873976)
-    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, 3.1764205441300635)
+    f_sh_delay2_s = get_delayed_value(t, DT_s, all_time, last_index, BUFFER_LIMIT, f_sh_history, f_sh)
+    f_v_delay0_2 = get_delayed_value(t, DT_v, all_time, last_index, BUFFER_LIMIT, f_v_history, f_v)
 
     # heart period
     sigma_Ts = GT_s * np.log(max(f_sh_delay2_s, fes_min) - fes_min + 1)
@@ -1262,6 +1286,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     T = Ts_change + Tv_change + T0
     HR_every = 1 / T
+
+    if t == 0:
+        HR = HR_every
 
     # continue with equations
     sigma_Rep = GR_ep * np.log(max(f_sp_delay2_Rep, fes_min) - fes_min + 1)
@@ -1338,8 +1365,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dP_peri_dt = P_peri * (dVT_la_dt + dVT_lv_dt + dVT_ra_dt + dVT_rv_dt) / V_scale
     dP_rv_dt = Emax_rv * (phi * dV_rv_dt + dphi_dt*(VT_rv - Vu_rv)) + P0_rv * (-dphi_dt * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + (1 - phi) * KE_rv * np.exp(KE_rv * (VT_rv - Vu_rv)) * dVT_rv_dt) + dP_thor_dt + 1/r * dP_peri_dt
     dP_lv_dt = Emax_lv * (phi * dV_lv_dt + dphi_dt*(VT_lv - Vu_lv)) + P0_lv * (-dphi_dt * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + (1 - phi) * KE_lv * np.exp(KE_lv * (VT_lv - Vu_lv)) * dVT_lv_dt) + dP_thor_dt + 1/l * dP_peri_dt
-
-    Vu_amv = Vu_amv_check
 
     # ============================================================================
     # RETURN ALL COMPUTED VALUES
