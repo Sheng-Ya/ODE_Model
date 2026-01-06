@@ -5,17 +5,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import OrderedDict
 
-X1 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[:57200,:]
-Result1 = np.load('DGSM_500_Result_rest_1_200.npy')
+# old sensitivities no p_thor, poor valve pairing and non physiological left atrial dynamics
+# X = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')
+# Result1 = np.load('DGSM_500_Result_rest_1_200.npy')
+# Result2 = np.load('DGSM_500_Result_rest_200_400.npy')
+# Result3 = np.load('DGSM_500_Result_rest_400_500.npy')
+# Result = np.vstack((Result1, Result2, Result3))
 
-X2 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[57200:114400,:]
-Result2 = np.load('DGSM_500_Result_rest_200_400.npy')
-#
-X3 = np.load('DGSM_500_X_samples_rest_20_no_Pthor.npy')[114400:,:]
-Result3 = np.load('DGSM_500_Result_rest_400_500.npy')
+# various results after improving left atrial dynamics but poor valve opening/closing pairing
+# X = np.load('New_DGSM_500_X_samples_rest_20_no_Pthor.npy')
+# Result = np.load("DGSM_result_no_Pthor_20.npy")
+# X = np.load('New_DGSM_500_X_samples_rest_20_all.npy')
+# Result = np.load('DGSM_result_all_20.npy')
+# X = np.load('New_DGSM_500_X_samples_rest_20_no_Pthor_Vtot.npy')
+# Result = np.load('DGSM_result_no_Pthor_Vtot_20.npy')
 
-Result = np.vstack((Result1, Result2, Result3))
-X = np.vstack((X1, X2, X3))
+# latest results no p_thor
+X = np.load('DGSM_500_X_rest_20_no_Pthor.npy')
+Result = np.load("DGSM_500_Result_rest_20_no_Pthor.npy")
 
 
 lower = 0.8
@@ -39,37 +46,49 @@ mask_blocks_nan = np.array([
     for i in base_idx
 ])
 
-# Compute variability (std) within each block
-block_std = np.zeros((n_blocks, Result.shape[1]))
-
-for b, i in enumerate(base_idx):
-    block = Result[i:i + block_size]
-    block_std[b] = np.nanstd(block, axis=0)
-
-for b, i in enumerate(base_idx):
-    print(
-        f"Block {b:4d} | std = {block_std[b, 2]:.4g}"
-        # f"STD: {block_std[b]}"
-    )
-
-# # choose output column (e.g. HR = 0)
-# col = 7
-# std_threshold = 5.0
-#
-# # keep blocks whose std <= threshold
-# mask_blocks_std = block_std[:, col] <= std_threshold
-
-
-mask_blocks = mask_blocks & mask_blocks_nan # & mask_blocks_std
+mask_blocks = mask_blocks & mask_blocks_nan
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)
-
 
 # Filter arrays
 X = X[mask_full]
 Result = Result[mask_full]
+Result = Result[:, :31]
 
-HR = Result[:, 27]
+
+# Compute variability (std) within each block
+block_std = np.zeros(((X.shape[0] // block_size), Result.shape[1]))
+new_base_index = np.arange(0, X.shape[0], block_size)
+# print std for a particular output
+col = 14
+for b, i in enumerate(new_base_index):
+    block = Result[i:i + block_size]
+    block_std[b] = np.nanstd(block, axis=0)
+    print(f"Block {b:4d} | std = {block_std[b, col]:.4g}")
+
+# # get rid of std for a particular output
+# mean_std = np.nanmean(block_std, axis=0)   # (33,)
+# std_std  = np.nanstd(block_std, axis=0)    # (33,)
+# within_3sigma = np.abs(block_std - mean_std) <= 3 * std_std
+# mask_blocks_std = np.all(within_3sigma, axis=1)
+
+# # choose output column (e.g. HR = 0)
+# std_threshold = 0.2
+# # keep blocks whose std <= threshold
+# mask_blocks_std = block_std[:, col] <= std_threshold
+
+# # Which outputs reject the most blocks?
+# bad_counts = np.sum(~within_3sigma, axis=0)
+# for j, c in enumerate(bad_counts):
+#     if c > 0:
+#         print(f"Output {j:2d}: {c} blocks rejected")
+
+# Expand mask to all rows in a block and filter
+# mask_full = np.repeat(mask_blocks_std, block_size)
+# X = X[mask_full]
+# Result = Result[mask_full]
+
+HR = Result[:, col]
 
 sp = ProblemSpec({
         'names': [
@@ -210,7 +229,7 @@ sp = ProblemSpec({
             [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
             # added params
             [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
             [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
             [3000 * lower, 3000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
             [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
@@ -239,7 +258,7 @@ sp = ProblemSpec({
             [4.9 * lower, 4.9 * upper], [1.5 * lower, 1.5 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.5 * lower, 0.5 * upper], [1.2 * lower, 1.2 * upper], [30 * lower, 30 * upper], [80 * lower, 80 * upper],
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [3 * lower, 3 * upper], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [1.3 * 0.8, 1.3 * 1.2], [2.0 * 0.8, 2.0 * 1.2], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
     })
 
 output_names = [
@@ -253,51 +272,51 @@ output_names = [
     "Cardiac Output", "PaO2", "PaCO2", "Percentage Volume Change",
     "Stroke Volume", "Ejection Fraction"]
 
-dgsm_summary = OrderedDict()
-
-for col in range(Result.shape[1]):
-
-    Y = Result[:, col]
-    output_label = output_names[col]
-
-    # Skip invalid outputs
-    if not np.all(np.isfinite(Y)):
-        print(f"Skipping {output_label} (non-finite values)")
-        continue
-
-    # DGSM analysis
-    Si = dgsm.analyze(sp, X, Y, print_to_console=False)
-
-    dgsm_vals = np.array(Si["dgsm"])
-    names = np.array(Si["names"])
-
-    # Sort descending
-    order = np.argsort(dgsm_vals)[::-1]
-    dgsm_sorted = dgsm_vals[order]
-    names_sorted = names[order]
-
-    # Cumulative sensitivity
-    cumu = np.cumsum(dgsm_sorted)
-    total = cumu[-1]
-
-    idx_90 = np.searchsorted(cumu, 0.9 * total) + 1
-
-    top_names_90 = names_sorted[:idx_90]
-    top_dgsm_90 = dgsm_sorted[:idx_90]
-
-    dgsm_summary[output_label] = {
-        "n_params_90": idx_90,
-        "param_names": top_names_90,
-        "dgsm_values": top_dgsm_90
-    }
-
-    # ---- Console output ----
-    print("\n" + "=" * 80)
-    print(f"Output: {output_label}")
-    print(f"Parameters contributing 90% sensitivity: {idx_90}")
-    print("-" * 80)
-    for name, val in zip(top_names_90, top_dgsm_90):
-        print(f"{name:25s} : {val:.4e}")
+# dgsm_summary = OrderedDict()
+#
+# for col in range(Result.shape[1]):
+#
+#     Y = Result[:, col]
+#     output_label = output_names[col]
+#
+#     # Skip invalid outputs
+#     if not np.all(np.isfinite(Y)):
+#         print(f"Skipping {output_label} (non-finite values)")
+#         continue
+#
+#     # DGSM analysis
+#     Si = dgsm.analyze(sp, X, Y, print_to_console=False)
+#
+#     dgsm_vals = np.array(Si["dgsm"])
+#     names = np.array(Si["names"])
+#
+#     # Sort descending
+#     order = np.argsort(dgsm_vals)[::-1]
+#     dgsm_sorted = dgsm_vals[order]
+#     names_sorted = names[order]
+#
+#     # Cumulative sensitivity
+#     cumu = np.cumsum(dgsm_sorted)
+#     total = cumu[-1]
+#
+#     idx_90 = np.searchsorted(cumu, 0.9 * total) + 1
+#
+#     top_names_90 = names_sorted[:idx_90]
+#     top_dgsm_90 = dgsm_sorted[:idx_90]
+#
+#     dgsm_summary[output_label] = {
+#         "n_params_90": idx_90,
+#         "param_names": top_names_90,
+#         "dgsm_values": top_dgsm_90
+#     }
+#
+#     # ---- Console output ----
+#     print("\n" + "=" * 80)
+#     print(f"Output: {output_label}")
+#     print(f"Parameters contributing 90% sensitivity: {idx_90}")
+#     print("-" * 80)
+#     for name, val in zip(top_names_90, top_dgsm_90):
+#         print(f"{name:25s} : {val:.4e}")
 
 
 

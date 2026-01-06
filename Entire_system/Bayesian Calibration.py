@@ -249,101 +249,12 @@ sp = ProblemSpec({
 
 # change
 #     # HR: 17 parameters contribute 90 % sensitivity
-# subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
-#  'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
+subset_vars = ['T0', 'V_tot', 'P_n', 'fev_o', 'GT_v', 'GT_s', 'C2', 'C_O2_param1', 'Fi_O2',
+ 'Vu_sv0', 'fes_o', 'fab_o', 'kes', 'Wb_sh', 'K2', 'k_ab', 'f_acCO2_n']
 
 # exercise
 # subset_vars = {'T0', 'GT_s', 'GT_v', 'fev_o', 'Fi_O2', 'AT', 'V_tot', 'Yv_max', 'Io_sh', 'R_rs',
 #  'E_rs', 'Wp_v', 'G_ap', 'P_n_max', 'Ysh_max'}
-
-# Max RV Pressure: 46 parameters contribute 90% sensitivity
-# subset_vars = ['V_tot', 'PaCO2_n', 'C2', 'R_rs', 'a2', 'V0_dead', 'E_rs', 'K2', 'Vu_sv0',
-#                'GV_dead', 'C_O2_param1', 'alpha2', 'Vu_ev0', 'Vu_jp', 'P_n', 'rise_time_ven',
-#                'KcCO2', 'Fi_O2', 'Wb_sh', 'C_pv', 'Kv_tr', 'kes', 'fes_o', 'MO2_bp', 'fab_o',
-#                'theta_v', 'GT_s', 'VA_rest', 'G_ap', 'Wp_v', 'beta2', 'fev_inf', 'k_ab', 'C_pp',
-#                'fev_o', 'kev', 'T0', 'f_acCO2_n', 'GV_sv', 'Kp_tr', 'R_bpn', 'KE_rv', 'k_ac',
-#                'KE_lv', 'theta_tr_max', 'Wc_v']
-# exercise
-# subset_vars = ['V_tot', 'Vu_sv0', 'E_rs', 'R_rs', 'GV_sv', 'GV_dead', 'V0_dead', 'theta_v',
-#  'C_O2_param1', 'Wp_v', 'G_ap', 'C_pv', 'VA_rest', 'Wc_v', 'Wb_sh', 'AT', 'Vu_jp',
-#  'rise_time_ven', 'k_ab', 'Vu_ev0', 'k_ac', 'f_acCO2_n', 'Io_sh', 'fab_o',
-#  'Kv_tr', 'Yv_max', 'tauMR', 'kev', 'PaO2_ac_n', 'P_n_max', 'fev_o', 'Fi_O2',
-#  'C_pp', 'fes_o', 'GT_v', 'P_n', 'C_sv', 'KcCO2', 'fev_inf', 'GT_s', 'PaCO2_n',
-#  'C2', 'MO2_bp', 'T0', 'Ysh_max', 'f_ac_max', 'Tc', 'Kp_tr', 'f_ab_max',
-#  'fall_time_ven', 'theta_tr_max', 'R_po', 'a2', 'Kv_mi', 'KE_lv', 'kes', 'Io_sv',
-#  'Kp_mi', 'GR_amp', 'Io_met', 'R_pv', 'KE_rv', 'f_ac_min', 'K2', 'Cvb_O2_n',
-#  'phi_max', 'f_ab_min', 'Vu_bv', 'R_bpn', 'theta_mi_max', 'scale_param4',
-#  'kcc_sh', 'Rvc_n']
-
-
-# #   EDP: 83 parameters contribute 90% sensitivity
-# subset_vars = ['Wp_v', 'fab_o', 'G_ap', 'theta_v', 'Fi_O2', 'a2', 'Vu_ev0', 'C2', 'C_O2_param1',
-#                'C_pp', 'Vu_jp', 'R_bpn', 'T0', 'fes_o', 'C_pv', 'PaCO2_n', 'R_sp0', 'V_tot',
-#                'GV_sv', 'kes', 'K2', 'P_n', 'k_ab', 'Wb_sh', 'Kp_tr', 'Cvrm_O2_n', 'fev_inf',
-#                'theta_mi_max', 'Kv_mi', 'kev', 'fev_o', 'KE_lv', 'Emax_lv0', 'MO2_bp', 'R_pv',
-#                'f_acCO2_n', 'GT_s', 'Kp_mi', 'theta_spn', 'theta_shn', 'Wc_v', 'kcc_sv',
-#                'Vu_bv', 'Vu_sv0', 'E_rs', 'Kv_tr', 'Cvb_O2_n', 'C_sv', 'PaO2_ac_n', 'C_jp',
-#                'Wb_sp', 'f_ac_max', 'Io_met', 'GT_v', 'f_ab_min', 'Io_sv', 'V0_dead', 'Vu_vc',
-#                'GR_ep', 'fall_time_ven', 'f_ab_max', 'KcCO2', 'Cvam_O2_n', 'k_ac',
-#                'theta_tr_max', 'Wb_sv', 'phi_min', 'kmet', 'Vu_rmv0', 'VA_rest', 'KE_rv',
-#                'C_O2_param2', 'P0_lv', 'Vu_amv0', 'R_ep0', 'Rvc_n', 'fes_inf', 'g_ccsh',
-#                'theta_svn', 'fes_min', 'GV_dead', 'R_mi', 'MO2_rmp']
-# exercise
-# subset_vars = ['k_ab', 'Wb_sh', 'theta_v', 'Wp_v', 'G_ap', 'kev', 'fev_inf', 'Io_sh', 'AT',
-#  'fab_o', 'phi_max', 'C_O2_param1', 'P_n', 'MO2_bp', 'f_ac_max', 'tauMR',
-#  'P_n_max', 'Kv_mi', 'f_ab_max', 'GT_s', 'GT_v', 'V_tot', 'VA_rest', 'Yv_max',
-#  'Io_met', 'fev_o', 'PaO2_ac_n', 'fes_o', 'R_pv', 'GV_sv', 'Io_sv', 'Kp_mi',
-#  'E_rs', 'Fi_O2', 'Vu_ev0', 'V0_dead', 'Vu_amv0', 'KcCO2', 'C_pp', 'Vu_sv0',
-#  'theta_mi_max', 'GR_amp', 'theta_spn', 'Vu_jp', 'f_acCO2_n', 'fall_time_ven',
-#  'k_ac', 'f_ab_min', 'Ysh_max', 'Kv_tr', 'f_ac_min', 'C_sv', 'kes', 'KE_lv',
-#  'R_bpn', 'Io_v', 'Wc_v', 'T0', 'C_pv', 'GV_dead', 'Vu_bv', 'KE_rv', 'Cvam_O2_n',
-#  'Cvrm_O2_n', 'Vu_vc', 'scale_param4', 'R_rs', 'theta_tr_max', 'Cvb_O2_n',
-#  'theta_shn', 'fes_min', 'kcc_sh', 'Kp_tr', 'R_sp0', 'P0_lv', 'Wb_sp', 'MO2_ampn',
-#  'Wc_sh']
-
-
-# # EDV: 12 parameters contribute 90% sensitivity
-# subset_vars = ['V_tot', 'Vu_sv0', 'Emax_lv0', 'T0', 'Vu_ev0', 'Vu_jp', 'fall_time_ven', 'C_pv',
-#                 'C_O2_param1', 'Kv_tr', 'C_pp', 'KE_lv']
-
-# #   Systolic Pressure: 28 parameters contribute 90% sensitivity
-subset_vars = ['V_tot', 'Vu_sv0', 'P_n', 'C2', 'PaCO2_n', 'kes', 'a2', 'V0_dead', 'fes_o', 'R_rs',
-               'E_rs', 'GV_dead', 'Vu_ev0', 'K2', 'Vu_jp', 'C_pv', 'fes_min', 'R_pv', 'R_sa',
-               'Fi_O2', 'Cvrm_O2_n', 'C_O2_param1', 'fab_o', 'rise_time_ven', 'fall_time_ven',
-               'GV_sv', 'C_pp', 'Kv_tr']
-# exercise
-# subset_vars = ['V_tot', 'Vu_sv0', 'GV_sv', 'R_rs', 'G_ap', 'R_sa', 'fes_o', 'P_n', 'Fi_O2',
-#  'E_rs', 'fab_o', 'C_pv', 'rise_time_ven', 'GT_v', 'Vu_ev0', 'f_acCO2_n', 'C_sv',
-#  'Vu_jp', 'fall_time_ven', 'T0', 'Wc_v', 'C_O2_param1', 'Kv_mi', 'k_ab',
-#  'V0_dead', 'C_pp', 'Kp_mi', 'GV_dead', 'Wb_sh', 'fev_inf', 'Kv_tr', 'fev_o',
-#  'Wp_v', 'Ysh_max', 'PaO2_ac_n', 'kev', 'theta_v', 'AT', 'tauMR', 'VA_rest',
-#  'P_n_max', 'GT_s', 'R_pv', 'f_ab_max', 'k_ac', 'GR_amp', 'f_ac_max', 'Yv_max',
-#  'Io_met', 'theta_mi_max', 'KE_lv', 'Kp_tr', 'Io_sh', 'MO2_bp', 'KcCO2', 'Tc',
-#  'Vu_amv0', 'theta_tr_max', 'phi_max', 'Vu_bv', 'kes', 'PaCO2_n', 'f_ac_min']
-
-
-#    # Max RA Pressure: 89 parameters contribute 90 % sensitivity
-# subset_vars = ['a2', 'Vu_sv0', 'MO2_bp', 'PaCO2_n', 'C2', 'G_ap', 'Wp_v', 'R_rs', 'kes',
-#  'V0_dead', 'GT_v', 'GV_dead', 'theta_v', 'K2', 'PaO2_ac_n', 'beta2', 'V_tot',
-#  'E_rs', 'Fi_O2', 'kev', 'fev_o', 'GV_sv', 'Wb_sh', 'T0', 'f_ab_max', 'fes_o',
-#  'Wc_v', 'f_acCO2_n', 'P_n', 'alpha2', 'C_O2_param1', 'k_ab', 'GT_s',
-#  'scale_param4', 'Cvb_O2_n', 'KcCO2', 'C_pv', 'fev_inf', 'Vu_ev0', 'Kv_mi',
-#  'fes_min', 'Vu_jp', 'fab_o', 'f_ac_max', 'theta_mi_max', 'f_ab_min', 'KE_ra',
-#  'C_pp', 'k_ac', 'theta_shn', 'Vu_bv', 'VA_rest', 'Cvrm_O2_n', 'f_ac_min',
-#  'R_bpn', 'Io_met', 'Cvam_O2_n', 'grm_O2', 'KE_lv', 'fall_time_ven', 'Emax_ra',
-#  'Kv_tr', 'C_sv', 'KE_rv', 'Wb_sp', 'kmet', 'P0_rv', 'theta_svn', 'g_ccsh',
-#  'C_O2_param2', 'Wc_sh', 'Wp_sp', 'KpCO2', 'C_jp', 'Vu_rmv0', 'R_pv', 'Kp_mi',
-#  'fes_inf', 'Io_sh', 'theta_tr_max', 'Vu_vc', 'Io_sp', 'R_sp0', 'kcc_sh', 'C_sa',
-#  'C_bv', 'MO2_hpn', 'Vu_rv', 'Vu_pp']
-
-# # PaO2: 2 parameters contribute 90% sensitivity
-# subset_vars = ['Fi_O2', 'PaCO2_n']
-
-# # Minute Ventilation: 7 parameters contribute 90% sensitivity
-# subset_vars = ['R_rs', 'PaCO2_n', 'E_rs', 'C2', 'V0_dead', 'GV_dead', 'V_tot']
-# exercise
-# subset_vars = ['R_rs', 'E_rs', 'GV_dead', 'V0_dead', 'PaCO2_n', 'VA_rest', 'KcCO2', 'V_tot',
-#  'C_O2_param1', 'C2', 'MO2_bp', 'KcMRV']
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -360,10 +271,13 @@ param_ranges: dict[str, tuple[float, float]] = {
 # output_names = [
 #     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
 #     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
-#     "Min RA Volume", "Max RA Volume", "Min RA Pressure", "Max RA Pressure",
-#     "Min LA Volume", "Max LA Volume", "Min LA Pressure", "Max LA Pressure",
-#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv"]
-    # "Stroke Volume", "Ejection Fraction"]
+#     "Min RA Volume", "Max RA Volume", "Min RA Pressure A descent", "Max RA Pressure Atrial contraction",
+#     "Max RA Pressure Tricuspid Opening", "Min RA Pressure V descent",
+#     "Min LA Volume", "Max LA Volume", "Min LA Pressure A descent", "Max LA Pressure Atrial contraction",
+#     "Max LA Pressure Tricuspid Opening", "Min LA Pressure V descent",
+#     "LA ESV", "RA ESV", "LV Pressure Deriv", "RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
+#     "Cardiac Output", "PaO2", "PaCO2", "Percentage Volume Change",
+#     "Stroke Volume", "Ejection Fraction"]
 
 output_names = ["Heart Rate"]
 
