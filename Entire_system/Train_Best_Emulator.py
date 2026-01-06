@@ -25,14 +25,19 @@ from sklearn.model_selection import KFold
 
 # A = AutoEmulate.list_emulators()
 # print(A)
+# GaussianProcess1 = joblib.load("GaussianProcessMatern32_5000_rest_no_p_thor.joblib")
+# print(GaussianProcess1.r2_test)
+#
+# GaussianProcess1 = joblib.load("GaussianProcessMatern32_10000_rest_no_p_thor.joblib")
+# print(GaussianProcess1.r2_test)
 
 # change
 size = 5000
-Variable = "Max_RV_P"
 
 # change
 X_all = np.load(f'LHCS_20000_X_rest_no_Pthor.npy')
 Result_all = np.load(f'LHCS_20000_Result_rest_no_Pthor.npy')
+Result_states = np.load(f'States_chunked.npy')
 
 lower = 0.5
 upper = 1.5
@@ -212,6 +217,7 @@ sp = ProblemSpec({
 mask = Result_all[:,0] != 0
 X = X_all[mask, :]
 Result = Result_all[mask]
+Result_states = Result_states[mask]
 
 # try and see if emulator is better with or without filtering
 # get the mean of the column
@@ -222,6 +228,7 @@ mask = (Result >= (col_mean - 3*col_std)) & (Result <= (col_mean + 3*col_std))
 row_mask = mask.all(axis=1)
 X = X[row_mask, :]
 Result = Result[row_mask]
+Result_states = Result_states[row_mask]
 
 
 mask = np.ptp(X, axis=0) != 0  # ptp = max - min, 0 means all values identical
@@ -230,6 +237,7 @@ X = X[:, mask]
 # idx = np.random.choice(len(Result), size=10000, replace=False)
 X = X[:size,:]
 Result = Result[:size]
+Result_states = Result_states[:size]
 
 # output_names = [
 #     "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
@@ -288,16 +296,21 @@ params = {
 
 
 for model_name in model_names:
-    ae = AutoEmulate(X, Result, log_level="info", models=[model_name], model_params=params)
+    # change state or target, cuda or cpu
+    ae = AutoEmulate(X, Result, log_level="info", models=[model_name], model_params=params, device="cuda")
+    # ae = AutoEmulate(X, Result_states, log_level="info", models=[model_name], model_params=params)
     ae.summarise()
     best = ae.best_result()
     print(f"Model with id: {best.id} performed best: {best.model_name}")
     print(best.params)
 
     os.makedirs(f"best_{model_name}", exist_ok=True)
-    joblib.dump(best, f"best_{model_name}/{Variable}_{model_name}_{size}_exercise_no_filter.joblib")
+    # change state or target
+    # joblib.dump(best, f"best_{model_name}/{model_name}_{size}_rest_no_p_thor_state.joblib")
+    joblib.dump(best, f"best_{model_name}/{model_name}_{size}_rest_no_p_thor_target_cuda.joblib")
 
-    fig = ae.plot(best, fname=f"{Variable}_{model_name}_{size}_exercise_no_filter.png")
+    # change state or target
+    fig = ae.plot(best, fname=f"{model_name}_{size}_target_cuda.png")
 
 
 # # --- Extract names and bounds from your ProblemSpec
