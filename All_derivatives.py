@@ -679,7 +679,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #
     #     d2theta_tr_dt2 = (P_ra - P_rv) * Kp_tr * np.cos(theta_tr) - Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * np.cos(
     #         theta_tr) - Kv_tr * Qi_rv * np.sin(theta_tr)
-    #     P_ra = Pmax_ra
     # else:
     #     Qi_rv = 0
     #     AR_tr = 0
