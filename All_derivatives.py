@@ -407,9 +407,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # P_lv = phi * Emax_lv * (VT_lv - (Vu_lv - x_l * A2_l)) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - (Vu_lv - x_l * A2_l))) - 1) + P_thor + 1/g * P_peri
 
 
-    # Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor + g * P_peri
-    Pmax_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/r * P_peri
-    # Pmax_rv = phi * Emax_rv * (VT_rv - (Vu_rv - x_r * A2_r)) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - (Vu_rv - x_r * A2_r))) - 1) + 1/g * P_peri
+    # P_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor + g * P_peri
+    P_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/r * P_peri
+    # P_rv = phi * Emax_rv * (VT_rv - (Vu_rv - x_r * A2_r)) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - (Vu_rv - x_r * A2_r))) - 1) + 1/g * P_peri
 
     # Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor + g * P_peri
 
