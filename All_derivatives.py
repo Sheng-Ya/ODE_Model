@@ -411,10 +411,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     P_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/r * P_peri
     # P_rv = phi * Emax_rv * (VT_rv - (Vu_rv - x_r * A2_r)) + (1 - phi) * P0_rv * (np.exp(KE_rv * (VT_rv - (Vu_rv - x_r * A2_r))) - 1) + 1/g * P_peri
 
-    # Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor + g * P_peri
-
-    # Pmax_ra = max(-10.0, min(Pmax_ra, 20.0))
-    # Pmax_la = max(-10.0, min(Pmax_la, 20.0))
+    # P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor + g * P_peri
 
     # # aortic valve
     # if Pmax_lv - P_sa > 0:
