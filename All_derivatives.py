@@ -671,7 +671,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # dx_r_dt = v_r
     ####################################
 
-    # if Pmax_ra > P_rv:
+    # if P_ra > P_rv:
     #     if theta_tr > theta_tr_max:
     #         theta_tr = theta_tr_max
     #     AR_tr = ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
