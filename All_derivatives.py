@@ -1151,9 +1151,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # cO2_diff = QT * (CaO2 - CvtO2)
     # cCO2_diff = QT * (CaCO2 - CvtCO2)
 
-    V_O2 = VL_O2  # removed + V as this helps decrease VAflow (decreased time constant for ventilation)
-    V_CO2 = VL_CO2
-
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
         dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
         dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
