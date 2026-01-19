@@ -567,7 +567,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # phi = d2theta_ao_dt2
     # V_shift1 = valve_signal
     #
-    # P_lv = Pmax_lv
     # ####################################
 
     # if Pmax_la > P_lv:
