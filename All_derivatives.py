@@ -684,8 +684,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_tr = 0
     #     theta_tr = 0.0872665
     #     d2theta_tr_dt2 = 0.0
-    #     P_ra = Pmax_ra
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_ra - P_rv) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_ra - P_rv) / delta_P))
 
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
