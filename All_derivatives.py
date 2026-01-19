@@ -648,9 +648,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     d2theta_po_dt2 = valve_signal * ((P_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt +
             Kb_po * Q_rv * np.cos(theta_po) - Kv_po * Q_rv * np.sin(2 * theta_po))
 
-    P_rv = Pmax_rv
-
-    # Pmax_ra with reduced pericardial coupling to prevent kink at minimum volume
+    # P_ra with reduced pericardial coupling to prevent kink at minimum volume
     # Use 0.5 * P_peri instead of 1 * P_peri for atria to avoid excessive coupling
     Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + r * P_peri
     # Pmax_ra = phi_atr * Emax_ra * (VT_ra - (Vu_ra + x_r * A1_r)) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * (VT_ra - (Vu_ra + x_r * A1_r))) - 1) + P_thor + g * P_peri
