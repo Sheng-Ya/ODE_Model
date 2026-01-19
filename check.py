@@ -58,7 +58,7 @@ Parameters = {
     "KE_ra": 0.07,
     "P0_lv": 1.5,
     "P0_rv": 1.5,
-    "g_thor": 6.8,
+    "g_thor": 0.0,
     "P_thormax_n": -0.0,
     "P_thormin_n": -0.0,
     "VT_n": 0.73,
