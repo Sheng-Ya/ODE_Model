@@ -432,8 +432,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_ao = 0.0
     #     theta_ao = 0.0872665  # theta_ao_min
     #     d2theta_ao_dt2 = 0.0
-    #     # d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao)
-    #     P_lv = Pmax_lv
+    #     # d2theta_ao_dt2 = (P_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(theta_ao)
 
     # Define transition smoothness parameter
     # delta_P = 0.3  # Pressure transition width (mmHg) - tune this value
