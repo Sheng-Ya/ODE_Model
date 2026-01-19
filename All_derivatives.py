@@ -528,7 +528,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
     #
     # # Flow with smooth transition
-    # pressure_diff = Pmax_lv - P_sa
+    # pressure_diff = P_lv - P_sa
     # Q_forward = math.sqrt(max(pressure_diff, 0)) * AR_ao * R_ao
     # Q_backward = -math.sqrt(max(-pressure_diff, 0)) * AR_ao * R_ao
     # Q_lv = valve_signal * Q_forward + (1 - valve_signal) * Q_backward
