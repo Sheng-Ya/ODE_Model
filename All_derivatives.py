@@ -616,7 +616,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_po = ((1 - np.cos(theta_po)) ** 2) / ((1 - np.cos(theta_po_max)) ** 2)
     #     Q_rv = (math.sqrt(P_rv - P_pa) * AR_po * R_po)
     #
-    #     d2theta_po_dt2 = (Pmax_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(
+    #     d2theta_po_dt2 = (P_rv - P_pa) * Kp_po * np.cos(theta_po) - Kf_po * dtheta_po_dt + Kb_po * Q_rv * np.cos(
     #         theta_po) - Kv_po * Q_rv * np.sin(2*theta_po)
     #     P_rv = Pmax_rv
     # else:
