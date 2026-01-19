@@ -486,8 +486,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #         else:
     #             d2theta_ao_dt2 = (P_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
     #                 theta_ao) - Kv_ao * Q_lv * np.sin(2 * theta_ao)
-    #
-    #     P_lv = Pmax_lv
     # else:
     #     # if t < 20:
     #     #     d2theta_ao_dt2 = 0.0
