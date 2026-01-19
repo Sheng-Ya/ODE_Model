@@ -438,7 +438,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # delta_P = 0.3  # Pressure transition width (mmHg) - tune this value
 
     # Smooth valve state transition
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_lv - P_sa) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_lv - P_sa) / delta_P))
     if abs(valve_signal) < 1e-8:
         theta_ao = theta_min
 
