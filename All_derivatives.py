@@ -414,7 +414,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * VT_la) - 1) + P_thor + g * P_peri
 
     # # aortic valve
-    # if Pmax_lv - P_sa > 0:
+    # if P_lv - P_sa > 0:
     #     if theta_ao > theta_ao_max:
     #         theta_ao = theta_ao_max
     #     if theta_ao < 0.0872665:
