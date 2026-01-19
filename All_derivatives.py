@@ -403,8 +403,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # A1_r = 20
     # A2_r = 20
 
-    Pmax_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
-    # Pmax_lv = phi * Emax_lv * (VT_lv - (Vu_lv - x_l * A2_l)) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - (Vu_lv - x_l * A2_l))) - 1) + P_thor + 1/g * P_peri
+    P_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
+    # P_lv = phi * Emax_lv * (VT_lv - (Vu_lv - x_l * A2_l)) + (1 - phi) * P0_lv * (np.exp(KE_lv * (VT_lv - (Vu_lv - x_l * A2_l))) - 1) + P_thor + 1/g * P_peri
 
 
     # Pmax_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (np.exp(KE_ra * VT_ra) - 1) + P_thor + g * P_peri
