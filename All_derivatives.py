@@ -1156,8 +1156,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / VL_CO2
 
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
-        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s)) / V_O2
-        dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s)) / V_CO2
+        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s)) / VL_O2
+        dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s)) / VL_CO2
 
     # Metabolism Dynamic
     MRR = max((MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal), 1)
