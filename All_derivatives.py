@@ -623,7 +623,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     theta_po = 0.0872665
     #     d2theta_po_dt2 = 0.0
     # Smooth valve state transition (pulmonary valve opens when RV pressure > PA pressure)
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_rv - P_pa) / delta_P))
+    valve_signal = 0.5 * (1 + np.tanh((P_rv - P_pa) / delta_P))
 
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
