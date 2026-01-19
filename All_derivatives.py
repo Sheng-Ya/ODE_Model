@@ -703,8 +703,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     AR_tr = valve_signal * ((1 - np.cos(theta_tr)) ** 2) / ((1 - np.cos(theta_tr_max)) ** 2)
 
     # Flow with smooth transition
-    Qi_rv = valve_signal * (np.sqrt(np.maximum(Pmax_ra - P_rv, 0)) * AR_tr * R_tr)
-    P_ra = Pmax_ra
+    Qi_rv = valve_signal * (np.sqrt(np.maximum(P_ra - P_rv, 0)) * AR_tr * R_tr)
 
 
     if VT_vc > Vu_vc:
