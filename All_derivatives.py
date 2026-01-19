@@ -458,7 +458,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             Kb_ao * Q_lv * np.cos(theta_ao) - Kv_ao * Q_lv * np.sin(2 * theta_ao))
 
     # # aortic valve
-    # if Pmax_lv - P_sa > 0:
+    # if P_lv - P_sa > 0:
     #     AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
     #
     #     Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * R_ao)
