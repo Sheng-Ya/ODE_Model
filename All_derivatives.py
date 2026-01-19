@@ -622,7 +622,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     Q_rv = 0
     #     theta_po = 0.0872665
     #     d2theta_po_dt2 = 0.0
-    #     P_rv = Pmax_rv
     # Smooth valve state transition (pulmonary valve opens when RV pressure > PA pressure)
     valve_signal = 0.5 * (1 + np.tanh((Pmax_rv - P_pa) / delta_P))
 
