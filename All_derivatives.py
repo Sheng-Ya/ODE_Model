@@ -585,8 +585,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # P_la with reduced pericardial coupling to prevent kink at minimum volume
     # Use 0.5 * P_peri instead of g * P_peri for atria to avoid excessive coupling
-    Pmax_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + l * P_peri
-    # Pmax_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
+    P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + l * P_peri
+    # P_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
     AA = Vu_amv
