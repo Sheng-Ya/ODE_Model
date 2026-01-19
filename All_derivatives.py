@@ -582,7 +582,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_mi = 0
     #     # theta_mi = 0.0872665
     #     d2theta_mi_dt2 = 0.0
-    #     P_la = Pmax_la
 
     # Pmax_la with reduced pericardial coupling to prevent kink at minimum volume
     # Use 0.5 * P_peri instead of g * P_peri for atria to avoid excessive coupling
