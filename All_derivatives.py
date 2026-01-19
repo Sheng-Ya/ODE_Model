@@ -522,7 +522,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # delta_P = 3.0  # Main transition parameter
     #
     # # Smooth valve state transition (0 = closed, 1 = open)
-    # valve_signal = 0.5 * (1 + np.tanh((Pmax_lv - P_sa) / delta_P))
+    # valve_signal = 0.5 * (1 + np.tanh((P_lv - P_sa) / delta_P))
     #
     # # Compute area ratio
     # AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
