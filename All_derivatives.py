@@ -423,7 +423,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_ao = ((1 - np.cos(theta_ao)) ** 2) / ((1 - np.cos(theta_ao_max)) ** 2)
     #     # AR_ao = 1
     #
-    #     Q_lv = (math.sqrt(Pmax_lv - P_sa) * AR_ao * R_ao)
+    #     Q_lv = (math.sqrt(P_lv - P_sa) * AR_ao * R_ao)
     #
     #     d2theta_ao_dt2 = (Pmax_lv - P_sa) * Kp_ao * np.cos(theta_ao) - Kf_ao * dtheta_ao_dt + Kb_ao * Q_lv * np.cos(
     #         theta_ao) - Kv_ao * Q_lv * np.sin(2*theta_ao)
