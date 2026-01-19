@@ -588,8 +588,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + l * P_peri
     # P_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (np.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
-    valve_signal = 0.5 * (1 + np.tanh((Pmax_la - P_lv) / delta_P))
-    AA = Vu_amv
+    valve_signal = 0.5 * (1 + np.tanh((P_la - P_lv) / delta_P))
+    AA = P_peri
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
         theta_mi = theta_min  # minimum angle (closed)
