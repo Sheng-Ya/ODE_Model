@@ -192,7 +192,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
-    VAflow = max(VAflow, 0.04)
+    VAflow = min(max(VAflow, 0.04), 1.0)
     VD = GV_dead * VAflow + V0_dead
 
     if time_since_last_breath > (t1 + t2) or t == 0:
