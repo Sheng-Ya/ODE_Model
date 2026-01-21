@@ -41,7 +41,7 @@ def parse_sensitivity_file(filename):
 
 
 if __name__ == "__main__":
-    filename = "C:/Users/vanes/Desktop/Sensitivities for emulator.txt"  # change as needed
+    filename = "C:/Users/vanes/Desktop/just_heart_targets.txt"  # change as needed
     output_params, param_counts = parse_sensitivity_file(filename)
 
     # ---- Global union ----
