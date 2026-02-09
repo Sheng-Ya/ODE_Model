@@ -17,12 +17,15 @@ from collections import OrderedDict
 # Result = np.load("DGSM_result_no_Pthor_20.npy")
 # X = np.load('New_DGSM_500_X_samples_rest_20_all.npy')
 # Result = np.load('DGSM_result_all_20.npy')
-# X = np.load('New_DGSM_500_X_samples_rest_20_no_Pthor_Vtot.npy')
-# Result = np.load('DGSM_result_no_Pthor_Vtot_20.npy')
+# X = np.load('New_DGSM_500_X_samples_rest_20_no_Pthor_Vtot.npy')[:5700,:]
+# Result = np.load('DGSM_result_no_Pthor_Vtot_20.npy')[:5700,:]
 
 # latest results no p_thor
 X = np.load('DGSM_500_X_rest_20_no_Pthor.npy')
 Result = np.load("DGSM_500_Result_rest_20_no_Pthor.npy")
+
+# check to see that current system still gave little sensitivities in tidal volume
+# Result =  np.load('Result_DGSM_delay_new2.npy')
 
 
 lower = 0.8
@@ -154,7 +157,8 @@ sp = ProblemSpec({
             "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
             "Vu_ra", "Vu_rv",
 
-            "V_tot", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
+            "V_tot",
+            "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
             "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
             "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
             "Vu_ev0", "Vu_rmv0", "Vu_sv0", "tau_cc",
@@ -239,7 +243,8 @@ sp = ProblemSpec({
             [116.6775 * lower, 116.6775 * upper], [214 * lower, 214 * upper], [10 * lower, 10 * upper], [10 * lower, 10 * upper],
             [10 * lower, 10 * upper], [10 * lower, 10 * upper],
 
-            [5027.6 * 0.8, 5027.6 * 1.2], [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
+            [5027.6 * 0.8, 5027.6 * 1.2],
+            [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
             [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper],

@@ -1,25 +1,35 @@
+## Build an emulator for each target with only one training/test sample that is the
+# union of all sensitive parameters of all targets and the input into the emulator is also
+# the union of all sensitive parameters with the rest of the values at its nominal value
+
 import os
 import copy
 import signal
+import re
+
+import torch
+from scipy.stats import qmc
+from scipy.interpolate import CubicSpline, interp1d
 import numpy as np
 from SALib import ProblemSpec
-# from SALib.sample import finite_diff
-from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
+from autoemulate import AutoEmulate
+import joblib
 
 from tqdm import tqdm
 import tqdm_joblib
 
 from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
-import matplotlib.pyplot as plt
+from gpytorch.likelihoods import MultitaskGaussianLikelihood
 from scipy.signal import find_peaks
 from All_derivatives_njit import model_derivatives
 from fixed_params import Parameters as Old_Parameters
 
 from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import Next_Conditions
+
 
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 40000
@@ -51,6 +61,7 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
             #
             # num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (
             #             actual_index - index)
+
             num_removed = 3
             index = (actual_index - 3) % BUFFER_LIMIT
             for j in range(num_removed):
@@ -107,34 +118,6 @@ num_resp_control = len(required_resp_control_keys)
 
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
-# def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
-#     dt = 0.001 # must edit in Resp_Control_Breath_Optimiser too
-#     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-#     tolerance = 0.0001
-#
-#     VAflow_vals = np.linspace(0.01, 1.2, 200)
-#     # VAflow_vals = np.repeat(VAflow_vals, 3)
-#
-#     VD = GV_dead * VAflow_vals + V0_dead
-#
-#     optimal_t1 = np.empty_like(VAflow_vals)
-#     optimal_t2 = np.empty_like(VAflow_vals)
-#     initial_guess = np.array([t1, t2], dtype=float)
-#     required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
-#
-#     for i, (VAflow, VD_volume) in enumerate(zip(VAflow_vals, VD)):
-#         res = minimize(objective, x0=initial_guess,
-#                        args=(required_params, VAflow, VD_volume, dt, tolerance), method='nelder-mead', bounds=bounds)
-#
-#         initial_guess = res.x
-#         optimal_t1[i] = initial_guess[0]
-#         optimal_t2[i] = initial_guess[1]
-#
-#     cs_t1 = CubicSpline(VAflow_vals, optimal_t1, bc_type="natural")
-#     cs_t2 = CubicSpline(VAflow_vals, optimal_t2, bc_type="natural")
-#
-#     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
-
 def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
     dt = 0.001 # must edit in Resp_Control_Breath_Optimiser too
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
@@ -174,15 +157,13 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
-def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=None, breath_coef=None):
+
+
+def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     # local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
 
-    if IC_initial is None:
-        IC_current = IC_overall.copy()
-        t_span = [0, max_time]
-    else:
-        IC_current = IC_initial.copy()
-        t_span = [max_time, max_time + 60]
+    IC_current = IC_overall.copy()
+    t_span = [0, max_time]
 
     # Cardio parameters
     (A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
@@ -262,11 +243,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
      "fall_time_ven", "ahead1", "theta_min", "delta_P", "r", "l", "V_nominal", "V_scale"])
 
     # determine the correct breathing profile
-    if breath_coef is None:
-        cs_t1, cs_t2, knots_1, knots_2 = (minimise_breathing(1.5,1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax,
+    cs_t1, cs_t2, knots_1, knots_2 = (minimise_breathing(1.5,1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax,
                                                              Pmax_dot, E_rs, R_rs, P_ao))
-    else:
-        cs_t1, cs_t2, knots_1, knots_2 = breath_coef
 
     Input_Parameters = np.array([A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -311,9 +289,34 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     if ODE_solution.status == -1:
         # Integration failed or early termination
         print("fail")
-        return [0.0]*31, None, None, None
+        return [0.0]*31, [0.0]*82
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
+
+    all_time = np.concatenate((local_updates["all_time"][i_buffer:], local_updates["all_time"][:i_buffer]))
+    time_since_beat_store = np.concatenate((local_updates["time_since_beat_store"][i_buffer:], local_updates["time_since_beat_store"][:i_buffer]))
+    finish_breath_time = np.concatenate((local_updates["finish_breath_time"][i_buffer:], local_updates["finish_breath_time"][:i_buffer]))
+
+    dtb = np.diff(time_since_beat_store)
+    dtr = np.diff(finish_breath_time)
+    beat_idx = np.where(dtb > 0)[0] + 1
+    breath_idx = np.where(dtr > 0)[0] + 1
+    beat_idx = beat_idx[-1]
+    breath_idx = breath_idx[-1]
+    last_beat_t = all_time[beat_idx]
+    last_breath_t = all_time[breath_idx]
+
+    interp = interp1d(
+        ODE_solution.t,
+        ODE_solution.y,
+        axis=1,
+        kind="linear",
+        fill_value="extrapolate"
+    )
+
+    state_last_beat = interp(last_beat_t)
+    state_last_breath = interp(last_breath_t)
+    combined = np.concatenate((state_last_beat[:57], state_last_breath[57:]))
 
     P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
     peaks, _ = find_peaks(P_sa, distance=int(1000))
@@ -432,8 +435,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # period of V descent when mitral valve is open -> get second min la P
     P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
-    P_la_descent1_idx = np.array([c + np.argmin(P_la[c:o_next]) for (_, c), (o_next, _) in zip(pairs_mi[:-1], pairs_mi[1:])])
-
+    P_la_descent1_idx = np.array(
+        [c + np.argmin(P_la[c:o_next]) for (_, c), (o_next, _) in zip(pairs_mi[:-1], pairs_mi[1:])])
 
     P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
@@ -441,8 +444,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # period of V descent when tricuspid valve is open -> get second min la P
     P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
-    P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])])
-
+    P_ra_descent1_idx = np.array(
+        [c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])])
 
     V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
     peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
@@ -517,15 +520,17 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     Pericardial_Volume_difference = mean_max_Total_Volume - mean_min_Total_Volume
     Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
 
-    dP_lv_dt_store = np.concatenate((local_updates["dP_lv_dt_store"][i_buffer:], local_updates["dP_lv_dt_store"][:i_buffer]))
+    dP_lv_dt_store = np.concatenate(
+        (local_updates["dP_lv_dt_store"][i_buffer:], local_updates["dP_lv_dt_store"][:i_buffer]))
     dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
+    dP_rv_dt_store = np.concatenate(
+        (local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
     dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
-
-    IC_current = ODE_solution.y[:, -1]
+    # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
+    LA_Contraction_Volume_diff = np.mean(last_10_b4_LA_atrial_contract) - np.mean(V_la[pairs_mi[:, 1]])
+    RA_Contraction_Volume_diff = np.mean(last_10_b4_RA_atrial_contract) - np.mean(V_ra[pairs_tr[:, 1]])
 
     return ([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
@@ -534,261 +539,135 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
             np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
             np.mean(V_la[pairs_mi[:, 1]]), np.mean(V_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent1_idx]),
             np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
-            np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
+            LA_Contraction_Volume_diff, RA_Contraction_Volume_diff,
             np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal, Minute_Ventilation,
-            cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change],
-            IC_current, local_updates,
-            [cs_t1, cs_t2, knots_1, knots_2])
+            cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change], combined)
+
+
+#
+def chunked(iterable, n):
+    """Yield successive n-sized chunks from iterable."""
+    for i in range(0, len(iterable), n):
+        yield iterable[i:i + n]
 
 
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=600, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=300):
     try:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
-        result = simulate_cpu(params, storage, old_parameters, IC_initial, breath_coef)
+        result = simulate_cpu(params, storage, old_parameters)
         signal.alarm(0)  # Cancel timeout
         return result
     except Exception:
         signal.alarm(0)  # Cancel timeout
         print("too slow")
-        return ([0.0]*31, None, None, None)
+        return ([0.0] * 31, [0.0] * 82)
 
-def run_basepoint(base_sample, storage_copy, old_Parameters):
-    try:
-        # run all basepoints even if slow
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
-            base_sample, storage_copy, old_Parameters
-        )
 
-        minimise_coef = [
-            base_sample["GV_dead"],
-            base_sample["V0_dead"],
-            base_sample["E_rs"],
-            base_sample["R_rs"],
-        ]
-
-        if base_result[0] == 0:
-            return None
-
-        return {
-            "result": base_result,
-            "IC_final": IC_final,
-            "storage_final": storage_final,
-            "breath_coef": breath_coef,
-            "minimise_coef": minimise_coef,
-        }
-    except Exception as e:
-        print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
-        return None
-
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new1.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=500, save_path_results='Result_chunked1.npy', save_path_states='States_chunked1.npy'):
     results_all = []
+    final_states = []
 
-    if os.path.exists(save_path):
-        os.remove(save_path)
+    # If file exists from previous run, remove it to start fresh
+    if os.path.exists(save_path_results):
+        os.remove(save_path_results)
+    if os.path.exists(save_path_states):
+        os.remove(save_path_states)
 
-    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-    block_size = len(param_samples[0]) + 1
-    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+    for i, chunk in enumerate(chunked(param_samples, chunk_size)):
+        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(safe_simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
 
-
-    # run base points first
-    base_results = Parallel(n_jobs=n_jobs)(delayed(run_basepoint)(params[0], copy.deepcopy(storage), Old_Parameters)
-        for params in param_blocks)
-
-
-    # go through each base point and perturbation with the corresponding initial conditions
-    for i, block in enumerate(param_blocks):
-        base = base_results[i]
-
-        if base is None: # base failed → whole block invalid
-            results_all.extend(np.zeros((block_size, 31)))
-            np.save(save_path, np.array(results_all))
-            continue
-
-        # Otherwise, run full block in parallel
-        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
-            copy.deepcopy(base["storage_final"]), Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
-
-        results_block = [res[0] for res in results_perturbations]
+        results_block = [res[0] for res in results]
+        final_states_block = [res[1] for res in results]
         results_all.extend(results_block)
+        final_states.extend(final_states_block)
 
-        # Save chunk incrementally (appending)
-        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
-
-        # Save after each block
-        np.save(save_path, np.array(results_all))
+        # Optional: also accumulate in a single array
+        np.save(save_path_results, np.array(results_all))  # full file overwritten
+        np.save(save_path_states, np.array(final_states))  # full file overwritten
 
     return results_all
 
+def sample_inputs_from_spec(
+        spec: dict, n_samples: int, random_seed: int | None = None, method: str = "lhs"
+) -> torch.Tensor:
+    """
+    Generate samples from a ProblemSpec-style dictionary.
 
-def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef, minimise_coef):
-    # Extract next params
-    next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
+    Parameters
+    ----------
+    spec : dict
+        Must contain 'names' and 'bounds'.
+    n_samples : int
+        Number of samples to generate.
+    random_seed : int | None
+        For reproducibility.
+    method : str
+        "lhs" or "sobol".
 
-    # If coefficients differ, don't reuse breath_coef
-    if next_minimise_coef != minimise_coef:
-        for attempt in range(3):
-            result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
+    Returns
+    -------
+    torch.Tensor
+        Samples of shape (n_samples, n_parameters)
+    """
+    if random_seed is not None:
+        torch.manual_seed(random_seed)
 
-            if storage_final == None:
-                return ([0.0] * 31, None, None, None)
+    param_names = spec['names']
+    param_bounds = spec['bounds']
+    in_dim = len(param_names)
 
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
+    # Check if any bounds are fixed (min == max)
+    constant_params = {i: b[0] for i, b in enumerate(param_bounds) if b[0] == b[1]}
+    sample_param_bounds = [b for b in param_bounds if b[0] != b[1]]
 
-            if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
-            print(f"Not converged")
+    # Handle case all parameters are constant
+    if len(sample_param_bounds) == 0:
+        const_vals = torch.tensor(list(constant_params.values()))
+        return const_vals.repeat(n_samples, 1)
 
-        return result, IC_final, storage_final, breath_coef
+    # Create sampler
+    if method.lower() == "lhs":
+        sampler = qmc.LatinHypercube(d=len(sample_param_bounds))
+    elif method.lower() == "sobol":
+        sampler = qmc.Sobol(d=len(sample_param_bounds))
     else:
-        for attempt in range(3):
-            result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+        raise ValueError(f"Invalid method {method}, choose 'lhs' or 'sobol'.")
 
-            if storage_final == None:
-                return ([0.0] * 31, None, None, None)
+    samples = sampler.random(n=n_samples)
+    # scale samples to bounds
+    scaled_samples = qmc.scale(
+        samples,
+        [b[0] for b in sample_param_bounds],
+        [b[1] for b in sample_param_bounds]
+    )
+    scaled_samples = torch.tensor(scaled_samples, dtype=torch.float32)
 
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
+    # Insert constant parameters at the correct indices
+    full_samples = torch.empty((n_samples, in_dim), dtype=torch.float32)
+    sample_idx = 0
+    for idx in range(in_dim):
+        if idx in constant_params:
+            full_samples[:, idx] = constant_params[idx]
+        else:
+            full_samples[:, idx] = scaled_samples[:, sample_idx]
+            sample_idx += 1
 
-            if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
-            print(f"Not converged")
-
-        return result, IC_final, storage_final, breath_coef
-
-
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     block_size = len(param_samples[0]) + 1
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for w, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#         print(f"Running base sample for block {w+1}...")
-#
-#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-#
-#         print(f"Base sample result: {base_result}")
-#
-#         if base_result[0] == 0:
-#             print(f"Skipping block {w + 1} due to base failure.")
-#             results_all.extend(np.zeros((block_size, 31)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         results_perturbations = []
-#         for j, params in enumerate(block):
-#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
-#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-#             storage_from_base = copy.deepcopy(storage_final)
-#             IC_local = IC_final.copy()
-#             if next_minimise_coef != minimise_coef:
-#                 for attempt in range(3):
-#                     result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local)
-#                     i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
-#                     HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
-#
-#                     if (max(HR) - min(HR)) < 0.03:
-#                         print(f"converged")
-#                         break
-#                     print(f"Not converged")
-#             else:
-#                 for attempt in range(3):
-#                     result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local, breath_coef=breath_coef)
-#                     i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
-#                     HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
-#
-#                     if (max(HR) - min(HR)) < 0.03:
-#                         print(f"converged")
-#                         break
-#                     print(f"Not converged")
-#
-#             print(f"Perturbation result: {result}")
-#             results_perturbations.append(result)
-#
-#         results_block = [base_result] + results_perturbations
-#         results_all.extend(results_block)
-#
-#         # Save checkpoint files for debugging
-#         np.save(f'IC_final_{w:03d}.npy', IC_final)
-#         np.save(f'Next_final_{w:03d}.npy', storage_final)
-#
-#         np.save(save_path, np.array(results_all))
-#         print(f"Block {w+1} finished and results saved.")
-#
-#     return results_all
+    return full_samples
 
 
-# # code for running serially but for each base point separately
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     block_size = len(param_samples[0]) + 1
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for w, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#         print(f"Running base sample for block {w+1}...")
-#
-#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-#
-#         print(f"Base sample result: {base_result}")
-#
-#         if base_result[0] == 0:
-#             print(f"Skipping block {w + 1} due to base failure.")
-#             results_all.extend(np.zeros((174, 3)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         results_perturbations = []
-#         for j, params in enumerate(block):
-#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
-#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-#             if next_minimise_coef != minimise_coef:
-#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
-#             else:
-#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
-#
-#             # i = storage_final["i"].item() % BUFFER_LIMIT
-#
-#             print(f"Perturbation result: {res[0]}")
-#             results_perturbations.append(res[0])
-#
-#         results_block = [base_result] + results_perturbations
-#         results_all.extend(results_block)
-#
-#         # # Save checkpoint files for debugging
-#         # np.save(f'IC_final_{w:03d}.npy', IC_final)
-#         # np.save(f'Next_final_{w:03d}.npy', storage_final)
-#
-#         np.save(save_path, np.array(results_all))
-#         print(f"Block {w+1} finished and results saved.")
-#
-#     return results_all
 
 
 if __name__ == "__main__":
-    lower = 0.8
-    upper = 1.2
+
+    lower = 0.5
+    upper = 1.5
 
     sp = ProblemSpec({
         'names': [
@@ -895,7 +774,7 @@ if __name__ == "__main__":
             [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.0056 * lower, 0.0056 * upper], [0.34 * lower, 0.34 * upper], [0.55 * lower, 0.55 * upper], [0.34 * lower, 0.34 * upper],
             [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [0.07 * lower, 0.07 * upper], [1.5 * lower, 1.5 * upper],
-            [1.5 * lower, 1.5 * upper], [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
+            [1.5 * lower, 1.5 * upper], [0.0 * lower, 0.0 * upper], [0.0 * upper, 0.0 * lower], [0.0 * upper, 0.0 * lower],
             [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
             # cardio control
             [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
@@ -963,24 +842,249 @@ if __name__ == "__main__":
             [0.0872665 * lower, 0.0872665 * upper], [1.12 * 0.9, 1.12 * 1.1], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
     })
 
-    param_keys = list(sp["names"])
+    # output_names = [
+    #     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+    #     "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure",
+    #     "Min_RA_Volume",
+    #     "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+    #     "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+    #     "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+    #     "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+    #     "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+    #     "PaO2", "PaCO2"]
 
-    # DGSM uses finite differences sampling since it is a derivative based method
-    # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_20_all_21_01_25.npy", X)
-    X = np.load("DGSM_500_X_rest_20_all_21_01_25.npy")
-    # X = np.load("DGSM_500_X_rest_20_no_Pthor_21_01_25.npy")
-    # X = np.load("DGSM_500_X_rest_20_no_Pthor_Vtot_21_01_25.npy")[:54600]
+    # TEST_TXT = "test.txt"  # <- your uploaded file
+    MODEL_NAME = "GaussianProcessMatern32"
+    N_SAMPLES = 1000
+    N_JOBS = 64
+    TRAIN_SIZE_CAP = 1000
 
+    def safe_name(s: str) -> str:
+        return re.sub(r"[^A-Za-z0-9_]+", "_", s.strip())
+
+
+    def normalize_output_name(s: str) -> str:
+        # "Heart Rate" -> "Heart_Rate"
+        return safe_name(s.replace(" ", "_"))
+
+
+    def parse_dgsm_subset_vars(txt_path: str, valid_param_names):
+        """
+        Returns: dict { output_name_normalized : set(param_names) }
+        Only keeps params that exist in valid_param_names (e.g. set(sp["names"]))
+        """
+        valid_param_names = set(valid_param_names)
+
+        with open(txt_path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        chunks = text.split("Output:")
+        out2vars = {}
+
+        for chunk in chunks[1:]:
+            lines = chunk.strip().splitlines()
+            if not lines:
+                continue
+
+            out_raw = lines[0].strip()
+            out_key = safe_name(out_raw.replace(" ", "_"))
+
+            params = []
+            for line in lines[1:]:
+                line = line.strip()
+
+                # match "ParamName   : ..."
+                m = re.match(r"^([A-Za-z0-9_]+)\s*:\s*", line)
+                if not m:
+                    continue
+
+                name = m.group(1)
+
+                # <-- critical filter: only keep real params
+                if name in valid_param_names:
+                    params.append(name)
+
+            if params:
+                out2vars[out_key] = set(params)
+
+        return out2vars
+
+
+    def make_sp_filtered(sp, subset_vars):
+        filtered_names = []
+        filtered_bounds = []
+        for name, bound in zip(sp["names"], sp["bounds"]):
+            filtered_names.append(name)
+            if name in subset_vars:
+                filtered_bounds.append([round(bound[0], 12), round(bound[1], 12)])
+            else:
+                mid = float(np.mean(bound))
+                filtered_bounds.append([mid, mid])
+
+        return ProblemSpec({"names": filtered_names, "bounds": filtered_bounds})
+
+
+    def drop_columns(arr, cols_to_drop):
+        cols_to_drop = sorted(set(cols_to_drop))
+        return np.delete(arr, cols_to_drop, axis=1)
+
+
+    def X_filtered(X: np.ndarray, sp: dict, subset_vars) -> np.ndarray:
+        subset_vars = set(subset_vars)
+        X = np.asarray(X, dtype=float)
+        X_out = X.copy()
+
+        names = list(sp["names"])
+        bounds = np.asarray(sp["bounds"], dtype=float)  # (n_params, 2)
+
+        mids = bounds.mean(axis=1)  # (n_params,)
+
+        # mask: True for columns to FIX (not in subset)
+        fix_mask = np.array([name not in subset_vars for name in names], dtype=bool)
+
+        # broadcast mids into the fixed columns
+        X_out[:, fix_mask] = mids[fix_mask]
+
+        return X_out
+
+
+    # =========================
+    # 1) Parse DGSM -> subset_vars per output
+    # =========================
+    # dgsm_subset = parse_dgsm_subset_vars(TEST_TXT, sp["names"])
+
+    # =========================
+    # 2) Define your *full* output list (must match Result columns BEFORE dropping)
+    #    Use the one that matches what parallel_simulations returns.
+    # =========================
+    output_names_full = [
+        "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+        "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure",
+        "Min_RA_Volume",
+        "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+        "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+        "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+        "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+        "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+        "PaO2", "PaCO2"
+    ]
+
+    # columns you want to remove from Result (based on your comment)
+    cols_to_drop = [11, 14, 17, 20, 27, 30]
+
+    print("Kept outputs:", output_names_full)
+
+    # =========================
+    # 3) Train samples for emulators (all 53 perturbed)
+    # =========================
+    # subset_vars = {'C2', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0', 'f_ab_max',
+    #                'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o', 'GT_v', 'Io_sv',
+    #                'kcc_sv', 'KcCO2', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
+    #                'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_bpn', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven', 'T0',
+    #                'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv',
+    #                'Vu_sv0', 'Wb_sh', 'Wb_sv'}
+
+    # No P_thor: 68 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
+    subset_vars = {'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'Cvrm_O2_n', 'E_rs',
+                   'Emax_la', 'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+                   'fes_o',
+                   'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'k_ab', 'kcc_sv', 'KcCO2', 'KE_la', 'KE_lv',
+                   'KE_ra', 'KE_rv', 'kes', 'kmet', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r',
+                   'R_bpn', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'T0', 'theta_svn',
+                   'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+                   'Vu_lv',
+                   'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
+    #
+    #
+    sp_filtered = make_sp_filtered(sp, subset_vars)
+    param_keys = list(sp_filtered["names"])
+    X = sample_inputs_from_spec(sp_filtered, n_samples=N_SAMPLES, random_seed=42, method="lhs")
+    X = X.cpu().numpy() if getattr(X, "is_cuda", False) else X.numpy()
+    np.save(f"LHCS_1000_X_same2.npy", X)
+    #
     param_samples = [dict(zip(param_keys, row)) for row in X]
-    print(f"Number of samples created: {len(X)}")
-    # AA = param_samples[0]
-    # print(AA)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=N_JOBS)
+    Result = np.asarray(Result)
+    np.save(f"LHCS_1000_Result_same2.npy", Result)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=64)
-    # Result = parallel_simulations(param_samples, Next_Conditions)
+    # X = np.load(f'LHCS_1000_X_same.npy')
+    # Result = np.load('LHCS_1000_Result_same.npy')
 
-    np.save('DGSM_500_Result_rest_20_all_21_01_25.npy', Result)
+    # X = np.load(f'LHCS_20000_X_rest_no_Pthor_Vtot_22_01_2026.npy')
+    # Result = np.load('LHCS_20000_Result_rest_no_Pthor.npy')
 
+    # =========================
+    # 5) Preprocess samples before training
+    # =========================
+    # ---- filter failed runs ----
+    ok = Result[:, 0] != 0
+    X = X[ok, :]
+    Result_all = Result[ok, :]
 
+    # ---- drop unwanted output columns (IMPORTANT: assign the result!) ----
+    Result_all = drop_columns(Result_all, cols_to_drop)
+
+    # ---- outlier filter (3 std across ALL remaining outputs) ----
+    col_mean = Result_all.mean(axis=0)
+    col_std = Result_all.std(axis=0)
+    within = (Result_all >= (col_mean - 3 * col_std)) & (Result_all <= (col_mean + 3 * col_std))
+    row_mask = within.all(axis=1)
+    X = X[row_mask, :]
+    Result_all = Result_all[row_mask, :]
+
+    # ---- cap training size ----
+    size = min(TRAIN_SIZE_CAP, Result_all.shape[0])
+    print(f"Samples after filtering: {Result_all.shape[0]} -> using {size}")
+    X = X[:size, :]
+    Result_all = Result_all[:size, :]
+
+    # =========================
+    # 4) Loop over targets (kept outputs) and train one emulator each. Only the sensitive parameters perturbed
+    # =========================
+    params = {
+        "epochs": 200,
+        "lr": 0.1,
+        "likelihood_cls": MultitaskGaussianLikelihood,
+        "scheduler_cls": None,
+        "scheduler_kwargs": {},
+    }
+
+    parent_dir = "Emulator_Paper_1_90_same_1000"
+
+    for j, target_name in enumerate(output_names_full):
+        print("\n" + "=" * 100)
+        print(f"[{j + 1}/{len(output_names_full)}] Target = {target_name}")
+        print("=" * 100)
+
+        # # lookup subset vars from DGSM file (keys are normalized)
+        # key = safe_name(target_name)
+        #
+        # subset_vars = dgsm_subset[key]
+        # print(f"Using {len(subset_vars)} varying params for {target_name}")
+        #
+        # # build sp_filtered for this target
+        # X_target = X_filtered(X, sp, subset_vars)
+        feature_mask = np.ptp(X, axis=0) != 0
+        X_train = X[:, feature_mask]
+
+        # target column index in the *kept* Result
+        Y = Result_all[:, j:j + 1]  # (N,1) – good for AutoEmulate
+
+        # ---- train ----
+        ae = AutoEmulate(X_train, Y, log_level="info", models=[MODEL_NAME], model_params=params)
+        ae.summarise()
+        best = ae.best_result()
+
+        print(f"R² test: {getattr(best, 'r2_test', None)} | RMSE test: {getattr(best, 'rmse_test', None)}")
+
+        # ---- save ----
+        out_dir = safe_name(target_name)
+        out_dir = f"{out_dir}"
+        full_out_dir = os.path.join(parent_dir, out_dir)
+        os.makedirs(full_out_dir, exist_ok=True)
+        joblib.dump(best, f"{full_out_dir}/{MODEL_NAME}_{target_name}_best.joblib")
+        joblib.dump(
+            {"feature_mask": feature_mask, "cols_to_drop": cols_to_drop, "output_names_kept": output_names_full},
+            f"{full_out_dir}/{MODEL_NAME}_{target_name}_meta.joblib"
+        )
+        ae.plot(best, fname=f"{full_out_dir}/{MODEL_NAME}_{target_name}.png")

@@ -9,6 +9,11 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
+# X = np.load('All_params_DGSM_500_X_samples_rest_20.npy')
+# Result1 = np.load('All_params_DGSM_500_Result_rest_0_250_20_exercise_backup.npy')
+# Result2 = np.load('All_params_DGSM_500_Result_rest_250_500_20_exercise.npy')
+# Result = np.vstack((Result1, Result2))
+
 # Old before new targets (for abstract)
 # X1 = np.load('DGSM_500_X_samples_rest_20.npy')[:25432,:]
 # Result1 = np.load('Result_DGSM_0_88_rest_20.npy')
@@ -84,7 +89,7 @@ for b, i in enumerate(base_idx):
 
 for b, i in enumerate(base_idx):
     print(
-        f"Block {b:4d} | std = {block_std[b, 2]:.4g}"
+        f"Block {b:4d} | std = {block_std[b, 3]:.4g}"
         # f"STD: {block_std[b]}"
     )
 

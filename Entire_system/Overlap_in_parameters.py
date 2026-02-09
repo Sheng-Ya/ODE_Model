@@ -41,7 +41,8 @@ def parse_sensitivity_file(filename):
 
 
 if __name__ == "__main__":
-    filename = "C:/Users/vanes/Desktop/just_heart_targets.txt"  # change as needed
+    # filename = "C:/Users/vanes/Desktop/for emulator rest - Sensitivities no p_thor v_tot_22_01_26.txt"  # change as needed
+    filename = "C:/Users/vanes/Desktop/test.txt"
     output_params, param_counts = parse_sensitivity_file(filename)
 
     # ---- Global union ----
@@ -82,3 +83,20 @@ if __name__ == "__main__":
             f"{len(outputs_sorted)} outputs -> "
             f"{', '.join(outputs_sorted)}"
         )
+
+
+    import re
+    from pathlib import Path
+
+    # path = "C:/Users/vanes/Desktop/for emulator rest - Sensitivities no p_thor v_tot_22_01_26.txt"  # change as needed # change as needed
+    txt = Path(filename).read_text().splitlines()
+
+    params = set()
+    for line in txt:
+        m = re.match(r'^\s*([A-Za-z0-9_]+)\s*:\s*[-+0-9\.eE]+\s*\(', line)
+        if m:
+            params.add(m.group(1))
+
+    params = sorted(params, key=str.lower)
+    print(len(params))
+    print(params)

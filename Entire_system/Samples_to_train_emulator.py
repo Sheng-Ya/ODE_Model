@@ -26,7 +26,7 @@ from All_Next_Conditions import Next_Conditions
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 40000
 
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 60 # Maximum time limit to avoid infinite loops
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -147,13 +147,8 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     cs_t1 = CubicSpline(VAflow_vals, t1_mean, bc_type="natural")
     cs_t2 = CubicSpline(VAflow_vals, t2_mean, bc_type="natural")
 
-    coeffs_t1 = cs_t1.c  # shape (4, N-1)
-    coeffs_t2 = cs_t2.c  # shape (4, N-1)
+    return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
-    knots_1 = cs_t1.x
-    knots_2 = cs_t2.x
-
-    return coeffs_t1, coeffs_t2, knots_1, knots_2
 
 
 def simulate_cpu(Current_Parameters, local_updates, old_parameters):
@@ -163,16 +158,16 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     t_span = [0, max_time]
 
     # Cardio parameters
-    (g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
-    R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la,
-    Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, D1, K1_vc, Kr_vc, Rvc_n,
-    C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
-    kr_am) = (
+    (A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
+     R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la,
+     Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, K1_vc, Rvc_n,
+     C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
+     kr_am) = (
     Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in
-    ["g_thor", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa",
+    ["A_im", "T_im", "Tc", "g_thor", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa",
      "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
      "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
-     "R_sa", "D1", "K1_vc", "Kr_vc", "Rvc_n", "C_jp",
+     "R_sa", "K1_vc", "Rvc_n", "C_jp",
      "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv",
      "kr_am"])
 
@@ -216,59 +211,59 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     (Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
     Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
     R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
-    Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vvc_max, Vu_pa, Vu_pp,
+    Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vu_pa, Vu_pp,
     Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
     tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
     tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
-     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
-     Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale
+    scale_param1, scale_param3, scale_param4, scale_param6,
+    Pa_O2_lower, rise_time_atr, rise_time_ven,
+    fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale
      ) = \
     (Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in ["Kp_ao", "Kf_ao", "Kb_ao",
     "Kv_ao", "theta_ao_max", "Kp_mi", "Kf_mi", "Kb_mi", "Kv_mi", "theta_mi_max", "Kp_po", "Kf_po", "Kb_po", "Kv_po",
     "theta_po_max", "Kp_tr", "Kf_tr", "Kb_tr", "Kv_tr", "theta_tr_max", "alpha_O2", "R_po", "R_mi", "R_tr", "R_ao",
     "C_O2_param1", "C_O2_param2", "C_O2_param3", "PAMO2_nominal", "Vu_sa", "V_tot", "Vu_jp",
-    "Vu_bv", "Vu_hv", "Vu_vc", "Vvc_max", "Vu_pa", "Vu_pp", "Vu_pv",
+    "Vu_bv", "Vu_hv", "Vu_vc", "Vu_pa", "Vu_pp", "Vu_pv",
     "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp", "tau_Rep", "tau_Rrmp", "tau_Rsp",
     "tau_Vamv", "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0", "Vu_ev0", "Vu_rmv0", "Vu_sv0", "tau_cc", "tau_isc",
     "tau_p", "tau_z", "tau_ac", "tau_ap", "tau_Ts", "tau_Tv", "tau_CO2", "tau_O2", "tau_w", "tau_M", "tau_met",
     "DEmax_lv", "DEmax_rv", "DR_amp", "DR_ep", "DR_rmp", "DR_sp", "DV_amv", "DV_ev", "DV_rmv", "DV_sv", "DT_s", "DT_v",
     "Dmet", "Fi_CO2", "Fi_O2", "Ta", "T1", "T2", "VL_CO2", "VL_O2", "KCSFCO2", "VB", "tauMR", "VTCO2", "VTO2", "tau_MRV",
-    "scale_param1", "scale_param2", "scale_param3", "scale_param4", "scale_param5", "scale_param6", "scale_param7",
-    "Pa_O2_lower", "rise_time_atr",
-    "rise_time_ven", "fall_time_ven", "ahead1", "theta_min", "delta_P", "r", "l", "V_nominal", "V_scale"])
+    "scale_param1", "scale_param3", "scale_param4", "scale_param6",
+    "Pa_O2_lower", "rise_time_atr", "rise_time_ven",
+     "fall_time_ven", "ahead1", "theta_min", "delta_P", "r", "l", "V_nominal", "V_scale"])
 
     # determine the correct breathing profile
     cs_t1, cs_t2, knots_1, knots_2 = (minimise_breathing(1.5,1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax,
                                                              Pmax_dot, E_rs, R_rs, P_ao))
 
-    Input_Parameters = [g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
-     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
-     L_sa, R_sa, D1, K1_vc, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
-     C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
-     Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
-     Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
-     Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0,
-     R_rmp0, R_sp0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, theta_shn, theta_spn,
-     theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n, P_n_max, f_acCO2_n, f_ac_max, f_ac_min,
-     k_ac, K_H, PaO2_ac_n, G_ap, DT_v, GT_s, GT_v, T0, A, B, C, D, Cvb_O2_n, gb_O2, R_bpn, Cvh_O2_n, Cvrm_O2_n, gh_O2,
-     grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
-     phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
-     MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
-     n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
-     # added params
-     Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
-     Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
-     R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
-     Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vvc_max, Vu_pa, Vu_pp,
-     Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
-     tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
-     tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
-     DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
-     scale_param1, scale_param2, scale_param3, scale_param4, scale_param5, scale_param6, scale_param7,
+    Input_Parameters = np.array([A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
+    C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
+    L_sa, R_sa, K1_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
+    C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
+    Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
+    Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
+    Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0,
+    R_rmp0, R_sp0, AT, g_ccsh, g_ccsp, g_ccsv, kisc_sh, kisc_sp, kisc_sv, PO2_sh, PO2_sp, PO2_sv, theta_shn, theta_spn,
+    theta_svn, x_sh, x_sp, x_sv, PaCO2_n, f_ab_max, f_ab_min, k_ab, P_n,  P_n_max, f_acCO2_n, f_ac_max, f_ac_min,
+    k_ac, K_H, PaO2_ac_n, G_ap, DT_v, GT_s, GT_v, T0, A, B, C, D, Cvb_O2_n, gb_O2, R_bpn, Cvh_O2_n, Cvrm_O2_n, gh_O2,
+    grm_O2, Kh_CO2, Krm_CO2, MO2_hpn, MO2_rmp, R_hpn, W_hn, Cvam_O2_n, gam_O2, gM, Io_met, kmet, MO2_ampn, phi_max,
+    phi_min, a2_gas, alpha2, beta2, C2, K2, PACO2_Delay_IC, PAO2_Delay_IC, P_atm, P_ws, Z, dc, KCCO2, MRBCO2, MO2_bp,
+    MRTCO2_basal, MRTO2_basal, MRCO2, MRO2, s, GV_dead, KcCO2, KcMRV, KpCO2, KpO2, V0_dead, VA_rest, lambda1, lambda2,
+    n, Pmax, Pmax_dot, E_rs, R_rs, P_ao,
+    # added params
+    Kp_ao, Kf_ao, Kb_ao, Kv_ao, theta_ao_max, Kp_mi, Kf_mi, Kb_mi, Kv_mi, theta_mi_max, Kp_po,
+    Kf_po, Kb_po, Kv_po, theta_po_max, Kp_tr, Kf_tr, Kb_tr, Kv_tr, theta_tr_max, alpha_O2, R_po, R_mi, R_tr,
+    R_ao, C_O2_param1, C_O2_param2, C_O2_param3, PAMO2_nominal,
+    Vu_sa, V_tot, Vu_jp, Vu_bv, Vu_hv, Vu_vc, Vu_pa, Vu_pp,
+    Vu_pv, Vu_la, Vu_lv, Vu_ra, Vu_rv, tau_Emax_lv, tau_Emax_rv, tau_Ramp, tau_Rep, tau_Rrmp, tau_Rsp, tau_Vamv, tau_Vev,
+    tau_Vrmv, tau_Vsv, Vu_amv0, Vu_ev0, Vu_rmv0, Vu_sv0, tau_cc, tau_isc, tau_p, tau_z, tau_ac, tau_ap, tau_Ts, tau_Tv,
+    tau_CO2, tau_O2, tau_w, tau_M, tau_met, DEmax_lv, DEmax_rv, DR_amp, DR_ep, DR_rmp, DR_sp, DV_amv, DV_ev, DV_rmv,
+    DV_sv, DT_s, DT_v, Dmet, Fi_CO2, Fi_O2, Ta, T1, T2, VL_CO2, VL_O2, KCSFCO2, VB, tauMR, VTCO2, VTO2, tau_MRV,
+    scale_param1, scale_param3, scale_param4, scale_param6,
      Pa_O2_lower, rise_time_atr, rise_time_ven,
-     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale]
+     fall_time_ven, ahead1, theta_min, delta_P, r, l, V_nominal, V_scale])
 
     # Solve ODE in one go
     ODE_solution = solve_ivp(
@@ -699,19 +694,19 @@ if __name__ == "__main__":
             "alpha2", "dc", "KCCO2", "GV_dead",
             # resp control
             "KcCO2", "KcMRV", "KpCO2", "KpO2",
-            "V0_dead", "VA_rest", "Pmax", "Pmax_dot",
+            "V0_dead", "VA_rest",
             "E_rs", "R_rs",
             # cardio
             "C_jp", "C_sa", "L_sa", "R_sa",
             "C_amv", "C_bv", "C_ev", "C_hv",
             "C_rmv", "C_sv", "kr_am", "P_0",
             "R_amv_n", "R_bv_n", "R_ev_n", "R_hv_n",
-            "R_rmv_n", "R_sv_n", "D1", "K1_vc",
-            "Kr_vc", "Rvc_n", "C_pa", "C_pp",
+            "R_rmv_n", "R_sv_n", "K1_vc",
+            "Rvc_n", "C_pa", "C_pp",
             "C_pv", "L_pa", "R_pa", "R_pp",
             "R_pv", "Emax_la", "P0_la", "Emax_ra",
             "P0_ra", "KE_la", "KE_ra", "P0_lv",
-            "P0_rv", #"g_thor", "P_thormax_n", "P_thormin_n",
+            "P0_rv", "g_thor", "P_thormax_n", "P_thormin_n",
             "VT_n", "s",
             # cardio control
             "fab_o", "fes_o", "fes_inf", "fes_max",
@@ -722,7 +717,7 @@ if __name__ == "__main__":
             "Ysv_max", "Ysv_min", "Yv_max", "Yv_min",
             "theta_v", "Wb_sh", "Wb_sp", "Wb_sv",
             "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v",
-            "Wp_sh", "Wp_sp", "Wp_sv", "Wp_v",
+            "Wp_sp", "Wp_sv", "Wp_v",
             "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
             "Emax_lv0", "Emax_rv0", "fes_min", "GEmax_lv",
             "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp",
@@ -730,7 +725,7 @@ if __name__ == "__main__":
             "GV_sv", "R_amp0", "R_ep0", "R_rmp0",
             #
             "R_sp0", "AT", "g_ccsh", "g_ccsp",
-            "g_ccsv", "kisc_sh", "kisc_sp", "kisc_sv",
+            "kisc_sh", "kisc_sp", "kisc_sv",
             "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
             "theta_spn", "theta_svn", "x_sh", "x_sp",
             "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min",
@@ -751,12 +746,13 @@ if __name__ == "__main__":
             "Kp_tr", "Kf_tr", "Kb_tr", "Kv_tr", "theta_tr_max",
             "alpha_O2", "R_po", "R_mi", "R_tr",
             "R_ao", "C_O2_param1", "C_O2_param2", "C_O2_param3",
-            "PAMO2_nominal", "Vu_sa", "Vu_bv", "Vu_hv",
-            "Vu_jp", "Vu_vc", "Vvc_max", "Vu_pa",
+            "PAMO2_nominal", "Vu_bv", "Vu_hv",
+            "Vu_jp", "Vu_vc",
             "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
             "Vu_ra", "Vu_rv",
 
-            "V_tot", "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
+            "V_tot",
+            "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
             "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
             "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
             "Vu_ev0", "Vu_rmv0", "Vu_sv0", "tau_cc",
@@ -772,8 +768,8 @@ if __name__ == "__main__":
             "VTO2", "tau_MRV",
 
             # further added
-            "scale_param1", "scale_param2", "scale_param3", "scale_param4",
-            "scale_param5", "scale_param6", "scale_param7", "Pa_O2_lower",
+            "scale_param1", "scale_param3", "scale_param4",
+            "scale_param6", "Pa_O2_lower",
             "rise_time_atr", "rise_time_ven", "fall_time_ven", "ahead1",
             "theta_min", "r", "l", "V_nominal", "V_scale"
         ],
@@ -784,38 +780,38 @@ if __name__ == "__main__":
             [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
-            [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper], [100 * lower, 100 * upper], [1000 * lower, 1000 * upper],
+            [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
             [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
             # cardio
-            [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.2 * lower, 0.2 * upper],
-            [4.4 * lower, 4.4 * upper], [5.71 * lower, 5.71 * upper], [10 * lower, 10 * upper], [1.57 * lower, 1.57 * upper],
-            [3.28 * lower, 3.28 * upper], [31.11 * lower, 31.11 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
+            [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
+            [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
+            [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
-            [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.3855 * lower, 0.3855 * upper], [0.15 * lower, 0.15 * upper],
-            [0.0001 * lower, 0.0001 * upper], [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [15.8 * lower, 15.8 * upper],
+            [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
+            [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
             [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.0056 * lower, 0.0056 * upper], [0.34 * lower, 0.34 * upper], [0.55 * lower, 0.55 * upper], [0.34 * lower, 0.34 * upper],
             [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [0.07 * lower, 0.07 * upper], [1.5 * lower, 1.5 * upper],
-            [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * 1.5, -2 * 0.5], [-6 * 1.5, -6 * 0.5],
+            [1.5 * lower, 1.5 * upper], [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
             [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
             # cardio control
             [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
             [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper], [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper],
-            [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper], [0.22 * lower, 0.22 * upper],
+            [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper], [0.126 * lower, 0.126 * upper],
             [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
-            [20 * lower, 20 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper], [-0.037 * upper, -0.037 * lower],
+            [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper], [-0.037 * upper, -0.037 * lower],
             [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower], [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower],
             [-0.68 * upper, -0.68 * lower], [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower], [-1.1375 * upper, -1.1375 * lower],
             [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper], [0.2 * lower, 0.2 * upper],
-            [-0.2 * upper, -0.2 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower],
+            [-0.3997 * upper, -0.3997 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower],
             [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
             [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper], [0.475 * lower, 0.475 * upper],
-            [0.282 * lower, 0.282 * upper], [4.47 * lower, 4.47 * upper], [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper],
-            [0.695 * lower, 0.695 * upper], [-28.29 * upper, -28.29 * lower], [-74.21 * upper, -74.21 * lower], [-28.29 * upper, -28.29 * lower],
+            [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper], [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper],
+            [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
             [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
             #
             [2.49 * lower, 2.49 * upper], [(1 / 60) * lower, (1 / 60) * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
-            [0.2 * lower, 0.2 * upper], [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
+            [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
             [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
             [6 * lower, 6 * upper], [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
@@ -830,18 +826,19 @@ if __name__ == "__main__":
             [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper], [0.18 * lower, 0.18 * upper],
             [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
             # added params
-            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [5 * lower, 5 * upper], [10 * lower, 10 * upper], [1.309 * lower, 1.309 * upper],
-            [3000 * lower, 3000 * upper], [500 * lower, 500 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-            [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper], [350 * lower, 350 * upper],
+            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
+            [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
+            [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
             [350 * lower, 350 * upper], [0.00134 * 0.9, 0.00134 * 1.1], [2.6 * 0.9, 2.6 * 1.1], [3.03e-5 * 0.9, 3.03e-5 * 1.1],
-            [104 * lower, 104 * upper], [1 * lower, 1 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
-            [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper], [350 * lower, 350 * upper], [1.0 * lower, 1.0 * upper],
-            [116.6775 * lower, 116.6775 * upper], [214 * lower, 214 * upper], [10 * lower, 10 * upper], [10 * lower, 10 * upper],
-            [10 * lower, 10 * upper], [10 * lower, 10 * upper],
+            [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
+            [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
+            [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
+            [90 * lower, 90 * upper], [38.703 * lower, 38.703 * upper],
 
-            [5027.6 * 0.8, 5027.6 * 1.2], [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
+            [5027.6 * 0.8, 5027.6 * 1.2],
+            [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
             [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper],
@@ -851,25 +848,27 @@ if __name__ == "__main__":
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [5 * lower, 5 * upper],
             [5 * lower, 5 * upper], [5 * lower, 5 * upper], [2 * lower, 2 * upper], [0.2 * lower, 0.2 * upper],
-            [4 * lower, 4 * upper], [3 * lower, 3 * upper], [0.014 * lower, 0.014 * upper], [0.011 * lower, 0.011 * upper],
-            [1 * lower, 1 * upper], [2 * lower, 2 * upper], [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper],
-            [20 * lower, 20 * upper], [0.09 * lower, 0.09 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
+            [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.014 * lower, 0.014 * upper], [0.011 * lower, 0.011 * upper],
+            [0.1 * lower, 0.1 * upper], [0.2 * lower, 0.2 * upper], [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper],
+            [20 * lower, 20 * upper], [0.01 * lower, 0.01 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
             [0.25 * lower, 0.25 * upper], [50 * lower, 50 * upper],
 
             # further added params
-            [4.9 * lower, 4.9 * upper], [1.5 * lower, 1.5 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
-            [0.5 * lower, 0.5 * upper], [1.2 * lower, 1.2 * upper], [30 * lower, 30 * upper], [80 * lower, 80 * upper],
+            [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
+            [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
             [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.3 * 0.8, 1.3 * 1.2], [2.0 * 0.8, 2.0 * 1.2], [280 * lower, 280 * upper], [40 * lower, 40 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [1.12 * 0.9, 1.12 * 1.1], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
     })
 
 
-# No P_thor: 52 parameters contribute 90% sensitivity for 30 targets
-    subset_vars = {'C2','C_O2_param1','C_sa','Cvam_O2_n','E_rs','Emax_la','Emax_lv0','Emax_rv0','GT_v','Io_sv','K2',
-                   'KE_la','KE_lv','KE_ra','KE_rv','KcCO2','MO2_bp','P0_la','P0_lv','P0_rv','P_n','PaCO2_n','R_pa',
-                   'R_rs','R_sa','T0','V0_dead','VA_rest','V_nominal','V_scale','V_tot','Vu_ev0','Vu_jp','Vu_pp',
-                   'Vu_rv','Vu_sv0','Wb_sh','Wb_sp','Wp_v','a2','ahead1','f_ab_max','fall_time_ven','fes_inf','fes_min',
-                   'fes_o','fev_inf','fev_o','kes','l','r','rise_time_ven'}
+# No P_thor: 71 parameters contribute at least 1% sensitivity and up to 90% sensitivity for 30 targets
+    subset_vars = {'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'Cvrm_O2_n',
+                   'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf',
+                   'fes_min', 'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'k_ab', 'kcc_sv', 'KcCO2',
+                   'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv',
+                   'P_n', 'PaCO2_n', 'r', 'R_bpn', 'R_pa', 'R_po', 'R_pp', 'R_pv', 'R_rs', 'R_sa', 'rise_time_atr',
+                   'rise_time_ven', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_amv0', 'Vu_bv',
+                   'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
 
     # Filter the names and bounds
     filtered_names = []
@@ -894,24 +893,25 @@ if __name__ == "__main__":
     # change
     # X = sample_inputs_from_spec(sp_filtered, n_samples=20000, random_seed=42, method="lhs")
     # X = X.cpu().numpy() if X.is_cuda else X.numpy()
-    # np.save('LHCS_20000_X_rest_no_Pthor.npy', X)
-    X = np.load('LHCS_20000_X_rest_no_Pthor.npy')
+    # np.save('LHCS_20000_X_rest_no_Pthor_Vtot_22_01_2026.npy', X)
+    X = np.load('LHCS_20000_X_rest_no_Pthor_Vtot_22_01_2026.npy')[15000:,:]
 
     # # make sure only the set number of parameters are adjusted
     # mask = np.ptp(X, axis=0) != 0
     # print(np.sum(mask))
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
+    AA = param_samples[0]
+    print(AA)
     # param_samples[0] = {"beta2":0.03255,"C2":87.0,"K2":194.4,"a2":1.819,"alpha2":0.05591,"dc":0.015,"KCCO2":346000.0,"GV_dead":0.1698,"KcCO2":0.2332,"KcMRV":1.0,"KpCO2":0.2025,"KpO2":4.72e-09,"V0_dead":0.1587,"VA_rest":0.0673,"Pmax":100.0,"Pmax_dot":1000.0,"E_rs":21.9,"R_rs":3.02,"C_jp":3.72,"C_sa":0.28,"L_sa":0.00022,"R_sa":0.2,"C_amv":4.4,"C_bv":5.71,"C_ev":10.0,"C_hv":1.57,"C_rmv":3.28,"C_sv":31.11,"kr_am":24.17,"P_0":3.93,"R_amv_n":0.0833,"R_bv_n":0.075,"R_ev_n":0.04,"R_hv_n":0.224,"R_rmv_n":0.125,"R_sv_n":0.038,"D1":0.3855,"K1_vc":0.15,"Kr_vc":0.0001,"Rvc_n":0.0025,"C_pa":0.76,"C_pp":15.8,"C_pv":25.37,"L_pa":0.00018,"R_pa":0.023,"R_pp":0.0894,"R_pv":0.0056,"Emax_la":0.34,"P0_la":0.55,"Emax_ra":0.34,"P0_ra":0.55,"KE_la":0.05,"KE_ra":0.07,"P0_lv":1.5,"P0_rv":1.5,"g_thor":6.8,"P_thormax_n":-0.0,"P_thormin_n":-0.0,"VT_n":0.73,"s":0.04,"fab_o":25.0,"fes_o":16.11,"fes_inf":2.1,"fes_max":80.0,"fev_o":3.2,"fev_inf":6.3,"kes":0.0675,"kev":7.06,"Io_sh":0.658,"Io_sp":0.65,"Io_sv":0.45,"Io_v":0.22,"kcc_sh":0.114,"kcc_sp":0.13,"kcc_sv":0.09,"kcc_v":0.0162,"Ysh_max":20.0,"Ysh_min":-0.0283,"Ysp_max":5.5,"Ysp_min":-0.037,"Ysv_max":64.9,"Ysv_min":-0.437,"Yv_max":1.9,"Yv_min":-0.0008,"theta_v":-0.68,"Wb_sh":-1.75,"Wb_sp":-1.1375,"Wb_sv":-1.1375,"Wc_sh":1.0,"Wc_sp":1.716,"Wc_sv":1.716,"Wc_v":0.2,"Wp_sh":-0.2,"Wp_sp":-0.3997,"Wp_sv":-0.3997,"Wp_v":-0.103,"Wt_sh":0.4,"Wt_sp":0.4,"Wt_sv":0.4,"Wt_v":0.4,"Emax_lv0":2.392,"Emax_rv0":1.412,"fes_min":2.66,"GEmax_lv":0.475,"GEmax_rv":0.282,"GR_amp":4.47,"GR_ep":1.94,"GR_rmp":2.47,"GR_sp":0.695,"GV_amv":-28.29,"GV_ev":-74.21,"GV_rmv":-28.29,"GV_sv":-265.4,"R_amp0":3.51,"R_ep0":1.655,"R_rmp0":5.27,"R_sp0":2.49,"AT":0.016666666667,"g_ccsh":1.0,"g_ccsp":1.5,"g_ccsv":0.2,"kisc_sh":6.0,"kisc_sp":2.0,"kisc_sv":2.0,"PO2_sh":45.0,"PO2_sp":30.0,"PO2_sv":30.0,"theta_shn":3.6,"theta_spn":13.32,"theta_svn":13.32,"x_sh":53.0,"x_sp":6.0,"x_sv":6.0,"PaCO2_n":40.0,"f_ab_max":47.78,"f_ab_min":2.52,"k_ab":11.76,"P_n":92.0,"P_n_max":112.0,"f_acCO2_n":1.4,"f_ac_max":12.3,"f_ac_min":0.835,"k_ac":29.27,"K_H":3.0,"PaO2_ac_n":45.0,"G_ap":11.76,"GT_s":-0.13,"GT_v":0.09,"T0":0.58,"A":20.9,"B":92.8,"C":10570.0,"D":-5.251,"Cvb_O2_n":0.14,"gb_O2":10.0,"MO2_bp":0.925,"R_bpn":6.57,"Cvh_O2_n":0.11,"Cvrm_O2_n":0.155,"gh_O2":35.0,"grm_O2":30.0,"Kh_CO2":11.11,"Krm_CO2":142.8,"MO2_hpn":0.4,"MO2_rmp":0.86,"R_hpn":19.71,"W_hn":12660.0,"Cvam_O2_n":0.1555,"gam_O2":30.0,"gM":40.0,"Io_met":0.4266,"kmet":0.18,"MO2_ampn":0.516,"phi_max":20.0,"phi_min":-1.87,"Kp_ao":1000.0,"Kf_ao":5000.0,"Kb_ao":2.0,"Kv_ao":5.0,"theta_ao_max":1.309,"Kp_mi":2000.0,"Kf_mi":200.0,"Kb_mi":2.0,"Kv_mi":10.0,"theta_mi_max":1.309,"Kp_po":2000.0,"Kf_po":2000.0,"Kb_po":5.0,"Kv_po":10.0,"theta_po_max":1.309,"Kp_tr":3000.0,"Kf_tr":500.0,"Kb_tr":2.0,"Kv_tr":7.0,"theta_tr_max":1.309,"alpha_O2":3.17e-05,"R_po":350.0,"R_mi":350.0,"R_tr":350.0,"R_ao":350.0,"C_O2_param1":0.00134,"C_O2_param2":2.6,"C_O2_param3":3.03e-05,"PAMO2_nominal":104.0,"Vu_sa":1.0,"Vu_bv":279.49,"Vu_hv":93.16,"Vu_jp":579.76,"Vu_vc":123.0,"Vvc_max":350.0,"Vu_pa":1.0,"Vu_pp":116.6775,"Vu_pv":214.0,"Vu_la":10.0,"Vu_lv":10.0,"Vu_ra":10.0,"Vu_rv":10.0,"V_tot":5027.6,"tau_Emax_lv":8.0,"tau_Emax_rv":8.0,"tau_Ramp":2.0,"tau_Rep":2.0,"tau_Rrmp":2.0,"tau_Rsp":2.0,"tau_Vamv":20.0,"tau_Vev":20.0,"tau_Vrmv":20.0,"tau_Vsv":20.0,"Vu_amv0":286.4,"Vu_ev0":607.8,"Vu_rmv0":190.95,"Vu_sv0":1361.6,"tau_cc":20.0,"tau_isc":30.0,"tau_p":2.076,"tau_z":0.8,"tau_ac":2.0,"tau_ap":2.0,"tau_Ts":2.0,"tau_Tv":1.5,"tau_CO2":20.0,"tau_O2":10.0,"tau_w":5.0,"tau_M":40.0,"tau_met":10.0,"DEmax_lv":2.0,"DEmax_rv":2.0,"DR_amp":2.0,"DR_ep":2.0,"DR_rmp":2.0,"DR_sp":2.0,"DV_amv":5.0,"DV_ev":5.0,"DV_rmv":5.0,"DV_sv":5.0,"DT_s":2.0,"DT_v":0.2,"Dmet":4.0,"Ta":3.0,"KE_lv":0.014,"KE_rv":0.011,"T1":1.0,"T2":2.0,"VL_CO2":3.0,"VL_O2":2.5,"KCSFCO2":20.0,"VB":0.09,"tauMR":50.0,"VTCO2":0.25,"VTO2":0.25,"tau_MRV":50.0,"scale_param1":4.9,"scale_param2":1.5,"scale_param3":0.3,"scale_param4":26.6,"scale_param5":0.5,"scale_param6":1.2,"scale_param7":30.0,"Pa_O2_lower":80.0,"rise_time_atr":0.05,"rise_time_ven":0.15,"fall_time_ven":0.3,"ahead1":0.9,"theta_min":0.0872665,"r":1.2,"l":2.0,"V_nominal":280.0,"V_scale":40.0}
 
     print(f"Number of samples created: {len(X)}")
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=40)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=60)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
-    # print(Result)
     # change
-    np.save('LHCS_20000_Result_rest_no_Pthor.npy', Result)
+    np.save('LHCS_20000_Result_rest_no_Pthor_15000.npy', Result)
 
 
 

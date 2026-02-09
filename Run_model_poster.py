@@ -22,7 +22,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 40000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 60 # Maximum time limit to avoid infinite loops
+max_time = 400 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -606,62 +606,9 @@ def simulate():
 
 if __name__ == "__main__":
 
-    # A = np.load("IC_final.npy", allow_pickle=True)
-    # B = np.load("Next_final.npy", allow_pickle=True).item()
-    # # #
-    # for key, value in B.items():
-    #     if isinstance(value, np.ndarray):
-    #         print(f"{key}: {value[-1]}")
-    #     else:
-    #         print(f"{key}: {value}")
-
-    # # Pic
-    # state_vars = [
-    #     "VT_pa", "VT_pp", "VT_pv", "Q_pa",
-    #     "VT_la", "VT_lv", "VT_ra", "VT_rv",
-    #     "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_amv", "P_sp", "P_sa", "Q_sa", "VT_vc",
-    #     "theta_ao", "dtheta_ao_dt", "theta_po", "dtheta_po_dt", "theta_mi", "dtheta_mi_dt", "theta_tr", "dtheta_tr_dt",
-    #
-    #     # Cardio controller state variables
-    #     "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
-    #     "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", "R_ep_change", "R_sp_change",
-    #     "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change",
-    #     "Emax_lv_change",
-    #     "Emax_rv_change", "Ts_change", "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2",
-    #     "xam_O2", "xM", "x_met",
-    #     "P_n_current",
-    #
-    #     # Gas exchange state variables
-    #     "Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2", "Pd_5_O2",
-    #     "Pd_5_CO2",
-    #     "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2", "PCSFCO2", "MRTO2", "MRTCO2", "CTO2",
-    #     "CvtCO2", "CBO2", "CvbCO2", "MRV",
-    #
-    #     # Resp control state variable
-    #     "VE_integral"
-    # ]
-    # Initial_Conditions = dict(zip(state_vars, A))
-    #
-    # # Example output (pretty-printed)
-    # import pprint
-    #
-    # pprint.pprint(Initial_Conditions)
-
-
-    # lp = LineProfiler()
-    # lp.add_function(Resp_Control_Breath_Optimiser.objective)
-    #
-    # lp.add_function(model_derivatives)
-    # lp.enable()
-    # solution1, HR1, Psys1, Pdia1, save_IC1, save_Next1, t_full1, y_full1 = simulate()
     solution, HR, Psys, Pdia, EDV, ESV, V_rv_max, V_rv_min, P_rv_max, P_rv_min, save_IC, save_Next, t_full, y_full = simulate()
     print("ODE Status:", solution.status)
     print("ODE Message:", solution.message)
-
-    # np.save(f'IC_final_resp.npy', solution.y[:, -1])  # individual chunks
-    # np.save(f'Next_final_resp.npy', save_Next)  # individual chunks
-    # lp.disable()
-    # lp.print_stats()
 
     time = solution.t
     state_variables = solution.y
@@ -674,45 +621,28 @@ if __name__ == "__main__":
     )
 
     index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
-    # print(HR)
     print(len(Next_Conditions["time_history"][:index]))
 
-    variables_to_plot = [
-        # "CvbCO2", "CvbO2", "VAflow", "V",
-        "Q_pp", "P_sa", "VT_vc", #"PvtCO2", "dV_dt"
-    ]
 
-    for key in variables_to_plot:
-        if key in Next_Conditions:  # Check if the key exists in updates
-            plt.figure(figsize=(8, 4))  # Create a new figure for each variable
-            plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
-            plt.xlabel("Time (s)")
-            plt.ylabel(key)
-            plt.title(f"Plot of {key} over Time")
-            plt.legend()
-            plt.grid(True)
-            plt.show()
-
-
-    # # Set global style
-    # plt.rcParams.update({
-    #     "font.size": 14,  # Larger font
-    #     # "font.weight": "bold",  # Bold text
-    #     # "axes.labelweight": "bold",
-    #     "axes.titlesize": 16,
-    #     # "axes.titleweight": "bold",
-    #     "legend.fontsize": 10,
-    #     "lines.linewidth": 1.5,  # Thicker lines
-    # })
+    # Set global style
+    plt.rcParams.update({
+        "font.size": 20,  # Larger font
+        "font.weight": "bold",  # Bold text
+        # "axes.labelweight": "bold",
+        "axes.titlesize": 16,
+        # "axes.titleweight": "bold",
+        "legend.fontsize": 18,
+        "lines.linewidth": 3.5,  # Thicker lines
+    })
 
 
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_ev"][:index], label="Extrasplanchnic V$_{Unstressed}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Active Muscle V$_{Unstressed}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_rmv"][:index], label="Resting Muscle V$_{Unstressed}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_sv"][:index], label="Splanchnic V$_{Unstressed}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_ev"][:index], label="Extrasplanchnic")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Active Muscle")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_rmv"][:index], label="Resting Muscle")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_sv"][:index], label="Splanchnic")
     # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_bv"][:index], label="Cerebral V$_{Unstressed}$")
     # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="Coronary V$_{Unstressed}$")
 
@@ -723,17 +653,90 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_rv"][:index],
+             label="RV Max", color="g", linestyle="--")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Emax_lv"][:index],
+             label="LV Max", color='b', linestyle="--")
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Heart Rate (bpm)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.set_yticks(np.arange(1, 5, 1))
+    # ax1.set_ylim(top=135)  # y-axis of ax1 goes up to 135
+
+
+    ax1.legend(loc="upper left")
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], 60 * Next_Conditions["HR"][:index],
+             label="Heart Rate", color="r")
+    ax2.tick_params(axis='y', labelcolor="k")
+    ax2.set_ylabel("Elastance (mmHg/ml)")
+
+    # ax2.set_ylim(top=4.5)  # y-axis of ax2 goes up to 4.5
+    ax2.legend(loc="lower right")
+
+    plt.show()
+
+    plt.plot(Next_Conditions["time_history"][288218:index-348218], Next_Conditions["R_ep"][288218:index-348218], label="Extrasplanchnic")
+    plt.plot(Next_Conditions["time_history"][288218:index-348218], Next_Conditions["R_amp"][288218:index-348218], label="Active Muscle")
+    plt.plot(Next_Conditions["time_history"][288218:index-348218], Next_Conditions["R_rmp"][288218:index-348218], label="Resting Muscle")
+    plt.plot(Next_Conditions["time_history"][288218:index-348218], Next_Conditions["R_sp"][288218:index-348218], label="Splanchnic")
+    plt.plot(Next_Conditions["time_history"][288218:index-348218], Next_Conditions["R_bp"][288218:index-348218], label="Brain")
+    plt.plot(Next_Conditions["time_history"][288218:index-348218], Next_Conditions["R_hp"][288218:index-348218], label="Coronary")
+
+    # Add labels and legend
+    plt.ylabel("Peripheral Resistance (mmHg·s/ml)")
+    plt.yticks(np.arange(0, 20, 2))
+    plt.xlabel("Time (s)")
+    plt.title("Traces")
+    plt.legend()
+    plt.show()
+
+    t1 = Next_Conditions["TI"][:index]
+    Breath_time = 1/Next_Conditions["BF"][:index]
+    t2 = Breath_time - t1
+    # Minute_Ventilation = 60 * (Next_Conditions["VAflow"][index - 80000:index] + t1 / (t1 + t2))
+    VD = new_params["GV_dead"] * Next_Conditions["VAflow"][:index] + new_params["V0_dead"]
+    VDflow = (1 / (t1 + t2)) * VD
+    Minute_Ventilation1 = (Next_Conditions["VAflow"][:index] + VDflow) * 60
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, Minute_Ventilation1, label="Minute_Ventilation")
+    ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation1, label="Minute Ventilation", color="b")
+
+
+    # scatter plot all 10 points
+    # ax1.scatter(sorted_times[-1], Minute_Ventilation[-1], color='g', marker='x', s=100, label="Last 10 flat values")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_yticks(np.arange(0, 50, 10))
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="lower right")
+    # ax1.grid(True)
+    plt.show()
+
 
 
 
     # LV
-    plt.plot(Next_Conditions["VT_lv"][index - 100000:index], Next_Conditions["P_lv"][index - 100000:index],
+    import numpy as np
+
+    plt.plot(Next_Conditions["VT_lv"][index - 100000:index],
+             Next_Conditions["P_lv"][index - 100000:index],
              label="LV", linewidth=2.5)
-    plt.plot(Next_Conditions["VT_rv"][index - 20000:index], Next_Conditions["P_rv"][index - 20000:index],
+
+    plt.plot(Next_Conditions["VT_rv"][index - 100000:index],
+             Next_Conditions["P_rv"][index - 100000:index],
              label="RV", linewidth=2.5)
+
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
-    plt.legend()
+
+    # y‑axis ticks every 30 mmHg
+    plt.yticks(np.arange(0, 150, 30))  # adjust 200 to whatever max you want
+
+    plt.legend(loc="upper right")
     plt.show()
 
     # VAflow = np.concatenate((Next_Conditions["VAflow_store"][i:], Next_Conditions["VAflow_store"][:i]))
@@ -795,14 +798,18 @@ if __name__ == "__main__":
     # ax1.grid(True)
     # plt.show()
 
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Q_amp"][:index], label="Q_amp", color="r")
-    ax1.set_xlabel("Time (s)")
-    ax1.legend(loc="upper left")
-    ax2 = ax1.twinx()
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_amv"][:index], label="P_amv", color="b")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_sp"][:index], label="P_sp", color="g")
-    ax2.legend(loc="upper right")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Arterial pO$_{2}$")
+    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Nt")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtO2"][:index], label="Venous pO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Arterial pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtCO2"][:index], label="Venous pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Cerebral pCO$_{2}$")
+
+    plt.xlabel("Time (s)")
+    plt.ylabel("Partial Pressure (mmHg)")
+    plt.gca().xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+    plt.legend(loc="center right")
     plt.show()
 
     # RA
@@ -812,6 +819,11 @@ if __name__ == "__main__":
              label="LA")
     plt.xlabel("Volume (mL)")
     plt.ylabel("Pressure (mmHg)")
+    plt.yticks(np.arange(0, 10, 2))
+    plt.xlim(right=110)
+
+    # plt.xticks(np.arange(40, 110, 20))
+
     plt.legend()
     plt.show()
 
@@ -1115,13 +1127,7 @@ if __name__ == "__main__":
 
     cardiac_output = np.mean(Next_Conditions["Q_pp_store"])
 
-    t1 = Next_Conditions["TI"][:index]
-    Breath_time = 1/Next_Conditions["BF"][:index]
-    t2 = Breath_time - t1
-    # Minute_Ventilation = 60 * (Next_Conditions["VAflow"][index - 80000:index] + t1 / (t1 + t2))
-    VD = new_params["GV_dead"] * Next_Conditions["VAflow"][:index] + new_params["V0_dead"]
-    VDflow = (1 / (t1 + t2)) * VD
-    Minute_Ventilation1 = (Next_Conditions["VAflow"][:index] + VDflow) * 60
+
 
     # VAflow = np.concatenate((Next_Conditions["VAflow_store"][i:], Next_Conditions["VAflow_store"][:i]))
     # t1 = np.concatenate((Next_Conditions["t1_store"][i:], Next_Conditions["t1_store"][:i]))
@@ -1129,19 +1135,6 @@ if __name__ == "__main__":
     # VD = new_params["GV_dead"] * VAflow + new_params["V0_dead"]
     # VDflow = (1 / (t1 + t2)) * VD
     # Minute_Ventilation = (VAflow + VDflow) * 60
-
-    fig, ax1 = plt.subplots()
-    # ax1.plot(sorted_times, Minute_Ventilation1, label="Minute_Ventilation")
-    ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation1, label="Minute Ventilation all", color="r")
-
-    # scatter plot all 10 points
-    # ax1.scatter(sorted_times[-1], Minute_Ventilation[-1], color='g', marker='x', s=100, label="Last 10 flat values")
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
 
 
 
@@ -1232,20 +1225,6 @@ if __name__ == "__main__":
     ax2.legend(loc="upper right")
     plt.show()
 
-    # plt.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["R_ep"][index - 80000:index], label="Extrasplanchnic R$_{Peripheral}$")
-    # plt.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["R_amp"][index - 80000:index], label="Active Muscle R$_{Peripheral}$")
-    # plt.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["R_rmp"][index - 80000:index], label="Resting Muscle R$_{Peripheral}$")
-    # plt.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["R_sp"][index - 80000:index], label="Splanchnic R$_{Peripheral}$")
-    # plt.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["R_bp"][index - 80000:index], label="Brain R$_{Peripheral}$")
-    # plt.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["R_hp"][index - 80000:index], label="Coronary R$_{Peripheral}$")
-    #
-    # # Add labels and legend
-    # plt.ylabel("Resistance (mmHg·s/ml)")
-    # plt.xlabel("Time (s)")
-    # plt.title("Traces")
-    # plt.legend()
-    # plt.show()
-
 
     # LA
     fig, ax1 = plt.subplots()
@@ -1278,19 +1257,6 @@ if __name__ == "__main__":
     # plt.grid(True)
     plt.show()
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Arterial pO$_{2}$")
-    # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Nt")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtO2"][:index], label="Venous pO$_{2}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Arterial pCO$_{2}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtCO2"][:index], label="Venous pCO$_{2}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Cerebral pCO$_{2}$")
-
-    plt.xlabel("Time (s)")
-    plt.ylabel("Partial Pressure (mmHg)")
-    plt.gca().xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
-
-    plt.legend(loc="center left")
-    plt.show()
 
     fig, ax1 = plt.subplots()
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ca_O2"][:index], label="Arterial c[O$_{2}$]", color="r")
@@ -1322,76 +1288,4 @@ if __name__ == "__main__":
     plt.show()
 
 
-    # Number of state variables
-    num_variables = state_variables.shape[0]
-    colors = plt.cm.tab20.colors  # Use the Tab20 colormap for up to 20 unique colors
 
-
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh"][:index], label="Heart sympathetic", color="m")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_sh_delay2"][:index], label="Delay Heart sympathetic", color="r")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
-
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index], label="Delay Vagal firing", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
-
-    ax1.set_xlabel("Time (s)")
-    ax1.set_ylabel("Firing rate (spikes/s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    # # plt.show()
-    ax2 = ax1.twinx()
-    #
-    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
-    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="r")
-    # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    #
-    ax2.tick_params(axis='y', labelcolor="k")
-    ax2.legend(loc="upper right")
-    plt.show()
-
-
-    fig, ax1 = plt.subplots()
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvtCO2"][:index], label="CvtCO2", color="g")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["CvbCO2"][:index], label="CvbCO2", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Cv_CO2"][:index], label="Cv_CO2", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["QT"][:index], label="QT", color="r")
-
-
-    ax1.set_xlabel("Time (s)")
-    ax1.tick_params(axis='y', labelcolor="k")
-    ax1.legend(loc="upper left")
-    ax1.grid(True)
-    plt.show()
-
-
-    # Plot all state variables
-    plt.figure(figsize=(14, 10))
-    for i, label in enumerate(state_variable_names):
-        # if label != "beta":
-        if label in ["VT_pa", "VT_pp", "VT_pv", "Q_pa",
-        "VT_la", "VT_lv", "VT_ra", "VT_rv",
-        "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_amv", "P_sp", "P_sa", "Q_sa", 'VT_vc',
-        "theta_ao", "dtheta_ao_dt", "theta_po", 'dtheta_po_dt', "theta_mi", 'dtheta_mi_dt', "theta_tr", 'dtheta_tr_dt',
-
-     # Cardio controller state variables
-        "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
-        "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", 'R_ep_change', "R_sp_change",
-        "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change",
-        "Emax_rv_change", "Ts_change", "Tv_change", 'xb_O2', "xb_CO2", "xh_O2", 'xh_CO2', "Wh", 'xrm_O2', 'xrm_CO2', 'xam_O2', "xM", "x_met", "P_n_current"]:  # Skip "Wh"
-            continue
-        color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
-        plt.plot(solution.t, state_variables[i], label=label, color=color, linestyle='-', markersize=4)
-
-    plt.xlabel("Time")
-    plt.ylabel("State Variables")
-    plt.title("Evolution of State Variables Over Time")
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
