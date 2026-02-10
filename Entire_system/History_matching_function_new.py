@@ -1364,6 +1364,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             test_parameters, impl_scores = self.generate_samples(
                 n_test_samples, scaling_factor
             )
+            # test parameters is a concatenation of every parameter set from before
             nroy_parameters = self.get_nroy(impl_scores, test_parameters)
 
             # Store results
