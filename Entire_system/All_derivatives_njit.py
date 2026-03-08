@@ -588,16 +588,19 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # C_jp = C_ep + C_sp + C_bp + C_hp + C_rmp + C_amp
     # Vu_jp = Vu_ep + Vu_sp + Vu_bp + Vu_hp + Vu_rmp + Vu_amp
-    Vu_jv = Vu_ev + Vu_sv + Vu_bv + Vu_hv + Vu_rmv + Vu_amv
+    # Vu_jv = Vu_ev + Vu_sv + Vu_bv + Vu_hv + Vu_rmv + Vu_amv
 
-    V_u = Vu_sa + Vu_pa + Vu_pp + Vu_pv + Vu_ra + Vu_la + Vu_jp + Vu_jv + Vu_rv + Vu_lv + Vu_vc
+    # V_u = Vu_sa + Vu_pa + Vu_pp + Vu_pv + Vu_ra + Vu_la + Vu_jp + Vu_jv + Vu_rv + Vu_lv + Vu_vc
 
     V_sa = P_sa * C_sa
     V_s_peripheral = P_sp * C_jp
 
     # left over volume
-    V_ev = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
-            - V_hv - V_vc - V_u - V_s_peripheral)
+    # V_ev = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
+    #         - V_hv - V_vc - V_u - V_s_peripheral)
+
+    V_ev = (V_tot - (V_sa + Vu_sa) - VT_ra - VT_rv - VT_la - VT_lv - VT_pa - VT_pp - VT_pv - VT_sv - VT_rmv - VT_amv -
+            VT_bv - VT_hv - VT_vc - V_s_peripheral) - Vu_ev - Vu_jp
 
     P_ev = V_ev / C_ev  # + source_values
 

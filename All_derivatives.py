@@ -546,7 +546,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # P_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (math.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((P_la - P_lv) / delta_P))
-    AA = Vu_hv
+    AA = P_peri
+    AAA = valve_signal
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
         theta_mi = theta_min  # minimum angle (closed)
@@ -855,16 +856,19 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # C_jp = C_ep + C_sp + C_bp + C_hp + C_rmp + C_amp
     # Vu_jp = Vu_ep + Vu_sp + Vu_bp + Vu_hp + Vu_rmp + Vu_amp
-    Vu_jv = Vu_ev + Vu_sv + Vu_bv + Vu_hv + Vu_rmv + Vu_amv
+    # Vu_jv = Vu_ev + Vu_sv + Vu_bv + Vu_hv + Vu_rmv + Vu_amv
 
-    V_u = Vu_sa + Vu_pa + Vu_pp + Vu_pv + Vu_ra + Vu_la + Vu_jp + Vu_jv + Vu_rv + Vu_lv + Vu_vc
+    # V_u = Vu_sa + Vu_pa + Vu_pp + Vu_pv + Vu_ra + Vu_la + Vu_jp + Vu_jv + Vu_rv + Vu_lv + Vu_vc
 
     V_sa = P_sa * C_sa
     V_s_peripheral = P_sp * C_jp
 
     # left over volume
-    V_ev = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
-                        - V_hv - V_vc - V_u - V_s_peripheral)
+    # V_ev = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
+    #                     - V_hv - V_vc - V_u - V_s_peripheral)
+
+    V_ev = (V_tot - (V_sa + Vu_sa) - VT_ra - VT_rv - VT_la - VT_lv - VT_pa - VT_pp - VT_pv - VT_sv - VT_rmv - VT_amv -
+            VT_bv - VT_hv - VT_vc - V_s_peripheral) - Vu_ev - Vu_jp
 
 
     P_ev = V_ev / C_ev  # + source_values
@@ -982,9 +986,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    # if 100 < t:
-    #     MRCO2 = 0.8 / 60 - MRBCO2
-    #     MRO2 = 0.85 / 60 - MRBO2
+    # if 60 < t:
+    #     MRCO2 = 1.5 / 60 - MRBCO2
+    #     MRO2 = 1.5 / 60 - MRBO2
 
     # if 200 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
@@ -1276,11 +1280,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
             # just for plotting purposes
             Q_sp, Q_ep, Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_lv, P_rv, P_la,
-            P_ra, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa,
+            P_ra, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, AA, Q_vc, Q_amv, V_sa,
             P_bv, R_bv, Q_ev, R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2_Emax_rv, f_v_delay0_2, sigma_Ts,
             sigma_Tv, CaO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt,
             CTO2, CvtO2, MRTO2, CvbO2, P_n_current, V, VD, VAflow, theta_ao, theta_tr, theta_mi, theta_po, Q_bv, Q_hv, Q_rmv, Q_sv,
-            AR_mi, AR_tr, AA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt, # v_r, x_r
+            AR_mi, AR_tr, AAA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt, # v_r, x_r
             )
 
 
@@ -1360,10 +1364,10 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
      # just for plotting purposes
      Q_sp, Q_ep, Q_bp, Q_hp, Q_rmp, Q_amp, Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_lv, P_rv, P_la, P_ra,
-     P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, V_u, Q_vc, Q_amv, V_sa, P_bv, R_bv, Q_ev,
+     P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, AA, Q_vc, Q_amv, V_sa, P_bv, R_bv, Q_ev,
      R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, CaO2, CvO2, CaCO2,
      CvCO2, PvtCO2, PvtO2, QT, PA_O2_delay, PA_CO2_delay, BF, TI, VT, VE_flow, dV_dt, CTO2, CvtO2, MRTO2, CvbO2,
-     P_n_current, V, VD, VAflow, theta_ao, theta_tr, theta_mi, theta_po, Q_bv, Q_hv, Q_rmv, Q_sv, AR_mi, AR_tr, AA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt #, v_r, x_r
+     P_n_current, V, VD, VAflow, theta_ao, theta_tr, theta_mi, theta_po, Q_bv, Q_hv, Q_rmv, Q_sv, AR_mi, AR_tr, AAA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt #, v_r, x_r
 
 
      ) = njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store, HR_every_store, Vu_ev_every_store,
@@ -1446,7 +1450,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             "Q_lv", "Q_ra", "Q_rv", "P_lv", "P_rv",
             "P_la", "P_ra", "VT_rv", "VT_ra",
             "VT_lv", "VT_la", "P_pa", "P_pp", "P_pv", "P_thor", "P_vc", "Qi_lv",
-            "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "V_u",
+            "Qi_rv", "phi", "phi_atr", "P_amv", "P_ev", "AAA",
             "P_sp", "Q_sa", "Q_vc", "VT_amv",
             "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
             "Q_ev", "Q_bv", "Q_hv", "Q_rmv", "Q_sv", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
@@ -1457,7 +1461,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             Q_pp, Q_la, Q_lv, Q_ra, Q_rv, P_lv, P_rv,
             P_la, P_ra, VT_rv, VT_ra,
             VT_lv, VT_la, P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv,
-            Qi_rv, phi, phi_atr, P_amv, P_ev, V_u,
+            Qi_rv, phi, phi_atr, P_amv, P_ev, AAA,
             P_sp, Q_sa, Q_vc, VT_amv,
             Q_amv, Q_pa, V_sa, P_bv, R_bv,
             Q_ev, Q_bv, Q_hv, Q_rmv, Q_sv, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,

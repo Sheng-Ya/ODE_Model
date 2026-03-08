@@ -296,82 +296,82 @@ output_names = [
 
 
 
-dgsm_summary = OrderedDict()
-
-# min_frac = 0.003  # 0.3%
-min_frac = 0.01
-# min_frac = 0.0
-
-for col in range(Result.shape[1]):
-
-    Y = Result[:, col]
-    output_label = output_names[col]
-
-    # Skip invalid outputs
-    if not np.all(np.isfinite(Y)):
-        print(f"Skipping {output_label} (non-finite values)")
-        continue
-
-    # DGSM analysis
-    Si = dgsm.analyze(sp, X, Y, print_to_console=False)
-
-    dgsm_vals = np.array(Si["dgsm"], dtype=float)
-    names = np.array(Si["names"])
-
-    # Sort descending
-    order = np.argsort(dgsm_vals)[::-1]
-    dgsm_sorted = dgsm_vals[order]
-    names_sorted = names[order]
-
-    total = dgsm_sorted.sum()
-    if total <= 0 or not np.isfinite(total):
-        print(f"Skipping {output_label} (non-positive/invalid DGSM total: {total})")
-        continue
-
-    # --- NEW: keep only params contributing >= 0.3% of total ---
-    thresh = min_frac * total
-    keep = dgsm_sorted >= thresh
-    dgsm_kept = dgsm_sorted[keep]
-    names_kept = names_sorted[keep]
-
-    # Cumulative sensitivity over kept params, but target is 90% of ORIGINAL total
-    cumu = np.cumsum(dgsm_kept)
-
-    target = 0.9 * total
-    if cumu.size == 0:
-        idx_90 = 0
-        top_names_90 = np.array([])
-        top_dgsm_90 = np.array([])
-        reached = 0.0
-    else:
-        idx_90 = np.searchsorted(cumu, target) + 1
-        # if you can't reach 90% without including <0.3% params, cap at all kept
-        idx_90 = min(idx_90, len(cumu))
-        top_names_90 = names_kept[:idx_90]
-        top_dgsm_90 = dgsm_kept[:idx_90]
-        reached = cumu[idx_90 - 1] / total
-
-    dgsm_summary[output_label] = {
-        "n_params_90": idx_90,
-        "param_names": top_names_90,
-        "dgsm_values": top_dgsm_90,
-        "min_frac": min_frac,
-        "fraction_of_total_reached": reached,
-        "n_params_passing_0p3pct": int(keep.sum()),
-    }
-
-    # ---- Console output ----
-    print("\n" + "=" * 80)
-    print(f"Output: {output_label}")
-    print(f"Min per-parameter contribution: {min_frac*100:.1f}% (DGSM >= {thresh:.4e})")
-    print(f"Parameters selected (up to 90% total, with cutoff): {idx_90}")
-    print(f"Fraction of total DGSM reached: {reached*100:.2f}%")
-    if reached < 0.90:
-        print("NOTE: Could not reach 90% without including parameters < 1.0% each.")
-
-    print("-" * 80)
-    for name, val in zip(top_names_90, top_dgsm_90):
-        print(f"{name:25s} : {val:.4e}  ({val/total*100:.3f}%)")
+# dgsm_summary = OrderedDict()
+#
+# # min_frac = 0.003  # 0.3%
+# min_frac = 0.01
+# # min_frac = 0.0
+#
+# for col in range(Result.shape[1]):
+#
+#     Y = Result[:, col]
+#     output_label = output_names[col]
+#
+#     # Skip invalid outputs
+#     if not np.all(np.isfinite(Y)):
+#         print(f"Skipping {output_label} (non-finite values)")
+#         continue
+#
+#     # DGSM analysis
+#     Si = dgsm.analyze(sp, X, Y, print_to_console=False)
+#
+#     dgsm_vals = np.array(Si["dgsm"], dtype=float)
+#     names = np.array(Si["names"])
+#
+#     # Sort descending
+#     order = np.argsort(dgsm_vals)[::-1]
+#     dgsm_sorted = dgsm_vals[order]
+#     names_sorted = names[order]
+#
+#     total = dgsm_sorted.sum()
+#     if total <= 0 or not np.isfinite(total):
+#         print(f"Skipping {output_label} (non-positive/invalid DGSM total: {total})")
+#         continue
+#
+#     # --- NEW: keep only params contributing >= 0.3% of total ---
+#     thresh = min_frac * total
+#     keep = dgsm_sorted >= thresh
+#     dgsm_kept = dgsm_sorted[keep]
+#     names_kept = names_sorted[keep]
+#
+#     # Cumulative sensitivity over kept params, but target is 90% of ORIGINAL total
+#     cumu = np.cumsum(dgsm_kept)
+#
+#     target = 0.9 * total
+#     if cumu.size == 0:
+#         idx_90 = 0
+#         top_names_90 = np.array([])
+#         top_dgsm_90 = np.array([])
+#         reached = 0.0
+#     else:
+#         idx_90 = np.searchsorted(cumu, target) + 1
+#         # if you can't reach 90% without including <0.3% params, cap at all kept
+#         idx_90 = min(idx_90, len(cumu))
+#         top_names_90 = names_kept[:idx_90]
+#         top_dgsm_90 = dgsm_kept[:idx_90]
+#         reached = cumu[idx_90 - 1] / total
+#
+#     dgsm_summary[output_label] = {
+#         "n_params_90": idx_90,
+#         "param_names": top_names_90,
+#         "dgsm_values": top_dgsm_90,
+#         "min_frac": min_frac,
+#         "fraction_of_total_reached": reached,
+#         "n_params_passing_0p3pct": int(keep.sum()),
+#     }
+#
+#     # ---- Console output ----
+#     print("\n" + "=" * 80)
+#     print(f"Output: {output_label}")
+#     print(f"Min per-parameter contribution: {min_frac*100:.1f}% (DGSM >= {thresh:.4e})")
+#     print(f"Parameters selected (up to 90% total, with cutoff): {idx_90}")
+#     print(f"Fraction of total DGSM reached: {reached*100:.2f}%")
+#     if reached < 0.90:
+#         print("NOTE: Could not reach 90% without including parameters < 1.0% each.")
+#
+#     print("-" * 80)
+#     for name, val in zip(top_names_90, top_dgsm_90):
+#         print(f"{name:25s} : {val:.4e}  ({val/total*100:.3f}%)")
 
 
 # dgsm_summary = OrderedDict()
@@ -525,16 +525,16 @@ gap = 0.5
 x_hr = np.arange(k)
 x_mv = np.arange(k) + (k + gap)
 
-# Set global style
-plt.rcParams.update({
-    "font.size": 20,  # Larger font
-    "font.weight": "bold",  # Bold text
-    # "axes.labelweight": "bold",
-    "axes.titlesize": 16,
-    # "axes.titleweight": "bold",
-    "legend.fontsize": 18,
-    "lines.linewidth": 3.5,  # Thicker lines
-})
+# # Set global style
+# plt.rcParams.update({
+#     "font.size": 20,  # Larger font
+#     "font.weight": "bold",  # Bold text
+#     # "axes.labelweight": "bold",
+#     "axes.titlesize": 16,
+#     # "axes.titleweight": "bold",
+#     "legend.fontsize": 18,
+#     "lines.linewidth": 3.5,  # Thicker lines
+# })
 
 plt.figure(figsize=(12, 3.2))
 
@@ -633,69 +633,69 @@ plt.show()
 
 
 
-# # ranking convergence compared to final basepoint
-# def rank_stability_final(problem, X, Y, max_blocks, step=1, top_k=threshold_index):
-#     """
-#     Compute DGSM rankings as number of base points increases,
-#     comparing each to the final ranking.
-#
-#     Parameters
-#     ----------
-#     problem : dict
-#         SALib problem definition
-#     X, Y : arrays
-#         Inputs and outputs
-#     max_blocks : int
-#         Maximum number of base points (blocks)
-#     step : int
-#         Increment in blocks
-#     top_k : int
-#         Number of top parameters to track for overlap stability
-#     """
-#     D = problem["num_vars"]
-#     block_sizes = range(step, max_blocks + 1, step)
-#     rankings = []
-#
-#     # First, compute rankings for all block sizes
-#     for nb in block_sizes:
-#         N = (D + 1) * nb
-#         Si = dgsm.analyze(problem, X[:N, :], Y[:N])
-#         dgsm_vals = np.array(Si['dgsm'])
-#         rank = np.argsort(dgsm_vals)[::-1][:top_k]
-#         rankings.append(rank)
-#
-#     # Use final ranking as reference
-#     final_rank = rankings[-1]
-#
-#     corrs = []
-#     overlaps = []
-#
-#     for rank in rankings:
-#         # Spearman correlation with final ranking
-#         corr, _ = spearmanr(rank, final_rank)
-#         corrs.append(corr)
-#
-#         # Top-k overlap
-#         overlap = len(set(rank) & set(final_rank)) / top_k
-#         overlaps.append(overlap)
-#
-#     return block_sizes, corrs, overlaps, rankings
-#
-#
-# # Example usage
-# max_blocks = int(len(HR)/block_size)
-# block_sizes, corrs, overlaps, rankings = rank_stability_final(sp, X, HR, max_blocks=max_blocks, step=10)
-#
-# # Plot both metrics
-# plt.figure(figsize=(8,5))
-# plt.plot(block_sizes, corrs, marker="o", label="Spearman correlation")
-# plt.plot(block_sizes, overlaps, marker="s", label="Top-k overlap")
-# plt.xlabel("Number of base points (blocks)")
-# plt.ylabel("Stability metric")
-# plt.title("DGSM Rankings with Increasing Base Points Compared to All Samples")
-# plt.legend()
-# plt.grid(True, linestyle="--", alpha=0.6)
-# plt.show()
+# ranking convergence compared to final basepoint
+def rank_stability_final(problem, X, Y, max_blocks, step=1, top_k=threshold_index):
+    """
+    Compute DGSM rankings as number of base points increases,
+    comparing each to the final ranking.
+
+    Parameters
+    ----------
+    problem : dict
+        SALib problem definition
+    X, Y : arrays
+        Inputs and outputs
+    max_blocks : int
+        Maximum number of base points (blocks)
+    step : int
+        Increment in blocks
+    top_k : int
+        Number of top parameters to track for overlap stability
+    """
+    D = problem["num_vars"]
+    block_sizes = range(step, max_blocks + 1, step)
+    rankings = []
+
+    # First, compute rankings for all block sizes
+    for nb in block_sizes:
+        N = (D + 1) * nb
+        Si = dgsm.analyze(problem, X[:N, :], Y[:N])
+        dgsm_vals = np.array(Si['dgsm'])
+        rank = np.argsort(dgsm_vals)[::-1][:top_k]
+        rankings.append(rank)
+
+    # Use final ranking as reference
+    final_rank = rankings[-1]
+
+    corrs = []
+    overlaps = []
+
+    for rank in rankings:
+        # Spearman correlation with final ranking
+        corr, _ = spearmanr(rank, final_rank)
+        corrs.append(corr)
+
+        # Top-k overlap
+        overlap = len(set(rank) & set(final_rank)) / top_k
+        overlaps.append(overlap)
+
+    return block_sizes, corrs, overlaps, rankings
+
+
+# Example usage
+max_blocks = int(len(HR)/block_size)
+block_sizes, corrs, overlaps, rankings = rank_stability_final(sp, X, HR, max_blocks=max_blocks, step=10)
+
+# Plot both metrics
+plt.figure(figsize=(8,5))
+plt.plot(block_sizes, corrs, marker="o", label="Spearman correlation")
+plt.plot(block_sizes, overlaps, marker="s", label="Top-k overlap")
+plt.xlabel("Number of base points (blocks)")
+plt.ylabel("Stability metric")
+plt.title("DGSM Rankings with Increasing Base Points Compared to All Samples")
+plt.legend()
+plt.grid(True, linestyle="--", alpha=0.6)
+plt.show()
 
 
 

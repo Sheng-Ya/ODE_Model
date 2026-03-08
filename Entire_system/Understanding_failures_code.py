@@ -3,10 +3,12 @@ import copy
 import signal
 import numpy as np
 from SALib import ProblemSpec
-# from SALib.sample import finite_diff
+from SALib.sample import finite_diff
 from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
+import pandas as pd
+from matplotlib.backends.backend_pdf import PdfPages
 
 from tqdm import tqdm
 import tqdm_joblib
@@ -39,18 +41,6 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = all_time[latest_nonzero_index]
         if t < latest_nonzero_value:
-            # # num_removed = 6
-            # index = -1
-            #
-            # # Iterating through the buffer in circular order
-            # for j in range(BUFFER_LIMIT):
-            #     logical_index = (latest_nonzero_index - j - 1) % BUFFER_LIMIT  # Traversing backwards
-            #     if all_time[logical_index] < t:
-            #         index = (logical_index + 1) % BUFFER_LIMIT
-            #         break
-            #
-            # num_removed = (actual_index - index) if (actual_index - index) >= 0 else BUFFER_LIMIT + (
-            #             actual_index - index)
             num_removed = 3
             index = (actual_index - 3) % BUFFER_LIMIT
             for j in range(num_removed):
@@ -107,33 +97,7 @@ num_resp_control = len(required_resp_control_keys)
 
 IC_overall = np.concatenate((IC_cardio, IC_cardio_contr, IC_gas, IC_resp_contr))
 
-# def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
-#     dt = 0.001 # must edit in Resp_Control_Breath_Optimiser too
-#     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-#     tolerance = 0.0001
-#
-#     VAflow_vals = np.linspace(0.01, 1.2, 200)
-#     # VAflow_vals = np.repeat(VAflow_vals, 3)
-#
-#     VD = GV_dead * VAflow_vals + V0_dead
-#
-#     optimal_t1 = np.empty_like(VAflow_vals)
-#     optimal_t2 = np.empty_like(VAflow_vals)
-#     initial_guess = np.array([t1, t2], dtype=float)
-#     required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
-#
-#     for i, (VAflow, VD_volume) in enumerate(zip(VAflow_vals, VD)):
-#         res = minimize(objective, x0=initial_guess,
-#                        args=(required_params, VAflow, VD_volume, dt, tolerance), method='nelder-mead', bounds=bounds)
-#
-#         initial_guess = res.x
-#         optimal_t1[i] = initial_guess[0]
-#         optimal_t2[i] = initial_guess[1]
-#
-#     cs_t1 = CubicSpline(VAflow_vals, optimal_t1, bc_type="natural")
-#     cs_t2 = CubicSpline(VAflow_vals, optimal_t2, bc_type="natural")
-#
-#     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
+
 
 def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
     dt = 0.001 # must edit in Resp_Control_Breath_Optimiser too
@@ -545,7 +509,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=150, IC_initial=None, breath_coef=None):
     try:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -561,7 +525,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=N
 def run_basepoint(base_sample, storage_copy, old_Parameters):
     try:
         # run all basepoints even if slow
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
+        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(
             base_sample, storage_copy, old_Parameters
         )
 
@@ -586,211 +550,42 @@ def run_basepoint(base_sample, storage_copy, old_Parameters):
         print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_new1.npy'):
-    results_all = []
 
+def parallel_basepoints(base_param_samples, storage, n_jobs, save_path="Basepoint_Result.npy"):
+    """
+    Run ONLY base samples (no finite-difference perturbations).
+    Saves an (N_base, 31) array.
+    """
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
-    block_size = len(param_samples[0]) + 1
-    param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
+    # Run basepoints in parallel; each gets a fresh storage copy
+    base_dicts = Parallel(n_jobs=n_jobs)(
+        delayed(run_basepoint)(params, copy.deepcopy(storage), Old_Parameters)
+        for params in base_param_samples
+    )
 
+    print("done")
 
-    # run base points first
-    base_results = Parallel(n_jobs=n_jobs)(delayed(run_basepoint)(params[0], copy.deepcopy(storage), Old_Parameters)
-        for params in param_blocks)
+    # Convert to array; failed runs -> zeros
+    results = []
+    for bd in base_dicts:
+        if bd is None:
+            results.append([0.0] * 31)
+        else:
+            results.append(bd["result"])
 
-
-    # go through each base point and perturbation with the corresponding initial conditions
-    for i, block in enumerate(param_blocks):
-        base = base_results[i]
-
-        if base is None: # base failed → whole block invalid
-            results_all.extend(np.zeros((block_size, 31)))
-            np.save(save_path, np.array(results_all))
-            continue
-
-        # Otherwise, run full block in parallel
-        with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim Block {i}", total=len(block), disable=True)):
-            results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
-            copy.deepcopy(base["storage_final"]), Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
-
-        results_block = [res[0] for res in results_perturbations]
-        results_all.extend(results_block)
-
-        # Save chunk incrementally (appending)
-        # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
-        # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
-
-        # Save after each block
-        np.save(save_path, np.array(results_all))
-
-    return results_all
-
-
-def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef, minimise_coef):
-    # Extract next params
-    next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-
-    # If coefficients differ, don't reuse breath_coef
-    if next_minimise_coef != minimise_coef:
-        for attempt in range(3):
-            result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
-
-            if storage_final == None:
-                return ([0.0] * 31, None, None, None)
-
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
-
-            if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
-            print(f"Not converged")
-
-        return result, IC_final, storage_final, breath_coef
-    else:
-        for attempt in range(3):
-            result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
-
-            if storage_final == None:
-                return ([0.0] * 31, None, None, None)
-
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
-
-            if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
-            print(f"Not converged")
-
-        return result, IC_final, storage_final, breath_coef
-
-
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     block_size = len(param_samples[0]) + 1
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for w, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#         print(f"Running base sample for block {w+1}...")
-#
-#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-#
-#         print(f"Base sample result: {base_result}")
-#
-#         if base_result[0] == 0:
-#             print(f"Skipping block {w + 1} due to base failure.")
-#             results_all.extend(np.zeros((block_size, 31)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         results_perturbations = []
-#         for j, params in enumerate(block):
-#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
-#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-#             storage_from_base = copy.deepcopy(storage_final)
-#             IC_local = IC_final.copy()
-#             if next_minimise_coef != minimise_coef:
-#                 for attempt in range(3):
-#                     result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local)
-#                     i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
-#                     HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
-#
-#                     if (max(HR) - min(HR)) < 0.03:
-#                         print(f"converged")
-#                         break
-#                     print(f"Not converged")
-#             else:
-#                 for attempt in range(3):
-#                     result, IC_local, storage_from_base, breath_coef = simulate_cpu(params, storage_from_base, Old_Parameters, IC_initial=IC_local, breath_coef=breath_coef)
-#                     i_buffer = storage_from_base["i"].item() % BUFFER_LIMIT
-#                     HR = np.concatenate((storage_from_base["HR_store"][i_buffer:], storage_from_base["HR_store"][:i_buffer]))
-#
-#                     if (max(HR) - min(HR)) < 0.03:
-#                         print(f"converged")
-#                         break
-#                     print(f"Not converged")
-#
-#             print(f"Perturbation result: {result}")
-#             results_perturbations.append(result)
-#
-#         results_block = [base_result] + results_perturbations
-#         results_all.extend(results_block)
-#
-#         # Save checkpoint files for debugging
-#         np.save(f'IC_final_{w:03d}.npy', IC_final)
-#         np.save(f'Next_final_{w:03d}.npy', storage_final)
-#
-#         np.save(save_path, np.array(results_all))
-#         print(f"Block {w+1} finished and results saved.")
-#
-#     return results_all
-
-
-# # code for running serially but for each base point separately
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
-#     results_all = []
-#
-#     if os.path.exists(save_path):
-#         os.remove(save_path)
-#
-#     block_size = len(param_samples[0]) + 1
-#     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
-#
-#     for w, block in enumerate(param_blocks):
-#         base_sample = block[0]
-#         copy_of_storage = copy.deepcopy(storage)
-#         print(f"Running base sample for block {w+1}...")
-#
-#         base_result, IC_final, storage_final, breath_coef = simulate_cpu(base_sample, copy_of_storage, Old_Parameters)
-#         minimise_coef = [base_sample["GV_dead"], base_sample["V0_dead"], base_sample["E_rs"], base_sample["R_rs"]]
-#
-#         print(f"Base sample result: {base_result}")
-#
-#         if base_result[0] == 0:
-#             print(f"Skipping block {w + 1} due to base failure.")
-#             results_all.extend(np.zeros((174, 3)))
-#             np.save(save_path, np.array(results_all))
-#             continue
-#
-#         results_perturbations = []
-#         for j, params in enumerate(block):
-#             print(f"Running perturbation {j}/{len(block)} of block {w+1}...")
-#             next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
-#             if next_minimise_coef != minimise_coef:
-#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final)
-#             else:
-#                 res = simulate_cpu(params, copy.deepcopy(storage_final), Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
-#
-#             # i = storage_final["i"].item() % BUFFER_LIMIT
-#
-#             print(f"Perturbation result: {res[0]}")
-#             results_perturbations.append(res[0])
-#
-#         results_block = [base_result] + results_perturbations
-#         results_all.extend(results_block)
-#
-#         # # Save checkpoint files for debugging
-#         # np.save(f'IC_final_{w:03d}.npy', IC_final)
-#         # np.save(f'Next_final_{w:03d}.npy', storage_final)
-#
-#         np.save(save_path, np.array(results_all))
-#         print(f"Block {w+1} finished and results saved.")
-#
-#     return results_all
+    results = np.asarray(results, dtype=float)
+    np.save(save_path, results)
+    return results
 
 
 if __name__ == "__main__":
-    lower = 0.8
-    upper = 1.2
 
+    lower = 0.5
+    upper = 1.5
+
+    # change
     sp = ProblemSpec({
         'names': [
             # gas
@@ -880,8 +675,8 @@ if __name__ == "__main__":
 
         'bounds': [
             # gas
-            [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1], [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-            [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
+            [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+            [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
@@ -918,7 +713,7 @@ if __name__ == "__main__":
             [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
             [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
-            [6 * lower, 6 * upper], [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+            [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
             [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
             [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
@@ -935,7 +730,7 @@ if __name__ == "__main__":
             [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
             [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
             [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
-            [350 * lower, 350 * upper], [0.00134 * 0.9, 0.00134 * 1.1], [2.6 * 0.9, 2.6 * 1.1], [3.03e-5 * 0.9, 3.03e-5 * 1.1],
+            [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
             [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
@@ -967,21 +762,186 @@ if __name__ == "__main__":
     param_keys = list(sp["names"])
 
     # DGSM uses finite differences sampling since it is a derivative based method
-    # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
+    # change
+    base_name = "pct_50_bad_outside_20_all"
+
+    # change
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_20_all_21_01_25.npy", X)
-    X = np.load("DGSM_500_X_rest_20_all_21_01_25.npy")
-    # X = np.load("DGSM_500_X_rest_20_no_Pthor_21_01_25.npy")
-    # X = np.load("DGSM_500_X_rest_20_no_Pthor_Vtot_21_01_25.npy")[:54600]
+    # np.save(f"{base_name}_X.npy", X[::273])
+    # scp "sw4924@bioeng397-pc.dept.ic.ac.uk:~/project/pct_50_bad_outside_20_no_xsp_C2*" "C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\"
+
+    X = np.load(f"{base_name}_X.npy")
+    Save_path = f"{base_name}_Result.npy"
+    out_csv = f"{base_name}.csv"
+    OUT_PDF = f"{base_name}.pdf"
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
-    # AA = param_samples[0]
-    # print(AA)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=64)
-    # Result = parallel_simulations(param_samples, Next_Conditions)
+    Result = parallel_basepoints(param_samples, Next_Conditions, n_jobs=64, save_path=Save_path)
 
-    np.save('DGSM_500_Result_rest_20_all_21_01_25.npy', Result)
+    #########################
+    # Understand failure percentage
+    N_BASE_EXPECTED = 500  # you want denominator = 500
+
+    FAIL_VALUE = 0.0
+    SLOW_VALUE = 10000.0
+    VALUE_TOL = 0.0  # set small tol if needed (e.g., 1e-8)
+
+    OUTSIDE_FRAC = 0.20  # +/-20% of nominal
+
+    # If you have a true nominal vector, load it here (shape: (n_params,))
+    # Otherwise we use midpoint of bounds as "nominal".
+    NOMINAL_OVERRIDE = None  # e.g. np.load("true_nominal.npy")
 
 
+    def _allclose_rows(results: np.ndarray, value: float, tol: float) -> np.ndarray:
+        if tol == 0.0:
+            return np.all(results == value, axis=1)
+        return np.all(np.abs(results - value) <= tol, axis=1)
+
+
+    def get_nominals(bounds: np.ndarray) -> np.ndarray:
+        # Default nominal = midpoint of bounds
+        return 0.5 * (bounds[:, 0] + bounds[:, 1])
+
+    # Load basepoints
+    X_base = X
+
+    results = Result
+
+    n_base, n_params = X_base.shape
+    n_outputs = results.shape[1] if results.ndim == 2 else 1
+
+    bounds = np.array(sp["bounds"], dtype=float)
+    names = list(sp["names"])
+
+    nominal = get_nominals(bounds)
+
+    # Masks: fail, slow, combined bad
+    fail_mask = _allclose_rows(results, FAIL_VALUE, VALUE_TOL)
+    slow_mask = _allclose_rows(results, SLOW_VALUE, VALUE_TOL)
+    ok_mask = ~(fail_mask | slow_mask)
+    bad_mask = fail_mask | slow_mask
+
+    if (~bad_mask).all():
+        print("No Failures")
+
+    else:
+        rows = []
+        for j, pname in enumerate(names):
+            xj = X_base[:, j]
+            nom = nominal[j]
+
+            a = (1 - OUTSIDE_FRAC) * nom
+            b = (1 + OUTSIDE_FRAC) * nom
+            lo, hi = (a, b) if a <= b else (b, a)
+            outside = (xj < lo) | (xj > hi)
+            outside_low = (xj < lo)
+            outside_high = (xj > hi)
+
+            # COUNT of (bad AND outside) — denominator is always 500
+            n_bad_outside = int(np.sum(bad_mask & outside))
+            n_bad_outside_low = int(np.sum(bad_mask & outside_low))
+            n_bad_outside_high = int(np.sum(bad_mask & outside_high))
+            max_side = max(n_bad_outside_low, n_bad_outside_high)
+
+            rows.append({
+                "parameter": pname,
+                "nominal_used": float(nom),
+                "lower_20pct": float(lo),
+                "upper_20pct": float(hi),
+                "n_bad_and_outside": n_bad_outside,
+                "pct_bad_and_outside_over_500": 100.0 * n_bad_outside / N_BASE_EXPECTED,
+                "n_bad_and_outside_low": n_bad_outside_low,
+                "n_bad_and_outside_high": n_bad_outside_high,
+                "max_bad_outside_side": max_side,
+            })
+
+        df = pd.DataFrame(rows).sort_values(
+            by="max_bad_outside_side",
+            ascending=False
+        )
+
+        df.to_csv(out_csv, index=False)
+
+        # Print top 25
+        with pd.option_context("display.max_rows", 40, "display.width", 180):
+            print(df.head(25).to_string(index=False))
+
+        print(f"\nSaved -> {out_csv}")
+
+        #########################
+        # Understand failure code
+
+        # Plot style
+        POINT_SIZE = 10
+        ALPHA_OK = 0.6
+        ALPHA_FAIL = 0.9
+        ALPHA_SLOW = 0.9
+
+        print(f"Loaded basepoints: {n_base}")
+        print(f"Parameters: {n_params}")
+        print(f"Outputs per run: {n_outputs}")
+        print(f"Failures (all outputs = {FAIL_VALUE}): {fail_mask.sum()} / {n_base}")
+        print(f"Too slow (all outputs = {SLOW_VALUE}): {slow_mask.sum()} / {n_base}")
+        print(f"OK: {ok_mask.sum()} / {n_base}")
+
+        with PdfPages(OUT_PDF) as pdf:
+            x_idx = np.arange(n_base)
+
+            for j, name in enumerate(param_keys):
+                vals = X_base[:, j]
+                fig = plt.figure(figsize=(10, 4))
+
+                # OK
+                if ok_mask.any():
+                    plt.scatter(
+                        x_idx[ok_mask],
+                        vals[ok_mask],
+                        s=8,
+                        alpha=0.25,
+                        label="OK",
+                        zorder=1,
+                    )
+
+                # Failures (0)
+                if fail_mask.any():
+                    plt.scatter(
+                        x_idx[fail_mask],
+                        vals[fail_mask],
+                        s=160,  # bigger marker
+                        marker="x",
+                        c="#ff1f1f",  # bright red
+                        linewidths=2.8,  # thicker X
+                        alpha=1.0,
+                        zorder=5,
+                        label=f"Failure (all outputs = {FAIL_VALUE:g})",
+                    )
+
+                # Too slow (10000)
+                if slow_mask.any():
+                    plt.scatter(
+                        x_idx[slow_mask],
+                        vals[slow_mask],
+                        s=180,  # bigger marker
+                        marker="^",
+                        facecolors="#ffcc00",  # bright yellow
+                        edgecolors="black",  # crisp outline
+                        linewidths=1.4,
+                        alpha=1.0,
+                        zorder=6,
+                        label=f"Too slow (all outputs = {SLOW_VALUE:g})",
+                    )
+
+                plt.title(f"{name} — OK vs failure vs too slow")
+                plt.xlabel("Basepoint index")
+                plt.ylabel("Parameter value")
+                plt.legend(loc="best")
+                plt.tight_layout()
+
+                pdf.savefig(fig)
+
+                plt.close(fig)
+
+        print(f"Saved: {OUT_PDF}")

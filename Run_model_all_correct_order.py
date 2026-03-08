@@ -373,7 +373,7 @@ def simulate():
     state_last_beat = interp(last_beat_t)
     state_last_breath = interp(last_breath_t)
     combined = np.concatenate((state_last_beat[:57], state_last_breath[57:]))
-    print(combined)
+    # print(combined)
     np.save("combined.npy", combined)
 
     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
@@ -679,7 +679,7 @@ if __name__ == "__main__":
 
     variables_to_plot = [
         # "CvbCO2", "CvbO2", "VAflow", "V",
-        "Q_pp", "P_sa", "VT_vc", #"PvtCO2", "dV_dt"
+        "Q_pp", # "P_sa", "VT_vc", #"PvtCO2", "dV_dt"
     ]
 
     for key in variables_to_plot:
@@ -721,6 +721,16 @@ if __name__ == "__main__":
     plt.xlabel("Time (s)")
     plt.title("Traces")
     plt.legend()
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_la"][:index], label="P_la")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["AA"][:index], label="P_peri")
+    ax1.legend()
+
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["P_lv"][:index], label="P_lv", color="y")
     plt.show()
 
 
@@ -823,9 +833,9 @@ if __name__ == "__main__":
     theta_tr = np.concatenate((Next_Conditions["theta_tr_store"][i:], Next_Conditions["theta_tr_store"][:i]))
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
 
-    N = 10  # number of consecutive closed samples required
+    N = 100  # number of consecutive closed samples required
 
-    theta_min = 0.10129390810546873
+    theta_min = 0.12037493286132811
     is_open = theta_ao > theta_min
     open_idx1 = []
     for k in range(N, len(theta_ao)):
@@ -874,6 +884,7 @@ if __name__ == "__main__":
         if is_open_tr[k] and not np.any(is_open_tr[k - N:k]):
             open_idx4.append(k)
     open_idx4 = np.array(open_idx4)[-11:-1]
+    print(open_idx4)
 
     is_closed_tr = theta_tr <= theta_min
     close_idx4 = []
@@ -1374,17 +1385,17 @@ if __name__ == "__main__":
     plt.figure(figsize=(14, 10))
     for i, label in enumerate(state_variable_names):
         # if label != "beta":
-        if label in ["VT_pa", "VT_pp", "VT_pv", "Q_pa",
-        "VT_la", "VT_lv", "VT_ra", "VT_rv",
-        "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_amv", "P_sp", "P_sa", "Q_sa", 'VT_vc',
-        "theta_ao", "dtheta_ao_dt", "theta_po", 'dtheta_po_dt', "theta_mi", 'dtheta_mi_dt', "theta_tr", 'dtheta_tr_dt',
-
-     # Cardio controller state variables
-        "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
-        "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", 'R_ep_change', "R_sp_change",
-        "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change",
-        "Emax_rv_change", "Ts_change", "Tv_change", 'xb_O2', "xb_CO2", "xh_O2", 'xh_CO2', "Wh", 'xrm_O2', 'xrm_CO2', 'xam_O2', "xM", "x_met", "P_n_current"]:  # Skip "Wh"
-            continue
+     #    if label in ["VT_pa", "VT_pp", "VT_pv", "Q_pa",
+     #    "VT_la", "VT_lv", "VT_ra", "VT_rv",
+     #    "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_amv", "P_sp", "P_sa", "Q_sa", 'VT_vc',
+     #    "theta_ao", "dtheta_ao_dt", "theta_po", 'dtheta_po_dt', "theta_mi", 'dtheta_mi_dt', "theta_tr", 'dtheta_tr_dt',
+     #
+     # # Cardio controller state variables
+     #    "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
+     #    "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", 'R_ep_change', "R_sp_change",
+     #    "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change", "Emax_lv_change",
+     #    "Emax_rv_change", "Ts_change", "Tv_change", 'xb_O2', "xb_CO2", "xh_O2", 'xh_CO2', "Wh", 'xrm_O2', 'xrm_CO2', 'xam_O2', "xM", "x_met", "P_n_current"]:  # Skip "Wh"
+     #        continue
         color = colors[i % len(colors)]  # Cycle through colors if there are more than 20 variables # Cycle through markers
         plt.plot(solution.t, state_variables[i], label=label, color=color, linestyle='-', markersize=4)
 

@@ -126,7 +126,7 @@ Next_Conditions = {
     "Emax_rv": np.pad(np.array([1.7124193540029267]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
     "I": np.pad(np.array([0.0]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
     "P_ev": np.pad(np.array([5.385308948403031]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
-    "V_u": np.pad(np.array([3246.8116091915526]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
+    "AAA": np.pad(np.array([3246.8116091915526]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
     "R_bv": np.pad(np.array([0.075]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
     "P_amv": np.pad(np.array([-33.598261553547154]), (0, 3000000 - 1), mode="constant", constant_values=1e6),
     "Ca_O2": np.pad(np.array([0.19666618065357133]), (0, 3000000 - 1), mode="constant", constant_values=1e6),

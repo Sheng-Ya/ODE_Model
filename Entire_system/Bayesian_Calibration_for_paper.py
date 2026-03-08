@@ -13,27 +13,6 @@ from multiprocessing import resource_tracker
 # Prevent the resource tracker from complaining about shared memory cleanup
 resource_tracker._resource_tracker._STOP = True
 
-# silence_resource_tracker_childprocesserror.py
-import sys
-
-_old_hook = sys.unraisablehook
-
-def _quiet_resource_tracker(unraisable):
-    exc = unraisable.exc_value
-    obj = unraisable.object
-
-    # Filter only: multiprocessing.resource_tracker ResourceTracker + ChildProcessError
-    if isinstance(exc, ChildProcessError):
-        if obj is not None:
-            mod = getattr(obj.__class__, "__module__", "")
-            name = getattr(obj.__class__, "__name__", "")
-            if mod == "multiprocessing.resource_tracker" and name == "ResourceTracker":
-                return  # swallow it
-
-    _old_hook(unraisable)
-
-sys.unraisablehook = _quiet_resource_tracker
-
 
 
 from getdist.arviz_wrapper import arviz_to_mcsamples
@@ -308,27 +287,28 @@ observation = {"Heart Rate": (1.1, 0.1), "Systolic Pressure": (105, 5), "Diastol
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
-    # A = torch.load("nroy_samples.pt", map_location="cpu").to("cpu")
-    # A = np.load("check.npy")
+    # A = torch.load("nroy_samples_Wave_4.pt", map_location="cpu").detach().cpu().numpy()
+    # AA = np.load("check_Wave_4.npy")
     # param_keys = list(sp["names"])
     # param_samples = [dict(zip(param_keys, row)) for row in A]
-    # AA = param_samples[65]
-    # A = np.load("NROY_Points_rest2.npy")
-    # AA = np.load("NROY_Implaus_rest2.npy")
-    # AAA = np.load("test_param_rest2.npy")
-
-    # # Filter A and AA
-    # mask = np.all(AA < 3, axis=1)
-    # AA_filtered = AA[mask]
-    # AAA_filtered = AAA[mask]
+    # AAAAA = param_samples[100]
+    # print(AAAAA)
+    # AAA = np.load("NROY_Points_rest_Wave_4.npy")
+    # AAAA = np.load("NROY_Implaus_rest_Wave4.npy")
+    # AAAAA = np.load("test_param_rest_Wave_4.npy")
+    # #
+    # # # Filter A and AA
+    # mask = np.all(AAAA < 3, axis=1)
+    # AAAA_filtered = AAAA[mask]
+    # AAAAA_filtered = AAAAA[mask]
     #
     # mask2 = AA_filtered[:, 7] < 2
     # AA_filtered1  = AA_filtered[mask2]
     # AAA_filtered1 = AAA_filtered[mask2]
     #
     # param_keys = list(sp["names"])
-    # param_samples = [dict(zip(param_keys, row)) for row in AAA_filtered1]
-    # AAAA = param_samples[3]
+    # param_samples = [dict(zip(param_keys, row)) for row in AAAAA_filtered]
+    # AAAA = param_samples[10]
 
 
     hmw = HistoryMatchingWorkflow(
@@ -344,7 +324,7 @@ if __name__ == "__main__":
     )
 
     size = 200000
-    _ = hmw.run_waves(n_waves=3, n_simulations=1000, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=10, resume_wave=False)
+    _ = hmw.run_waves(n_waves=5, n_simulations=1000, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

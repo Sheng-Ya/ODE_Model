@@ -754,13 +754,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
                 outs.append(full)
 
-            print(f"==============Batch {batch_idx + 1} done")
+            # print(f"==============Batch {batch_idx + 1} done")
             return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device=self.device)
 
         results = Parallel(n_jobs=n_jobs)(
             delayed(sample_batch)(batch, idx) for idx, batch in enumerate(batches)
         )
-
+        print(f"==============Batch done")
         return torch.cat(results, dim=0)
 
 
@@ -1036,29 +1036,46 @@ class HistoryMatchingWorkflow(HistoryMatching):
             "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
             "PaO2", "PaCO2"]
         models = {}
-        # feature_mask = {}
         for name in output_names:
             folder = name
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
-            # path2 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_meta.joblib")
             models[name] = joblib.load(path1)
-            # feature_mask[name] = joblib.load(path2)
-
-        # parameter_idx_by_name = {
-        #     name: np.where(np.asarray(feature_mask[name]["feature_mask"], dtype=bool))[0]
-        #     for name in output_names
-        # }
 
         means = {}
         variances = {}
 
+        # X = test_x[:, self.parameter_idx]
+        # use_inner = (self.nroy_samples is None)
+        #
+        # def _predict_one(name, path, X, use_inner):
+        #     print("start 1")
+        #     model = joblib.load(path)  # each process loads its own copy
+        #     print("done loading")
+        #     # Your two cases collapsed:
+        #     # if nroy_samples is None you used .model, else used model directly
+        #     emu = model.model if use_inner else model
+        #     m, v = emu.predict_mean_and_variance(X)
+        #     print("done 1")
+        #     return name, m, v
+        #
+        # n_jobs = min(64, len(output_names))
+        #
+        # paths = {name: os.path.join(parent, name, f"GaussianProcessMatern32_{name}_best.joblib")
+        #          for name in output_names}
+        #
+        # print("Now predicting mean and var from emulator")
+        #
+        # preds = Parallel(n_jobs=n_jobs)(
+        #     delayed(_predict_one)(name, paths[name], X, use_inner) for name in output_names
+        # )
+        #
+        # means = {name: m for name, m, v in preds}
+        # variances = {name: v for name, m, v in preds}
+
         for name in output_names:
-            # idx = parameter_idx_by_name[name]
-            # X_in = test_x[:, idx]
             if self.nroy_samples is None:
                 target_emulator = models[name].model
-
-            if self.nroy_samples is not None:
+            else:
                 target_emulator = models[name]
 
             means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
@@ -1069,96 +1086,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
 
-        # hr_cols = parameter_idx_by_name["Heart_Rate"]  # columns in test_x used by HR emulator
-        # X = test_x.detach().cpu().numpy() if torch.is_tensor(test_x) else np.asarray(test_x)
-        # N = X.shape[0]
-        #
-        # I = impl_scores
-        # I = I.detach().cpu()
-        #
-        # hr_col = output_names.index("Heart_Rate")
-        # I_hr = I[:, hr_col]
-        #
-        # I_hr = I_hr.detach().cpu().numpy() if torch.is_tensor(I_hr) else np.asarray(I_hr)
-
-        # n_params = len(hr_cols)
-        # n_cols = 6  # tweak
-        # n_rows = math.ceil(n_params / n_cols)
-        #
-        # fig, axes = plt.subplots(n_rows, n_cols, figsize=(3.2 * n_cols, 2.6 * n_rows), squeeze=False)
-        # axes = axes.ravel()
-        #
-        # for k, col in enumerate(hr_cols):
-        #     ax = axes[k]
-        #     xparam = X[:, col]
-        #
-        #     ax.scatter(xparam, I_hr, s=6, alpha=0.35)
-        #     title = f"col {col}"
-        #     # if you have names:
-        #     # title = param_names[col]
-        #     ax.set_title(title)
-        #     ax.set_xlabel("")  # keep clean; too crowded otherwise
-        #     ax.set_ylabel("I(HR)" if k % n_cols == 0 else "")
-        #     ax.grid(True, alpha=0.3)
-        #
-        # # hide unused axes
-        # for j in range(n_params, len(axes)):
-        #     axes[j].axis("off")
-        #
-        # fig.suptitle("Heart_Rate implausibility vs all parameters used by HR emulator", y=1.02)
-        # fig.tight_layout()
-        # plt.show()
-        #
-        # param_col = 56
-        # xparam = test_x[:, param_col]
-        # if torch.is_tensor(xparam):
-        #     xparam = xparam.detach().cpu().numpy()
-        # else:
-        #     xparam = np.asarray(xparam)
-        #
-        # I = impl_scores
-        # I = I.detach().cpu()
-        #
-        # hr_col = output_names.index("Heart_Rate")
-        # I_hr = I[:, hr_col]
-        #
-        # I_hr = I_hr.detach().cpu().numpy() if torch.is_tensor(I_hr) else np.asarray(I_hr)
-        #
-        # plt.figure()
-        # plt.scatter(xparam, I_hr, s=6, alpha=0.5)  # don't set color (per your rules)
-        # plt.xlabel(f"Parameter column {param_col}")
-        # plt.ylabel("Implausibility (Heart_Rate)")
-        # plt.title("Heart_Rate implausibility vs parameter")
-        # plt.grid(True, alpha=0.3)
-        # plt.show()
-
-        # # Rule out implausible parameters from samples using an emulator,
-        # # only use calibration parameter subset
-        # mean, variance = self.emulator.predict_mean_and_variance(
-        #     test_x[:, self.parameter_idx]
-        # )
-
-        # # Just HR plot
-        # fig, ax1 = plt.subplots()
-        # sns.kdeplot(test_x[:, 211], fill=True)
-        #
-        # ax1.set_title(f"mean")
-        # ax1.set_xlabel("Value")
-        # ax1.set_ylabel("Density")
-        # plt.tight_layout()
-        # plt.show()
-        #
-        # fig, ax1 = plt.subplots()
-        # sns.kdeplot(mean, fill=True)
-        #
-        # ax1.set_title(f"mean")
-        # ax1.set_xlabel("Value")
-        # ax1.set_ylabel("Density")
-        # plt.tight_layout()
-        # plt.show()
-
-        # assert variance is not None
-        # impl_scores = self.calculate_implausibility(mean_tensor, variance)
+        print("Done")
 
         return test_x, impl_scores
 
@@ -1364,13 +1292,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
             test_parameters, impl_scores = self.generate_samples(
                 n_test_samples, scaling_factor
             )
+
+            # print("done getting the impl_score")
             # test parameters is a concatenation of every parameter set from before
             nroy_parameters = self.get_nroy(impl_scores, test_parameters)
 
-            # Store results
+            # print("done getting the nroy from self.get_nroy")
+
+            # Store results (test_parameters_list will have as many entries as 200000 * no. of retries)
             nroy_parameters_list.append(nroy_parameters)
             test_parameters_list.append(test_parameters)
             impl_scores_list.append(impl_scores)
+
+            print("done appending")
+
 
             msg = (
                 f"Generated {nroy_parameters.shape[0]} NROY samples on try "
@@ -1387,6 +1322,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Randomly pick at most `n_simulations` parameters from NROY to simulate
         nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
         np.save("check.npy", nroy_simulation_samples)
+        # save on CPU so it's portable across machines/devices
+        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples.pt")
         # A = np.load("check.npy")[64:66]
         # print(A[:,-4:])
         # A = torch.from_numpy(A)
@@ -1428,9 +1365,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(self.emulator, path1)
-
-        # save on CPU so it's portable across machines/devices
-        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples.pt")
 
         # Return test parameters and impl scores for this run/wave
         return torch.cat(test_parameters_list, 0), torch.cat(impl_scores_list, 0)
@@ -1489,6 +1423,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             self.nroy_samples = torch.load("nroy_samples.pt", map_location="cpu").to(self.device)
             last_wave = int(torch.load("last_wave.pt", map_location="cpu"))
             start_i = last_wave + 1
+            print(start_i)
         else:
             start_i = 0
 
