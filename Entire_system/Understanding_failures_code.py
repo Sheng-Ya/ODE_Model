@@ -623,7 +623,7 @@ if __name__ == "__main__":
             "GR_sp", "GV_amv", "GV_ev", "GV_rmv",
             "GV_sv", "R_amp0", "R_ep0", "R_rmp0",
             #
-            "R_sp0", "AT", "g_ccsh", "g_ccsp",
+            "R_sp0", "g_ccsh", "g_ccsp",
             "kisc_sh", "kisc_sp", "kisc_sv",
             "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
             "theta_spn", "theta_svn", "x_sh", "x_sp",
@@ -709,7 +709,7 @@ if __name__ == "__main__":
             [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
             [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
             #
-            [2.49 * lower, 2.49 * upper], [(1 / 60) * lower, (1 / 60) * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
+            [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
             [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
             [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
@@ -763,11 +763,11 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
-    base_name = "pct_90_bad_outside_50_no_C2_fevo"
+    base_name = "pct_90_bad_outside_50_all"
 
     # change
     # X = finite_diff.sample(sp, 500)
-    # np.save(f"{base_name}_X.npy", X[::273])
+    # np.save(f"{base_name}_X.npy", X[::272])
     # scp "sw4924@bioeng397-pc.dept.ic.ac.uk:~/project/pct_50_bad_outside_20_no_xsp_C2*" "C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\"
 
     X = np.load(f"{base_name}_X.npy")
@@ -855,7 +855,7 @@ if __name__ == "__main__":
                 "lower_20pct": float(lo),
                 "upper_20pct": float(hi),
                 "n_bad_and_outside": n_bad_outside,
-                "pct_bad_and_outside_over_500": 100.0 * n_bad_outside / N_BASE_EXPECTED,
+                "total_bad": int(np.sum(bad_mask)),
                 "n_bad_and_outside_low": n_bad_outside_low,
                 "n_bad_and_outside_high": n_bad_outside_high,
                 "max_bad_outside_side": max_side,
