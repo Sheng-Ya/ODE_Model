@@ -190,7 +190,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
-    VAflow = max(VAflow, 0.04)
+    VAflow = min(max(VAflow, 0.04), 1.0)
     VD = GV_dead * VAflow + V0_dead
 
     if time_since_last_breath > (t1 + t2) or t == 0:
@@ -499,7 +499,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # brain
     V_bv = (VT_bv - Vu_bv) * (VT_bv >= Vu_bv)
-    P_bv = V_bv / C_bv
+    P_bv = max(V_bv / C_bv, 0.0001)
 
     Q_bp = max((P_sp - P_bv) / R_bp, 0.0001)
 
@@ -517,7 +517,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # coronary circulation
     V_hv = (VT_hv - Vu_hv) * (VT_hv >= Vu_hv)
-    P_hv = V_hv / C_hv
+    P_hv = max(V_hv / C_hv, 0.0001)
 
     Q_hp = max(((P_sp - P_hv) / R_hp), 0.0001)
 
@@ -536,7 +536,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_rmp = C_rmp * P_sp
 
     V_rmv = (VT_rmv - Vu_rmv) * (VT_rmv >= Vu_rmv)
-    P_rmv = V_rmv / C_rmv
+    P_rmv = max(V_rmv / C_rmv, 0.0001)
 
     Q_rmp = max((P_sp - P_rmv) / R_rmp, 0.0001)
 
@@ -558,13 +558,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     if VT_amv >= Vu_amv:
         V_amv = VT_amv - Vu_amv
-        P_amv = V_amv / C_amv + P_im
+        P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
-        V_amv = 0
+        # V_amv = 0
         if VT_amv > 0:
-            P_amv = P_im + P_0 * (1 - (VT_amv / Vu_amv) ** -1.5)
+            P_amv = max(P_im + P_0 * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
         else:
-            P_amv = P_im + P_0
+            P_amv = max(P_im + P_0, 0.0001)
         # P_amv = P_0 + P_im
 
     Q_amp = max(((P_sp - P_amv) / R_amp), 0.0001)
@@ -572,7 +572,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     P_am = 0
 
     if I > 0:
-        R_amv = kr_am / VT_amv
+        R_amv = max(kr_am / VT_amv, 0.0001)
     elif P_vc < P_am:
         R_amv = R_amv_n * ((P_amv - P_vc) / (P_amv - P_am))
     else:
@@ -599,8 +599,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_ev = (V_tot - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv - V_amv - V_bv
     #         - V_hv - V_vc - V_u - V_s_peripheral)
 
-    V_ev = (V_tot - (V_sa + Vu_sa) - VT_ra - VT_rv - VT_la - VT_lv - VT_pa - VT_pp - VT_pv - VT_sv - VT_rmv - VT_amv -
-            VT_bv - VT_hv - VT_vc - V_s_peripheral) - Vu_ev - Vu_jp
+    V_ev = max((V_tot - (V_sa + Vu_sa) - VT_ra - VT_rv - VT_la - VT_lv - VT_pa - VT_pp - VT_pv - VT_sv - VT_rmv - VT_amv -
+            VT_bv - VT_hv - VT_vc - V_s_peripheral) - Vu_ev - Vu_jp, 1)
 
     P_ev = V_ev / C_ev  # + source_values
 
@@ -737,7 +737,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     CvbO2 = C_O2_param1 * 150 * SvbO2 + C_O2_param3 * PvbO2
 
     # tissue
-    PvtO2 = max(CTO2 / alpha_O2, 0)  # henry
+    PvtO2 = max(CTO2 / alpha_O2, 1)  # henry
     # if CTO2 slightly negative but goes back later, it's fine. Not fine if it decreases below -1
     # if CTO2 < -1:
     #     PvtO2 = CTO2 / alpha_O2
