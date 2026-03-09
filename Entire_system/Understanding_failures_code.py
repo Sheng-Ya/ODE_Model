@@ -582,8 +582,8 @@ def parallel_basepoints(base_param_samples, storage, n_jobs, save_path="Basepoin
 
 if __name__ == "__main__":
 
-    lower = 0.5
-    upper = 1.5
+    lower = 0.1
+    upper = 1.9
 
     # change
     sp = ProblemSpec({
@@ -763,7 +763,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
-    base_name = "pct_50_bad_outside_20_all"
+    base_name = "pct_90_bad_outside_50_no_C2_fevo"
 
     # change
     # X = finite_diff.sample(sp, 500)
@@ -778,6 +778,9 @@ if __name__ == "__main__":
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
 
+    # AA = param_samples[7]
+    # print(AA)
+
     Result = parallel_basepoints(param_samples, Next_Conditions, n_jobs=64, save_path=Save_path)
 
     #########################
@@ -788,7 +791,7 @@ if __name__ == "__main__":
     SLOW_VALUE = 10000.0
     VALUE_TOL = 0.0  # set small tol if needed (e.g., 1e-8)
 
-    OUTSIDE_FRAC = 0.20  # +/-20% of nominal
+    OUTSIDE_FRAC = 0.50  # +/-50% of nominal
 
     # If you have a true nominal vector, load it here (shape: (n_params,))
     # Otherwise we use midpoint of bounds as "nominal".
@@ -892,7 +895,38 @@ if __name__ == "__main__":
 
             for j, name in enumerate(param_keys):
                 vals = X_base[:, j]
+                nom = nominal[j]
+
+                a = (1 - OUTSIDE_FRAC) * nom
+                b = (1 + OUTSIDE_FRAC) * nom
+                lo, hi = (a, b) if a <= b else (b, a)
+
                 fig = plt.figure(figsize=(10, 4))
+
+                # Threshold lines for +/- x%
+                plt.axhline(
+                    lo,
+                    linestyle="--",
+                    linewidth=1.5,
+                    alpha=0.9,
+                    label=f"Lower {int(OUTSIDE_FRAC * 100)}% bound"
+                )
+                plt.axhline(
+                    hi,
+                    linestyle="--",
+                    linewidth=1.5,
+                    alpha=0.9,
+                    label=f"Upper {int(OUTSIDE_FRAC * 100)}% bound"
+                )
+
+                # Optional: nominal line
+                plt.axhline(
+                    nom,
+                    linestyle=":",
+                    linewidth=1.2,
+                    alpha=0.9,
+                    label="Nominal"
+                )
 
                 # OK
                 if ok_mask.any():
