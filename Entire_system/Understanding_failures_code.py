@@ -295,7 +295,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
     V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
 
-    N = 100  # number of consecutive closed samples required
+    N = 50  # number of consecutive closed samples required
 
     is_open = theta_ao > theta_min
     open_idx1 = []
@@ -303,6 +303,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         if is_open[k] and not np.any(is_open[k - N:k]):
             open_idx1.append(k)
     open_idx1 = np.array(open_idx1)[-11:-1]
+
+    if open_idx1.size == 0:
+        print("ao fail")
+        return [0.0] * 31, None, None, None
 
     # is_closed_ao = theta_ao <= theta_min
     # close_idx1 = []
@@ -325,6 +329,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
             close_idx2.append(k)
     close_idx2 = np.array(close_idx2)
 
+    if open_idx2.size == 0 or close_idx2.size == 0:
+        print("po fail")
+        return [0.0] * 31, None, None, None
+
     is_open_mi = theta_mi > theta_min
     open_idx3 = []
     for k in range(N, len(theta_mi)):
@@ -339,6 +347,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
             close_idx3.append(k)
     close_idx3 = np.array(close_idx3)
 
+    if open_idx3.size == 0 or close_idx3.size == 0:
+        print("mi fail")
+        return [0.0] * 31, None, None, None
+
     is_open_tr = theta_tr > theta_min
     open_idx4 = []
     for k in range(N, len(theta_tr)):
@@ -352,6 +364,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         if is_closed_tr[k] and not np.any(is_closed_tr[k - N:k]):
             close_idx4.append(k)
     close_idx4 = np.array(close_idx4)
+
+    if open_idx4.size == 0 or close_idx4.size == 0:
+        print("tr fail")
+        return [0.0] * 31, None, None, None
 
     pairs_po = np.array([
         (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
@@ -675,12 +691,12 @@ if __name__ == "__main__":
 
         'bounds': [
             # gas
-            [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+            [0.03255 * lower, 0.03255 * upper], [87 * 0.5, 87 * 1.5], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
             [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-            [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+            [21.9 * 0.5, 21.9 * 1.5], [3.02 * lower, 3.02 * upper],
             # cardio
             [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
             [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
@@ -717,7 +733,7 @@ if __name__ == "__main__":
             [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
             [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
-            [0.58 * lower, 0.58 * upper],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
+            [0.58 * 0.5, 0.58 * 1.5],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
             [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
             [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
             [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
@@ -763,7 +779,7 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
-    base_name = "pct_90_bad_outside_50_all"
+    base_name = "pct_50_bad_outside_20_all"
 
     # change
     # X = finite_diff.sample(sp, 500)
@@ -771,6 +787,7 @@ if __name__ == "__main__":
     # scp "sw4924@bioeng397-pc.dept.ic.ac.uk:~/project/pct_50_bad_outside_20_no_xsp_C2*" "C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\"
 
     X = np.load(f"{base_name}_X.npy")
+    Result = np.load(f"{base_name}_Result.npy")
     Save_path = f"{base_name}_Result.npy"
     out_csv = f"{base_name}.csv"
     OUT_PDF = f"{base_name}.pdf"
@@ -778,10 +795,10 @@ if __name__ == "__main__":
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
 
-    # AA = param_samples[7]
-    # print(AA)
+    AA = param_samples[97]
+    print(AA)
 
-    Result = parallel_basepoints(param_samples, Next_Conditions, n_jobs=64, save_path=Save_path)
+    # Result = parallel_basepoints(param_samples, Next_Conditions, n_jobs=64, save_path=Save_path)
 
     #########################
     # Understand failure percentage
