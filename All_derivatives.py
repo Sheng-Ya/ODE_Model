@@ -753,7 +753,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     P_bv = max(V_bv / C_bv, 0.0001)
 
     # Q_bp = (P_sp - P_bv) / R_bp
-    Q_bp = max(((P_sp - P_bv) / R_bp), 0.0001)
+    Q_bp = max(((P_sp - P_bv) / R_bp), 2)
 
     P_b = 0
 

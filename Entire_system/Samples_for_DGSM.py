@@ -753,7 +753,7 @@ if __name__ == "__main__":
         'names': [
             # gas
             "beta2", "C2", "K2", "a2",
-            "alpha2", "dc", "KCCO2", "GV_dead",
+            "alpha2", "KCCO2", "GV_dead",
             # resp control
             "KcCO2", "KcMRV", "KpCO2", "KpO2",
             "V0_dead", "VA_rest",
@@ -839,7 +839,7 @@ if __name__ == "__main__":
         'bounds': [
             # gas
             [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
-            [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
+            [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],

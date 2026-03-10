@@ -377,7 +377,7 @@ def simulate():
     np.save("combined.npy", combined)
 
     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
-    peaks, _ = find_peaks(P_sa, distance=int(500), prominence=1)
+    peaks, _ = find_peaks(P_sa, distance=int(1000))
 
     last_10_peaks_P_sa = peaks[-11:-1]
     last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
@@ -679,7 +679,7 @@ if __name__ == "__main__":
 
     variables_to_plot = [
         # "CvbCO2", "CvbO2", "VAflow", "V",
-        "Q_pp", # "P_sa", "VT_vc", #"PvtCO2", "dV_dt"
+        "AA", # "P_sa", "VT_vc", #"PvtCO2", "dV_dt"
     ]
 
     for key in variables_to_plot:
