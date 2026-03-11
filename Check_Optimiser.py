@@ -181,106 +181,106 @@ plt.rcParams.update({
 
 
 
-# bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
-# tolerance = 0.001
-#
-# # ------------------------------
-# # FIXED VAflow
-# # ------------------------------
-# VAflow = 0.0673   # <-- your preferred constant value
-#
-# # ------------------------------
-# # NEW: combinations of E_rs and R_rs
-# # ------------------------------
-# E_rs_values = np.linspace(10.95, 43.8, 50)   # example range
-# R_rs_values = np.linspace(1.51, 6.04, 50)   # example range
-#
-# # create Cartesian product of E_rs × R_rs
-# E_grid, R_grid = np.meshgrid(E_rs_values, R_rs_values)
-# E_flat = E_grid.flatten()
-# R_flat = R_grid.flatten()
-#
-# # ------------------------------
-# # Compute VD only once (VAflow is constant)
-# # ------------------------------
-# VD = params["GV_dead"] * VAflow + params["V0_dead"]
-#
-# optimal_t1 = []
-# optimal_t2 = []
-# failed = []
-# initial_guess = [1.5, 1.85]
-#
-# for idx in range(len(E_flat)):
-#     E_rs = E_flat[idx]
-#     R_rs = R_flat[idx]
-#
-#     required_params = [
-#         0.86,
-#         0.489,
-#         1.101,
-#         100,
-#         1000,
-#         E_rs,     # <----- varies
-#         R_rs,     # <----- varies
-#         0.0,
-#     ]
-#
-#     try:
-#         res = minimize(
-#             objective,
-#             x0=np.array(initial_guess[-2:]),
-#             args=(required_params, VAflow, VD, 0.001, tolerance),
-#             method='nelder-mead',
-#             bounds=bounds
-#         )
-#
-#         if res.success:
-#             t1_opt, t2_opt = res.x
-#             optimal_t1.append(t1_opt)
-#             optimal_t2.append(t2_opt)
-#
-#             initial_guess.extend(res.x)
-#
-#             print(f"E_rs={E_rs:.2f}, R_rs={R_rs:.2f} → t1={t1_opt:.3f}, t2={t2_opt:.3f}")
-#         else:
-#             print(f"E_rs={E_rs:.2f}, R_rs={R_rs:.2f} → optimization failed")
-#             optimal_t1.append(np.nan)
-#             optimal_t2.append(np.nan)
-#
-#     except Exception as e:
-#         print(f"E_rs={E_rs:.2f}, R_rs={R_rs:.2f} → error: {e}")
-#         optimal_t1.append(np.nan)
-#         optimal_t2.append(np.nan)
-#
-# # Convert to arrays
-# optimal_t1 = np.array(optimal_t1)
-# optimal_t2 = np.array(optimal_t2)
-#
-# # reshape back to the grid shape for nicer plotting
-# T1_grid = optimal_t1.reshape(E_grid.shape)
-# T2_grid = optimal_t2.reshape(E_grid.shape)
-#
-# # ------------------------------
-# # Plotting
-# # ------------------------------
-# plt.figure(figsize=(12,5))
-#
-# plt.subplot(1,2,1)
-# plt.title("Optimal t1 vs E_rs and R_rs")
-# plt.xlabel("E_rs")
-# plt.ylabel("R_rs")
-# plt.contourf(E_grid, R_grid, T1_grid, levels=20)
-# plt.colorbar(label="t1 (s)")
-#
-# plt.subplot(1,2,2)
-# plt.title("Optimal t2 vs E_rs and R_rs")
-# plt.xlabel("E_rs")
-# plt.ylabel("R_rs")
-# plt.contourf(E_grid, R_grid, T2_grid, levels=20)
-# plt.colorbar(label="t2 (s)")
-#
-# plt.tight_layout()
-# plt.show()
+bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
+tolerance = 0.001
+
+# ------------------------------
+# FIXED VAflow
+# ------------------------------
+VAflow = 0.0673   # <-- your preferred constant value
+
+# ------------------------------
+# NEW: combinations of E_rs and R_rs
+# ------------------------------
+E_rs_values = np.linspace(17.52, 26.28, 50)   # example range
+R_rs_values = np.linspace(2.416, 3.624, 50)   # example range
+
+# create Cartesian product of E_rs × R_rs
+E_grid, R_grid = np.meshgrid(E_rs_values, R_rs_values)
+E_flat = E_grid.flatten()
+R_flat = R_grid.flatten()
+
+# ------------------------------
+# Compute VD only once (VAflow is constant)
+# ------------------------------
+VD = params["GV_dead"] * VAflow + params["V0_dead"]
+
+optimal_t1 = []
+optimal_t2 = []
+failed = []
+initial_guess = [1.5, 1.85]
+
+for idx in range(len(E_flat)):
+    E_rs = E_flat[idx]
+    R_rs = R_flat[idx]
+
+    required_params = [
+        0.3,
+        0.289,
+        0.90,
+        100,
+        1000,
+        E_rs,     # <----- varies
+        R_rs,     # <----- varies
+        0.0,
+    ]
+
+    try:
+        res = minimize(
+            objective,
+            x0=np.array(initial_guess[-2:]),
+            args=(required_params, VAflow, VD, 0.001, tolerance),
+            method='nelder-mead',
+            bounds=bounds
+        )
+
+        if res.success:
+            t1_opt, t2_opt = res.x
+            optimal_t1.append(t1_opt)
+            optimal_t2.append(t2_opt)
+
+            initial_guess.extend(res.x)
+
+            print(f"E_rs={E_rs:.2f}, R_rs={R_rs:.2f} → t1={t1_opt:.3f}, t2={t2_opt:.3f}")
+        else:
+            print(f"E_rs={E_rs:.2f}, R_rs={R_rs:.2f} → optimization failed")
+            optimal_t1.append(np.nan)
+            optimal_t2.append(np.nan)
+
+    except Exception as e:
+        print(f"E_rs={E_rs:.2f}, R_rs={R_rs:.2f} → error: {e}")
+        optimal_t1.append(np.nan)
+        optimal_t2.append(np.nan)
+
+# Convert to arrays
+optimal_t1 = np.array(optimal_t1)
+optimal_t2 = np.array(optimal_t2)
+
+# reshape back to the grid shape for nicer plotting
+T1_grid = optimal_t1.reshape(E_grid.shape)
+T2_grid = optimal_t2.reshape(E_grid.shape)
+
+# ------------------------------
+# Plotting
+# ------------------------------
+plt.figure(figsize=(12,5))
+
+plt.subplot(1,2,1)
+plt.title("Optimal t1 vs E_rs and R_rs")
+plt.xlabel("E_rs")
+plt.ylabel("R_rs")
+plt.contourf(E_grid, R_grid, T1_grid, levels=20)
+plt.colorbar(label="t1 (s)")
+
+plt.subplot(1,2,2)
+plt.title("Optimal t2 vs E_rs and R_rs")
+plt.xlabel("E_rs")
+plt.ylabel("R_rs")
+plt.contourf(E_grid, R_grid, T2_grid, levels=20)
+plt.colorbar(label="t2 (s)")
+
+plt.tight_layout()
+plt.show()
 
 
 bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
