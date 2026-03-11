@@ -10,21 +10,16 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
-# no Pthor or Vtot
-X = np.load('DGSM_500_X_rest_20_no_Pthor_Vtot_21_01_25.npy')
-Result = np.load('DGSM_500_Result_rest_20_no_Pthor_Vtot_21_01_25.npy')
 
-# all params
-# X = np.load('DGSM_500_X_rest_20_all_21_01_25.npy')
-# Result = np.load('DGSM_500_Result_rest_20_all_21_01_25.npy')
+X = np.load('DGSM_bounds/DGSM_500_X_rest_50_no_Pthor_Vtot_ErsRrs_10_03_26.npy')
+Result = np.load('DGSM_bounds/DGSM_500_Result_rest_50_no_Pthor_Vtot_ErsRrs_10_03_26.npy')
 
-# no Pthor
-# X = np.load('DGSM_500_X_rest_20_no_Pthor_21_01_25.npy')
-# Result = np.load('DGSM_500_Result_rest_20_no_Pthor_21_01_25.npy')
+# # need to add dc
+# X1 = np.load('DGSM_bounds/DGSM_500_X_rest_20_no_Pthor_Vtot_09_03_26.npy')
+# Result1 = np.load('DGSM_bounds/DGSM_500_Result_rest_20_no_Pthor_Vtot_09_03_26.npy')
 
-
-lower = 0.8
-upper = 1.2
+lower = 0.5
+upper = 1.5
 
 Stroke_Volume = Result[:, 3] - Result[:, 4]
 Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
@@ -57,8 +52,23 @@ for b, i in enumerate(base_idx):
         # f"STD: {block_std[b]}"
     )
 
+# # Filter base points where E_rs (col 14) and R_rs (col 15) are within +/-20% of nominal values
+# E_rs_nominal = 21.9
+# R_rs_nominal = 3.02
+# E_rs_base = X[base_idx, 14]
+# R_rs_base = X[base_idx, 15]
+# mask_blocks_E_rs = np.abs(E_rs_base - E_rs_nominal) / E_rs_nominal <= 0.40
+# mask_blocks_R_rs = np.abs(R_rs_base - R_rs_nominal) / R_rs_nominal <= 0.40
+#
+# Keep only blocks where all perturbed HR values are within 0.03 of the base HR (convergence check)
+HR_col = 0
+mask_blocks_conv = np.array([
+    np.all(np.abs(Result[i + 1:i + block_size, HR_col] - Result[i, HR_col]) < 0.03)
+    for i in base_idx
+])
 
-mask_blocks = mask_blocks & mask_blocks_nan # & mask_blocks_std
+mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
+print(np.count_nonzero(mask_blocks))
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)
 
@@ -69,11 +79,13 @@ Result = Result[mask_full]
 
 HR = Result[:, 25]
 
+# new +/-50%,90% does not have dc
+
 sp = ProblemSpec({
     'names': [
         # gas
         "beta2", "C2", "K2", "a2",
-        "alpha2", "dc", "KCCO2", "GV_dead",
+        "alpha2", "KCCO2", "GV_dead",
         # resp control
         "KcCO2", "KcMRV", "KpCO2", "KpO2",
         "V0_dead", "VA_rest",
@@ -106,7 +118,7 @@ sp = ProblemSpec({
         "GR_sp", "GV_amv", "GV_ev", "GV_rmv",
         "GV_sv", "R_amp0", "R_ep0", "R_rmp0",
         #
-        "R_sp0", "AT", "g_ccsh", "g_ccsp",
+        "R_sp0", "g_ccsh", "g_ccsp",
         "kisc_sh", "kisc_sp", "kisc_sv",
         "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
         "theta_spn", "theta_svn", "x_sh", "x_sp",
@@ -158,118 +170,79 @@ sp = ProblemSpec({
 
     'bounds': [
         # gas
-        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1], [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper],
-        [0.1698 * lower, 0.1698 * upper],
+        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+        [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
         # resp control
-        [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper],
-        [4.72e-09 * lower, 4.72e-09 * upper],
+        [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
         [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
         # cardio
-        [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper],
-        [0.06 * lower, 0.06 * upper],
-        [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper],
-        [3.57 * lower, 3.57 * upper],
-        [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper],
-        [3.93 * lower, 3.93 * upper],
-        [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper],
-        [0.224 * lower, 0.224 * upper],
+        [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
+        [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
+        [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
+        [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
         [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
         [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
-        [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper],
-        [0.0894 * lower, 0.0894 * upper],
-        [0.0056 * lower, 0.0056 * upper], [0.34 * lower, 0.34 * upper], [0.55 * lower, 0.55 * upper],
-        [0.34 * lower, 0.34 * upper],
-        [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [0.07 * lower, 0.07 * upper],
-        [1.5 * lower, 1.5 * upper],
-        [1.5 * lower, 1.5 * upper],  # [6.8 * lower, 6.8 * upper], [-2 * 1.5, -2 * 0.5], [-6 * 1.5, -6 * 0.5],
+        [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
+        [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
+        [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
+        [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
         [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
-        [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper], [0.0675 * lower, 0.0675 * upper],
-        [7.06 * lower, 7.06 * upper],
-        [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper],
-        [0.126 * lower, 0.126 * upper],
-        [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper],
-        [0.0162 * lower, 0.0162 * upper],
-        [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper],
-        [-0.037 * upper, -0.037 * lower],
-        [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower], [1.9 * lower, 1.9 * upper],
-        [-0.0008 * upper, -0.0008 * lower],
-        [-0.68 * upper, -0.68 * lower], [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower],
-        [-1.1375 * upper, -1.1375 * lower],
-        [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper],
-        [0.2 * lower, 0.2 * upper],
+        [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper], [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper],
+        [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper], [0.126 * lower, 0.126 * upper],
+        [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
+        [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper], [-0.037 * upper, -0.037 * lower],
+        [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower], [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower],
+        [-0.68 * upper, -0.68 * lower], [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower], [-1.1375 * upper, -1.1375 * lower],
+        [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper], [0.2 * lower, 0.2 * upper],
         [-0.3997 * upper, -0.3997 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower],
         [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-        [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper],
-        [0.475 * lower, 0.475 * upper],
-        [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper], [1.94 * lower, 1.94 * upper],
-        [2.47 * lower, 2.47 * upper],
-        [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower],
-        [-58.29 * upper, -58.29 * lower],
-        [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper],
-        [5.27 * lower, 5.27 * upper],
+        [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper], [0.475 * lower, 0.475 * upper],
+        [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper], [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper],
+        [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
+        [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
         #
-        [2.49 * lower, 2.49 * upper], [(1 / 60) * lower, (1 / 60) * upper], [1 * lower, 1 * upper],
-        [1.5 * lower, 1.5 * upper],
+        [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
         [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
-        [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper],
-        [6 * lower, 6 * upper],
-        [6 * lower, 6 * upper], [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
+        [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
-        [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper],
-        [3 * lower, 3 * upper],
-        [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower],
-        [0.09 * lower, 0.09 * upper],
-        [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper],
-        [10570 * lower, 10570 * upper],
-        [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper],
-        [0.925 * lower, 0.925 * upper],
-        [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper],
-        [35 * lower, 35 * upper],
-        [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper],
-        [0.4 * lower, 0.4 * upper],
-        [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper],
-        [0.1555 * lower, 0.1555 * upper],
-        [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper],
-        [0.18 * lower, 0.18 * upper],
+        [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
+        [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
+        [0.58 * lower, 0.58 * upper],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
+        [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
+        [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
+        [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
+        [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper], [0.1555 * lower, 0.1555 * upper],
+        [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper], [0.18 * lower, 0.18 * upper],
         [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
         # added params
-        [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper],
-        [1.309 * lower, 1.309 * upper],
-        [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper],
-        [1.309 * lower, 1.309 * upper],
-        [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper],
-        [1.309 * lower, 1.309 * upper],
-        [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper],
-        [1.309 * lower, 1.309 * upper],
-        [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper],
-        [400 * lower, 400 * upper],
-        [350 * lower, 350 * upper], [0.00134 * 0.9, 0.00134 * 1.1], [2.6 * 0.9, 2.6 * 1.1],
-        [3.03e-5 * 0.9, 3.03e-5 * 1.1],
+        [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
+        [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
+        [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
+        [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
+        [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
+        [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
-        [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper],
-        [15.908 * lower, 15.908 * upper],
+        [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
         [90 * lower, 90 * upper], [38.703 * lower, 38.703 * upper],
 
         # [5027.6 * 0.8, 5027.6 * 1.2],
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
         [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
-        [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper],
-        [20 * lower, 20 * upper],
+        [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper],
         [30 * lower, 30 * upper], [2.076 * lower, 2.076 * upper], [0.8 * lower, 0.8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [1.5 * lower, 1.5 * upper], [20 * lower, 20 * upper],
         [10 * lower, 10 * upper], [5 * lower, 5 * upper], [40 * lower, 40 * upper], [10 * lower, 10 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [5 * lower, 5 * upper],
         [5 * lower, 5 * upper], [5 * lower, 5 * upper], [2 * lower, 2 * upper], [0.2 * lower, 0.2 * upper],
-        [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.014 * lower, 0.014 * upper],
-        [0.011 * lower, 0.011 * upper],
+        [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.014 * lower, 0.014 * upper], [0.011 * lower, 0.011 * upper],
         [0.1 * lower, 0.1 * upper], [0.2 * lower, 0.2 * upper], [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper],
         [20 * lower, 20 * upper], [0.01 * lower, 0.01 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
         [0.25 * lower, 0.25 * upper], [50 * lower, 50 * upper],
@@ -278,8 +251,7 @@ sp = ProblemSpec({
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
         [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-        [0.0872665 * lower, 0.0872665 * upper], [1.12 * 0.9, 1.12 * 1.1], [1.2 * 0.85, 1.2 * 1.15],
-        [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
+        [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
 
@@ -374,6 +346,8 @@ output_names = [
 #         print(f"{name:25s} : {val:.4e}  ({val/total*100:.3f}%)")
 
 
+
+# contribute to 90% (doesnt do the at least )
 # dgsm_summary = OrderedDict()
 #
 # for col in range(Result.shape[1]):
@@ -422,81 +396,134 @@ output_names = [
 
 
 
-# # --- compute DGSM for every output column ---
-# dgsm_by_output = {}
-# for j, out_name in enumerate(output_names):
-#     Y = Result[:, j]
-#     Si = dgsm.analyze(sp, X, Y, print_to_console=False)
-#     dgsm_by_output[out_name] = {
-#         "dgsm": np.asarray(Si["dgsm"], dtype=float),
-#         "conf": np.asarray(Si["dgsm_conf"], dtype=float),
-#         "names": np.asarray(Si["names"]),
-#     }
-#
-# coverage = 0.9
-# n_cols = 7
-# n_out = len(output_names)
-# n_rows = math.ceil(n_out / n_cols)
-#
-# fig, axes = plt.subplots(
-#     n_rows, n_cols,
-#     figsize=(4.8 * n_cols, 3.6 * n_rows),
-#     constrained_layout=True
-# )
-# axes = np.atleast_1d(axes).ravel()
-#
-# for ax, out_name in zip(axes, output_names):
-#     dg = dgsm_by_output[out_name]["dgsm"]
-#     cf = dgsm_by_output[out_name]["conf"]
-#     pn = dgsm_by_output[out_name]["names"]
-#
-#     # sort descending
-#     order = np.argsort(dg)[::-1]
-#     dg_sorted = dg[order]
-#     cf_sorted = cf[order]
-#     pn_sorted = pn[order]
-#
-#     # keep only finite + positive DGSM (DGSM should be >=0; this also avoids weirdness)
-#     good = np.isfinite(dg_sorted) & (dg_sorted > 0) & np.isfinite(cf_sorted)
-#     dg_sorted = dg_sorted[good]
-#     cf_sorted = cf_sorted[good]
-#     pn_sorted = pn_sorted[good]
-#
-#     total = np.sum(dg_sorted)
-#     if total <= 0 or not np.isfinite(total):
-#         ax.text(0.5, 0.5, "No finite DGSM", ha="center", va="center")
-#         ax.set_title(out_name, fontsize=10)
-#         ax.axis("off")
-#         continue
-#
-#     # pick smallest set whose cumulative sum reaches 90%
-#     cumfrac = np.cumsum(dg_sorted) / total
-#     k = int(np.searchsorted(cumfrac, coverage) + 1)
-#
-#     dg_keep = dg_sorted[:k]
-#     cf_keep = cf_sorted[:k]
-#     pn_keep = pn_sorted[:k]
-#
-#     # plot (reverse so biggest is at top)
-#     y = np.arange(k)
-#     ax.barh(y, dg_keep[::-1], xerr=cf_keep[::-1])
-#     ax.set_yticks(y)
-#     ax.set_yticklabels(pn_keep[::-1], fontsize=7)
-#     ax.set_title(f"{out_name}\n{coverage*100:.0f}% DGSM ({k} params)", fontsize=10)
-#     ax.grid(axis="x", linestyle="--", alpha=0.5)
-#
-# # turn off any unused subplot axes
-# for ax in axes[n_out:]:
-#     ax.axis("off")
-#
-# # x-label only on bottom row subplots
-# for r in range(n_rows):
-#     for c in range(n_cols):
-#         k_ax = r * n_cols + c
-#         if k_ax < n_out and r == n_rows - 1:
-#             axes[k_ax].set_xlabel("DGSM")
-#
-# plt.show()
+from collections import OrderedDict
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+
+dgsm_by_output = {}
+for j, out_name in enumerate(output_names):
+    Y = Result[:, j]
+    Si = dgsm.analyze(sp, X, Y, print_to_console=False)
+    dgsm_by_output[out_name] = {
+        "dgsm": np.asarray(Si["dgsm"], dtype=float),
+        "conf": np.asarray(Si["dgsm_conf"], dtype=float),
+        "names": np.asarray(Si["names"]),
+    }
+
+coverage = 0.9
+min_frac = 0.01   # at least 1% of original total
+n_cols = 7
+n_out = len(output_names)
+n_rows = math.ceil(n_out / n_cols)
+
+fig, axes = plt.subplots(
+    n_rows, n_cols,
+    figsize=(4.8 * n_cols, 3.6 * n_rows),
+    constrained_layout=True
+)
+axes = np.atleast_1d(axes).ravel()
+
+dgsm_summary = OrderedDict()
+
+for ax, out_name in zip(axes, output_names):
+    dg = dgsm_by_output[out_name]["dgsm"]
+    cf = dgsm_by_output[out_name]["conf"]
+    pn = dgsm_by_output[out_name]["names"]
+
+    # sort descending
+    order = np.argsort(dg)[::-1]
+    dg_sorted = dg[order]
+    cf_sorted = cf[order]
+    pn_sorted = pn[order]
+
+    # keep only finite, positive DGSM
+    good = np.isfinite(dg_sorted) & (dg_sorted > 0) & np.isfinite(cf_sorted)
+    dg_sorted = dg_sorted[good]
+    cf_sorted = cf_sorted[good]
+    pn_sorted = pn_sorted[good]
+
+    total = np.sum(dg_sorted)
+    if total <= 0 or not np.isfinite(total):
+        ax.text(0.5, 0.5, "No finite DGSM", ha="center", va="center")
+        ax.set_title(out_name, fontsize=10)
+        ax.axis("off")
+        continue
+
+    # enforce minimum 1% of ORIGINAL total
+    thresh = min_frac * total
+    keep = dg_sorted >= thresh
+
+    dg_kept = dg_sorted[keep]
+    cf_kept = cf_sorted[keep]
+    pn_kept = pn_sorted[keep]
+
+    if dg_kept.size == 0:
+        ax.text(0.5, 0.5, "No params >= 1%", ha="center", va="center")
+        ax.set_title(out_name, fontsize=10)
+        ax.axis("off")
+        dgsm_summary[out_name] = {
+            "n_params_90": 0,
+            "param_names": np.array([]),
+            "dgsm_values": np.array([]),
+            "conf_values": np.array([]),
+            "fraction_of_total_reached": 0.0,
+            "n_params_passing_cutoff": 0,
+            "min_frac": min_frac,
+        }
+        continue
+
+    # cumulative DGSM of kept params, but relative to ORIGINAL total
+    cumu = np.cumsum(dg_kept)
+    target = coverage * total
+
+    idx_90 = np.searchsorted(cumu, target) + 1
+    idx_90 = min(idx_90, len(cumu))   # cap if 90% cannot be reached
+
+    dg_keep = dg_kept[:idx_90]
+    cf_keep = cf_kept[:idx_90]
+    pn_keep = pn_kept[:idx_90]
+
+    reached = cumu[idx_90 - 1] / total
+    note = ""
+    if reached < coverage:
+        note = f"\nReached {reached*100:.1f}% only"
+
+    # plot (reverse so biggest is at top)
+    y = np.arange(len(dg_keep))
+    ax.barh(y, dg_keep[::-1], xerr=cf_keep[::-1])
+    ax.set_yticks(y)
+    ax.set_yticklabels(pn_keep[::-1], fontsize=7)
+    ax.set_title(
+        f"{out_name}\n{coverage*100:.0f}% DGSM, params >= {min_frac*100:.0f}% ({len(dg_keep)} params){note}",
+        fontsize=10
+    )
+    ax.grid(axis="x", linestyle="--", alpha=0.5)
+
+    dgsm_summary[out_name] = {
+        "n_params_90": len(dg_keep),
+        "param_names": pn_keep,
+        "dgsm_values": dg_keep,
+        "conf_values": cf_keep,
+        "fraction_of_total_reached": reached,
+        "n_params_passing_cutoff": int(keep.sum()),
+        "min_frac": min_frac,
+    }
+
+# turn off unused subplot axes
+for ax in axes[n_out:]:
+    ax.axis("off")
+
+# x-label only on bottom row
+for r in range(n_rows):
+    for c in range(n_cols):
+        k_ax = r * n_cols + c
+        if k_ax < n_out and r == n_rows - 1:
+            axes[k_ax].set_xlabel("DGSM")
+
+plt.show()
+
+
 
 import numpy as np
 import matplotlib.pyplot as plt

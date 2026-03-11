@@ -42,7 +42,7 @@ def parse_sensitivity_file(filename):
 
 if __name__ == "__main__":
     # filename = "C:/Users/vanes/Desktop/for emulator rest - Sensitivities no p_thor v_tot_22_01_26.txt"  # change as needed
-    filename = "C:/Users/vanes/Desktop/test.txt"
+    filename = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_bounds/DGSM_20_rest.txt"
     output_params, param_counts = parse_sensitivity_file(filename)
 
     # ---- Global union ----
