@@ -184,7 +184,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
         R_bp = 1 / G_bp
         P_bv = (VT_bv - Vu_bv) / C_bv if VT_bv >= Vu_bv else VT_bv / C_bv
-        Q_bp_1000 = max(((P_sp - P_bv) / R_bp), 0.0001) / 1000
+        Q_bp_1000 = max(((P_sp - P_bv) / R_bp), 2) / 1000
         Pb_CO2 = PvbCO2 + (PCSFCO2 - PvbCO2) * math.exp(-dc * (math.sqrt(Q_bp_1000 * KCCO2)))
         PmbCO2 = Pb_CO2
 
@@ -337,11 +337,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     P_pv = V_pv / C_pv + P_thor
 
     ## The Heart
-    V_la = (VT_la - Vu_la) * (VT_la > Vu_la)  # LA stressed volume is the total minus unstressed
-    V_ra = (VT_ra - Vu_ra) * (VT_ra > Vu_ra)
-    V_rv = (VT_rv - Vu_rv) * (VT_rv > Vu_rv)
-    V_lv = (VT_lv - Vu_lv) * (VT_lv > Vu_lv)
-
     # activation function for contraction of the ventricle and atria
     phi = activation_H(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
     phi_atr = activation_H(t - time_since_beat, 1, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
@@ -567,7 +562,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             P_amv = max(P_im + P_0, 0.0001)
         # P_amv = P_0 + P_im
 
-    Q_amp = max(((P_sp - P_amv) / R_amp), 0.0001)
+    Q_amp = max((P_sp - P_amv), 0.0001) / R_amp
 
     P_am = 0
 
