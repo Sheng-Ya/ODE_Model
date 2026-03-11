@@ -7,21 +7,13 @@ import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 import pyro
-import arviz as az
 import seaborn as sns
 from multiprocessing import resource_tracker
 # Prevent the resource tracker from complaining about shared memory cleanup
 resource_tracker._resource_tracker._STOP = True
 
-
-
-from getdist.arviz_wrapper import arviz_to_mcsamples
 from getdist import plots
 from SALib import ProblemSpec
-from autoemulate.simulations.epidemic import Epidemic
-from autoemulate.core.compare import AutoEmulate
-from autoemulate.calibration.bayes import BayesianCalibration
-from autoemulate.emulators import GaussianProcess
 from autoemulate.data.utils import set_random_seed
 # from autoemulate.calibration.history_matching import HistoryMatching, HistoryMatchingWorkflow
 from History_matching_function_new import HistoryMatchingWorkflow
@@ -43,14 +35,14 @@ pyro.set_rng_seed(random_seed)
 # PROBLEM SPECIFICATION
 # ----------------------------
 # change rest
-lower = 0.5
-upper = 1.5
+lower = 0.8
+upper = 1.2
 #
 sp = ProblemSpec({
     'names': [
         # gas
         "beta2", "C2", "K2", "a2",
-        "alpha2", "dc", "KCCO2", "GV_dead",
+        "alpha2", "KCCO2", "GV_dead",
         # resp control
         "KcCO2", "KcMRV", "KpCO2", "KpO2",
         "V0_dead", "VA_rest",
@@ -65,7 +57,7 @@ sp = ProblemSpec({
         "C_pv", "L_pa", "R_pa", "R_pp",
         "R_pv", "Emax_la", "P0_la", "Emax_ra",
         "P0_ra", "KE_la", "KE_ra", "P0_lv",
-        "P0_rv", "g_thor", "P_thormax_n", "P_thormin_n",
+        "P0_rv", # "g_thor", "P_thormax_n", "P_thormin_n",
         "VT_n", "s",
         # cardio control
         "fab_o", "fes_o", "fes_inf", "fes_max",
@@ -83,12 +75,12 @@ sp = ProblemSpec({
         "GR_sp", "GV_amv", "GV_ev", "GV_rmv",
         "GV_sv", "R_amp0", "R_ep0", "R_rmp0",
         #
-        "R_sp0", "AT", "g_ccsh", "g_ccsp",
+        "R_sp0", "g_ccsh", "g_ccsp",
         "kisc_sh", "kisc_sp", "kisc_sv",
         "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
         "theta_spn", "theta_svn", "x_sh", "x_sp",
         "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min",
-        "k_ab", "P_n", "P_n_max","f_acCO2_n",
+        "k_ab", "P_n", "P_n_max", "f_acCO2_n",
         "f_ac_max", "f_ac_min", "k_ac", "K_H",
         "PaO2_ac_n", "G_ap", "GT_s", "GT_v",
         "T0", "A", "B", "C",
@@ -110,7 +102,7 @@ sp = ProblemSpec({
         "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
         "Vu_ra", "Vu_rv",
 
-        "V_tot",
+        # "V_tot",
         "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
         "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
         "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -135,8 +127,8 @@ sp = ProblemSpec({
 
     'bounds': [
         # gas
-        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1], [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
+        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+        [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
         # resp control
         [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
@@ -149,9 +141,9 @@ sp = ProblemSpec({
         [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
         [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
-        [0.0056 * lower, 0.0056 * upper], [0.34 * lower, 0.34 * upper], [0.55 * lower, 0.55 * upper], [0.34 * lower, 0.34 * upper],
-        [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [0.07 * lower, 0.07 * upper], [1.5 * lower, 1.5 * upper],
-        [1.5 * lower, 1.5 * upper], [0.0 * lower, 0.0 * upper], [0.0 * upper, 0.0 * lower], [0.0 * upper, 0.0 * lower],
+        [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
+        [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
+        [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
         [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
@@ -169,11 +161,11 @@ sp = ProblemSpec({
         [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
         [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
         #
-        [2.49 * lower, 2.49 * upper], [(1 / 60) * lower, (1 / 60) * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
+        [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
         [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
         [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
-        [6 * lower, 6 * upper], [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
         [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
@@ -190,13 +182,13 @@ sp = ProblemSpec({
         [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
         [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
-        [350 * lower, 350 * upper], [0.00134 * 0.9, 0.00134 * 1.1], [2.6 * 0.9, 2.6 * 1.1], [3.03e-5 * 0.9, 3.03e-5 * 1.1],
+        [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
         [90 * lower, 90 * upper], [38.703 * lower, 38.703 * upper],
 
-        [5027.6 * 0.8, 5027.6 * 1.2],
+        # [5027.6 * 0.8, 5027.6 * 1.2],
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
         [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -216,26 +208,17 @@ sp = ProblemSpec({
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
         [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-        [0.0872665 * lower, 0.0872665 * upper], [1.12 * 0.9, 1.12 * 1.1], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
+        [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
-# change
-# # No P_thor: 53 parameters contribute at least 2% and up to 90% sensitivity for 21 targets
-# subset_vars = {'C2', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0', 'f_ab_max',
-#                'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o', 'GT_v', 'Io_sv',
-#                'kcc_sv', 'KcCO2', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
-#                'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_bpn', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven', 'T0',
-#                'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv',
-#                'Vu_sv0', 'Wb_sh', 'Wb_sv'}
-
-# No P_thor: 68 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-subset_vars = {'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'Cvrm_O2_n', 'E_rs',
-               'Emax_la', 'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o',
-               'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'k_ab', 'kcc_sv', 'KcCO2', 'KE_la', 'KE_lv',
-               'KE_ra', 'KE_rv', 'kes', 'kmet', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r',
-               'R_bpn', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'T0', 'theta_svn',
-               'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv',
-               'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
+# 64 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
+subset_vars = {'a2', 'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
+                   'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o',
+                   'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
+                   'kmet', 'Kv_mi', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_po', 'R_pp',
+                   'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'T0', 'theta_svn', 'V0_dead', 'V_nominal',
+                   'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
+                   'Wb_sh', 'Wb_sp', 'Wb_sv'}
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -248,15 +231,13 @@ param_ranges: dict[str, tuple[float, float]] = {
 }
 
 output_names = [
-    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-    "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure",
-    "Min_RA_Volume",
-    "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-    "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-    "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-    "PaO2", "PaCO2"]
+    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV",
+    "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
+    "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume", "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
+    "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation", "PaO2",
+    "PaCO2"]
 
 # ----------------------------
 # LOAD SIMULATOR
@@ -271,16 +252,27 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
 
 
-# # rest
-observation = {"Heart Rate": (1.1, 0.1), "Systolic Pressure": (105, 5), "Diastolic Pressure": (70, 3), "EDV": (163, 23),
-"ESV": (50, 10), "Max RV Volume": (186, 21), "Min RV Volume": (52, 9), "Max RV Pressure": (24, 2),
-"Min RV Pressure": (2, 1), "Min RA Volume": (45, 15), "Max RA Volume": (93, 16),
-"Max RA Pressure Atrial contraction": (7, 2), "Max RA Pressure Tricuspid Opening": (7, 2), "Min LA Volume": (45, 15),
-"Max LA Volume": (72, 12),
-"Max LA Pressure Atrial contraction": (7, 2),
-"Max LA Pressure Mitral Opening": (7, 2), "LA Contraction Volume diff": (10, 2), "RA Contraction Volume diff": (10, 2),
-"LV Pressure Deriv": (1600, 305), "RV Pressure Deriv": (500, 150), "Tidal Volume": (0.5, 0.1),
-"Minute Ventilation": (6.5, 0.5), "PaO2": (95, 4.5), "PaCO2": (40, 2)}
+# # # rest
+# observation = {"Heart Rate": (1.1, 0.1), "Systolic Pressure": (105, 5), "Diastolic Pressure": (70, 3), "EDV": (163, 23),
+# "ESV": (50, 10), "Max RV Volume": (186, 21), "Min RV Volume": (52, 9), "Max RV Pressure": (24, 2),
+# "Min RV Pressure": (2, 1), "Min RA Volume": (45, 15), "Max RA Volume": (93, 16),
+# "Max RA Pressure Atrial contraction": (7, 2), "Max RA Pressure Tricuspid Opening": (7, 2), "Min LA Volume": (45, 15),
+# "Max LA Volume": (72, 12),
+# "Max LA Pressure Atrial contraction": (7, 2),
+# "Max LA Pressure Mitral Opening": (7, 2), "LA Contraction Volume diff": (10, 2), "RA Contraction Volume diff": (10, 2),
+# "LV Pressure Deriv": (1600, 305), "RV Pressure Deriv": (500, 150), "Tidal Volume": (0.5, 0.1),
+# "Minute Ventilation": (6.5, 0.5), "PaO2": (95, 4.5), "PaCO2": (40, 2)}
+
+# # rest (second is variance, not standard deviation)
+observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diastolic Pressure": (70, 9), "EDV": (163, 529),
+"ESV": (50, 100), "Max RV Volume": (186, 441), "Min RV Volume": (52, 81), "Max RV Pressure": (24, 4),
+"Min RV Pressure": (2, 1), "Min RA Volume": (45, 225), "Max RA Volume": (93, 256),
+"Max RA Pressure Atrial contraction": (7, 4), "Max RA Pressure Tricuspid Opening": (7, 4), "Min LA Volume": (45, 225),
+"Max LA Volume": (72, 144),
+"Max LA Pressure Atrial contraction": (7, 4),
+"Max LA Pressure Mitral Opening": (7, 4), "LA Contraction Volume diff": (10, 4), "RA Contraction Volume diff": (10, 4),
+"LV Pressure Deriv": (1600, 93025), "RV Pressure Deriv": (500, 22500), "Tidal Volume": (0.5, 0.01),
+"Minute Ventilation": (6.5, 0.25), "PaO2": (95, 20.25), "PaCO2": (40, 4)}
 
 
 # ----------------------------
@@ -316,15 +308,15 @@ if __name__ == "__main__":
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=5,
+        threshold=6,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
         calibration_params=subset_vars,
     )
 
-    size = 200000
-    _ = hmw.run_waves(n_waves=5, n_simulations=1000, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    size = 100000
+    _ = hmw.run_waves(n_waves=5, n_simulations=1024, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

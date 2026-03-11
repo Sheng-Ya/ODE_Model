@@ -258,7 +258,7 @@ class HistoryMatching(TorchDeviceMixin):
         discrepancy = torch.full_like(
             self.obs_vars, self.discrepancy, device=self.device
         )
-
+        # obs_vars is the obs uncertainty, eg HR 1.1, std 0.1. Discrepancy is the uncertainty of the emulator prediction in that area
         # Calculate total variance
         Vs = pred_vars + discrepancy + self.obs_vars
 
@@ -1019,6 +1019,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if self.nroy_samples is None:
             test_x = self.simulator.sample_inputs(n).to(self.device)
+            print("Finished Initial Sampling")
             parent = "Emulator_Paper_1_90_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
@@ -1041,6 +1042,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
+        print("Emulators Loaded")
         means = {}
         variances = {}
 
@@ -1078,8 +1080,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
             else:
                 target_emulator = models[name]
 
+            A = test_x[:, self.parameter_idx]
             means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
 
+        print("finished predicting")
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
 
@@ -1430,8 +1434,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.wave_results = []
         for i in range(start_i, n_waves):
             if i == 1 or i == 2:
+                self.threshold = 5
+            if i == 3:
                 self.threshold = 4
-            if i > 2:
+            if i > 3:
                 self.threshold = 3
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave

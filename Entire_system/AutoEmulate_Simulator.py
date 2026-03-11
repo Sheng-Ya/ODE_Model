@@ -17,13 +17,14 @@ from Initial_Conditions_after_running_again import Initial_Conditions
 from scipy.interpolate import CubicSpline
 from All_Next_Conditions import Next_Conditions
 
-lower, upper = 0.5, 1.5
-
+lower = 0.8
+upper = 1.2
+#
 sp = ProblemSpec({
     'names': [
         # gas
         "beta2", "C2", "K2", "a2",
-        "alpha2", "dc", "KCCO2", "GV_dead",
+        "alpha2", "KCCO2", "GV_dead",
         # resp control
         "KcCO2", "KcMRV", "KpCO2", "KpO2",
         "V0_dead", "VA_rest",
@@ -38,7 +39,7 @@ sp = ProblemSpec({
         "C_pv", "L_pa", "R_pa", "R_pp",
         "R_pv", "Emax_la", "P0_la", "Emax_ra",
         "P0_ra", "KE_la", "KE_ra", "P0_lv",
-        "P0_rv", "g_thor", "P_thormax_n", "P_thormin_n",
+        "P0_rv", # "g_thor", "P_thormax_n", "P_thormin_n",
         "VT_n", "s",
         # cardio control
         "fab_o", "fes_o", "fes_inf", "fes_max",
@@ -56,12 +57,12 @@ sp = ProblemSpec({
         "GR_sp", "GV_amv", "GV_ev", "GV_rmv",
         "GV_sv", "R_amp0", "R_ep0", "R_rmp0",
         #
-        "R_sp0", "AT", "g_ccsh", "g_ccsp",
+        "R_sp0", "g_ccsh", "g_ccsp",
         "kisc_sh", "kisc_sp", "kisc_sv",
         "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
         "theta_spn", "theta_svn", "x_sh", "x_sp",
         "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min",
-        "k_ab", "P_n", "P_n_max","f_acCO2_n",
+        "k_ab", "P_n", "P_n_max", "f_acCO2_n",
         "f_ac_max", "f_ac_min", "k_ac", "K_H",
         "PaO2_ac_n", "G_ap", "GT_s", "GT_v",
         "T0", "A", "B", "C",
@@ -83,7 +84,7 @@ sp = ProblemSpec({
         "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
         "Vu_ra", "Vu_rv",
 
-        "V_tot",
+        # "V_tot",
         "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
         "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
         "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -108,8 +109,8 @@ sp = ProblemSpec({
 
     'bounds': [
         # gas
-        [0.03255 * 0.9, 0.03255 * 1.1], [87 * 0.9, 87 * 1.1], [194.4 * 0.9, 194.4 * 1.1], [1.819 * 0.9, 1.819 * 1.1],
-        [0.05591 * 0.9, 0.05591 * 1.1], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
+        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+        [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
         # resp control
         [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
@@ -122,9 +123,9 @@ sp = ProblemSpec({
         [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
         [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
-        [0.0056 * lower, 0.0056 * upper], [0.34 * lower, 0.34 * upper], [0.55 * lower, 0.55 * upper], [0.34 * lower, 0.34 * upper],
-        [0.55 * lower, 0.55 * upper], [0.05 * lower, 0.05 * upper], [0.07 * lower, 0.07 * upper], [1.5 * lower, 1.5 * upper],
-        [1.5 * lower, 1.5 * upper], [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
+        [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
+        [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
+        [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
         [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
@@ -142,11 +143,11 @@ sp = ProblemSpec({
         [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
         [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
         #
-        [2.49 * lower, 2.49 * upper], [(1 / 60) * lower, (1 / 60) * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
+        [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
         [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
         [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
-        [6 * lower, 6 * upper], [40 * 0.9, 40 * 1.1], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
         [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
         [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
@@ -163,13 +164,13 @@ sp = ProblemSpec({
         [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
         [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
-        [350 * lower, 350 * upper], [0.00134 * 0.9, 0.00134 * 1.1], [2.6 * 0.9, 2.6 * 1.1], [3.03e-5 * 0.9, 3.03e-5 * 1.1],
+        [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
         [90 * lower, 90 * upper], [38.703 * lower, 38.703 * upper],
 
-        [5027.6 * 0.8, 5027.6 * 1.2],
+        # [5027.6 * 0.8, 5027.6 * 1.2],
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
         [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -189,8 +190,8 @@ sp = ProblemSpec({
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
         [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-        [0.0872665 * lower, 0.0872665 * upper], [1.12 * 0.9, 1.12 * 1.1], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
-    })
+        [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
+})
 
 
 target_values = np.arange(0, 10000, 10)
