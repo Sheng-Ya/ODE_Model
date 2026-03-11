@@ -658,7 +658,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
     # If coefficients differ, don't reuse breath_coef
     if next_minimise_coef != minimise_coef:
-        for attempt in range(3):
+        for attempt in range(5):
             result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
 
             if storage_final is None:
@@ -673,7 +673,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
         return result, IC_final, storage_final, breath_coef
     else:
-        for attempt in range(3):
+        for attempt in range(5):
             result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
 
             if storage_final is None:
@@ -843,7 +843,7 @@ if __name__ == "__main__":
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-            [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+            [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
             # cardio
             [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
             [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
@@ -927,9 +927,9 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_50_no_Pthor_Vtot_09_03_26.npy", X)
-    X = np.load("DGSM_500_X_rest_50_no_Pthor_Vtot_09_03_26.npy")
-    # AAA = np.load("Result_DGSM_delay_09_03.npy")
+    # np.save("DGSM_500_X_rest_50_no_Pthor_Vtot_ErsRrs_10_03_26.npy", X)
+    X = np.load("DGSM_500_X_rest_50_no_Pthor_Vtot_ErsRrs_10_03_26.npy")
+    # AAA = np.load("Result_DGSM_delay_09_03_final.npy")
     # rows_all_zero = np.all(AAA == 0, axis=1)
     # idx = np.where(rows_all_zero)[0]
 
@@ -938,7 +938,7 @@ if __name__ == "__main__":
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=256)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=64)
     # Result = parallel_simulations(param_samples, Next_Conditions)
 
     # np.save('DGSM_500_Result_rest_50_no_Pthor_Vtot_09_03_26.npy', Result)
