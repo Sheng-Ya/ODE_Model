@@ -333,7 +333,7 @@ def simulate_cpu(Current_Parameters, local_updates, old_parameters):
     V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
     V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
 
-    N = 100  # number of consecutive closed samples required
+    N = 50  # number of consecutive closed samples required
 
     is_open = theta_ao > theta_min
     open_idx1 = []
