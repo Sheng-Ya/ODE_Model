@@ -15,7 +15,6 @@ from SALib import ProblemSpec
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
 from autoemulate import AutoEmulate
-import joblib
 
 from tqdm import tqdm
 import tqdm_joblib
@@ -34,7 +33,7 @@ from All_Next_Conditions import Next_Conditions
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 40000
 
-max_time = 60 # Maximum time limit to avoid infinite loops
+max_time = 120 # Maximum time limit to avoid infinite loops
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -663,8 +662,8 @@ def sample_inputs_from_spec(
 
 if __name__ == "__main__":
 
-    lower = 0.8
-    upper = 1.2
+    lower = 0.5
+    upper = 1.5
 
     sp = ProblemSpec({
         'names': [
@@ -760,7 +759,7 @@ if __name__ == "__main__":
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-            [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+            [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
             # cardio
             [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
             [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
@@ -1032,7 +1031,11 @@ if __name__ == "__main__":
         "scheduler_kwargs": {},
     }
 
-    parent_dir = "Emulator_Paper_1_90_same_1000"
+    # change
+    # +/-20%
+    # parent_dir = "Emulator_Paper_1_90_same_1000"
+    # +/-50%
+    parent_dir = "Emulator_Paper_same_1000"
 
     for j, target_name in enumerate(output_names_full):
         print("\n" + "=" * 100)

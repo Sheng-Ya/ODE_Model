@@ -662,11 +662,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if self.nroy_samples is None:
             test_x = self.simulator.sample_inputs(n).to(self.device)
+            # +/-20 %
             parent = "Emulator_Paper_1_90_same_1000"
+            # # +/-50%
+            # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
             parent = "Emulator1_Paper_wave"
-            # check = torch.from_numpy(check)
 
         output_names = [
             "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -683,45 +685,32 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
-        means = {}
-        variances = {}
+        # means = {}
+        # variances = {}
+        #
+        # for name in output_names:
+        #     if self.nroy_samples is None:
+        #         target_emulator = models[name].model
+        #     else:
+        #         target_emulator = models[name]
+        #
+        #     means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
 
-        # X = test_x[:, self.parameter_idx]
-        # use_inner = (self.nroy_samples is None)
-        #
-        # def _predict_one(name, path, X, use_inner):
-        #     print("start 1")
-        #     model = joblib.load(path)  # each process loads its own copy
-        #     print("done loading")
-        #     # Your two cases collapsed:
-        #     # if nroy_samples is None you used .model, else used model directly
-        #     emu = model.model if use_inner else model
-        #     m, v = emu.predict_mean_and_variance(X)
-        #     print("done 1")
-        #     return name, m, v
-        #
-        # n_jobs = min(64, len(output_names))
-        #
-        # paths = {name: os.path.join(parent, name, f"GaussianProcessMatern32_{name}_best.joblib")
-        #          for name in output_names}
-        #
-        # print("Now predicting mean and var from emulator")
-        #
-        # preds = Parallel(n_jobs=n_jobs)(
-        #     delayed(_predict_one)(name, paths[name], X, use_inner) for name in output_names
-        # )
-        #
-        # means = {name: m for name, m, v in preds}
-        # variances = {name: v for name, m, v in preds}
-
-        for name in output_names:
+        n_jobs = len(output_names)
+        def predict_one_output(name, X):
             if self.nroy_samples is None:
                 target_emulator = models[name].model
             else:
                 target_emulator = models[name]
 
-            # A = test_x[:, self.parameter_idx]
-            means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
+            mean, var = target_emulator.predict_mean_and_variance(X)
+            return name, mean, var
+
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
+
+        means = {name: mean for name, mean, var in results}
+        variances = {name: var for name, mean, var in results}
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
@@ -980,7 +969,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Also update nroy_samples so cloud sampling next wave uses best seeds
         self.nroy_samples = nroy_params_sorted
 
-        np.save("check.npy", nroy_simulation_samples)
+        # np.save("check.npy", nroy_simulation_samples)
         # save on CPU so it's portable across machines/devices
         torch.save(self.nroy_samples.detach().cpu(), "nroy_samples.pt")
         # A = np.load("check.npy")[64:66]
@@ -1092,16 +1081,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 self.threshold = 5
             if i == 3:
                 self.threshold = 4
-                n_simulations = 2048
+                # n_simulations = 2048
             if i == 4:
                 self.threshold = 3.5
-                n_simulations = 1024
+                # n_simulations = 1024
             if i == 5:
                 self.threshold = 3.2
-                n_simulations = 1024
+                # n_simulations = 1024
             if i == 6:
                 self.threshold = 3
-                n_simulations = 1024
+                # n_simulations = 1024
+            if i == 7:
+                self.threshold = 2.8
+            if i == 8:
+                self.threshold = 2.5
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
             test_x, impl_scores = self.run(

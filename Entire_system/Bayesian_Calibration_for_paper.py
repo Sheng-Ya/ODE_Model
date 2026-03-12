@@ -1,24 +1,14 @@
 import os
-
-import pandas as pd
-import torch
 import warnings
 import joblib
 import numpy as np
-import matplotlib.pyplot as plt
 import pyro
-import seaborn as sns
 from multiprocessing import resource_tracker
 # Prevent the resource tracker from complaining about shared memory cleanup
 resource_tracker._resource_tracker._STOP = True
-
-from getdist import plots
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-# from autoemulate.calibration.history_matching import HistoryMatching, HistoryMatchingWorkflow
 from History_matching_function_new import HistoryMatchingWorkflow
-from scipy.stats import qmc
-from sklearn.model_selection import KFold
 from AutoEmulate_Simulator import Cardiopulmonary
 
 # ----------------------------
@@ -34,9 +24,10 @@ pyro.set_rng_seed(random_seed)
 # ----------------------------
 # PROBLEM SPECIFICATION
 # ----------------------------
-# change rest
-lower = 0.8
-upper = 1.2
+# change
+percent = 0.2
+lower = 1 - percent
+upper = 1 + percent
 #
 sp = ProblemSpec({
     'names': [
@@ -132,7 +123,7 @@ sp = ProblemSpec({
         # resp control
         [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-        [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+        [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
         # cardio
         [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
         [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
@@ -279,18 +270,12 @@ observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diast
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
-    # # A = torch.load("nroy_samples_Wave_4.pt", map_location="cpu").detach().cpu().numpy()
-    # # AA = np.load("check_Wave_4.npy")
-    # # param_keys = list(sp["names"])
-    # # param_samples = [dict(zip(param_keys, row)) for row in A]
-    # # AAAAA = param_samples[100]
-    # # print(AAAAA)
-    # AAA = np.load("NROY_Points_rest2.npy")
-    # AAAA = np.load("NROY_Implaus_rest2.npy")
-    # AAAAA = np.load("test_param_rest2.npy")
-    # # #
+
+    # AAA = np.load("NROY_Points_rest_20.npy")
+    # AAAA = np.load("NROY_Implaus_rest_20.npy")
+    # AAAAA = np.load("test_param_rest_20.npy")
     # # # # Filter A and AA
-    # mask = np.all(AAAA < 3.7, axis=1)
+    # mask = np.all(AAAA < 3, axis=1)
     # AAAA_filtered = AAAA[mask]
     # AAAAA_filtered = AAAAA[mask]
     # index_for_sort = np.argsort(-AAAA_filtered, axis=1)
@@ -322,7 +307,7 @@ if __name__ == "__main__":
     )
 
     size = 200000
-    _ = hmw.run_waves(n_waves=7, n_simulations=1024, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=9, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=True)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
@@ -335,18 +320,18 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_rest2.npy", nroy_points)
-    np.save(f"NROY_Params_rest2.npy", params_post_hm)
-    np.save(f"NROY_Implaus_rest2.npy", impl_scores)
-    np.save(f"test_param_rest2.npy", test_parameters)
+    np.save(f"NROY_Points_rest_{percent}.npy", nroy_points)
+    np.save(f"NROY_Params_rest_{percent}.npy", params_post_hm)
+    np.save(f"NROY_Implaus_rest_{percent}.npy", impl_scores)
+    np.save(f"test_param_rest_{percent}.npy", test_parameters)
 
 
-    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_1.png")
+    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_{percent}.png")
     print(len(hmw.wave_results)-1)
-    hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_1.png")
-    hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_1.png")
-    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_1.png")
-    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_1.png")
+    hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_{percent}.png")
+    hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_{percent}.png")
+    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_{percent}.png")
+    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_{percent}.png")
 
 
 
