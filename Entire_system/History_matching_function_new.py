@@ -175,7 +175,6 @@ class HistoryMatching(TorchDeviceMixin):
         # Sort implausibilities for each sample (descending)
         I_sorted, index_for_sort = torch.sort(implausibility, dim=1, descending=True)
         values, row_idx = torch.sort(I_sorted[:, 0], descending=True)
-        values1, _ = torch.sort(index_for_sort[:, 0], descending=True)
         implausibility_sorted_by_col0 = I_sorted[row_idx]
         index_of_implausibility_sorted_by_col0 = index_for_sort[row_idx]
 
@@ -443,190 +442,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         )
         return bool(torch.all((sample >= lowers) & (sample <= uppers)).item())
 
-    # def _sample_within_bounds(
-    #         self,
-    #         dist: DistributionLike,
-    #         bounds: dict[str, tuple[float, float]],
-    #         n: int,
-    #         constant_params: dict[int, float] | None = None,
-    #         sample_params_idx: list[int] | None = None,
-    # ) -> list[TensorLike]:
-    #     """
-    #     Sample from distribution until `n` valid samples within the bounds are obtained.
-    #
-    #     Handles constant parameters by inserting their values at the correct indices.
-    #
-    #     Parameters
-    #     ----------
-    #     dist: DistributionLike
-    #         A distribution to sample from, e.g., MultivariateNormal.
-    #     bounds: dict[str, tuple[float, float]]
-    #         A dictionary of [min, max] parameter bounds for each sampled parameter.
-    #     n: int
-    #         The number of samples to generate.
-    #     constant_params: dict[int, float] | None
-    #         A dictionary of constant parameter indices and their values.
-    #     sample_params_idx: list[int]
-    #         Indices of parameters that are not constant.
-    #
-    #     Returns
-    #     -------
-    #     list[TensorLike]
-    #         A list of valid samples that are within the bounds.
-    #     """
-    #     param_dim = len(bounds)
-    #     if sample_params_idx is None:
-    #         sample_params_idx = list(range(len(bounds)))
-    #
-    #     # Precompute constants once
-    #     if constant_params:
-    #         const_idx = list(constant_params.keys())
-    #         const_vals = torch.tensor(list(constant_params.values()))
-    #     else:
-    #         const_idx = const_vals = None
-    #
-    #     # Preallocate tensor for full samples
-    #     full = torch.empty((n, param_dim))
-    #     # Fill in constants
-    #     if constant_params:
-    #         full[:, const_idx] = const_vals
-    #
-    #     # Prepare bounds as tensors for vectorized check
-    #     lowers = torch.tensor([b[0] for b in bounds.values()], dtype=torch.float32)
-    #     uppers = torch.tensor([b[1] for b in bounds.values()], dtype=torch.float32)
-    #
-    #     # Initialize variable parameters
-    #     remaining_idx = torch.arange(n)
-    #     q = 0
-    #     while len(remaining_idx) > 0:
-    #         # Sample only for the remaining invalid rows
-    #         samples = dist.sample((len(remaining_idx),))
-    #         full[remaining_idx[:, None], sample_params_idx] = samples
-    #
-    #         # Vectorized bounds check
-    #         mask = (full[remaining_idx] >= lowers) & (full[remaining_idx] <= uppers)
-    #         valid_mask = mask.all(dim=1)
-    #
-    #         # Check which are valid
-    #         # valid_mask = torch.tensor([self._is_within_bounds(full[i], bounds) for i in remaining_idx])
-    #         # Update remaining indices
-    #         remaining_idx = remaining_idx[~valid_mask]
-    #         q += 1
-    #         print(q)
-    #     return full
-
-    # def cloud_sample(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
-    #     """
-    #     Generate `n` additional parameter samples using cloud sampling.
-    #
-    #     Handles fixed parameters (min == max) by not sampling those. The constant
-    #     values are inserted at the correct indices in the sampled tensor.
-    #
-    #     Parameters
-    #     ----------
-    #     n: int
-    #         The number of samples to generate.
-    #     scaling_factor: float
-    #         The standard deviation of the Gaussian to sample from in cloud sampling is
-    #         set to: `parameter range * scaling_factor`.
-    #
-    #     Returns
-    #     -------
-    #     TensorLike
-    #         A tensor of sampled (and potentially constant) parameters [n, in_dim].
-    #     """
-    #     assert isinstance(self.nroy_samples, TensorLike)
-    #
-    #     bounds = self.generate_param_bounds(self.nroy_samples, buffer_ratio=0.0)
-    #     assert bounds is not None
-    #
-    #     # Identify constant parameters
-    #     min_vals = torch.tensor([b[0] for b in bounds.values()], device=self.device)
-    #     max_vals = torch.tensor([b[1] for b in bounds.values()], device=self.device)
-    #     is_constant = min_vals == max_vals
-    #     constant_params = {
-    #         i: min_vals[i].item() for i, fixed in enumerate(is_constant) if fixed
-    #     }
-    #     sample_params_idx = [i for i, fixed in enumerate(is_constant) if not fixed]
-    #
-    #     # If all parameters are constant just return the constant sample n times
-    #     if len(sample_params_idx) == 0:
-    #         msg = "All parameters are constant, cannot sample from them."
-    #         raise ValueError(msg)
-    #
-    #     # Only use non-constant parameters for mean and covariance to sample from
-    #     nroy_params_to_sample = self.nroy_samples[:, sample_params_idx]
-    #     stdev = (
-    #                     nroy_params_to_sample.max(dim=0).values
-    #                     - nroy_params_to_sample.min(dim=0).values
-    #             ) * scaling_factor
-    #     covariance_matrix = torch.diag(stdev ** 2)
-    #
-    #     # Shuffle the order of means to sample from
-    #     num_means = nroy_params_to_sample.shape[0]
-    #     perm = torch.randperm(num_means, device=nroy_params_to_sample.device)
-    #
-    #     # Determine how many samples to draw for each mean, handle remainder
-    #     min_samples_per_mean = n // num_means
-    #     remainder_to_sample = n % num_means
-    #
-    #     # Determine number of parallel jobs
-    #     n_jobs = 64  # use all cores
-    #
-    #     # means = nroy_params_to_sample[perm]
-    #     # num_means = means.shape[0]
-    #
-    #     # def sample_one(i):
-    #     #     mean = means[i]
-    #     #     n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-    #     #     mvn = MultivariateNormal(mean, covariance_matrix)
-    #     #     return self._sample_within_bounds(
-    #     #         mvn, bounds, n_samples, constant_params, sample_params_idx
-    #     #     )
-    #     #
-    #     # with tqdm_joblib.tqdm_joblib(tqdm(total=num_means, desc="Cloud sampling (means)")):
-    #     #     results = Parallel(n_jobs=n_jobs, backend="loky", batch_size=1)(
-    #     #         delayed(sample_one)(i) for i in range(num_means)
-    #     #     )
-    #     # all_valid_samples = [s for sub in results for s in sub]
-    #
-    #     # Split permuted means into batches
-    #     chunk_size = math.ceil(num_means / n_jobs)
-    #     batches = [nroy_params_to_sample[perm][i:i + chunk_size] for i in range(0, num_means, chunk_size)]
-    #
-    #     def sample_batch(batch, batch_idx):
-    #         batch_samples = []
-    #         for j, mean in enumerate(batch):
-    #             i = batch_idx * chunk_size + j
-    #             n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-    #             mvn = MultivariateNormal(mean, covariance_matrix)
-    #             batch_samples.extend(
-    #                 self._sample_within_bounds(mvn, bounds, n_samples, constant_params, sample_params_idx))
-    #         print(f"==============Batch {batch_idx + 1} done")
-    #         return batch_samples
-    #
-    #     results = Parallel(n_jobs=n_jobs)(
-    #         delayed(sample_batch)(batch, idx) for idx, batch in enumerate(batches)
-    #     )
-    #
-    #     # Flatten results
-    #     all_valid_samples = [sample for batch in results for sample in batch]
-    #
-    #     # all_valid_samples = []
-    #     # w = 0
-    #     # for i, mean in enumerate(nroy_params_to_sample[perm]):
-    #     #     n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-    #     #     mvn = MultivariateNormal(mean, covariance_matrix)
-    #     #     all_valid_samples.extend(
-    #     #         self._sample_within_bounds(
-    #     #             mvn, bounds, n_samples, constant_params, sample_params_idx
-    #     #         )
-    #     #     )
-    #     #     w += 1
-    #     #     print(f"=============={w}")
-    #
-    #     return torch.stack(all_valid_samples, dim=0)
-
     def _phi(self, x):
         return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
 
@@ -704,7 +519,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                         nroy_params_to_sample.max(dim=0).values
                         - nroy_params_to_sample.min(dim=0).values
                 ) * scaling_factor
-        covariance_matrix = torch.diag(stdev ** 2)
+        # covariance_matrix = torch.diag(stdev ** 2)
 
         # Shuffle the order of means to sample from
         num_means = nroy_params_to_sample.shape[0]
@@ -764,112 +579,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         return torch.cat(results, dim=0)
 
 
-
-
-    # Cloud sample truncated
-    # def cloud_sample(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
-    #     """
-    #     Generate `n` additional parameter samples using cloud sampling.
-    #
-    #     Handles fixed parameters (min == max) by not sampling those. The constant
-    #     values are inserted at the correct indices in the sampled tensor.
-    #
-    #     Parameters
-    #     ----------
-    #     n: int
-    #         The number of samples to generate.
-    #     scaling_factor: float
-    #         The standard deviation of the Gaussian to sample from in cloud sampling is
-    #         set to: `parameter range * scaling_factor`.
-    #
-    #     Returns
-    #     -------
-    #     TensorLike
-    #         A tensor of sampled (and potentially constant) parameters [n, in_dim].
-    #     """
-    #     assert isinstance(self.nroy_samples, TensorLike)
-    #
-    #     bounds = self.generate_param_bounds(self.nroy_samples, buffer_ratio=0.0)
-    #     assert bounds is not None
-    #
-    #     # Identify constant parameters
-    #     min_vals = torch.tensor([b[0] for b in bounds.values()], device=self.device)
-    #     max_vals = torch.tensor([b[1] for b in bounds.values()], device=self.device)
-    #     is_constant = min_vals == max_vals
-    #     constant_params = {
-    #         i: min_vals[i].item() for i, fixed in enumerate(is_constant) if fixed
-    #     }
-    #     sample_params_idx = [i for i, fixed in enumerate(is_constant) if not fixed]
-    #
-    #     # If all parameters are constant just return the constant sample n times
-    #     if len(sample_params_idx) == 0:
-    #         msg = "All parameters are constant, cannot sample from them."
-    #         raise ValueError(msg)
-    #
-    #     # Only use non-constant parameters for mean and covariance to sample from
-    #     nroy_params_to_sample = self.nroy_samples[:, sample_params_idx]
-    #     stdev = (
-    #                     nroy_params_to_sample.max(dim=0).values
-    #                     - nroy_params_to_sample.min(dim=0).values
-    #             ) * scaling_factor
-    #     covariance_matrix = torch.diag(stdev ** 2)
-    #
-    #     # Shuffle the order of means to sample from
-    #     num_means = nroy_params_to_sample.shape[0]
-    #     perm = torch.randperm(num_means, device=nroy_params_to_sample.device)
-    #
-    #     # Determine how many samples to draw for each mean, handle remainder
-    #     min_samples_per_mean = n // num_means
-    #     remainder_to_sample = n % num_means
-    #
-    #     # Determine number of parallel jobs
-    #     n_jobs = 64  # use all cores
-    #
-    #     # Split permuted means into batches
-    #     chunk_size = math.ceil(num_means / n_jobs)
-    #     batches = [nroy_params_to_sample[perm][i:i + chunk_size] for i in range(0, num_means, chunk_size)]
-    #
-    #     # precompute once outside the loop:
-    #     low_all = torch.tensor([b[0] for b in bounds.values()], device=self.device)
-    #     high_all = torch.tensor([b[1] for b in bounds.values()], device=self.device)
-    #     low = low_all[sample_params_idx]
-    #     high = high_all[sample_params_idx]
-    #     std = stdev  # already [d_nonconst]
-    #
-    #     def sample_batch(batch, batch_idx):
-    #         batch_samples = []
-    #         for j, mean in enumerate(batch):
-    #             i = batch_idx * chunk_size + j
-    #             n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-    #
-    #             # 1) sample only non-constant dims directly within bounds
-    #             x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
-    #
-    #             # 2) rebuild full vector incl. constant dims (like your current logic)
-    #             param_dim = len(bounds)
-    #             full = torch.empty((n_samples, param_dim), device=self.device, dtype=x_nonconst.dtype)
-    #             if constant_params:
-    #                 const_idx = torch.tensor(list(constant_params.keys()), device=self.device)
-    #                 const_vals = torch.tensor(list(constant_params.values()), device=self.device,
-    #                                           dtype=x_nonconst.dtype)
-    #                 full[:, const_idx] = const_vals
-    #             full[:, torch.tensor(sample_params_idx, device=self.device)] = x_nonconst
-    #
-    #             # 3) no need to call _is_within_bounds; it's guaranteed
-    #             batch_samples.extend([row for row in full])
-    #
-    #         print(f"==============Batch {batch_idx + 1} done")
-    #         return batch_samples
-    #
-    #     results = Parallel(n_jobs=n_jobs)(
-    #         delayed(sample_batch)(batch, idx) for idx, batch in enumerate(batches)
-    #     )
-    #
-    #     # Flatten results
-    #     all_valid_samples = [sample for batch in results for sample in batch]
-    #
-    #     return torch.stack(all_valid_samples, dim=0)
-
     def _sample_within_bounds(
         self,
         dist: DistributionLike,
@@ -925,73 +634,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             full[:, sample_params_idx] = samples
             valid_samples.extend([s for s in full if self._is_within_bounds(s, bounds)])
         return valid_samples
-    #
-    # def cloud_sample(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
-    #     """
-    #     Generate `n` additional parameter samples using cloud sampling.
-    #
-    #     Handles fixed parameters (min == max) by not sampling those. The constant
-    #     values are inserted at the correct indices in the sampled tensor.
-    #
-    #     Parameters
-    #     ----------
-    #     n: int
-    #         The number of samples to generate.
-    #     scaling_factor: float
-    #         The standard deviation of the Gaussian to sample from in cloud sampling is
-    #         set to: `parameter range * scaling_factor`.
-    #
-    #     Returns
-    #     -------
-    #     TensorLike
-    #         A tensor of sampled (and potentially constant) parameters [n, in_dim].
-    #     """
-    #     assert isinstance(self.nroy_samples, TensorLike)
-    #
-    #     bounds = self.generate_param_bounds(self.nroy_samples, buffer_ratio=0.0)
-    #     assert bounds is not None
-    #
-    #     # Identify constant parameters
-    #     min_vals = torch.tensor([b[0] for b in bounds.values()], device=self.device)
-    #     max_vals = torch.tensor([b[1] for b in bounds.values()], device=self.device)
-    #     is_constant = min_vals == max_vals
-    #     constant_params = {
-    #         i: min_vals[i].item() for i, fixed in enumerate(is_constant) if fixed
-    #     }
-    #     sample_params_idx = [i for i, fixed in enumerate(is_constant) if not fixed]
-    #
-    #     # If all parameters are constant just return the constant sample n times
-    #     if len(sample_params_idx) == 0:
-    #         msg = "All parameters are constant, cannot sample from them."
-    #         raise ValueError(msg)
-    #
-    #     # Only use non-constant parameters for mean and covariance to sample from
-    #     nroy_params_to_sample = self.nroy_samples[:, sample_params_idx]
-    #     stdev = (
-    #         nroy_params_to_sample.max(dim=0).values
-    #         - nroy_params_to_sample.min(dim=0).values
-    #     ) * scaling_factor
-    #     covariance_matrix = torch.diag(stdev**2)
-    #
-    #     # Shuffle the order of means to sample from
-    #     num_means = nroy_params_to_sample.shape[0]
-    #     perm = torch.randperm(num_means, device=nroy_params_to_sample.device)
-    #
-    #     # Determine how many samples to draw for each mean, handle remainder
-    #     min_samples_per_mean = n // num_means
-    #     remainder_to_sample = n % num_means
-    #
-    #     all_valid_samples = []
-    #     for i, mean in enumerate(nroy_params_to_sample[perm]):
-    #         n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-    #         mvn = MultivariateNormal(mean, covariance_matrix)
-    #         all_valid_samples.extend(
-    #             self._sample_within_bounds(
-    #                 mvn, bounds, n_samples, constant_params, sample_params_idx
-    #             )
-    #         )
-    #
-    #     return torch.stack(all_valid_samples, dim=0)
+
 
     def generate_samples(
         self, n: int, scaling_factor: float = 0.1
@@ -1019,11 +662,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if self.nroy_samples is None:
             test_x = self.simulator.sample_inputs(n).to(self.device)
-            print("Finished Initial Sampling")
             parent = "Emulator_Paper_1_90_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
-            print("Cloud sampling done")
             parent = "Emulator1_Paper_wave"
             # check = torch.from_numpy(check)
 
@@ -1042,7 +683,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
-        print("Emulators Loaded")
         means = {}
         variances = {}
 
@@ -1080,17 +720,16 @@ class HistoryMatchingWorkflow(HistoryMatching):
             else:
                 target_emulator = models[name]
 
-            A = test_x[:, self.parameter_idx]
+            # A = test_x[:, self.parameter_idx]
             means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
 
-        print("finished predicting")
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
 
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
 
-        print("Done")
+        # print("Done")
 
         return test_x, impl_scores
 
@@ -1291,6 +930,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 raise Warning(msg)
                 break
 
+            if retries > 10:
+                scaling_factor = 0.2
 
             # Generate `n_test_samples` with implausability scores, identify NROY
             test_parameters, impl_scores = self.generate_samples(
@@ -1308,9 +949,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
             test_parameters_list.append(test_parameters)
             impl_scores_list.append(impl_scores)
 
-            print("done appending")
-
-
             msg = (
                 f"Generated {nroy_parameters.shape[0]} NROY samples on try "
                 f"{retries + 1}, have {torch.cat(nroy_parameters_list, 0).shape[0]} "
@@ -1320,11 +958,28 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             retries += 1
 
-        # Next time that call run(), will sample using these NROY points
-        self.nroy_samples = torch.cat(nroy_parameters_list, 0)
+        # # Next time that call run(), will sample using these NROY points
+        # self.nroy_samples = torch.cat(nroy_parameters_list, 0)
 
         # Randomly pick at most `n_simulations` parameters from NROY to simulate
-        nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+        # nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+        # pick `n_simulations` parameters from NROY with lowest implausibility
+        nroy_params = torch.cat(nroy_parameters_list, dim=0)
+
+        implaus_tensor = torch.cat(impl_scores_list, 0)
+        nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
+
+        # Rank by worst-output implausibility per sample
+        max_impl_per_sample, _ = nroy_impl.max(dim=1)
+        best_idx = torch.argsort(max_impl_per_sample)
+        nroy_params_sorted = nroy_params[best_idx]
+
+        # Take the best n_simulations to run through the simulator
+        nroy_simulation_samples = nroy_params_sorted[:n_simulations]
+
+        # Also update nroy_samples so cloud sampling next wave uses best seeds
+        self.nroy_samples = nroy_params_sorted
+
         np.save("check.npy", nroy_simulation_samples)
         # save on CPU so it's portable across machines/devices
         torch.save(self.nroy_samples.detach().cpu(), "nroy_samples.pt")
@@ -1346,14 +1001,14 @@ class HistoryMatchingWorkflow(HistoryMatching):
             "PaO2", "PaCO2"]
 
         for j, target_name in enumerate(output_names_full):
-            print("\n" + "=" * 100)
-            print(f"[{j + 1}/{len(output_names_full)}] Target = {target_name}")
-            print("=" * 100)
+            # print("\n" + "=" * 100)
+            # print(f"[{j + 1}/{len(output_names_full)}] Target = {target_name}")
+            # print("=" * 100)
 
             # Optionally refit the emulator using the most recent simulations or all data
             if refit_emulator:
-                data_msg = "all data" if refit_on_all_data else "most recent data"
-                msg = f"Refitting emulator on {data_msg}."
+                # data_msg = "all data" if refit_on_all_data else "most recent data"
+                # msg = f"Refitting emulator on {data_msg}."
                 logger.info(msg)
                 if refit_on_all_data:
                     X_fit = self.train_x
@@ -1437,8 +1092,16 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 self.threshold = 5
             if i == 3:
                 self.threshold = 4
-            if i > 3:
+                n_simulations = 2048
+            if i == 4:
+                self.threshold = 3.5
+                n_simulations = 1024
+            if i == 5:
+                self.threshold = 3.2
+                n_simulations = 1024
+            if i == 6:
                 self.threshold = 3
+                n_simulations = 1024
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
             test_x, impl_scores = self.run(

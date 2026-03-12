@@ -279,28 +279,34 @@ observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diast
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
-    # A = torch.load("nroy_samples_Wave_4.pt", map_location="cpu").detach().cpu().numpy()
-    # AA = np.load("check_Wave_4.npy")
-    # param_keys = list(sp["names"])
-    # param_samples = [dict(zip(param_keys, row)) for row in A]
-    # AAAAA = param_samples[100]
-    # print(AAAAA)
-    # AAA = np.load("NROY_Points_rest_Wave_4.npy")
-    # AAAA = np.load("NROY_Implaus_rest_Wave4.npy")
-    # AAAAA = np.load("test_param_rest_Wave_4.npy")
-    # #
-    # # # Filter A and AA
-    # mask = np.all(AAAA < 3, axis=1)
+    # # A = torch.load("nroy_samples_Wave_4.pt", map_location="cpu").detach().cpu().numpy()
+    # # AA = np.load("check_Wave_4.npy")
+    # # param_keys = list(sp["names"])
+    # # param_samples = [dict(zip(param_keys, row)) for row in A]
+    # # AAAAA = param_samples[100]
+    # # print(AAAAA)
+    # AAA = np.load("NROY_Points_rest2.npy")
+    # AAAA = np.load("NROY_Implaus_rest2.npy")
+    # AAAAA = np.load("test_param_rest2.npy")
+    # # #
+    # # # # Filter A and AA
+    # mask = np.all(AAAA < 3.7, axis=1)
     # AAAA_filtered = AAAA[mask]
     # AAAAA_filtered = AAAAA[mask]
-    #
-    # mask2 = AA_filtered[:, 7] < 2
-    # AA_filtered1  = AA_filtered[mask2]
-    # AAA_filtered1 = AAA_filtered[mask2]
-    #
+    # index_for_sort = np.argsort(-AAAA_filtered, axis=1)
+    # I_sorted = np.take_along_axis(AAAA_filtered, index_for_sort, axis=1)
+    # row_idx = np.argsort(-I_sorted[:, 0])
+    # implausibility_sorted_by_col0 = I_sorted[row_idx]
+    # index_of_implausibility_sorted_by_col0 = index_for_sort[row_idx]
+    # samples = AAAAA_filtered[row_idx]
+    # #
+    # # mask2 = AA_filtered[:, 7] < 2
+    # # AA_filtered1  = AA_filtered[mask2]
+    # # AAA_filtered1 = AAA_filtered[mask2]
+    # #
     # param_keys = list(sp["names"])
-    # param_samples = [dict(zip(param_keys, row)) for row in AAAAA_filtered]
-    # AAAA = param_samples[10]
+    # param_samples = [dict(zip(param_keys, row)) for row in samples]
+    # print(param_samples[-1])
 
 
     hmw = HistoryMatchingWorkflow(
@@ -315,8 +321,8 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    size = 100000
-    _ = hmw.run_waves(n_waves=5, n_simulations=1024, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    size = 200000
+    _ = hmw.run_waves(n_waves=7, n_simulations=1024, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
@@ -340,6 +346,8 @@ if __name__ == "__main__":
     hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_1.png")
     hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_1.png")
     hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_1.png")
+    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_1.png")
+
 
 
 
