@@ -454,12 +454,6 @@ class Cardiopulmonary(Simulator):
 
         i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
-        P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
-        peaks, _ = find_peaks(P_sa, distance=int(1000))
-
-        last_10_peaks_P_sa = peaks[-11:-1]
-        last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
-
         theta_ao = np.concatenate(
             (local_updates["theta_ao_store"][i_buffer:], local_updates["theta_ao_store"][:i_buffer]))
         theta_po = np.concatenate(
@@ -469,25 +463,30 @@ class Cardiopulmonary(Simulator):
         theta_tr = np.concatenate(
             (local_updates["theta_tr_store"][i_buffer:], local_updates["theta_tr_store"][:i_buffer]))
 
+        V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
         V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
         V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
         V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
 
         N = 50  # number of consecutive closed samples required
 
-        is_open = theta_ao > theta_min
+        is_open_ao = theta_ao > theta_min
         open_idx1 = []
         for k in range(N, len(theta_ao)):
-            if is_open[k] and not np.any(is_open[k - N:k]):
+            if is_open_ao[k] and not np.any(is_open_ao[k - N:k]):
                 open_idx1.append(k)
-        open_idx1 = np.array(open_idx1)[-11:-1]
+        open_idx1 = np.array(open_idx1)
 
-        # is_closed_ao = theta_ao <= theta_min
-        # close_idx1 = []
-        # for k in range(N, len(theta_ao)):
-        #     if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
-        #         close_idx1.append(k)
-        # close_idx1 = np.array(close_idx1)[-11:-1]
+        is_closed_ao = theta_ao <= theta_min
+        close_idx1 = []
+        for k in range(N, len(theta_ao)):
+            if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
+                close_idx1.append(k)
+        close_idx1 = np.array(close_idx1)
+
+        if open_idx1.size == 0 or close_idx1.size == 0:
+            print("ao fail")
+            return [0.0] * 31, None, None, None
 
         is_open_po = theta_po > theta_min
         open_idx2 = []
@@ -531,6 +530,11 @@ class Cardiopulmonary(Simulator):
                 close_idx4.append(k)
         close_idx4 = np.array(close_idx4)
 
+        pairs_ao = np.array([
+            (o, close_idx1[(close_idx1 > o) & (close_idx1 < o_next)][-1])
+            for o, o_next in zip(open_idx1[:-1], open_idx1[1:])
+            if np.any((close_idx1 > o) & (close_idx1 < o_next))])
+
         pairs_po = np.array([
             (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
             for o, o_next in zip(open_idx2[:-1], open_idx2[1:])
@@ -546,6 +550,7 @@ class Cardiopulmonary(Simulator):
             for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
             if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
+        pairs_ao = pairs_ao[-11:-1]
         pairs_po = pairs_po[-11:-1]
         pairs_mi = pairs_mi[-11:-1]
         pairs_tr = pairs_tr[-11:-1]
@@ -558,6 +563,10 @@ class Cardiopulmonary(Simulator):
         edges = np.diff(is_rising.astype(int))
         start_idx = np.where(edges == 1)[0] + 1
         end_idx = np.where(edges == -1)[0] + 1
+
+        # systolic pressure
+        P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
+        P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
 
         n_pairs = min(len(start_idx), len(end_idx))
         # If first end comes before first start, skip that end
@@ -587,16 +596,6 @@ class Cardiopulmonary(Simulator):
         P_ra_descent1_idx = np.array(
             [c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])])
 
-        V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
-        peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
-        troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
-
-        last_10_troughs_V_lv = troughs[-11:-1]
-        last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
-
-        last_10_peaks_V_lv = peaks[-11:-1]
-        last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
-
         P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
         P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
         P_rv_min_idx = np.array(
@@ -624,9 +623,14 @@ class Cardiopulmonary(Simulator):
         last_10_b4_RA_atrial_contract = V_ra[local_mins]
 
         tidal = np.concatenate((local_updates["tidal_store"][i_buffer:], local_updates["tidal_store"][:i_buffer]))
-        peaks, _ = find_peaks(tidal, distance=int(1000))
-        last_10_peaks_tidal = peaks[-1]
-        max_tidal = tidal[last_10_peaks_tidal]
+        finish_breath_time = np.concatenate((local_updates["finish_breath_time"][i_buffer:], local_updates["finish_breath_time"][:i_buffer]))
+        dtr = np.diff(finish_breath_time)
+
+        breath_starts = np.where(dtr > 0)[0] + 1
+        if breath_starts.size >= 2:
+            max_tidal = np.max(tidal[breath_starts[-2]:breath_starts[-1]])
+        else:
+            max_tidal = np.max(tidal[tidal > 0]) if np.any(tidal > 0) else 0.0
 
         VAflow = np.concatenate((local_updates["VAflow_store"][i_buffer:], local_updates["VAflow_store"][:i_buffer]))
         t1 = np.concatenate((local_updates["t1_store"][i_buffer:], local_updates["t1_store"][:i_buffer]))
@@ -674,8 +678,8 @@ class Cardiopulmonary(Simulator):
         RA_Contraction_Volume_diff = np.mean(last_10_b4_RA_atrial_contract) - np.mean(V_ra[pairs_tr[:, 1]])
 
 
-        return torch.tensor([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
-            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
+        return torch.tensor([np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
+            np.mean(V_lv[pairs_ao[:, 0]]), np.mean(V_lv[pairs_ao[:, 1]]), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
             np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
             np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
@@ -690,7 +694,7 @@ class Cardiopulmonary(Simulator):
         bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
         tolerance = 0.0001
 
-        VAflow_vals = np.linspace(0.01, 1, 200)
+        VAflow_vals = np.linspace(0.01, 1.6, 200)
         VAflow_repeated = np.repeat(VAflow_vals, 3)
 
         VD = GV_dead * VAflow_repeated + V0_dead

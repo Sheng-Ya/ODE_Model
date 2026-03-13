@@ -376,12 +376,6 @@ def simulate():
     # print(combined)
     np.save("combined.npy", combined)
 
-    P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
-    peaks, _ = find_peaks(P_sa, distance=int(1000))
-
-    last_10_peaks_P_sa = peaks[-11:-1]
-    last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
-
     theta_ao = np.concatenate((Next_Conditions["theta_ao_store"][i_buffer:], Next_Conditions["theta_ao_store"][:i_buffer]))
     theta_po = np.concatenate((Next_Conditions["theta_po_store"][i_buffer:], Next_Conditions["theta_po_store"][:i_buffer]))
     theta_mi = np.concatenate((Next_Conditions["theta_mi_store"][i_buffer:], Next_Conditions["theta_mi_store"][:i_buffer]))
@@ -393,19 +387,19 @@ def simulate():
 
     N = 50  # number of consecutive closed samples required
 
-    is_open = theta_ao > theta_min
+    is_open_ao = theta_ao > theta_min
     open_idx1 = []
     for k in range(N, len(theta_ao)):
-        if is_open[k] and not np.any(is_open[k - N:k]):
+        if is_open_ao[k] and not np.any(is_open_ao[k - N:k]):
             open_idx1.append(k)
-    open_idx1 = np.array(open_idx1)[-11:-1]
+    open_idx1 = np.array(open_idx1)
 
-    # is_closed_ao = theta_ao <= theta_min
-    # close_idx1 = []
-    # for k in range(N, len(theta_ao)):
-    #     if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
-    #         close_idx1.append(k)
-    # close_idx1 = np.array(close_idx1)[-11:-1]
+    is_closed_ao = theta_ao <= theta_min
+    close_idx1 = []
+    for k in range(N, len(theta_ao)):
+        if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
+            close_idx1.append(k)
+    close_idx1 = np.array(close_idx1)
 
     is_open_po = theta_po > theta_min
     open_idx2 = []
@@ -449,6 +443,11 @@ def simulate():
             close_idx4.append(k)
     close_idx4 = np.array(close_idx4)
 
+    pairs_ao = np.array([
+        (o, close_idx1[(close_idx1 > o) & (close_idx1 < o_next)][-1])
+        for o, o_next in zip(open_idx1[:-1], open_idx1[1:])
+        if np.any((close_idx1 > o) & (close_idx1 < o_next))])
+
     pairs_po = np.array([
         (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
         for o, o_next in zip(open_idx2[:-1], open_idx2[1:])
@@ -464,6 +463,7 @@ def simulate():
         for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
         if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
+    pairs_ao = pairs_ao[-11:-1]
     pairs_po = pairs_po[-11:-1]
     pairs_mi = pairs_mi[-11:-1]
     pairs_tr = pairs_tr[-11:-1]
@@ -486,6 +486,10 @@ def simulate():
     # Truncate to matching pairs
     start_idx = start_idx[:n_pairs]
     end_idx = end_idx[:n_pairs]
+
+    # systolic pressure
+    P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
+    P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
 
     P_la = np.concatenate((Next_Conditions["P_la_store"][i_buffer:], Next_Conditions["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
@@ -556,9 +560,12 @@ def simulate():
     dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
     tidal = np.concatenate((Next_Conditions["tidal_store"][i_buffer:], Next_Conditions["tidal_store"][:i_buffer]))
-    peaks, _ = find_peaks(tidal, distance=int(1000))
-    last_10_peaks_tidal = peaks[-1]
-    max_tidal = tidal[last_10_peaks_tidal]
+
+    breath_starts = np.where(dtr > 0)[0] + 1
+    if breath_starts.size >= 2:
+        max_tidal = np.max(tidal[breath_starts[-2]:breath_starts[-1]])
+    else:
+        max_tidal = np.max(tidal[tidal > 0]) if np.any(tidal > 0) else 0.0
 
     VAflow = np.concatenate((Next_Conditions["VAflow_store"][i_buffer:], Next_Conditions["VAflow_store"][:i_buffer]))
     t1 = np.concatenate((Next_Conditions["t1_store"][i_buffer:], Next_Conditions["t1_store"][:i_buffer]))
@@ -585,8 +592,8 @@ def simulate():
     RA_Contraction_Volume_diff = np.mean(last_10_b4_RA_atrial_contract) - np.mean(V_ra[pairs_tr[:, 1]])
 
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
-    print(np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
-          np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
+    print(np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
+          np.mean(V_lv[pairs_ao[:, 0]]), np.mean(V_lv[pairs_ao[:, 1]]), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
           np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
           np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
           np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
@@ -597,7 +604,7 @@ def simulate():
           Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
 
 
-    return (ODE_solution, np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
+    return (ODE_solution, np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]),
             np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
@@ -708,6 +715,75 @@ if __name__ == "__main__":
 
     i = Next_Conditions["i"].item() % BUFFER_LIMIT
     sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
+
+    # theta_ao = np.concatenate((Next_Conditions["theta_ao_store"][i:], Next_Conditions["theta_ao_store"][:i]))
+    # theta_po = np.concatenate((Next_Conditions["theta_po_store"][i:], Next_Conditions["theta_po_store"][:i]))
+    #
+    # theta_min = 0.12037493286132811
+    # N = 50
+    # is_open_ao = theta_ao > theta_min
+    # open_idx1 = []
+    # for k in range(N, len(theta_ao)):
+    #     if is_open_ao[k] and not np.any(is_open_ao[k - N:k]):
+    #         open_idx1.append(k)
+    # open_idx1 = np.array(open_idx1)
+    #
+    # is_closed_ao = theta_ao <= theta_min
+    # close_idx1 = []
+    # for k in range(N, len(theta_ao)):
+    #     if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
+    #         close_idx1.append(k)
+    # close_idx1 = np.array(close_idx1)
+    #
+    # is_open_po = theta_po > theta_min
+    # open_idx2 = []
+    # for k in range(N, len(theta_po)):
+    #     if is_open_po[k] and not np.any(is_open_po[k - N:k]):
+    #         open_idx2.append(k)
+    # open_idx2 = np.array(open_idx2)
+    #
+    # is_closed_po = theta_po <= theta_min
+    # close_idx2 = []
+    # for k in range(N, len(theta_po)):
+    #     if is_closed_po[k] and not np.any(is_closed_po[k - N:k]):
+    #         close_idx2.append(k)
+    # close_idx2 = np.array(close_idx2)
+    #
+    # pairs_ao = np.array([
+    #     (o, close_idx1[(close_idx1 > o) & (close_idx1 < o_next)][-1])
+    #     for o, o_next in zip(open_idx1[:-1], open_idx1[1:])
+    #     if np.any((close_idx1 > o) & (close_idx1 < o_next))])
+    #
+    # pairs_po = np.array([
+    #     (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
+    #     for o, o_next in zip(open_idx2[:-1], open_idx2[1:])
+    #     if np.any((close_idx2 > o) & (close_idx2 < o_next))])
+    #
+    # pairs_ao = pairs_ao[-11:-1]
+    # pairs_po = pairs_po[-11:-1]
+    #
+    # V_lv = np.concatenate((Next_Conditions["V_lv_store"][i:], Next_Conditions["V_lv_store"][:i]))
+    # # P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
+    # # another = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_po])
+    #
+    # print(open_idx1)
+    # print(close_idx1)
+    # print(open_idx2)
+    # print(close_idx2)
+    #
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(sorted_times, V_lv, label="V_lv")
+    # ax1.scatter(sorted_times[pairs_ao[:, 0]], V_lv[pairs_ao[:, 0]], color='r', marker='o', label="Detected Maxima AO")
+    # ax1.scatter(sorted_times[pairs_ao[:, 1]], V_lv[pairs_ao[:, 1]], color='b', marker='o', label="Detected Minima AO")
+    # ax1.set_xlabel("Time (s)")
+    # ax1.tick_params(axis='y', labelcolor="k")
+    # ax1.legend(loc="upper left")
+    # ax1.grid(True)
+    # ax2 = ax1.twinx()
+    # # ax2.plot(sorted_times, theta_ao, color='b')
+    # ax2.plot(sorted_times, theta_po, color='k')
+    # ax2.legend(loc="upper right")
+    # plt.show()
 
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_ev"][:index], label="Extrasplanchnic V$_{Unstressed}$")
     plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Vu_amv"][:index], label="Active Muscle V$_{Unstressed}$")
