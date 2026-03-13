@@ -149,13 +149,21 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     # In objective()
     T_cycle = t1 + t2
 
-    # Use base_times up to T_cycle without boolean masks
-    cycle_idx = np.searchsorted(base_times, T_cycle, side="right")
-    times = base_times[:cycle_idx]
+    # local grid for this candidate (t1, t2)
+    n_steps = max(2000, int(np.ceil(T_cycle / dt)) + 1)
+    times = np.linspace(0.0, T_cycle, n_steps)
+    dt_local = times[1] - times[0]
+    s = np.linspace(0.0, 1.0, 2000)
+    times = s * T_cycle
+    dt_local = times[1] - times[0]
+
+    # # Use base_times up to T_cycle without boolean masks
+    # cycle_idx = np.searchsorted(base_times, T_cycle, side="right")
+    # times = base_times[:cycle_idx]
 
     lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao = required_params
 
-    WI, WE = calculate_variables(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax, Pmax_dot, n, lambda1, dt)
+    WI, WE = calculate_variables(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax, Pmax_dot, n, lambda1, dt_local)
 
     # Return cost function value
     return WI + lambda2 * WE

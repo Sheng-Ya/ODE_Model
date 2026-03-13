@@ -7,6 +7,7 @@ import copy
 import signal
 import re
 
+import joblib
 import torch
 from scipy.stats import qmc
 from scipy.interpolate import CubicSpline, interp1d
@@ -110,7 +111,7 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
     tolerance = 0.0001
 
-    VAflow_vals = np.linspace(0.01, 1, 200)
+    VAflow_vals = np.linspace(0.01, 1.6, 200)
     VAflow_repeated = np.repeat(VAflow_vals, 3)
 
     VD = GV_dead * VAflow_repeated + V0_dead
@@ -1035,7 +1036,7 @@ if __name__ == "__main__":
     # +/-20%
     # parent_dir = "Emulator_Paper_1_90_same_1000"
     # +/-50%
-    parent_dir = "Emulator_Paper_same_1000"
+    parent_dir = "Emulator_exercise"
 
     for j, target_name in enumerate(output_names_full):
         print("\n" + "=" * 100)
