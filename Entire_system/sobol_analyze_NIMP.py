@@ -76,9 +76,9 @@ def analyze_NIMP(problem, Y,
 
     """
 
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    print('                         USING MODIFIED VERSION OF SOBOL.ANALYZE                      ')
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    # print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    # print('                         USING MODIFIED VERSION OF SOBOL.ANALYZE                      ')
+    # print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
     if seed:
         np.random.seed(seed)
@@ -101,11 +101,11 @@ def analyze_NIMP(problem, Y,
     if conf_level < 0 or conf_level > 1:
         raise RuntimeError("Confidence level must be between 0-1.")
 
-    if sample_weights is None:
-        print('Weigths not set...Setting all of them to 1...')
-        sample_weights = np.ones((Y.shape[0],),dtype=float)
-    else:
-        print('Using sample weigths to exclude samples outside the non-implausible region...')
+    # if sample_weights is None:
+    #     print('Weigths not set...Setting all of them to 1...')
+    sample_weights = np.ones((Y.shape[0],),dtype=float)
+    # else:
+    #     print('Using sample weigths to exclude samples outside the non-implausible region...')
 
     # normalize the model output
     is_viable = np.where(sample_weights==1)[0]
@@ -162,10 +162,10 @@ def first_order_NIMP(A, AB, B, wA, wAB, wB):
     total_viable = np.intersect1d(wA_bool,wB_bool)
     total_viable = np.intersect1d(total_viable,wAB_bool)
 
-    if len(total_viable)==0:
-        warnings.warn('No viable samples detected to compute Si.')
-    else:
-        print('Found '+str(len(total_viable))+' samples to use for Si.')
+    # if len(total_viable)==0:
+    #     warnings.warn('No viable samples detected to compute Si.')
+    # else:
+    #     print('Found '+str(len(total_viable))+' samples to use for Si.')
 
     return np.mean(B[total_viable] * (AB[total_viable] - A[total_viable]), axis=0) / np.var(np.r_[A[total_viable], B[total_viable]], axis=0)
 
@@ -180,10 +180,10 @@ def total_order_NIMP(A, AB, B, wA, wAB, wB):
     total_viable = np.intersect1d(wA_bool,wB_bool)
     total_viable = np.intersect1d(total_viable,wAB_bool)
 
-    if len(total_viable)==0:
-        warnings.warn('No viable samples detected to compute STi.')
-    else:
-        print('Found '+str(len(total_viable))+' samples to use for STi.')
+    # if len(total_viable)==0:
+    #     warnings.warn('No viable samples detected to compute STi.')
+    # else:
+    #     print('Found '+str(len(total_viable))+' samples to use for STi.')
 
     return 0.5 * np.mean((A[total_viable] - AB[total_viable]) ** 2, axis=0) / np.var(np.r_[A[total_viable], B[total_viable]], axis=0)
 

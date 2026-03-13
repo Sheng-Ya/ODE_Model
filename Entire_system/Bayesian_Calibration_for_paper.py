@@ -25,9 +25,9 @@ pyro.set_rng_seed(random_seed)
 # PROBLEM SPECIFICATION
 # ----------------------------
 # change
-percent = 0.2
-lower = 1 - percent
-upper = 1 + percent
+percent = 20
+lower = 1 - percent/100
+upper = 1 + percent/100
 #
 sp = ProblemSpec({
     'names': [
@@ -271,11 +271,12 @@ observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diast
 # ----------------------------
 if __name__ == "__main__":
 
-    # AAA = np.load("NROY_Points_rest_20.npy")
-    # AAAA = np.load("NROY_Implaus_rest_20.npy")
-    # AAAAA = np.load("test_param_rest_20.npy")
+    # AAA = np.load("NROY_Points_rest_0.2.npy")
+    # AAAA = np.load("NROY_Implaus_rest_0.2.npy")
+    # AAAAA = np.load("test_param_rest_0.2.npy")
+    #
     # # # # Filter A and AA
-    # mask = np.all(AAAA < 3, axis=1)
+    # mask = np.all(AAAA < 2.7, axis=1)
     # AAAA_filtered = AAAA[mask]
     # AAAAA_filtered = AAAAA[mask]
     # index_for_sort = np.argsort(-AAAA_filtered, axis=1)
@@ -307,7 +308,7 @@ if __name__ == "__main__":
     )
 
     size = 200000
-    _ = hmw.run_waves(n_waves=9, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=True)
+    _ = hmw.run_waves(n_waves=10, n_simulations=5000, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=True)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
@@ -328,10 +329,10 @@ if __name__ == "__main__":
 
     hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_{percent}.png")
     print(len(hmw.wave_results)-1)
-    hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_{percent}.png")
+    # hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_{percent}.png")
+    # hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_{percent}.png")
+    # hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_{percent}.png")
+    # hmw.plot_wave((len(hmw.wave_results)-5), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_{percent}.png")
 
 
 

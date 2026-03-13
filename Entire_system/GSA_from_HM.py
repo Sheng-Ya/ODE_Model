@@ -167,150 +167,260 @@ Implaus = hmw.calculate_implausibility(mean_tensor, var_tensor)
 Implaus = Implaus.detach().cpu().numpy()
 # top = np.partition(Implaus.ravel(), -50)[-50:]
 # top = np.sort(top)[::-1]
-# print(to)
+# print(top)
 
-# ########################## Remove entire A/B if even a single permutation is outside an implausibility of 3
-# block_length = 2 * D + 2 if calc_second_order else D + 2
-# Implaus_max = Implaus.max(axis=1)   # shape: (sample_size,)
-# blocks = Implaus_max.reshape(N, block_length)
-# valid_mask = np.all(blocks <= 3.2, axis=1)
-# valid_indices = np.where(valid_mask)[0]
-#
-# # Create a mask over all rows
-# row_mask = np.repeat(valid_mask, block_length)
-#
-# # Filter everything in one go
-# filtered_saltelli = saltelli_sequence[row_mask]
-# filtered_Implaus = Implaus[row_mask]
-# filtered_Result = mean_tensor[row_mask]
-#
-# index = 0
-# for i in valid_indices:
-#     start = i * block_length
-#     end = start + block_length
-#     filtered_saltelli[index:index + block_length, :] = saltelli_sequence[start:end, :]
-#     filtered_Implaus[index:index + block_length] = Implaus[start:end]
-#     filtered_Result[index:index + block_length] = mean_tensor[start:end]
-#     index += block_length
-#
-# print(f"Number of base A/B blocks remaining: {len(valid_indices)}")
-# print(f"Number of base A/B blocks originally: {N}")
+########################## Remove entire A/B if even a single permutation is outside an implausibility of 3
+block_length = 2 * D + 2 if calc_second_order else D + 2
+Implaus_max = Implaus.max(axis=1)   # shape: (sample_size,)
+blocks = Implaus_max.reshape(N, block_length)
+valid_mask = np.all(blocks <= 3.08, axis=1)
+valid_indices = np.where(valid_mask)[0]
+
+# Create a mask over all rows
+row_mask = np.repeat(valid_mask, block_length)
+
+# Filter everything in one go
+filtered_saltelli = saltelli_sequence[row_mask]
+filtered_Implaus = Implaus[row_mask]
+filtered_Result = mean_tensor[row_mask]
+
+index = 0
+for i in valid_indices:
+    start = i * block_length
+    end = start + block_length
+    filtered_saltelli[index:index + block_length, :] = saltelli_sequence[start:end, :]
+    filtered_Implaus[index:index + block_length] = Implaus[start:end]
+    filtered_Result[index:index + block_length] = mean_tensor[start:end]
+    index += block_length
+
+print(f"Number of base A/B blocks remaining: {len(valid_indices)}")
+print(f"Number of base A/B blocks originally: {N}")
 
 
-# # Just HR plot
-# fig, ax1 = plt.subplots()
-# sns.kdeplot(mean_tensor[:,7], fill=True)
-#
-# ax1.set_title(f"Filtered RV P")
-# ax1.set_xlabel("Value")
-# ax1.set_ylabel("Density")
-# plt.tight_layout()
-# plt.show()
+import math
 
-ST = np.zeros((0, D), dtype=float)
-S1 = np.zeros((0, D), dtype=float)
+# ==========================
+# KDE plots for all outputs
+# ==========================
+n_outputs = len(output_names)
+n_cols = 5
+n_rows = math.ceil(n_outputs / n_cols)
 
-ST_std = np.zeros((0, D), dtype=float)
-S1_std = np.zeros((0, D), dtype=float)
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.5 * n_cols, 3.5 * n_rows))
+axes = np.atleast_1d(axes).ravel()
 
-HR = mean_tensor[:, 7]
+for i, name in enumerate(output_names):
+    ax = axes[i]
+    vals = mean_tensor[:, i].detach().cpu().numpy()
+    sns.kdeplot(vals, fill=True, ax=ax)
+    ax.set_title(name, fontsize=10)
+    ax.set_xlabel("Value")
+    ax.set_ylabel("Density")
 
-S = analyze_NIMP(sp_subset, HR.detach().cpu().numpy().copy(), calc_second_order=calc_second_order, print_to_console=True)
-T_Si, first_Si, (_, second_Si) = sobol.Si_to_pandas_dict(S)
+for j in range(n_outputs, len(axes)):
+    fig.delaxes(axes[j])
 
-ST = np.vstack((ST, T_Si["ST"].reshape(1, -1)))
-S1 = np.vstack((S1, first_Si["S1"].reshape(1, -1)))
+plt.tight_layout()
+plt.savefig("All_outputs_KDE.png", dpi=300, bbox_inches="tight")
+plt.close()
 
+
+################# at least 1% combine up to 90%
+def select_important_parameters(df, index_col, err_col=None, min_frac=0.01, coverage=0.90):
+    """
+    Keep parameters that:
+    1) each contribute at least `min_frac` of total sensitivity
+    2) together account for up to `coverage` of total sensitivity
+
+    df must already contain Sobol indices for one output.
+    """
+    out = df.copy()
+
+    # avoid negative numerical artefacts affecting the fractions
+    vals = np.asarray(out[index_col].values, dtype=float)
+    vals = np.where(np.isfinite(vals), vals, 0.0)
+    vals = np.clip(vals, 0.0, None)
+
+    out[index_col] = vals
+    out = out.sort_values(index_col, ascending=False)
+
+    total = out[index_col].sum()
+
+    # fallback: if everything is zero, just keep top 10
+    if total <= 0:
+        return out.head(min(10, len(out)))
+
+    out["fraction"] = out[index_col] / total
+    out["cum_fraction"] = out["fraction"].cumsum()
+
+    # keep >=1% contributors
+    keep = out["fraction"] >= min_frac
+
+    # keep until cumulative reaches 90%
+    # include the first parameter that crosses 90%
+    cross_idx = np.searchsorted(out["cum_fraction"].values, coverage, side="left")
+    keep.iloc[:cross_idx + 1] = True
+
+    filtered = out.loc[keep].copy()
+
+    # in case min_frac removes everything except weird edge cases
+    if filtered.empty:
+        filtered = out.head(min(10, len(out))).copy()
+
+    return filtered
+
+
+# ==========================
+# Sobol analysis for all outputs
+# ==========================
+param_names = sp_subset["names"]
 conf_level = 0.95
 z = norm.ppf(0.5 + conf_level / 2)
 
-ST_std = np.vstack((ST_std, T_Si["ST_conf"].reshape(1, -1) / z))
-S1_std = np.vstack((S1_std, first_Si["S1_conf"].reshape(1, -1) / z))
+sobol_results = {}
+
+for i, out_name in enumerate(output_names):
+    Y = mean_tensor[:, i].detach().cpu().numpy().copy()
+
+    S = analyze_NIMP(
+        sp_subset,
+        Y,
+        calc_second_order=calc_second_order,
+        print_to_console=False
+    )
+
+    T_Si, first_Si, (_, second_Si) = sobol.Si_to_pandas_dict(S)
+
+    total = pd.DataFrame({
+        "Parameter": param_names,
+        "ST": np.asarray(T_Si["ST"], dtype=float),
+        "ST_std": np.asarray(T_Si["ST_conf"], dtype=float) / z,
+        "S1": np.asarray(first_Si["S1"], dtype=float),
+        "S1_std": np.asarray(first_Si["S1_conf"], dtype=float) / z,
+    }).set_index("Parameter")
+
+    sobol_results[out_name] = {
+        "table": total,
+        "S_raw": S,
+        "second_Si": second_Si,
+    }
 
 
-# --- Convert to DataFrame for plotting ---
-param_names = sp_subset['names']  # assuming this exists
-total = pd.DataFrame({
-    "Parameter": param_names,
-    "ST": ST.flatten(),
-    "ST_std": ST_std.flatten(),
-    "S1": S1.flatten(),
-    "S1_std": S1_std.flatten()
-}).set_index("Parameter")
+# ==========================
+# ST ranked barplots for all outputs
+# ==========================
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 4.2 * n_rows))
+axes = np.atleast_1d(axes).ravel()
 
-# --- Sort by Total-order sensitivity ---
-ranked = total.sort_values("ST", ascending=False)
+for i, out_name in enumerate(output_names):
+    ax = axes[i]
+    # ranked = sobol_results[out_name]["table"].sort_values("ST", ascending=False)
+    ranked = select_important_parameters(
+        sobol_results[out_name]["table"],
+        index_col="ST",
+        err_col="ST_std",
+        min_frac=0.01,
+        coverage=0.90
+    )
 
-# ranked.to_csv(f"Plot_abstract/Heart_Rate_sensitivities.csv", index=True)
-
-# --- Bar plot ---
-fig, ax = plt.subplots(figsize=(6, 12))
-ranked["ST"].plot(kind="barh", xerr=ranked["ST_std"], ax=ax, color="skyblue", edgecolor="k")
-ax.invert_yaxis()
-# ax.set_xscale("log")
-ax.set_title(f"Heart_Rate Sobol Total-Order Sensitivities (Ranked)", fontsize=14)
-ax.set_xlabel("Total-order index (ST)")
-
-# Annotate each bar with rank
-for i, (name, value) in enumerate(zip(ranked.index, ranked["ST"])):
-    ax.text(value * 1.05, i, f"#{i+1}", va="center", ha="left", fontsize=9, color="blue")
-
-plt.tight_layout()
-# plt.show()
-plt.savefig("Sobol_ST_ranked.png", dpi=300, bbox_inches="tight")
-plt.close()
-
-
-ranked = total.sort_values("S1", ascending=False)
-
-# --- Bar plot ---
-fig, ax = plt.subplots(figsize=(6, 12))
-ranked["S1"].plot(kind="barh", xerr=ranked["S1_std"], ax=ax, color="skyblue", edgecolor="k")
-ax.invert_yaxis()
-# ax.set_xscale("log")
-ax.set_title("Sobol First-Order Sensitivities (Ranked)", fontsize=14)
-ax.set_xlabel("First-order index (S1)")
-
-# Annotate each bar with rank
-for i, (name, value) in enumerate(zip(ranked.index, ranked["S1"])):
-    ax.text(value * 1.05, i, f"#{i+1}", va="center", ha="left", fontsize=9, color="blue")
-
-plt.tight_layout()
-# plt.show()
-plt.savefig("Sobol_S1_ranked.png", dpi=300, bbox_inches="tight")
-plt.close()
-
-if calc_second_order:
-    for j in range(D):
-        for k in range(j + 1, D):
-            print("%s %s %f %f" % (sp_subset["names"][j], sp_subset["names"][k],
-                                   S['S2'][j, k], S['S2_conf'][j, k]))
-
-    S2_list = second_Si["S2"]
-    S2_conf_list = second_Si["S2_conf"] / z
-
-    param_pairs = [(sp_subset["names"][i], sp_subset["names"][j]) for i in range(D) for j in range(i + 1, D)]
-
-
-    S2_df = pd.DataFrame({
-        "Parameter_pair": [" & ".join(pair) for pair in param_pairs],
-        "S2": np.array(S2_list).flatten(),
-        "S2_std": np.array(S2_conf_list).flatten()
-    }).sort_values("S2", ascending=False)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, 16))
-    S2_df.plot(
-        kind="barh",
-        x="Parameter_pair",
-        y="S2",
-        xerr="S2_std",
-        ax=ax,
-        color="skyblue",
+    ax.barh(
+        ranked.index,
+        ranked["ST"].values,
+        xerr=ranked["ST_std"].values,
         edgecolor="k"
     )
     ax.invert_yaxis()
-    ax.set_title(f"Heart_Rate Sobol Second-Order Sensitivities", fontsize=14)
-    ax.set_xlabel("Second-order index (S2)")
-    plt.tight_layout()
-    plt.show()
+    ax.set_title(f"{out_name} - ST", fontsize=10)
+    ax.set_xlabel("Total-order index")
+    ax.tick_params(axis="y", labelsize=8)
+
+for j in range(n_outputs, len(axes)):
+    fig.delaxes(axes[j])
+
+plt.tight_layout()
+plt.savefig("Sobol_ST_ranked_all_outputs.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# ==========================
+# S1 ranked barplots for all outputs
+# ==========================
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 4.2 * n_rows))
+axes = np.atleast_1d(axes).ravel()
+
+for i, out_name in enumerate(output_names):
+    ax = axes[i]
+    ranked = select_important_parameters(
+        sobol_results[out_name]["table"],
+        index_col="S1",
+        err_col="S1_std",
+        min_frac=0.01,
+        coverage=0.90
+    )
+    ax.barh(
+        ranked.index,
+        ranked["S1"].values,
+        xerr=ranked["S1_std"].values,
+        edgecolor="k"
+    )
+    ax.invert_yaxis()
+    ax.set_title(f"{out_name} - S1", fontsize=10)
+    ax.set_xlabel("First-order index")
+    ax.tick_params(axis="y", labelsize=8)
+
+for j in range(n_outputs, len(axes)):
+    fig.delaxes(axes[j])
+
+plt.tight_layout()
+plt.savefig("Sobol_S1_ranked_all_outputs.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# ==========================
+# Optional: save CSV per output
+# ==========================
+os.makedirs("Sobol_tables", exist_ok=True)
+for out_name in output_names:
+    sobol_results[out_name]["table"].sort_values("ST", ascending=False).to_csv(
+        os.path.join("Sobol_tables", f"{out_name}_sobol_indices.csv"),
+        index=True
+    )
+
+
+# ==========================
+# Optional second-order plots for all outputs
+# ==========================
+if calc_second_order:
+    os.makedirs("Sobol_S2_plots", exist_ok=True)
+
+    param_pairs = [
+        (param_names[i], param_names[j])
+        for i in range(D) for j in range(i + 1, D)
+    ]
+
+    for out_name in output_names:
+        second_Si = sobol_results[out_name]["second_Si"]
+
+        S2_df = pd.DataFrame({
+            "Parameter_pair": [" & ".join(pair) for pair in param_pairs],
+            "S2": np.asarray(second_Si["S2"], dtype=float).flatten(),
+            "S2_std": np.asarray(second_Si["S2_conf"], dtype=float).flatten() / z
+        }).sort_values("S2", ascending=False)
+
+        fig, ax = plt.subplots(figsize=(8, 16))
+        ax.barh(
+            S2_df["Parameter_pair"],
+            S2_df["S2"],
+            xerr=S2_df["S2_std"],
+            edgecolor="k"
+        )
+        ax.invert_yaxis()
+        ax.set_title(f"{out_name} - S2", fontsize=14)
+        ax.set_xlabel("Second-order index")
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join("Sobol_S2_plots", f"{out_name}_S2_ranked.png"),
+            dpi=300,
+            bbox_inches="tight"
+        )
+        plt.close()

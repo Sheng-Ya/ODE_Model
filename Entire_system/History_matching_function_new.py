@@ -1094,7 +1094,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
             if i == 7:
                 self.threshold = 2.8
             if i == 8:
-                self.threshold = 2.5
+                self.threshold = 2.7
+            if i == 9:
+                self.threshold = 2.6
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
             test_x, impl_scores = self.run(
