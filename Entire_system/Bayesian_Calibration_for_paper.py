@@ -271,12 +271,12 @@ observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diast
 # ----------------------------
 if __name__ == "__main__":
 
-    # AAA = np.load("NROY_Points_rest_0.2.npy")
-    # AAAA = np.load("NROY_Implaus_rest_0.2.npy")
-    # AAAAA = np.load("test_param_rest_0.2.npy")
-    #
+    # AAA = np.load("NROY_Points_rest_20.npy")
+    # AAAA = np.load("NROY_Implaus_rest_20.npy")
+    # AAAAA = np.load("test_param_rest_20.npy")
+    # #
     # # # # Filter A and AA
-    # mask = np.all(AAAA < 2.7, axis=1)
+    # mask = np.all(AAAA < 2.6, axis=1)
     # AAAA_filtered = AAAA[mask]
     # AAAAA_filtered = AAAAA[mask]
     # index_for_sort = np.argsort(-AAAA_filtered, axis=1)
