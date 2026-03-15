@@ -663,12 +663,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
         if self.nroy_samples is None:
             test_x = self.simulator.sample_inputs(n).to(self.device)
             # +/-20 %
-            parent = "Emulator_exercise"
+            parent = "Emulator_Paper_same_1000"
             # # +/-50%
             # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
-            parent = "Emulator_exercise_wave"
+            parent = "Emulator_wave"
 
         output_names = [
             "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -998,7 +998,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             if refit_emulator:
                 # data_msg = "all data" if refit_on_all_data else "most recent data"
                 # msg = f"Refitting emulator on {data_msg}."
-                logger.info(msg)
+                # logger.info(msg)
                 if refit_on_all_data:
                     X_fit = self.train_x
                     Y_fit = self.train_y[:, j:j+1]
@@ -1008,7 +1008,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                     Y_fit = y[:, j:j+1]
                     self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
 
-            parent = os.path.join("Emulator_exercise_wave", target_name)
+            parent = os.path.join("Emulator_wave", target_name)
             os.makedirs(parent, exist_ok=True)
 
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
@@ -1083,22 +1083,18 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 self.threshold = 4.5
             if i == 3:
                 self.threshold = 4
-                # n_simulations = 2048
             if i == 4:
                 self.threshold = 3.5
-                # n_simulations = 1024
             if i == 5:
                 self.threshold = 3.3
-                # n_simulations = 1024
             if i == 6:
-                self.threshold = 3.2
-                # n_simulations = 1024
+                self.threshold = 3.15
             if i == 7:
-                self.threshold = 3.1
+                self.threshold = 3.0
             if i == 8:
-                self.threshold = 2.0
+                self.threshold = 2.85
             if i == 9:
-                self.threshold = 2.9
+                self.threshold = 2.75
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave

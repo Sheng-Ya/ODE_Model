@@ -8,8 +8,8 @@ from multiprocessing import resource_tracker
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-from History_matching_function_new import HistoryMatchingWorkflow
-from AutoEmulate_Simulator import Cardiopulmonary
+from History_matching_function_rest import HistoryMatchingWorkflow
+from AutoEmulate_Simulator_Rest import Cardiopulmonary
 
 # ----------------------------
 # SETTINGS
@@ -71,7 +71,7 @@ sp = ProblemSpec({
         "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
         "theta_spn", "theta_svn", "x_sh", "x_sp",
         "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min",
-        "k_ab", "P_n", "P_n_max","f_acCO2_n",
+        "k_ab", "P_n", "P_n_max", "f_acCO2_n",
         "f_ac_max", "f_ac_min", "k_ac", "K_H",
         "PaO2_ac_n", "G_ap", "GT_s", "GT_v",
         "T0", "A", "B", "C",
@@ -113,41 +113,41 @@ sp = ProblemSpec({
         "scale_param1", "scale_param3", "scale_param4",
         "scale_param6", "Pa_O2_lower",
         "rise_time_atr", "rise_time_ven", "fall_time_ven", "ahead1",
-        "theta_min", "V_nominal", "V_scale"
+        "theta_min", "r", "l", "V_nominal", "V_scale"
     ],
 
     'bounds': [
         # gas
-        [0.03255 * lower, 0.03255 * upper], [95.352875 * lower, 95.352875 * upper], [219.87923 * lower, 219.87923 * upper], [1.478863 * lower, 1.478863 * upper],
+        [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
         [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
         # resp control
         [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
-        [0.1475378 * lower, 0.1475378 * upper], [0.0673 * lower, 0.0673 * upper],
-        [23.443241 * 0.8, 23.443241 * 1.2], [2.5542483 * 0.8, 2.5542483 * 1.2],
+        [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
+        [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
         # cardio
-        [4.1222 * lower, 4.1222 * upper], [0.23145378 * lower, 0.23145378 * upper], [0.00022 * lower, 0.00022 * upper], [0.052346922 * lower, 0.052346922 * upper],
+        [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
         [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
-        [6.28 * lower, 6.28 * upper], [71.67763 * lower, 71.67763 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
+        [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
         [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
         [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
-        [0.0025 * lower, 0.0025 * upper], [0.858606 * lower, 0.858606 * upper], [5.8 * lower, 5.8 * upper],
-        [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.018694889 * lower, 0.018694889 * upper], [0.07217374 * lower, 0.07217374 * upper],
-        [0.0056 * lower, 0.0056 * upper], [0.44709387 * lower, 0.44709387 * upper], [0.48517895 * lower, 0.48517895 * upper], [0.45 * lower, 0.45 * upper],
-        [0.45 * lower, 0.45 * upper], [0.050607458 * lower, 0.050607458 * upper], [0.050639037 * lower, 0.050639037 * upper], [1.2157186 * lower, 1.2157186 * upper],
-        [1.4471314 * lower, 1.4471314 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
+        [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
+        [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
+        [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
+        [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
+        [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
         [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
         # cardio control
-        [27.367292 * lower, 27.367292 * upper], [18.058544 * lower, 18.058544 * upper], [2.29108 * lower, 2.29108 * upper], [80 * lower, 80 * upper],
-        [3.1820138 * lower, 3.1820138 * upper], [6.7277966 * lower, 6.7277966 * upper], [0.056592535 * lower, 0.056592535 * upper], [7.06 * lower, 7.06 * upper],
-        [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.42316517 * lower, 0.42316517 * upper], [0.126 * lower, 0.126 * upper],
-        [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.103440516 * lower, 0.103440516 * upper], [0.0162 * lower, 0.0162 * upper],
+        [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
+        [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper], [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper],
+        [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper], [0.126 * lower, 0.126 * upper],
+        [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
         [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper], [-0.037 * upper, -0.037 * lower],
         [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower], [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower],
-        [-0.68 * upper, -0.68 * lower], [-1.9959266 * upper, -1.9959266 * lower], [-0.936753 * upper, -0.936753 * lower], [-1.265388 * upper, -1.265388 * lower],
+        [-0.68 * upper, -0.68 * lower], [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower], [-1.1375 * upper, -1.1375 * lower],
         [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper], [0.2 * lower, 0.2 * upper],
         [-0.3997 * upper, -0.3997 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower],
         [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-        [2.64079 * lower, 2.64079 * upper], [1.1812366 * lower, 1.1812366 * upper], [2.6832807 * lower, 2.6832807 * upper], [0.475 * lower, 0.475 * upper],
+        [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper], [0.475 * lower, 0.475 * upper],
         [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper], [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper],
         [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
         [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
@@ -155,42 +155,42 @@ sp = ProblemSpec({
         [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
         [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
-        [13.32 * lower, 13.32 * upper], [14.818589 * lower, 14.818589 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
-        [6 * lower, 6 * upper], [44.497673 * lower, 44.497673 * upper], [56.017685 * lower, 56.017685 * upper], [2.52 * lower, 2.52 * upper],
-        [13.191743 * lower, 13.191743 * upper], [78.366745 * lower, 78.366745 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
+        [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
+        [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
+        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
-        [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13487929 * upper, -0.13487929 * lower], [0.096727274 * lower, 0.096727274 * upper],
-        [0.65129995 * lower, 0.65129995 * upper],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
-        [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.94312525 * lower, 0.94312525 * upper],
+        [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
+        [0.58 * lower, 0.58 * upper],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
+        [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
         [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
         [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
-        [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper], [0.17130482 * lower, 0.17130482 * upper],
-        [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.49281165 * lower, 0.49281165 * upper], [0.1454013 * lower, 0.1454013 * upper],
+        [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper], [0.1555 * lower, 0.1555 * upper],
+        [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper], [0.18 * lower, 0.18 * upper],
         [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
         # added params
         [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-        [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5854855 * lower, 3.5854855 * upper], [1.309 * lower, 1.309 * upper],
+        [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
-        [0.0000317 * lower, 0.0000317 * upper], [410.5057 * lower, 410.5057 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
-        [350 * lower, 350 * upper], [0.0015954844 * lower, 0.0015954844 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
-        [104 * lower, 104 * upper], [252.03343 * lower, 252.03343 * upper], [93.16 * lower, 93.16 * upper],
-        [571.8116 * lower, 571.8116 * upper], [123 * lower, 123 * upper],
-        [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [51.687237 * lower, 51.687237 * upper], [14.495223 * lower, 14.495223 * upper],
-        [80.43748 * lower, 80.43748 * upper], [45.325554 * lower, 45.325554 * upper],
+        [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
+        [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
+        [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
+        [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
+        [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
+        [50 * lower, 50 * upper], [38.703 * lower, 38.703 * upper],
 
         # [5027.6 * 0.8, 5027.6 * 1.2],
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
-        [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [254.12979 * lower, 254.12979 * upper],
-        [635.5291 * lower, 635.5291 * upper], [190.95 * lower, 190.95 * upper], [1344.4786 * lower, 1344.4786 * upper], [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
+        [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper],
         [30 * lower, 30 * upper], [2.076 * lower, 2.076 * upper], [0.8 * lower, 0.8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [1.5 * lower, 1.5 * upper], [20 * lower, 20 * upper],
         [10 * lower, 10 * upper], [5 * lower, 5 * upper], [40 * lower, 40 * upper], [10 * lower, 10 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [5 * lower, 5 * upper],
         [5 * lower, 5 * upper], [5 * lower, 5 * upper], [2 * lower, 2 * upper], [0.2 * lower, 0.2 * upper],
-        [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.011977742 * lower, 0.011977742 * upper], [0.011158622 * lower, 0.011158622 * upper],
+        [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.014 * lower, 0.014 * upper], [0.011 * lower, 0.011 * upper],
         [0.1 * lower, 0.1 * upper], [0.2 * lower, 0.2 * upper], [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper],
         [20 * lower, 20 * upper], [0.01 * lower, 0.01 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
         [0.25 * lower, 0.25 * upper], [50 * lower, 50 * upper],
@@ -198,27 +198,18 @@ sp = ProblemSpec({
         # further added params
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-        [0.040595327 * lower, 0.040595327 * upper], [0.17735814 * lower, 0.17735814 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-        [0.0872665 * lower, 0.0872665 * upper], [121.800674 * lower, 121.800674 * upper], [47.22817 * lower, 47.22817 * upper]]
+        [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
+        [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
 # # Rest: 64 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-# subset_vars = {'a2', 'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
-#                    'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o',
-#                    'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
-#                    'kmet', 'Kv_mi', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_po', 'R_pp',
-#                    'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'T0', 'theta_svn', 'V0_dead', 'V_nominal',
-#                    'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-#                    'Wb_sh', 'Wb_sp', 'Wb_sv'}
-
-# # Exercise: 64 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-subset_vars = {'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_pv', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
-               'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_o', 'fev_inf', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv',
-               'GR_amp', 'GT_s', 'GT_v', 'GV_dead', 'GV_sv', 'Io_met', 'Io_sh', 'k_ab', 'KcCO2', 'KcMRV', 'KE_la',
-               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'P_n_max', 'PaCO2_n',
-               'phi_max', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven', 'T0', 'tauMR', 'V0_dead',
-               'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-               'Wp_v', 'Yv_max'}
+subset_vars = {'a2', 'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
+                   'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o',
+                   'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
+                   'kmet', 'Kv_mi', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_po', 'R_pp',
+                   'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'T0', 'theta_svn', 'V0_dead', 'V_nominal',
+                   'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
+                   'Wb_sh', 'Wb_sp', 'Wb_sv'}
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -264,26 +255,26 @@ Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate
 # "Minute Ventilation": (6.5, 0.5), "PaO2": (95, 4.5), "PaCO2": (40, 2)}
 
 # # # Rest (second is variance, not standard deviation)
-# observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diastolic Pressure": (70, 9), "EDV": (163, 529),
-# "ESV": (50, 100), "Max RV Volume": (186, 441), "Min RV Volume": (52, 81), "Max RV Pressure": (24, 4),
-# "Min RV Pressure": (2, 1), "Min RA Volume": (45, 225), "Max RA Volume": (93, 256),
-# "Max RA Pressure Atrial contraction": (7, 4), "Max RA Pressure Tricuspid Opening": (7, 4), "Min LA Volume": (45, 225),
-# "Max LA Volume": (72, 144),
-# "Max LA Pressure Atrial contraction": (7, 4),
-# "Max LA Pressure Mitral Opening": (7, 4), "LA Contraction Volume diff": (10, 4), "RA Contraction Volume diff": (10, 4),
-# "LV Pressure Deriv": (1600, 93025), "RV Pressure Deriv": (500, 22500), "Tidal Volume": (0.5, 0.01),
-# "Minute Ventilation": (6.5, 0.25), "PaO2": (95, 20.25), "PaCO2": (40, 4)}
+observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diastolic Pressure": (70, 9), "EDV": (163, 529),
+"ESV": (50, 100), "Max RV Volume": (186, 441), "Min RV Volume": (52, 81), "Max RV Pressure": (24, 4),
+"Min RV Pressure": (2, 1), "Min RA Volume": (50, 64), "Max RA Volume": (93, 225),
+"Max RA Pressure Atrial contraction": (7, 4), "Max RA Pressure Tricuspid Opening": (7, 4), "Min LA Volume": (45, 49),
+"Max LA Volume": (80, 169),
+"Max LA Pressure Atrial contraction": (7, 4),
+"Max LA Pressure Mitral Opening": (7, 4), "LA Contraction Volume diff": (20, 9), "RA Contraction Volume diff": (20, 9),
+"LV Pressure Deriv": (1600, 93025), "RV Pressure Deriv": (500, 22500), "Tidal Volume": (0.5, 0.01),
+"Minute Ventilation": (6.5, 0.25), "PaO2": (95, 20.25), "PaCO2": (40, 4)}
 
-# # Exercise (second is variance, not standard deviation)
-observation = {"Heart Rate": (2.7, 0.04), "Systolic Pressure": (180, 400), "Diastolic Pressure": (72, 25), "EDV": (180, 625),
-"ESV": (30, 100), "Max RV Volume": (200, 625), "Min RV Volume": (35, 100), "Max RV Pressure": (40, 25),
-"Min RV Pressure": (5, 4), "Min RA Volume": (35, 100), "Max RA Volume": (85, 225),
-"Max RA Pressure Atrial contraction": (9, 4), "Max RA Pressure Tricuspid Opening": (9, 4), "Min LA Volume": (35, 100),
-"Max LA Volume": (80, 225),
-"Max LA Pressure Atrial contraction": (12, 9),
-"Max LA Pressure Mitral Opening": (12, 9), "LA Contraction Volume diff": (15, 9), "RA Contraction Volume diff": (15, 9),
-"LV Pressure Deriv": (3000, 250000), "RV Pressure Deriv": (1000, 40000), "Tidal Volume": (2.2, 0.16),
-"Minute Ventilation": (70, 225), "PaO2": (100, 25), "PaCO2": (36, 9)}
+# # # Exercise (second is variance, not standard deviation)
+# observation = {"Heart Rate": (2.7, 0.04), "Systolic Pressure": (180, 400), "Diastolic Pressure": (72, 25), "EDV": (180, 625),
+# "ESV": (30, 100), "Max RV Volume": (200, 625), "Min RV Volume": (35, 100), "Max RV Pressure": (40, 25),
+# "Min RV Pressure": (5, 4), "Min RA Volume": (35, 100), "Max RA Volume": (85, 225),
+# "Max RA Pressure Atrial contraction": (9, 4), "Max RA Pressure Tricuspid Opening": (9, 4), "Min LA Volume": (35, 100),
+# "Max LA Volume": (80, 225),
+# "Max LA Pressure Atrial contraction": (12, 9),
+# "Max LA Pressure Mitral Opening": (12, 9), "LA Contraction Volume diff": (15, 9), "RA Contraction Volume diff": (15, 9),
+# "LV Pressure Deriv": (3000, 250000), "RV Pressure Deriv": (1000, 40000), "Tidal Volume": (2.2, 0.16),
+# "Minute Ventilation": (70, 225), "PaO2": (100, 25), "PaCO2": (36, 9)}
 
 
 # ----------------------------
@@ -342,18 +333,18 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_exercise_{percent}.npy", nroy_points)
-    np.save(f"NROY_Params_exercise_{percent}.npy", params_post_hm)
-    np.save(f"NROY_Implaus_exercise_{percent}.npy", impl_scores)
-    np.save(f"test_param_exercise_{percent}.npy", test_parameters)
+    np.save(f"NROY_Points_rest_{percent}_15_03.npy", nroy_points)
+    np.save(f"NROY_Params_rest_{percent}_15_03.npy", params_post_hm)
+    np.save(f"NROY_Implaus_rest_{percent}_15_03.npy", impl_scores)
+    np.save(f"test_param_rest_{percent}_15_03.npy", test_parameters)
 
 
-    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_{percent}.png")
+    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results))}_{percent}_rest.png")
     print(len(hmw.wave_results)-1)
-    hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_{percent}.png")
-    # hmw.plot_wave((len(hmw.wave_results)-5), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_{percent}.png")
+    hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_{percent}_rest.png")
+    hmw.plot_wave((len(hmw.wave_results)-5), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_{percent}_rest.png")
+    hmw.plot_wave((len(hmw.wave_results)-7), fname=f"{size}_wave_{(len(hmw.wave_results)-6)}_{percent}_rest.png")
+    hmw.plot_wave((len(hmw.wave_results)-9), fname=f"{size}_wave_{(len(hmw.wave_results)-8)}_{percent}_rest.png")
 
 
 
