@@ -608,7 +608,7 @@ def run_basepoint(base_sample, storage_copy, old_Parameters):
         print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_09_03_final.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_14_03_final.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -833,7 +833,7 @@ if __name__ == "__main__":
             "scale_param1", "scale_param3", "scale_param4",
             "scale_param6", "Pa_O2_lower",
             "rise_time_atr", "rise_time_ven", "fall_time_ven", "ahead1",
-            "theta_min", "r", "l", "V_nominal", "V_scale"
+            "theta_min", "V_nominal", "V_scale"
         ],
 
         'bounds': [
@@ -919,7 +919,7 @@ if __name__ == "__main__":
             [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
             [0.040595327 * lower, 0.040595327 * upper], [0.17735814 * lower, 0.17735814 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.1885242 * 0.85, 1.1885242 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [121.800674 * lower, 121.800674 * upper], [47.22817 * lower, 47.22817 * upper]]
+            [0.0872665 * lower, 0.0872665 * upper], [121.800674 * lower, 121.800674 * upper], [47.22817 * lower, 47.22817 * upper]]
     })
 
     param_keys = list(sp["names"])
@@ -927,11 +927,11 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy", X)
-    X = np.load("DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy")
-    AAA = np.load("Result_DGSM_delay_09_03_final.npy")
-    AAAA = np.load("DGSM_bounds/DGSM_500_Result_rest_20_no_Pthor_Vtot_09_03_26.npy")
-    rows_all_zero = np.all(AAA == 0, axis=1)
+    # np.save("DGSM_500_X_exercise_20_no_Pthor_Vtot_rl_14_03_26.npy", X)
+    X = np.load("DGSM_500_X_exercise_20_no_Pthor_Vtot_rl_14_03_26.npy")
+    # AAA = np.load("Result_DGSM_delay_09_03_final.npy")
+    # AAAA = np.load("DGSM_bounds/DGSM_500_Result_rest_20_no_Pthor_Vtot_09_03_26.npy")
+    # rows_all_zero = np.all(AAA == 0, axis=1)
     # idx = np.where(rows_all_zero)[0]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]

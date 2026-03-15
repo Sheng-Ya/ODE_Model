@@ -184,7 +184,9 @@ nominal_values = [round((lo + hi) / 2, precision) for lo, hi in sp["bounds"]]
 Parameters = {name: value for name, value in zip(sp["names"], nominal_values)}
 
 # Pretty-print it in the exact formatting you want
-print("Parameters = {")
-for k, v in Parameters.items():
-    print(f'    "{k}": {v},')
-print("}")
+# print("Parameters = {")
+# for k, v in Parameters.items():
+#     print(f'    "{k}": {v},')
+# print("}")
+
+print("Parameters = { " + ", ".join(f'"{k}": {v}' for k, v in Parameters.items()) + " }")

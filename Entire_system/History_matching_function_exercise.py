@@ -332,6 +332,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         train_x: TensorLike | None = None,
         train_y: TensorLike | None = None,
         calibration_params: list[str] | None = None,
+        overlap_params: list[str] | None = None,
+        exercise_only_params: list[str] | None = None,
         device: DeviceLike | None = None,
         random_seed: int | None = None,
         log_level: str = "debug",
@@ -407,8 +409,19 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.calibration_params = calibration_params or list(
             simulator.parameters_range.keys()
         )
+        # added
+        self.overlap_params = overlap_params
+        self.exercise_only_params = exercise_only_params
+
         self.parameter_idx = [
             self.simulator.get_parameter_idx(param) for param in self.calibration_params
+        ]
+        # added
+        self.overlap_idx = [
+            self.simulator.get_parameter_idx(param) for param in self.overlap_params
+        ]
+        self.exercise_only_idx = [
+            self.simulator.get_parameter_idx(param) for param in self.exercise_only_params
         ]
 
     def _is_within_bounds(
@@ -579,6 +592,262 @@ class HistoryMatchingWorkflow(HistoryMatching):
         return torch.cat(results, dim=0)
 
 
+    def cloud_sample_and_emulator(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
+        """
+        Generate `n` additional parameter samples using cloud sampling.
+
+        Handles fixed parameters (min == max) by not sampling those. The constant
+        values are inserted at the correct indices in the sampled tensor.
+
+        Parameters
+        ----------
+        n: int
+            The number of samples to generate.
+        scaling_factor: float
+            The standard deviation of the Gaussian to sample from in cloud sampling is
+            set to: `parameter range * scaling_factor`.
+
+        Returns
+        -------
+        TensorLike
+            A tensor of sampled (and potentially constant) parameters [n, in_dim].
+        """
+        rest_nroy = torch.load("nroy_samples_rest.pt", map_location="cpu").to(self.device)
+        bounds = self.generate_param_bounds(rest_nroy, buffer_ratio=0.0)
+        assert bounds is not None
+
+        # --- Step 1: Cloud sample the OVERLAP parameters from rest NROY ---
+        # Work only with the overlap column indices within the rest NROY tensor
+        overlap_idx_t = torch.tensor(self.overlap_idx, device=self.device, dtype=torch.long)
+
+        # Identify which overlap params are constant (min == max) in rest NROY
+        min_vals_all = torch.tensor([b[0] for b in bounds.values()], device=self.device)
+        max_vals_all = torch.tensor([b[1] for b in bounds.values()], device=self.device)
+
+        low_overlap = min_vals_all[overlap_idx_t]
+        high_overlap = max_vals_all[overlap_idx_t]
+        nroy_overlap_to_sample = rest_nroy[:, overlap_idx_t]  # [num_nroy, n_overlap]
+
+        stdev_overlap = (
+                                nroy_overlap_to_sample.max(dim=0).values
+                                - nroy_overlap_to_sample.min(dim=0).values
+                        ) * scaling_factor
+
+        # Shuffle the order of means to sample from
+        num_means = nroy_overlap_to_sample.shape[0]
+        perm = torch.randperm(num_means, device=self.device)
+
+        # Determine how many samples to draw for each mean, handle remainder
+        min_samples_per_mean = n // num_means
+        remainder_to_sample = n % num_means
+
+        # Determine number of parallel jobs
+        n_jobs = 64  # use all cores
+
+        # Split permuted means into batches
+        chunk_size = math.ceil(num_means / n_jobs)
+        batches = [nroy_overlap_to_sample[perm][i:i + chunk_size] for i in range(0, num_means, chunk_size)]
+        n_overlap = len(self.overlap_idx)
+
+        def sample_overlap_batch(batch, batch_idx):
+            outs = []
+            for j, mean in enumerate(batch):
+                i = batch_idx * chunk_size + j
+                ns = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
+
+                x_sampled = self.truncated_normal_1d(mean, stdev_overlap, low_overlap, high_overlap, ns)
+                block = x_sampled
+                outs.append(block)
+
+            return torch.cat(outs, dim=0) if outs else torch.empty((0, n_overlap), device=self.device)
+
+        results_overlap = Parallel(n_jobs=n_jobs)(
+            delayed(sample_overlap_batch)(batch, idx) for idx, batch in enumerate(batches)
+        )
+        overlap_samples = torch.cat(results_overlap, dim=0)  # [n, n_overlap]
+        print(f"==============Overlap cloud sampling done")
+
+        # --- Step 2: Uniform sample the EXERCISE-ONLY parameters ---
+        exercise_only_idx_t = torch.tensor(self.exercise_only_idx, device=self.device, dtype=torch.long)
+        uniform_all = self.simulator.sample_inputs(n).to(self.device)  # [n, in_dim]
+        exercise_only_samples = uniform_all[:, exercise_only_idx_t]  # [n, n_exercise_only]
+        print(f"==============Exercise-only uniform sampling done")
+
+        # --- Step 3: Assemble full parameter tensor ---
+        param_dim = rest_nroy.shape[1]  # total number of parameters (in_dim)
+
+        # Start with nominal/fixed values for ALL parameters
+        # Use the midpoint of the simulator range for non-calibrated params
+        all_param_names = list(self.simulator.parameters_range.keys())
+        nominal = torch.tensor(
+            [0.5 * (self.simulator.parameters_range[p][0] + self.simulator.parameters_range[p][1])
+             for p in all_param_names],
+            device=self.device, dtype=overlap_samples.dtype
+        )
+        full_samples = nominal.unsqueeze(0).expand(n, -1).clone()  # [n, in_dim]
+
+        # Insert overlap columns
+        full_samples[:, overlap_idx_t] = overlap_samples
+
+        # Insert exercise-only columns
+        full_samples[:, exercise_only_idx_t] = exercise_only_samples
+
+        print(f"==============Full assembly done, shape: {full_samples.shape}")
+        # --- Adhoc diagnostic plot: parameter ranges in full_samples ---
+        # self._plot_parameter_ranges(full_samples, all_param_names)
+
+        return full_samples
+
+    def _plot_parameter_ranges(self, full_samples: TensorLike, all_param_names: list[str]) -> None:
+        """
+        Adhoc diagnostic plot showing the [min, max] range of each parameter
+        across the sampled tensor, colour-coded by parameter type.
+
+        Blue   = overlap (cloud-sampled from rest NROY)
+        Orange = exercise-only (uniform prior)
+        Grey   = fixed / nominal (not calibrated)
+
+        Each parameter's range is normalised to [0, 1] relative to the simulator's
+        prior bounds so that all parameters are visually comparable on the same axis.
+        A bar spanning the full width means the samples cover the entire prior;
+        a narrow bar means the parameter is tightly constrained.
+        """
+        samples_np = full_samples.detach().cpu().numpy()
+        sample_mins = samples_np.min(axis=0)
+        sample_maxs = samples_np.max(axis=0)
+
+        # Get simulator prior bounds for normalisation
+        prior_lo = np.array([self.simulator.parameters_range[p][0] for p in all_param_names])
+        prior_hi = np.array([self.simulator.parameters_range[p][1] for p in all_param_names])
+        prior_range = prior_hi - prior_lo
+        prior_range[prior_range == 0] = 1.0  # avoid div-by-zero for truly fixed params
+
+        # Normalise sample min/max into [0, 1] relative to prior
+        norm_mins = (sample_mins - prior_lo) / prior_range
+        norm_maxs = (sample_maxs - prior_lo) / prior_range
+
+        # Build colour array
+        overlap_set = set(self.overlap_idx)
+        exercise_only_set = set(self.exercise_only_idx)
+        n_params = len(all_param_names)
+
+        colors = []
+        for i in range(n_params):
+            if i in overlap_set:
+                colors.append("#1f77b4")  # blue
+            elif i in exercise_only_set:
+                colors.append("#ff7f0e")  # orange
+            else:
+                colors.append("#999999")  # grey
+
+        # Split into pages of 40 params each for readability
+        params_per_page = 40
+        n_pages = math.ceil(n_params / params_per_page)
+
+        for page in range(n_pages):
+            start = page * params_per_page
+            end = min(start + params_per_page, n_params)
+            idx_slice = list(range(start, end))
+            n_show = len(idx_slice)
+
+            fig, ax = plt.subplots(figsize=(14, max(6, n_show * 0.35)))
+
+            y_positions = np.arange(n_show)
+            for k, i in enumerate(idx_slice):
+                bar_left = norm_mins[i]
+                bar_width = norm_maxs[i] - norm_mins[i]
+                ax.barh(
+                    y_positions[k],
+                    width=bar_width,
+                    left=bar_left,
+                    height=0.7,
+                    color=colors[i],
+                    edgecolor="black",
+                    linewidth=0.3,
+                    alpha=0.8,
+                )
+
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels([all_param_names[i] for i in idx_slice], fontsize=8)
+            ax.invert_yaxis()
+            ax.set_xlim(-0.05, 1.05)
+            ax.set_xlabel("Fraction of prior range covered")
+            ax.set_title(
+                f"Sampled parameter ranges (params {start}\u2013{end - 1})\n"
+                "Blue=overlap (rest NROY)  |  Orange=exercise-only (uniform)  |  Grey=fixed",
+                fontsize=10,
+            )
+            ax.axvline(0, color="black", linewidth=0.5, linestyle=":")
+            ax.axvline(1, color="black", linewidth=0.5, linestyle=":")
+            ax.grid(True, axis="x", linestyle="--", alpha=0.3)
+
+            fig.tight_layout()
+            fname = f"param_ranges_page_{page}.png"
+            fig.savefig(fname, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+            print(f"  Saved diagnostic plot: {fname}")
+
+
+    def pre_wave_train_emulators(self, n_simulations: int = 2048, refit_on_all_data: bool = False) -> None:
+        """
+        Pre-wave step: generate hybrid samples, run them through the simulator,
+        train one emulator per output, and save them to Emulator_exercise/.
+
+        This must be called BEFORE run_waves(). It populates train_x / train_y
+        and creates the initial emulators that wave 0 will load.
+
+        Parameters
+        ----------
+        n_simulations: int
+            Number of samples to generate, simulate, and train emulators on.
+        refit_on_all_data: bool
+            Whether to refit on all accumulated data (True) or just this batch.
+        """
+        print("=" * 60)
+        print("PRE-WAVE: Generating hybrid samples for initial emulator training")
+        print("=" * 60)
+
+        # Generate hybrid samples (overlap cloud-sampled, exercise-only uniform)
+        samples = self.cloud_sample_and_emulator(n_simulations, scaling_factor=0.1)
+
+        # Run through the simulator
+        x, y = self.simulate(samples)
+        print(f"PRE-WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
+
+        # Train and save one emulator per output
+        output_names_full = [
+            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
+            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+            "PaO2", "PaCO2"]
+
+        for j, target_name in enumerate(output_names_full):
+            print(f"\n  [{j + 1}/{len(output_names_full)}] Training emulator for {target_name}")
+
+            if refit_on_all_data:
+                X_fit = self.train_x
+                Y_fit = self.train_y[:, j:j + 1]
+            else:
+                X_fit = x
+                Y_fit = y[:, j:j + 1]
+
+            self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+
+            parent = os.path.join("Emulator_exercise", target_name)
+            os.makedirs(parent, exist_ok=True)
+            path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
+            joblib.dump(self.emulator, path1)
+            print(f"  Saved to {path1}")
+
+        print("=" * 60)
+        print("PRE-WAVE: All emulators trained and saved to Emulator_exercise/")
+        print("=" * 60)
+
+
     def _sample_within_bounds(
         self,
         dist: DistributionLike,
@@ -661,11 +930,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         """
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if self.nroy_samples is None:
-            test_x = self.simulator.sample_inputs(n).to(self.device)
-            # +/-20 %
+            test_x = self.cloud_sample_and_emulator(n, scaling_factor).to(self.device)
             parent = "Emulator_exercise"
-            # # +/-50%
-            # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
             parent = "Emulator_exercise_wave"
@@ -698,10 +964,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         n_jobs = len(output_names)
         def predict_one_output(name, X):
-            if self.nroy_samples is None:
-                target_emulator = models[name].model
-            else:
-                target_emulator = models[name]
+            target_emulator = models[name]
 
             mean, var = target_emulator.predict_mean_and_variance(X)
             return name, mean, var
@@ -978,6 +1241,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
+        print(f"WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
 
         output_names_full = [
             "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -1077,28 +1341,26 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         self.wave_results = []
         for i in range(start_i, n_waves):
-            if i == 1:
+            if i == 1 or i == 2:
                 self.threshold = 5
-            if i == 2:
-                self.threshold = 4.5
             if i == 3:
+                self.threshold = 4.5
+            if i == 4:
                 self.threshold = 4
                 # n_simulations = 2048
-            if i == 4:
+            if i == 5:
                 self.threshold = 3.5
                 # n_simulations = 1024
-            if i == 5:
+            if i == 6:
                 self.threshold = 3.3
                 # n_simulations = 1024
-            if i == 6:
-                self.threshold = 3.2
-                # n_simulations = 1024
             if i == 7:
-                self.threshold = 3.1
+                self.threshold = 3.15
+                # n_simulations = 1024
             if i == 8:
-                self.threshold = 2.0
+                self.threshold = 3.0
             if i == 9:
-                self.threshold = 2.9
+                self.threshold = 2.8
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
@@ -1121,6 +1383,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 break
 
             self.wave_results.append((test_x, impl_scores))
+            self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_exercise.png")
 
             # Get NROY points from impl scores and check fraction
             nroy_x = self.get_nroy(impl_scores, test_x)

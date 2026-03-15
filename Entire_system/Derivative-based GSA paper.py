@@ -11,8 +11,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy')
-Result = np.load('Result_DGSM_delay_09_03_final.npy')
+# X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy')
+# Result = np.load('Result_DGSM_delay_09_03_final.npy')
+# X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_rl_14_03_26.npy')
+# Result = np.load('Result_DGSM_delay_14_03_final.npy')
+X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy')[:81842,:]
+Result = np.load('DGSM_500_X_Result_20_no_Pthor_Vtot_13_03_26.npy')
 # Result = np.load('DGSM_bounds/DGSM_500_Result_rest_50_no_Pthor_Vtot_ErsRrs_10_03_26.npy')
 
 # # need to add dc
@@ -53,6 +57,14 @@ for b, i in enumerate(base_idx):
         # f"STD: {block_std[b]}"
     )
 
+# Threshold = mean + 3*std of block stds, computed across blocks for each output
+std_mean = np.nanmean(block_std, axis=0)
+std_std  = np.nanstd(block_std, axis=0)
+std_thresh = std_mean + 3 * std_std
+
+# Keep blocks only if ALL output stds are below their respective thresholds
+mask_blocks_std = np.all(block_std <= std_thresh, axis=1)
+
 # # Filter base points where E_rs (col 14) and R_rs (col 15) are within +/-20% of nominal values
 # E_rs_nominal = 21.9
 # R_rs_nominal = 3.02
@@ -68,7 +80,7 @@ mask_blocks_conv = np.array([
     for i in base_idx
 ])
 
-mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
+mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv #& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
 print(np.count_nonzero(mask_blocks))
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)

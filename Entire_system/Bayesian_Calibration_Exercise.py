@@ -8,7 +8,8 @@ from multiprocessing import resource_tracker
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-from History_matching_function_new import HistoryMatchingWorkflow
+# from History_matching_function_new import HistoryMatchingWorkflow
+from History_matching_function_exercise import HistoryMatchingWorkflow
 from AutoEmulate_Simulator import Cardiopulmonary
 
 # ----------------------------
@@ -25,7 +26,7 @@ pyro.set_rng_seed(random_seed)
 # PROBLEM SPECIFICATION
 # ----------------------------
 # change
-percent = 20
+percent = 50
 lower = 1 - percent/100
 upper = 1 + percent/100
 #
@@ -113,7 +114,7 @@ sp = ProblemSpec({
         "scale_param1", "scale_param3", "scale_param4",
         "scale_param6", "Pa_O2_lower",
         "rise_time_atr", "rise_time_ven", "fall_time_ven", "ahead1",
-        "theta_min", "V_nominal", "V_scale"
+        "theta_min", "r", "l", "V_nominal", "V_scale"
     ],
 
     'bounds': [
@@ -199,7 +200,7 @@ sp = ProblemSpec({
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
         [0.040595327 * lower, 0.040595327 * upper], [0.17735814 * lower, 0.17735814 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-        [0.0872665 * lower, 0.0872665 * upper], [121.800674 * lower, 121.800674 * upper], [47.22817 * lower, 47.22817 * upper]]
+        [0.0872665 * lower, 0.0872665 * upper], [1.1885242 * 0.85, 1.1885242 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [121.800674 * lower, 121.800674 * upper], [47.22817 * lower, 47.22817 * upper]]
 })
 
 # # Rest: 64 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
@@ -211,17 +212,29 @@ sp = ProblemSpec({
 #                    'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
 #                    'Wb_sh', 'Wb_sp', 'Wb_sv'}
 
-# # Exercise: 64 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-subset_vars = {'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_pv', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
+# # Exercise: 65 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
+subset_vars = {'C2', 'C_jp', 'C_O2_param1', 'C_pv', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
                'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_o', 'fev_inf', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv',
-               'GR_amp', 'GT_s', 'GT_v', 'GV_dead', 'GV_sv', 'Io_met', 'Io_sh', 'k_ab', 'KcCO2', 'KcMRV', 'KE_la',
-               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'P_n_max', 'PaCO2_n',
+               'GR_amp', 'GT_s', 'GT_v', 'GV_dead', 'GV_sv', 'Io_met', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la',
+               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'P_n_max', 'PaCO2_n',
                'phi_max', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven', 'T0', 'tauMR', 'V0_dead',
                'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-               'Wp_v', 'Yv_max'}
+               'Wp_v', 'Yv_max', 'r', 'l'}
+
+subset_overlap = {'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o',
+                  'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv',
+                  'kes', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa',
+                  'rise_time_ven', 'T0', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv',
+                  'Vu_ra', 'Vu_rv', 'Vu_sv0', 'r'}
+
+subset_exercise_only = {'C_pv', 'Cvb_O2_n', 'fall_time_ven', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
+                        'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P0_ra', 'P_n_max', 'phi_max', 'R_amp0', 'tauMR', 'VA_rest', 'Wp_v',
+                        'Yv_max', 'l'}
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
+subset_overlap = [name for name in sp["names"] if name in subset_overlap]
+subset_exercise_only = [name for name in sp["names"] if name in subset_exercise_only]
 
 # Convert to dictionary
 param_ranges: dict[str, tuple[float, float]] = {
@@ -326,7 +339,12 @@ if __name__ == "__main__":
         # train_x=X,
         # train_y=Result,
         calibration_params=subset_vars,
+        overlap_params=subset_overlap,
+        exercise_only_params = subset_exercise_only
     )
+
+    # --- PRE-WAVE: Train initial emulators from hybrid samples ---
+    hmw.pre_wave_train_emulators(n_simulations=2048, refit_on_all_data=False)
 
     size = 200000
     _ = hmw.run_waves(n_waves=10, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)

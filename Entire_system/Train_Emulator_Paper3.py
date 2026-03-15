@@ -34,7 +34,7 @@ from All_Next_Conditions import Next_Conditions
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 40000
 
-max_time = 120 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -570,7 +570,7 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=300):
         return ([0.0] * 31, [0.0] * 82)
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=500, save_path_results='Result_chunked1.npy', save_path_states='States_chunked1.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, chunk_size=512, save_path_results='Result_chunked1.npy', save_path_states='States_chunked1.npy'):
     results_all = []
     final_states = []
 
@@ -668,8 +668,8 @@ def sample_inputs_from_spec(
 
 if __name__ == "__main__":
 
-    lower = 0.5
-    upper = 1.5
+    lower = 0.8
+    upper = 1.2
 
     sp = ProblemSpec({
         'names': [
@@ -857,7 +857,7 @@ if __name__ == "__main__":
 
     # TEST_TXT = "test.txt"  # <- your uploaded file
     MODEL_NAME = "GaussianProcessMatern32"
-    N_SAMPLES = 1000
+    N_SAMPLES = 2048
     N_JOBS = 64
     TRAIN_SIZE_CAP = 1000
 
@@ -1041,7 +1041,7 @@ if __name__ == "__main__":
     # +/-20%
     # parent_dir = "Emulator_Paper_1_90_same_1000"
     # +/-50%
-    parent_dir = "Emulator_exercise"
+    parent_dir = "Emulator_Paper_same_1000"
 
     for j, target_name in enumerate(output_names_full):
         print("\n" + "=" * 100)
