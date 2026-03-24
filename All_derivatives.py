@@ -122,7 +122,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     (A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
      L_sa, R_sa, K1_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
-     C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
+     C_bv, C_hv, C_rmv, C_amv, kr_am, P_0, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
      Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
      Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
      Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0,
@@ -400,7 +400,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         theta_ao = theta_min
 
     # Compute area ratio with smooth transition
-    AR_ao = valve_signal * ((1 - math.cos(theta_ao)) ** 2) / ((1 - math.cos(theta_ao_max)) ** 2)
+    AR_ao = ((1 - math.cos(theta_ao)) ** 2) / ((1 - math.cos(theta_ao_max)) ** 2)
 
     # Flow with smooth transition
     Q_lv = valve_signal * (math.sqrt(np.maximum(P_lv - P_sa, 0)) * AR_ao * R_ao)
@@ -541,7 +541,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # P_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (math.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((P_la - P_lv) / delta_P))
-    AA = P_peri
+    # AA = P_peri
     AAA = valve_signal
     # Enforce theta bounds when nearly closed
     if abs(valve_signal) < 1e-8:
@@ -553,7 +553,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         theta_mi = theta_min
 
     # Compute area ratio with smooth transition
-    AR_mi = valve_signal * ((1 - math.cos(theta_mi)) ** 2) / ((1 - math.cos(theta_mi_max)) ** 2)
+    AR_mi = ((1 - math.cos(theta_mi)) ** 2) / ((1 - math.cos(theta_mi_max)) ** 2)
 
     # Flow with smooth transition
     Qi_lv = valve_signal * (math.sqrt(np.maximum(P_la - P_lv, 0)) * AR_mi * R_mi)
@@ -592,7 +592,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_po = valve_signal * ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
 
     # Compute area ratio with smooth transition
-    AR_po = valve_signal * ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
+    AR_po = ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
 
     # Flow with smooth transition
     Q_rv = valve_signal * (math.sqrt(np.maximum(P_rv - P_pa, 0)) * AR_po * R_po)
@@ -654,7 +654,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_tr = valve_signal * ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
 
     # # Compute area ratio with smooth transition
-    AR_tr = valve_signal * ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
+    AR_tr = ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
 
     # Flow with smooth transition
     Qi_rv = valve_signal * (math.sqrt(np.maximum(P_ra - P_rv, 0)) * AR_tr * R_tr)
@@ -727,19 +727,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # got rid of this loop because P_vc never went below P_abd
     # P_s = P_abd
+    P_s = 0
 
-    #
-    # if P_vc < P_s:
-    #     R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))
-    # else:
-    #     R_sv = R_sv_n
+    if P_vc < P_s:
+        R_sv = R_sv_n * ((P_sv - P_vc) / (P_sv - P_s))
+    else:
+        R_sv = R_sv_n
 
-    # if P_sv >= P_vc:
-    #     Q_sv = (P_sv - P_vc) / R_sv_n
-    # else:
-    #     Q_sv = 0
+    Q_sv = (P_sv - P_vc) / R_sv
 
-    Q_sv = (P_sv - P_vc) / R_sv_n
 
     dVT_sv_dt = Q_sp - Q_sv
 
@@ -813,17 +809,17 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dVT_rmv_dt = Q_rmp - Q_rmv
 
     # active muscle
-    P_0 = Vu_amv / (C_amv * 10)
+    P_0_am = Vu_amv / (C_amv * P_0)
 
     if VT_amv >= Vu_amv:
         V_amv = VT_amv - Vu_amv
         P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
-        V_amv = 0
+        # V_amv = 0
         if VT_amv > 0:
-            P_amv = max(P_im + P_0 * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
+            P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
         else:
-            P_amv = max(P_im + P_0, 0.0001)
+            P_amv = max(P_im + P_0_am, 0.0001)
 
     Q_amp = max((P_sp - P_amv), 0.0001) / R_amp
 
@@ -836,14 +832,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         R_amv = R_amv_n
 
-    # if P_amv >= P_vc:
-    #     Q_amv = (P_amv - P_vc) / R_amv
-    # else:
-    #     Q_amv = 0
-
     Q_amv = (P_amv - P_vc) / R_amv
 
     dVT_amv_dt = Q_amp - Q_amv
+
+    AA = Vu_amv
 
     ## systemic peripheral and venous circulation
     # extrasplanchnic
@@ -982,8 +975,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRO2 = 0.65 / 60 - MRBO2
     #
     # if 60 < t:
-    #     MRCO2 = 1.5 / 60 - MRBCO2
-    #     MRO2 = 1.5 / 60 - MRBO2
+    #     MRCO2 = 1.2 / 60 - MRBCO2
+    #     MRO2 = 1.2 / 60 - MRBO2
 
     # if 200 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
