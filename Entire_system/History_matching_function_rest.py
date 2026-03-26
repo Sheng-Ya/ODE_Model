@@ -971,7 +971,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # np.save("check.npy", nroy_simulation_samples)
         # save on CPU so it's portable across machines/devices
-        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples.pt")
+        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples_rest.pt")
         # A = np.load("check.npy")[64:66]
         # print(A[:,-4:])
         # A = torch.from_numpy(A)
@@ -1013,6 +1013,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(self.emulator, path1)
+
+        # torch.save(x, f"X_train_wave_{(len(self.wave_results) - 1)}_rest_.pt")
+        # torch.save(y, f"Y_train_wave_{(len(self.wave_results) - 1)}_rest_.pt")
 
         # Return test parameters and impl scores for this run/wave
         return torch.cat(test_parameters_list, 0), torch.cat(impl_scores_list, 0)
@@ -1068,7 +1071,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             A tensor of tested input parameters and their implausibility scores.
         """
         if resume_wave == True:
-            self.nroy_samples = torch.load("nroy_samples.pt", map_location="cpu").to(self.device)
+            self.nroy_samples = torch.load("nroy_samples_rest.pt", map_location="cpu").to(self.device)
             last_wave = int(torch.load("last_wave.pt", map_location="cpu"))
             start_i = last_wave + 1
             print(start_i)
@@ -1117,6 +1120,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 break
 
             self.wave_results.append((test_x, impl_scores))
+            self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_rest.png")
 
             # Get NROY points from impl scores and check fraction
             nroy_x = self.get_nroy(impl_scores, test_x)
