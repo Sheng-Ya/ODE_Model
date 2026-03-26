@@ -22,7 +22,7 @@ def activation_H(ti, atr, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1
 
     if atr == 1:
         if t_la <= tr_atr:
-            return 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)**1))
+            return 0.5 * (1.0 - np.cos(np.pi * (t_la / tr_atr)))
         elif t_la <= td_atr:
             return 0.5 * (1.0 + np.cos(np.pi * (t_la - tr_atr) / (td_atr - tr_atr)))
         else:

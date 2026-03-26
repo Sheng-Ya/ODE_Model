@@ -1,7 +1,6 @@
 import math
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.integrate import simpson
 from numba import njit
 
 # outside objective, decide once:
@@ -22,7 +21,10 @@ def compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance):
     a1 = -2 * a2 * t1
     Pt1 = a1 * t1 + a2 * (t1 ** 2)
     Vt1 = VA * (t1 + t2) + VD
-    tau = max((t2 / (-np.log(tolerance * R_rs / Pt1))), 0.001)
+    # tau = max((t2 / (-np.log(tolerance * R_rs / Pt1))), 0.001)
+    raw_tau = t2 / (-np.log(tolerance * R_rs / Pt1))
+    tau_min = 0.001
+    tau = np.sqrt(raw_tau * raw_tau + tau_min * tau_min)
     B = E_rs / R_rs
 
     return a1, a2, Pt1, Vt1, tau, B
@@ -45,34 +47,35 @@ def gaussian_integral(mu, z, pref, tau):
 
 
 @njit
-def calculate_variables(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao, Pmax, Pmax_dot, n, lambda1, dt):
+def calculate_variables(initial_guess, VA, VD, tolerance, E_rs, R_rs, P_ao, Pmax, Pmax_dot, n, lambda1):
     """
     Updated method for calculating P_musc and dP_musc/dt
     """
     t1, t2 = initial_guess
     a1, a2, Pt1, Vt1, tau, B = compute_constants(t1, t2, VA, VD, E_rs, R_rs, P_ao, tolerance)
 
-    P_musc = np.empty(len(times))
-    dP_musc_dt = np.empty(len(times))
+    N1 = 1000
+    N2 = 1000
+    #
+    # x = np.linspace(0.0, t1, N1)
+    # z = np.linspace(t1, t1 + t2, N2)
+    #
+    # dt1 = x[1] - x[0]
+    # dt2 = z[1] - z[0]
 
-    V = np.empty(len(times))
+    s1 = np.linspace(0.0, 1.0, N1)
+    s2 = np.linspace(0.0, 1.0, N2)
 
-    # Breathing cycle patterns
-    split_idx = np.searchsorted(times, t1, side="right")
+    x = t1 * s1
+    z = t1 + t2 * s2
+    dt1 = t1 / (N1 - 1)
+    dt2 = t2 / (N2 - 1)
 
-    x = times[:split_idx]
-    z = times[split_idx:]
+    P_musc_insp = a1 * x + a2 * x ** 2
+    dP_musc_dt_insp = a1 + 2 * a2 * x
 
-    # Calculate P_musc for 0 <= times <= t1
-    P_musc[:split_idx] = a1 * x + a2 * (x ** 2)
-    dP_musc_dt[:split_idx] = a1 + 2 * a2 * x
-
-    # Calculate P_musc for t1 <= times <= t1 + t2
-    P_musc[split_idx:] = Pt1 * np.exp((-(z - t1) ** 2) / tau)
-    # P_musc = np.minimum(P_musc, Pmax)
-
-    dP_musc_dt[split_idx:] = P_musc[split_idx:] * (- 2 * (z - t1) / tau)
-
+    P_musc_exp = Pt1 * np.exp(-((z - t1) ** 2) / tau)
+    dP_musc_dt_exp = P_musc_exp * (-2 * (z - t1) / tau)
 
 
     # Compute constants for Volume solution
@@ -82,15 +85,13 @@ def calculate_variables(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_a
     d1 = (a1 * R_rs / (E_rs ** 2)) - (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) - c1
 
     # Calculate for 0 <= times <= t1
-    V[:split_idx] = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
+    V_insp = ((a1 / E_rs) * x - (a1 * R_rs / (E_rs ** 2)) +
                      (a2 / E_rs) * (x ** 2) - (2 * a2 * R_rs / (E_rs ** 2)) * x +
                      (2 * a2 * (R_rs ** 2) / (E_rs ** 3)) +
                      c1 * np.exp(-B * x) + d1)
 
     # Compute constants
     mu = t1 + 0.5 * B * tau
-
-    # constant exponent term K
     term1 = - (t1 * t1) / tau
     term2 = (mu ** 2) / tau
     K = term1 + term2
@@ -98,43 +99,39 @@ def calculate_variables(times, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_a
 
     I0 = gaussian_integral(mu, t1, pref, tau)
 
-    I_z = np.empty(len(z))
+    I_z = np.zeros(len(z))
     for i in range(len(z)):
         I_z[i] = gaussian_integral(mu, z[i], pref, tau)
 
     integral = I_z - I0
     constant = (Vt1 / np.exp(-B * t1))  # - (Pt1 / R_rs) * I0
-
     expBz = np.exp(-B * z)
+    V_exp = (Pt1 / R_rs) * expBz * integral + constant * expBz
 
-    V[split_idx:] = (Pt1 / R_rs) * expBz * integral + constant * expBz
 
-    dV_dt = (P_musc - P_ao - E_rs * V) / R_rs
+    dV_dt_insp = (P_musc_insp - E_rs * V_insp) / R_rs
+    dV_dt_exp = (P_musc_exp - E_rs * V_exp) / R_rs
 
 
     # continue calculations
-    dV2_dt2_values_squared = ((1 / R_rs) * ((dP_musc_dt - P_ao) - E_rs * dV_dt)) ** 2
+    dV2_dt2_values_squared_insp = ((1 / R_rs) * (dP_musc_dt_insp - E_rs * dV_dt_insp)) ** 2
+    dV2_dt2_values_squared_exp = ((1 / R_rs) * (dP_musc_dt_exp - E_rs * dV_dt_exp)) ** 2
 
-    E1_n = (1 - np.clip((P_musc / Pmax), 0, 0.999999)) ** n
-    E2_n = (1 - np.clip((np.abs(dP_musc_dt) / Pmax_dot), 0, 0.999999)) ** n
 
-    integrand_inspire = (P_musc[:split_idx] * dV_dt[:split_idx]) / (
-    E1_n[:split_idx] * E2_n[:split_idx]) + lambda1 * dV2_dt2_values_squared[:split_idx]
+    E1_n_insp = (1 - np.clip((P_musc_insp / Pmax), 0, 0.999999)) ** n
+    E2_n_insp = (1 - np.clip((np.abs(dP_musc_dt_insp) / Pmax_dot), 0, 0.999999)) ** n
 
-    integrand_expire = dV2_dt2_values_squared[split_idx:]
 
-    integral_inspire = trapz_uniform(integrand_inspire, dt)
-    integral_expire = trapz_uniform(integrand_expire, dt)
+    integrand_inspire = (P_musc_insp * dV_dt_insp) / (
+    E1_n_insp * E2_n_insp) + lambda1 * dV2_dt2_values_squared_insp
+
+    integrand_expire = dV2_dt2_values_squared_exp
+
+    integral_inspire = trapz_uniform(integrand_inspire, dt1)
+    integral_expire = trapz_uniform(integrand_expire, dt2)
 
     WI = (1 / (t1 + t2)) * integral_inspire
     WE = (1 / (t1 + t2)) * integral_expire
-
-    # plt.scatter(times, volume_signal, s=1)
-    # plt.show()
-    # plt.scatter(times, dV2_dt2_values_squared, s=1)
-    # plt.show()
-    # plt.scatter(times, dV_dt_values, s=1)
-    # plt.show()
 
     return WI, WE
 
@@ -144,29 +141,16 @@ def objective(initial_guess, required_params, VAflow, VD, dt, tolerance):
     """
     Optimized Objective function
     """
-    t1, t2 = initial_guess
-
-    # In objective()
-    T_cycle = t1 + t2
-
-    # local grid for this candidate (t1, t2)
-    n_steps = max(2000, int(np.ceil(T_cycle / dt)) + 1)
-    times = np.linspace(0.0, T_cycle, n_steps)
-    dt_local = times[1] - times[0]
-    s = np.linspace(0.0, 1.0, 2000)
-    times = s * T_cycle
-    dt_local = times[1] - times[0]
-
-    # # Use base_times up to T_cycle without boolean masks
-    # cycle_idx = np.searchsorted(base_times, T_cycle, side="right")
-    # times = base_times[:cycle_idx]
-
     lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao = required_params
 
-    WI, WE = calculate_variables(times, initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax, Pmax_dot, n, lambda1, dt_local)
+    WI, WE = calculate_variables(initial_guess, VAflow, VD, tolerance, E_rs, R_rs, P_ao, Pmax, Pmax_dot, n, lambda1)
+
+    t2_min = 0.6
+    lambda_barrier = 1000.0
+    barrier = lambda_barrier * np.log1p(np.exp(20.0 * (t2_min - initial_guess[1]))) / 20.0
 
     # Return cost function value
-    return WI + lambda2 * WE
+    return WI + lambda2 * WE + barrier
 
 
 @njit
@@ -204,7 +188,7 @@ def calculate_single_V_dV_dt(t, initial_guess, VA, VD, tolerance, E_rs, R_rs, P_
         V = (Pt1 / R_rs) * expBz * integral + constant * expBz
 
         P_musc = Pt1 * np.exp((-(t - t1) ** 2) / tau)
-        dV_dt = (P_musc - P_ao - E_rs * V) / R_rs
+        dV_dt = (P_musc - E_rs * V) / R_rs
 
     return V, dV_dt
 
