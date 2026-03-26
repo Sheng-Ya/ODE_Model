@@ -82,7 +82,7 @@ def eval_spline(V, knots, coeffs):
     )
 
 
-@njit
+# @njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
     HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
     Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
@@ -354,13 +354,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # # A2_l = 20
     # A1_r = 0.1
     # A2_r = 0.1
-
-    P_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (math.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
+    V_lv = (VT_lv - Vu_lv) * (VT_lv > Vu_lv)
+    P_lv = phi * Emax_lv * V_lv + (1 - phi) * P0_lv * (math.exp(KE_lv * V_lv) - 1) + P_thor + 1/l * P_peri
     # P_lv = phi * Emax_lv * (VT_lv - (Vu_lv - x_l * A2_l)) + (1 - phi) * P0_lv * (math.exp(KE_lv * (VT_lv - (Vu_lv - x_l * A2_l))) - 1) + P_thor + 1/g * P_peri
 
 
     # P_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (math.exp(KE_ra * VT_ra) - 1) + P_thor + g * P_peri
-    P_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (math.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/r * P_peri
+    V_rv = (VT_rv - Vu_rv) * (VT_rv > Vu_rv)
+    P_rv = phi * Emax_rv * V_rv + (1 - phi) * P0_rv * (math.exp(KE_rv * V_rv) - 1) + P_thor + 1/r * P_peri
     # P_rv = phi * Emax_rv * (VT_rv - (Vu_rv - x_r * A2_r)) + (1 - phi) * P0_rv * (math.exp(KE_rv * (VT_rv - (Vu_rv - x_r * A2_r))) - 1) + 1/g * P_peri
 
     # P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (math.exp(KE_la * VT_la) - 1) + P_thor + g * P_peri
@@ -537,7 +538,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # P_la with reduced pericardial coupling to prevent kink at minimum volume
     # Use 0.5 * P_peri instead of g * P_peri for atria to avoid excessive coupling
-    P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (math.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + l * P_peri
+    V_la = (VT_la - Vu_la) * (VT_la > Vu_la)
+    P_la = phi_atr * Emax_la * V_la + (1 - phi_atr) * P0_la * (math.exp(KE_la * V_la) - 1) + P_thor + l * P_peri
     # P_la = phi_atr * Emax_la * (VT_la - (Vu_la + x_l * A1_l)) + (1 - phi_atr) * P0_la * (math.exp(KE_la * (VT_la - (Vu_la + x_l * A1_l))) - 1) + P_thor + g * P_peri
 
     valve_signal = 0.5 * (1 + np.tanh((P_la - P_lv) / delta_P))
@@ -603,7 +605,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # P_ra with reduced pericardial coupling to prevent kink at minimum volume
     # Use 0.5 * P_peri instead of 1 * P_peri for atria to avoid excessive coupling
-    P_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (math.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + r * P_peri
+    V_ra = (VT_ra - Vu_ra) * (VT_ra > Vu_ra)
+    P_ra = phi_atr * Emax_ra * V_ra + (1 - phi_atr) * P0_ra * (math.exp(KE_ra * V_ra) - 1) + P_thor + r * P_peri
     # P_ra = phi_atr * Emax_ra * (VT_ra - (Vu_ra + x_r * A1_r)) + (1 - phi_atr) * P0_ra * (math.exp(KE_ra * (VT_ra - (Vu_ra + x_r * A1_r))) - 1) + P_thor + r * P_peri
 
     # Piston dynamics
@@ -810,12 +813,11 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # active muscle
     P_0_am = Vu_amv / (C_amv * P_0)
+    V_amv = (VT_amv - Vu_amv) * (VT_amv > Vu_amv)
 
     if VT_amv >= Vu_amv:
-        V_amv = VT_amv - Vu_amv
         P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
-        # V_amv = 0
         if VT_amv > 0:
             P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
         else:
@@ -859,6 +861,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     V_ev = max((V_tot - (V_sa + Vu_sa) - VT_ra - VT_rv - VT_la - VT_lv - VT_pa - VT_pp - VT_pv - VT_sv - VT_rmv - VT_amv -
             VT_bv - VT_hv - VT_vc - V_s_peripheral) - Vu_ev - Vu_jp, 1)
 
+    # # I know that:
+    # # V_u_initial = (Vu_amv0 + Vu_ev0 + Vu_rmv0 + Vu_sv0 + Vu_rv + Vu_ra
+    # #               + Vu_lv + Vu_la + Vu_pv + Vu_pp + Vu_pa + Vu_vc + Vu_jp + Vu_hv + Vu_bv + Vu_sa)
+    # V_s_initial = 1144.699  # 5027.15 - Vu_initial
+    # V_ev = max((V_s_initial - V_sa - V_ra - V_rv - V_la - V_lv - V_pa - V_pp - V_pv - V_sv - V_rmv
+    #         - V_amv - V_bv - V_hv - V_vc + V_s_peripheral), 1)
+    #
+    # AA = -(- (V_sa + Vu_sa) - VT_ra - VT_rv - VT_la - VT_lv - VT_pa - VT_pp - VT_pv - VT_sv - VT_rmv - VT_amv -
+    #         VT_bv - VT_hv - VT_vc - V_s_peripheral - Vu_ev - Vu_jp - V_ev - Vu_ev)
 
     P_ev = V_ev / C_ev  # + source_values
 
