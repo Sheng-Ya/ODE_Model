@@ -694,7 +694,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
         #     else:
         #         target_emulator = models[name]
         #
-        #     means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
+        #     with torch.no_grad():
+        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
+        #             test_x[:, self.parameter_idx]
+        #         )
+        #    # means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
 
         n_jobs = len(output_names)
         def predict_one_output(name, X):
@@ -791,8 +795,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x[row_mask]
         y = y[row_mask]
 
-        self.train_y = torch.cat([self.train_y, y], dim=0)
-        self.train_x = torch.cat([self.train_x, x], dim=0)
+        # self.train_y = torch.cat([self.train_y, y], dim=0)
+        # self.train_x = torch.cat([self.train_x, x], dim=0)
+        self.train_y = y
+        self.train_x = x
 
         return x, y
 
@@ -908,7 +914,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         )
 
         retries = 0
-        while torch.cat(nroy_parameters_list, 0).shape[0] < n_simulations:
+        nroy_total = 0
+        while nroy_total < n_simulations:
             if retries == max_retries:
                 msg = (
                     f"Could not generate n_simulations ({n_simulations}) samples "
@@ -937,6 +944,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             nroy_parameters_list.append(nroy_parameters)
             test_parameters_list.append(test_parameters)
             impl_scores_list.append(impl_scores)
+            nroy_total += nroy_parameters.shape[0]
 
             msg = (
                 f"Generated {nroy_parameters.shape[0]} NROY samples on try "
@@ -1081,23 +1089,34 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.wave_results = []
         for i in range(start_i, n_waves):
             if i == 1:
-                self.threshold = 5
+                self.threshold = 3.25
             if i == 2:
-                self.threshold = 4.5
+                self.threshold = 3
             if i == 3:
-                self.threshold = 4
-            if i == 4:
-                self.threshold = 3.5
-            if i == 5:
-                self.threshold = 3.3
-            if i == 6:
-                self.threshold = 3.15
-            if i == 7:
-                self.threshold = 3.0
-            if i == 8:
-                self.threshold = 2.85
-            if i == 9:
                 self.threshold = 2.75
+            if i == 4:
+                self.threshold = 2.5
+            if i == 5:
+                self.threshold = 2.25
+            if i == 6:
+                self.threshold = 2
+            if i == 7:
+                self.threshold = 1.75
+            if i == 8:
+                self.threshold = 1.5
+            if i == 9:
+                self.threshold = 1.25
+            if i == 10:
+                self.threshold = 1.0
+            if i == 11:
+                self.threshold = 1.0
+                n_simulations = 5000
+
+            # if i == 9:
+            #     self.threshold = 2.75
+            # if i == 10:
+            #     self.threshold = 2.75
+            #     n_simulations = 5000
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
@@ -1120,7 +1139,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 break
 
             self.wave_results.append((test_x, impl_scores))
-            self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_rest.png")
+            # self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_rest.png")
 
             # Get NROY points from impl scores and check fraction
             nroy_x = self.get_nroy(impl_scores, test_x)
