@@ -611,7 +611,7 @@ def run_basepoint(base_sample, storage_copy, old_Parameters):
         print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
 
-def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_14_03_final.npy'):
+def parallel_simulations(param_samples, storage, n_jobs, save_path='Result_DGSM_delay_31_03_final.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -899,7 +899,7 @@ if __name__ == "__main__":
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
             [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
-            [45 * lower, 45 * upper], [38.703 * lower, 38.703 * upper],
+            [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
 
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -919,7 +919,7 @@ if __name__ == "__main__":
             # further added params
             [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-            [0.045 * lower, 0.045 * upper], [0.3 * lower, 0.3 * upper], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
+            [0.045 * lower, 0.045 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
             [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
     })
 
@@ -928,8 +928,8 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_20_23_03.npy", X)
-    X = np.load("DGSM_500_X_rest_20_23_03.npy")
+    # np.save("DGSM_500_X_rest_20_31_03.npy", X)
+    X = np.load("DGSM_500_X_rest_20_31_03.npy")
     # AAA = np.load("DGSM_500_Result_rest_20_23_03.npy")
     # rows_all_zero = np.all(AAA == 0, axis=1)
     # idx = np.where(rows_all_zero)[0]
@@ -939,6 +939,6 @@ if __name__ == "__main__":
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=256)
+    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=64)
     # Result = parallel_simulations(param_samples, Next_Conditions)
-    np.save('DGSM_500_Result_rest_20_23_03.npy', Result)
+    np.save('DGSM_500_Result_rest_31_23_03.npy', Result)

@@ -406,8 +406,8 @@ class Simulator(ABC, ValidationMixin):
             return torch.empty((0, self.out_dim)), torch.empty((0, self.in_dim))
 
         # Stack results
-        self.results_tensor = torch.cat(results, dim=0)
-        return self.results_tensor, x[valid_idx]
+        # self.results_tensor = torch.cat(results, dim=0)
+        return torch.cat(results, dim=0), x[valid_idx]
 
     def get_parameter_idx(self, name: str) -> int:
         """
@@ -427,19 +427,19 @@ class Simulator(ABC, ValidationMixin):
             raise ValueError(f"Parameter {name} not found.")
         return self._param_names.index(name)
 
-    def get_outputs_as_dict(self) -> dict[str, TensorLike]:
-        """
-        Return simulation results as a dictionary with output names as keys.
-
-        Returns
-        -------
-        dict[str, TensorLike]
-            Dictionary where keys are output names and values are tensors
-            of shape (n_samples,) for each output dimension.
-        """
-        # Create dictionary mapping output names to their corresponding columns
-        output_dict = {}
-        for i, output_name in enumerate(self.output_names):
-            output_dict[output_name] = self.results_tensor[:, i]
-
-        return output_dict
+    # def get_outputs_as_dict(self) -> dict[str, TensorLike]:
+    #     """
+    #     Return simulation results as a dictionary with output names as keys.
+    #
+    #     Returns
+    #     -------
+    #     dict[str, TensorLike]
+    #         Dictionary where keys are output names and values are tensors
+    #         of shape (n_samples,) for each output dimension.
+    #     """
+    #     # Create dictionary mapping output names to their corresponding columns
+    #     output_dict = {}
+    #     for i, output_name in enumerate(self.output_names):
+    #         output_dict[output_name] = self.results_tensor[:, i]
+    #
+    #     return output_dict

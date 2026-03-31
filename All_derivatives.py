@@ -82,7 +82,7 @@ def eval_spline(V, knots, coeffs):
     )
 
 
-# @njit
+@njit
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
     HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
     Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,

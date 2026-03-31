@@ -4,6 +4,9 @@ import joblib
 import numpy as np
 import pyro
 from multiprocessing import resource_tracker
+
+import torch
+
 # Prevent the resource tracker from complaining about shared memory cleanup
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
@@ -176,7 +179,7 @@ sp = ProblemSpec({
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
-        [45 * lower, 45 * upper], [38.703 * lower, 38.703 * upper],
+        [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -200,14 +203,14 @@ sp = ProblemSpec({
         [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
-# # Rest: 66 parameters contribute at least 1% and up to 90% sensitivity for 25 targets
-subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0',
-               'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_o', 'GT_v',
-               'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi',
-               'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp',
-               'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal',
-               'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh',
-               'Wb_sp', 'Wb_sv'}
+# # Rest: parameters contribute at least 1% and up to 90% sensitivity for 25 targets
+subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
+               'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+               'fes_o', 'fev_inf', 'fev_o', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv',
+               'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv',
+               'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n',
+               'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+               'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -240,16 +243,15 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # change (emulator for rest/exercise)
 Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
 
-# # # Rest (second is variance, not standard deviation)
-observation = {"Heart Rate": (1.33, 0.014), "Systolic Pressure": (107.5, 62.41), "Diastolic Pressure": (71.9, 28.09), "EDV": (147.1, 207.36),
-"ESV": (60.6, 65.61), "Max RV Volume": (166.9, 268.96), "Min RV Volume": (76.1, 121.0), "Max RV Pressure": (22.5, 6.25),
-"Min RV Pressure": (4.0, 1.0), "Min RA Volume": (46.7, 243.36), "Max RA Volume": (90.0, 432.64),
-"Max RA Pressure Atrial contraction": (6.0, 1.69), "Max RA Pressure Tricuspid Opening": (6.0, 1.69), "Min LA Volume": (32.9, 75.69),
-"Max LA Volume": (70.9, 190.44),
-"Max LA Pressure Atrial contraction": (9.0, 4.0),
-"Max LA Pressure Mitral Opening": (7.5, 2.25), "LA Contraction Volume diff": (17.3, 15.21), "RA Contraction Volume diff": (19.0, 44.89),
-"LV Pressure Deriv": (1780.0, 17424.0), "RV Pressure Deriv": (387.0, 11449.0), "Tidal Volume": (0.567, 0.005184),
-"Minute Ventilation": (11.4, 15.21), "PaO2": (90.0, 10.89), "PaCO2": (40.0, 2.89)}
+observation = {"Heart Rate": (1.23, 0.05), "Systolic Pressure": (123, 324), "Diastolic Pressure": (76.7, 65.61), "EDV": (152.1, 767.29),
+"ESV": (62.3, 243.36), "Max RV Volume": (151.9, 1004.89), "Min RV Volume": (64.4, 299.29), "Max RV Pressure": (22.5, 56.25),
+"Min RV Pressure": (4.0, 9.0), "Min RA Volume": (30.6, 76.4), "Max RA Volume": (92.4, 380.25),
+"Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (32.9, 75.69),
+"Max LA Volume": (68.3, 306.25),
+"Max LA Pressure Atrial contraction": (13.0, 9.0),
+"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (9.4, 11.56), "RA Contraction Volume diff": (11.6, 16.81),
+"LV Pressure Deriv": (1461.0, 146689.0), "RV Pressure Deriv": (271.0, 3025.0), "Tidal Volume": (0.850, 0.16),
+"Minute Ventilation": (11.4, 15.21), "PaO2": (102.3, 125.44), "PaCO2": (35.5, 24.01)}
 
 
 # ----------------------------
@@ -281,21 +283,123 @@ if __name__ == "__main__":
     # param_samples = [dict(zip(param_keys, row)) for row in samples]
     # print(param_samples[-1])
 
-
     hmw = HistoryMatchingWorkflow(
         simulator=Simulator,
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=5,
+        threshold=3,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
         calibration_params=subset_vars,
     )
 
+    # X = torch.load("nroy_samples_rest_new.pt", map_location="cpu").to("cpu")
+    # subset_X = X[:, hmw.parameter_idx]
+    #
+    # models = {}
+    # for name in output_names:
+    #     folder = name
+    #     path1 = os.path.join("Emulator_wave_new", folder, f"GaussianProcessMatern32_{name}_best.joblib")
+    #     models[name] = joblib.load(path1)
+    #
+    # means = {}
+    # variances = {}
+    #
+    # for name in output_names:
+    #     target_emulator = models[name]
+    #
+    #     means[name], variances[name] = target_emulator.predict_mean_and_variance(
+    #         X[:, hmw.parameter_idx])
+    #
+    # mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
+    # var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
+    # impl_scores = hmw.calculate_implausibility(mean_tensor, var_tensor)
+    # I_sorted, index_for_sort = torch.sort(impl_scores, dim=1, descending=True)
+    # values, row_idx = torch.sort(I_sorted[:, 0], descending=True)
+    #
+    # worst_output_idx = index_for_sort[row_idx, 0]
+    # mean_sorted = mean_tensor[row_idx]
+    # bad_mean_values = mean_sorted[torch.arange(mean_sorted.shape[0]), worst_output_idx]
+    #
+    # implausibility_sorted_by_col0 = I_sorted[row_idx]
+    # index_of_implausibility_sorted_by_col0 = index_for_sort[row_idx]
+    # col0 = index_of_implausibility_sorted_by_col0[:, 0]
+    # counts = np.bincount(col0, minlength=26)
+    #
+    # for value, count in enumerate(counts):
+    #     print(f"{value}: {count}")
+    #
+    # import math
+    # import numpy as np
+    # import matplotlib.pyplot as plt
+    # from scipy.stats import gaussian_kde
+    #
+    # x = subset_X
+    # y = mean_tensor[:, 0]
+    #
+    # D = x.shape[1]  # number of parameters
+    # ncols = 4
+    # nrows = math.ceil(D / ncols)
+    #
+    # fig, axes = plt.subplots(
+    #     nrows, ncols,
+    #     figsize=(3.5 * ncols, 3 * nrows),
+    #     sharey=True
+    # )
+    #
+    # axes = np.array(axes).reshape(nrows, ncols)
+    # param_names = list(subset_vars)
+    #
+    # for j in range(D):
+    #     r = j // ncols
+    #     c = j % ncols
+    #     ax = axes[r, c]
+    #
+    #     xj = np.asarray(x[:, j]).ravel()
+    #     yj = np.asarray(y).ravel()
+    #
+    #     # Compute 2D point density
+    #     xy = np.vstack([xj, yj])
+    #     z = gaussian_kde(xy)(xy)
+    #
+    #     # Sort so dense points are plotted on top
+    #     idx = z.argsort()
+    #     xj, yj, z = xj[idx], yj[idx], z[idx]
+    #
+    #     sc = ax.scatter(
+    #         xj, yj,
+    #         c=z,
+    #         cmap="viridis",
+    #         s=6,
+    #         alpha=0.8
+    #     )
+    #
+    #     ax.set_title(param_names[j])
+    #     ax.set_xlabel(param_names[j])
+    #
+    #     if c == 0:
+    #         ax.set_ylabel("Mean tensor[:, 0]")
+    #
+    #     ax.grid(True, linestyle="--", alpha=0.3)
+    #
+    # # Turn off unused axes
+    # for j in range(D, nrows * ncols):
+    #     r = j // ncols
+    #     c = j % ncols
+    #     axes[r, c].axis("off")
+    #
+    # # # Optional shared colorbar
+    # # cbar = fig.colorbar(sc, ax=axes, shrink=0.85)
+    # # cbar.set_label("Point density")
+    #
+    # plt.tight_layout()
+    # plt.savefig("my_plot1.png", dpi=300, bbox_inches="tight")
+    # # plt.show()
+
     size = 200000
-    _ = hmw.run_waves(n_waves=10, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=9, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

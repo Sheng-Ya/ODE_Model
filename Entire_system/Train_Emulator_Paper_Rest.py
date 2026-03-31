@@ -818,7 +818,7 @@ if __name__ == "__main__":
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
-        [45 * lower, 45 * upper], [38.703 * lower, 38.703 * upper],
+        [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -844,7 +844,7 @@ if __name__ == "__main__":
 
     # TEST_TXT = "test.txt"  # <- your uploaded file
     MODEL_NAME = "GaussianProcessMatern32"
-    N_SAMPLES = 2048
+    N_SAMPLES = 4096
     N_JOBS = 256
     TRAIN_SIZE_CAP = 1000
 
@@ -964,14 +964,14 @@ if __name__ == "__main__":
     # 3) Train samples for emulators
     # =========================
 
-    # 66 parameters contribute at least 1% and up to 90% sensitivity for 25 targets
-    subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0',
-               'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_o', 'GT_v',
-               'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi',
-               'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp',
-               'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal',
-               'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh',
-               'Wb_sp', 'Wb_sv'}
+    # parameters contribute at least 1% and up to 90% sensitivity for 25 targets
+    subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
+                   'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+                   'fes_o', 'fev_inf', 'fev_o', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv',
+                   'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv',
+                   'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n',
+                   'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+                   'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
 
     sp_filtered = make_sp_filtered(sp, subset_vars)
     param_keys = list(sp_filtered["names"])

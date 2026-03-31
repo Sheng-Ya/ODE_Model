@@ -4,6 +4,7 @@ import numpy as np
 from scipy.stats import gaussian_kde
 import os
 import joblib
+from joblib.externals.loky import get_reusable_executor
 from autoemulate.core.model_selection import evaluate, r2_metric
 from autoemulate.core.model_selection import bootstrap
 import torch
@@ -442,37 +443,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         )
         return bool(torch.all((sample >= lowers) & (sample <= uppers)).item())
 
-    def _phi(self, x):
-        return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
-
-    def _phi_inv(self, u):
-        return math.sqrt(2.0) * torch.erfinv(2.0 * u - 1.0)
-
-    def truncated_normal_1d(self, mean, std, low, high, n_samples):
-        """
-        mean/std/low/high: [d]
-        returns: [n_samples, d] all within [low, high]
-        """
-        eps = 1e-7
-        std = torch.clamp(std, min=1e-12)
-
-        a = (low - mean) / std
-        b = (high - mean) / std
-
-        pa = torch.clamp(self._phi(a), eps, 1 - eps)
-        pb = torch.clamp(self._phi(b), eps, 1 - eps)
-
-        # sample uniformly between CDF(low) and CDF(high)
-        u = torch.rand((n_samples, mean.numel()), device=mean.device, dtype=mean.dtype)
-        u = pa + u * (pb - pa)
-        u = torch.clamp(u, eps, 1 - eps)
-
-        z = self._phi_inv(u)
-        x = mean + std * z
-
-        # numerical safety
-        return torch.clamp(x, low, high)
-
 
     def cloud_sample(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
         """
@@ -554,15 +524,47 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         param_dim = len(bounds)
 
+        def _phi(x):
+            return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+        def _phi_inv(u):
+            return math.sqrt(2.0) * torch.erfinv(2.0 * u - 1.0)
+
+        def truncated_normal_1d(mean, std, low, high, n_samples):
+            """
+            mean/std/low/high: [d]
+            returns: [n_samples, d] all within [low, high]
+            """
+            eps = 1e-7
+            std = torch.clamp(std, min=1e-12)
+
+            a = (low - mean) / std
+            b = (high - mean) / std
+
+            pa = torch.clamp(_phi(a), eps, 1 - eps)
+            pb = torch.clamp(_phi(b), eps, 1 - eps)
+
+            # sample uniformly between CDF(low) and CDF(high)
+            u = torch.rand((n_samples, mean.numel()), device=mean.device, dtype=mean.dtype)
+            u = pa + u * (pb - pa)
+            u = torch.clamp(u, eps, 1 - eps)
+
+            z = _phi_inv(u)
+            x = mean + std * z
+
+            # numerical safety
+            return torch.clamp(x, low, high)
+
+
         def sample_batch(batch, batch_idx):
             outs = []
             for j, mean in enumerate(batch):
                 i = batch_idx * chunk_size + j
                 n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
 
-                x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
+                x_nonconst = truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
 
-                full = torch.empty((n_samples, param_dim), device=self.device, dtype=x_nonconst.dtype)
+                full = torch.empty((n_samples, param_dim), device="cpu", dtype=x_nonconst.dtype)
                 if const_idx_t is not None:
                     full[:, const_idx_t] = const_vals_t.to(x_nonconst.dtype)
                 full[:, sample_idx_t] = x_nonconst
@@ -570,11 +572,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 outs.append(full)
 
             # print(f"==============Batch {batch_idx + 1} done")
-            return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device=self.device)
+            return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device="cpu")
 
         results = Parallel(n_jobs=n_jobs)(
             delayed(sample_batch)(batch, idx) for idx, batch in enumerate(batches)
         )
+        get_reusable_executor().shutdown(wait=True)
         print(f"==============Batch done")
         return torch.cat(results, dim=0)
 
@@ -659,8 +662,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         tuple[TensorLike, TensorLike]
             A tensor of tested input parameters and their implausability scores.
         """
+        use_raw_model = self.nroy_samples is None
         # Generate `n` parameter samples (use simulator if have no NROY samples)
-        if self.nroy_samples is None:
+        if use_raw_model:
             test_x = self.simulator.sample_inputs(n).to(self.device)
             # +/-20 %
             parent = "Emulator_Paper_same_1000"
@@ -702,7 +706,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         n_jobs = len(output_names)
         def predict_one_output(name, X):
-            if self.nroy_samples is None:
+            if use_raw_model:
                 target_emulator = models[name].model
             else:
                 target_emulator = models[name]
@@ -718,6 +722,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
+        get_reusable_executor().shutdown(wait=True)
 
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
@@ -766,6 +771,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         """
         # if simulation fails, returned y and x have fewer rows than input x
         y, x = self.simulator.forward_batch(x)
+        get_reusable_executor().shutdown(wait=True)
 
         y = y.to(self.device)
         x = x.to(self.device)
@@ -927,7 +933,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 break
 
             if retries > 10:
-                scaling_factor = 0.2
+                scaling_factor = 0.05
 
             # Generate `n_test_samples` with implausability scores, identify NROY
             test_parameters, impl_scores = self.generate_samples(
@@ -997,30 +1003,71 @@ class HistoryMatchingWorkflow(HistoryMatching):
             "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
             "PaO2", "PaCO2"]
 
-        for j, target_name in enumerate(output_names_full):
-            # print("\n" + "=" * 100)
-            # print(f"[{j + 1}/{len(output_names_full)}] Target = {target_name}")
-            # print("=" * 100)
+        def fit_one_output(j, target_name, X_fit, Y_fit, parameter_idx, result, device):
+            x_fit = X_fit[:, parameter_idx]
+            y_fit = Y_fit[:, j:j + 1]
 
-            # Optionally refit the emulator using the most recent simulations or all data
-            if refit_emulator:
-                # data_msg = "all data" if refit_on_all_data else "most recent data"
-                # msg = f"Refitting emulator on {data_msg}."
-                # logger.info(msg)
-                if refit_on_all_data:
-                    X_fit = self.train_x
-                    Y_fit = self.train_y[:, j:j+1]
-                    self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
-                else:
-                    X_fit = x
-                    Y_fit = y[:, j:j+1]
-                    self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+            n = x_fit.shape[0]
+            g = torch.Generator(device=x_fit.device)
+            g.manual_seed(42)
+            perm = torch.randperm(n, generator=g, device=x_fit.device)
 
+            n_test = max(1, int(round(0.2 * n)))
+            x_train, y_train = x_fit[perm[n_test:]], y_fit[perm[n_test:]]
+            x_test, y_test = x_fit[perm[:n_test]], y_fit[perm[:n_test]]
+
+            emulator = TransformedEmulator(
+                x_train.float(), y_train.float(),
+                model=get_emulator_class(result.model_name),
+                x_transforms=result.x_transforms,
+                y_transforms=result.y_transforms,
+                device=device,
+                **result.params,
+            )
+            emulator.fit(x_train, y_train)
+
+            (r2_mean, r2_std), (rmse_mean, rmse_std) = bootstrap(
+                emulator,
+                x_test.float(),
+                y_test.float(),
+                n_bootstraps=100,  # or None for single split behaviour (if supported)
+                device=device,
+            )
+
+            print(f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
+
+            # save
             parent = os.path.join("Emulator_wave", target_name)
             os.makedirs(parent, exist_ok=True)
+            joblib.dump(emulator, os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib"))
 
-            path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
-            joblib.dump(self.emulator, path1)
+            return target_name, emulator
+
+        results = Parallel(n_jobs=len(output_names_full))(
+            delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
+            for j, target_name in enumerate(output_names_full)
+        )
+        get_reusable_executor().shutdown(wait=True)
+        # for j, target_name in enumerate(output_names_full):
+        #     # Optionally refit the emulator using the most recent simulations or all data
+        #     if refit_emulator:
+        #         # data_msg = "all data" if refit_on_all_data else "most recent data"
+        #         # msg = f"Refitting emulator on {data_msg}."
+        #         # logger.info(msg)
+        #         if refit_on_all_data:
+        #             X_fit = self.train_x
+        #             Y_fit = self.train_y[:, j:j+1]
+        #             self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+        #         else:
+        #             X_fit = x
+        #             Y_fit = y[:, j:j+1]
+        #             self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+        #
+        #     parent = os.path.join("Emulator_wave", target_name)
+        #     os.makedirs(parent, exist_ok=True)
+        #
+        #     path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
+        #     joblib.dump(self.emulator, path1)
 
         # torch.save(x, f"X_train_wave_{(len(self.wave_results) - 1)}_rest_.pt")
         # torch.save(y, f"Y_train_wave_{(len(self.wave_results) - 1)}_rest_.pt")
@@ -1088,34 +1135,33 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         self.wave_results = []
         for i in range(start_i, n_waves):
-            if i == 1:
-                self.threshold = 3.25
-            if i == 2:
-                self.threshold = 3
-            if i == 3:
-                self.threshold = 2.75
-            if i == 4:
+            # 0th wave had 155173
+            if i == 1: # 110599
                 self.threshold = 2.5
-            if i == 5:
-                self.threshold = 2.25
-            if i == 6:
-                self.threshold = 2
-            if i == 7:
+            if i == 2: # 154081
+                self.threshold = 2.0
+            if i == 3: # 49467
                 self.threshold = 1.75
-            if i == 8:
+            if i == 4: # 32871
                 self.threshold = 1.5
-            if i == 9:
+            if i == 5: # 11903
                 self.threshold = 1.25
-            if i == 10:
+            if i == 6: # 1157
+                self.threshold = 1.125
+            if i == 7:
                 self.threshold = 1.0
-            if i == 11:
+            if i == 8:
                 self.threshold = 1.0
                 n_simulations = 5000
 
-            # if i == 9:
-            #     self.threshold = 2.75
-            # if i == 10:
-            #     self.threshold = 2.75
+            # if i == 1: # 110599
+            #     self.threshold = 1.25
+            # if i == 2: # 154081
+            #     self.threshold = 1.125
+            # if i == 3: # 49467
+            #     self.threshold = 1.0
+            # if i == 4: # 32871
+            #     self.threshold = 1.0
             #     n_simulations = 5000
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
@@ -1209,10 +1255,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         df["Implausibility"] = impl_scores_plausible.cpu().numpy().mean(axis=1)
         g = sns.PairGrid(df, vars=self.calibration_params, corner=True)
 
-        norm = Normalize(
-            vmin=df["Implausibility"].min(),  # pyright: ignore[reportArgumentType]
-            vmax=df["Implausibility"].max(),  # pyright: ignore[reportArgumentType]
-        )
+        # norm = Normalize(
+        #     vmin=df["Implausibility"].min(),  # pyright: ignore[reportArgumentType]
+        #     vmax=df["Implausibility"].max(),  # pyright: ignore[reportArgumentType]
+        # )
         cmap = plt.cm.get_cmap("viridis")
 
         # added

@@ -345,10 +345,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
     P_peri = math.exp((V_heart_peri - (Vu_ra + Vu_la + Vu_lv + Vu_rv + V_nominal)) / V_scale)
 
-    P_lv = phi * Emax_lv * (VT_lv - Vu_lv) + (1 - phi) * P0_lv * (math.exp(KE_lv * (VT_lv - Vu_lv)) - 1) + P_thor + 1/l * P_peri
-    P_ra = phi_atr * Emax_ra * (VT_ra - Vu_ra) + (1 - phi_atr) * P0_ra * (math.exp(KE_ra * (VT_ra - Vu_ra)) - 1) + P_thor + r * P_peri
-    P_rv = phi * Emax_rv * (VT_rv - Vu_rv) + (1 - phi) * P0_rv * (math.exp(KE_rv * (VT_rv - Vu_rv)) - 1) + P_thor + 1/r * P_peri
-    P_la = phi_atr * Emax_la * (VT_la - Vu_la) + (1 - phi_atr) * P0_la * (math.exp(KE_la * (VT_la - Vu_la)) - 1) + P_thor + l * P_peri
+    V_lv = (VT_lv - Vu_lv) * (VT_lv > Vu_lv)
+    V_ra = (VT_ra - Vu_ra) * (VT_ra > Vu_ra)
+    V_rv = (VT_rv - Vu_rv) * (VT_rv > Vu_rv)
+    V_la = (VT_la - Vu_la) * (VT_la > Vu_la)
+
+    P_lv = phi * Emax_lv * V_lv + (1 - phi) * P0_lv * (math.exp(KE_lv * V_lv) - 1) + P_thor + 1/l * P_peri
+    P_ra = phi_atr * Emax_ra * V_ra + (1 - phi_atr) * P0_ra * (math.exp(KE_ra * V_ra) - 1) + P_thor + r * P_peri
+    P_rv = phi * Emax_rv * V_rv + (1 - phi) * P0_rv * (math.exp(KE_rv * V_rv) - 1) + P_thor + 1/r * P_peri
+    P_la = phi_atr * Emax_la * V_la + (1 - phi_atr) * P0_la * (math.exp(KE_la * V_la) - 1) + P_thor + l * P_peri
 
 
     # aortic valve
@@ -551,9 +556,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # V_amp = C_amp * P_sp
 
     P_0_am = Vu_amv / (C_amv * P_0)
+    V_amv = (VT_amv - Vu_amv) * (VT_amv > Vu_amv)
 
     if VT_amv >= Vu_amv:
-        V_amv = VT_amv - Vu_amv
         P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
         # V_amv = 0
@@ -561,7 +566,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
         else:
             P_amv = max(P_im + P_0_am, 0.0001)
-        # P_amv = P0_am + P_im
 
     Q_amp = max((P_sp - P_amv), 0.0001) / R_amp
 
