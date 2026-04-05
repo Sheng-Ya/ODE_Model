@@ -28,7 +28,7 @@ from All_derivatives_njit import model_derivatives
 from fixed_params import Parameters as Old_Parameters
 
 from Initial_Conditions_after_running_again import Initial_Conditions
-from All_Next_Conditions import Next_Conditions
+from All_Next_Conditions import make_fresh_storage
 
 
 target_values = np.arange(0, 10000, 10)
@@ -570,7 +570,8 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=300):
         return ([0.0] * 31, [0.0] * 82)
 
 
-def parallel_simulations(param_samples, storage, n_jobs, chunk_size=512, save_path_results='Result_chunked1.npy', save_path_states='States_chunked1.npy'):
+def parallel_simulations(param_samples, n_jobs, chunk_size=512, save_path_results='Result_chunked1.npy', save_path_states='States_chunked1.npy'):
+    storage = make_fresh_storage()
     results_all = []
     final_states = []
 
@@ -583,7 +584,7 @@ def parallel_simulations(param_samples, storage, n_jobs, chunk_size=512, save_pa
     for i, chunk in enumerate(chunked(param_samples, chunk_size)):
         with tqdm_joblib.tqdm_joblib(tqdm(desc=f"Sim {i * chunk_size}-{(i + 1) * chunk_size}", total=len(chunk))):
             results = Parallel(n_jobs=n_jobs)(
-                delayed(safe_simulate_cpu)(params, copy.deepcopy(storage), Old_Parameters) for params in chunk)
+                delayed(safe_simulate_cpu)(params, storage, Old_Parameters) for params in chunk)
 
         results_block = [res[0] for res in results]
         final_states_block = [res[1] for res in results]
@@ -846,7 +847,7 @@ if __name__ == "__main__":
     MODEL_NAME = "GaussianProcessMatern32"
     N_SAMPLES = 4096
     N_JOBS = 256
-    TRAIN_SIZE_CAP = 1000
+    TRAIN_SIZE_CAP = 4096
 
     def safe_name(s: str) -> str:
         return re.sub(r"[^A-Za-z0-9_]+", "_", s.strip())
@@ -980,7 +981,7 @@ if __name__ == "__main__":
     np.save(f"LHCS_1000_X_20.npy", X)
     #
     param_samples = [dict(zip(param_keys, row)) for row in X]
-    Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=N_JOBS)
+    Result = parallel_simulations(param_samples, n_jobs=N_JOBS)
     Result = np.asarray(Result)
     np.save(f"LHCS_1000_Result_20.npy", Result)
 
