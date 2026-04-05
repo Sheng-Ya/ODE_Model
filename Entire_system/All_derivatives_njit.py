@@ -475,6 +475,18 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dVT_rv_dt = Q_tr - Q_rv
     dVT_ra_dt = Q_ra - Q_tr
 
+    if VT_lv <= Vu_lv and dVT_lv_dt < 0.0:
+        dVT_lv_dt = 0.0
+
+    if VT_la <= Vu_la and dVT_la_dt < 0.0:
+        dVT_la_dt = 0.0
+
+    if VT_rv <= Vu_rv and dVT_rv_dt < 0.0:
+        dVT_rv_dt = 0.0
+
+    if VT_ra <= Vu_ra and dVT_ra_dt < 0.0:
+        dVT_ra_dt = 0.0
+
     dV_rv_dt = dVT_rv_dt * (VT_rv > Vu_rv)
     Wh_rv = (P_thor - P_rv) * dV_rv_dt
 

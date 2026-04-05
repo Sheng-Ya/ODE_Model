@@ -712,6 +712,20 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dVT_ra_dt = Q_ra - Qi_rv
     dVT_rv_dt = Qi_rv - Q_rv
 
+
+    if VT_lv <= Vu_lv and dVT_lv_dt < 0.0:
+        dVT_lv_dt = 0.0
+
+    if VT_la <= Vu_la and dVT_la_dt < 0.0:
+        dVT_la_dt = 0.0
+
+    if VT_rv <= Vu_rv and dVT_rv_dt < 0.0:
+        dVT_rv_dt = 0.0
+
+    if VT_ra <= Vu_ra and dVT_ra_dt < 0.0:
+        dVT_ra_dt = 0.0
+
+
     # Dynamics with smooth transition
     d2theta_tr_dt2 = valve_signal * ((P_ra - P_rv) * Kp_tr * math.cos(theta_tr) -
                                      Kf_tr * dtheta_tr_dt + Kb_tr * Qi_rv * math.cos(
