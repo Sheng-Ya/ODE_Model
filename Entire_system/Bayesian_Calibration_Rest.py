@@ -295,13 +295,17 @@ if __name__ == "__main__":
         calibration_params=subset_vars,
     )
 
-    # X = torch.load("nroy_samples_rest_new.pt", map_location="cpu").to("cpu")
+    # # X = torch.load("nroy_samples_rest_new.pt", map_location="cpu").to("cpu")
+    # X_np = np.load('Calibration_31_03_26/NROY_Points_rest_20_26_03.npy')
+    # X = torch.from_numpy(X_np).float()  # convert to torch tensor
     # subset_X = X[:, hmw.parameter_idx]
+    # AA = np.load('Calibration_31_03_26/NROY_Params_rest_20_26_03.npy', allow_pickle=True)
+    #
     #
     # models = {}
     # for name in output_names:
     #     folder = name
-    #     path1 = os.path.join("Emulator_wave_new", folder, f"GaussianProcessMatern32_{name}_best.joblib")
+    #     path1 = os.path.join("Calibration_31_03_26/Emulator_wave", folder, f"GaussianProcessMatern32_{name}_best.joblib")
     #     models[name] = joblib.load(path1)
     #
     # means = {}
@@ -336,6 +340,17 @@ if __name__ == "__main__":
     # import matplotlib.pyplot as plt
     # from scipy.stats import gaussian_kde
     #
+    # # indices of the 2500 lowest implausibility rows
+    # lowest_2500_idx = row_idx[-2500:]
+    #
+    # # subset x and y to only those rows
+    # x = subset_X[lowest_2500_idx]
+    # y = mean_tensor[lowest_2500_idx, 7]
+    #
+    # X_np_low = X_np[lowest_2500_idx]
+    # param_samples = [dict(zip(list(sp["names"]), row)) for row in X_np_low]
+    # print(param_samples[0])
+
     # x = subset_X
     # y = mean_tensor[:, 0]
     #
@@ -382,6 +397,11 @@ if __name__ == "__main__":
     #     if c == 0:
     #         ax.set_ylabel("Mean tensor[:, 0]")
     #
+    #     # Set x-axis bounds from AA
+    #     if param_names[j] in AA:
+    #         lower, upper = AA[param_names[j]]
+    #         ax.set_xlim(lower, upper)
+    #
     #     ax.grid(True, linestyle="--", alpha=0.3)
     #
     # # Turn off unused axes
@@ -395,11 +415,12 @@ if __name__ == "__main__":
     # # cbar.set_label("Point density")
     #
     # plt.tight_layout()
-    # plt.savefig("my_plot1.png", dpi=300, bbox_inches="tight")
+    # plt.savefig("my_plot3.png", dpi=300, bbox_inches="tight")
     # # plt.show()
+    # plt.close()
 
     size = 200000
-    _ = hmw.run_waves(n_waves=9, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=3, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
@@ -412,13 +433,13 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_rest_{percent}_26_03.npy", nroy_points)
-    np.save(f"NROY_Params_rest_{percent}_26_03.npy", params_post_hm)
-    np.save(f"NROY_Implaus_rest_{percent}_26_03.npy", impl_scores)
-    np.save(f"test_param_rest_{percent}_26_03.npy", test_parameters)
+    np.save(f"NROY_Points_rest_{percent}_1_4_threewave.npy", nroy_points)
+    np.save(f"NROY_Params_rest_{percent}_1_4_threewave.npy", params_post_hm)
+    np.save(f"NROY_Implaus_rest_{percent}_1_4_threewave.npy", impl_scores)
+    np.save(f"test_param_rest_{percent}_1_4_threewave.npy", test_parameters)
 
 
-    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results))}_{percent}_rest.png")
+    # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results))}_{percent}_rest.png")
     print(len(hmw.wave_results)-1)
 
 
