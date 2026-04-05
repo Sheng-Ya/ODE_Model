@@ -831,10 +831,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if VT_amv >= Vu_amv:
         P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
-        if VT_amv > 0:
-            P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
-        else:
-            P_amv = max(P_im + P_0_am, 0.0001)
+        P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
 
     Q_amp = max((P_sp - P_amv), 0.0001) / R_amp
 
@@ -851,6 +848,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # should have this to prevent backflow if implementing partially collapsible tube
     # Q_amv = max((P_amv - P_vc), 0.0) / R_amv
     dVT_amv_dt = Q_amp - Q_amv
+    if VT_amv <= 0 and dVT_amv_dt < 0.0:
+        dVT_amv_dt = 0.0
 
     AA = Vu_amv
 
