@@ -15,7 +15,7 @@ from scipy.signal import find_peaks
 from fixed_params import Parameters as Old_Parameters
 from Initial_Conditions_after_running_again import Initial_Conditions
 from scipy.interpolate import CubicSpline
-from All_Next_Conditions import Next_Conditions
+from All_Next_Conditions import make_fresh_storage
 
 lower = 0.8
 upper = 1.2
@@ -35,7 +35,8 @@ sp = ProblemSpec({
         "C_amv", "C_bv", "C_ev", "C_hv",
         "C_rmv", "C_sv", "kr_am", "P_0",
         "R_amv_n", "R_bv_n", "R_ev_n", "R_hv_n",
-        "R_rmv_n", "R_sv_n", "K1_vc",
+        "R_rmv_n", "R_sv_n", "K1_vc", "D1",
+        "Vvc_min", "Kr_vc",
         "Rvc_n", "C_pa", "C_pp",
         "C_pv", "L_pa", "R_pa", "R_pp",
         "R_pv", "Emax_la", "P0_la", "Emax_ra",
@@ -120,7 +121,8 @@ sp = ProblemSpec({
         [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
         [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [10 * lower, 10 * upper],
         [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
-        [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
+        [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
+        [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
         [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
         [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
@@ -253,7 +255,7 @@ class Cardiopulmonary(Simulator):
         X = X.detach().cpu().numpy().astype(float)
         param_sample = [dict(zip(sp["names"], row)) for row in X]
         # print("start")
-        storage_local = copy.deepcopy(Next_Conditions)
+        storage_local = make_fresh_storage()
         return self.safe_simulate_cpu(param_sample, storage_local, Old_Parameters)
 
     def combined_system(self, t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2):

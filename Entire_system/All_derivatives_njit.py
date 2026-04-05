@@ -119,7 +119,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # ============================================================================
     (A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
      C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
-     L_sa, R_sa, K1_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
+     L_sa, R_sa, K1_vc, D1, Vvc_min, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
      C_bv, C_hv, C_rmv, C_amv, kr_am, P_0, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
      Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
      Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
@@ -466,11 +466,18 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dV_lv_dt = dVT_lv_dt * (VT_lv > Vu_lv)
     Wh_lv = (P_thor - P_lv) * dV_lv_dt
 
-    V_vc = max(VT_vc - Vu_vc, 1.0)
-    C_vc = 1 / K1_vc
-    P_vc = V_vc / C_vc + P_thor
+    if VT_vc >= Vu_vc:
+        P_vc = D1 + K1_vc * (VT_vc - Vu_vc) + P_thor  # + source_values
+        R_vc = Rvc_n
+    else:
+        K2_vc = (K1_vc * Vvc_min) / math.exp(Vu_vc / Vvc_min)  # for c1 continuity
+        D2 = D1 - K2_vc * math.exp(Vu_vc / Vvc_min)  # for continuity
+        P_vc = D2 + K2_vc * math.exp(VT_vc / Vvc_min) + P_thor  # + source_values
+        R_vc = Kr_vc * (1 - (VT_vc / Vu_vc)) ** 2 + Rvc_n
+    # C_vc = 1 / K1_vc
+    # P_vc = V_vc / C_vc + P_thor
 
-    Q_ra = (P_vc - P_ra) / Rvc_n
+    Q_ra = (P_vc - P_ra) / R_vc
 
     dVT_rv_dt = Q_tr - Q_rv
     dVT_ra_dt = Q_ra - Q_tr
@@ -636,6 +643,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dVT_vc_dt = Q_vc - Q_ra
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
     dQ_sa_dt = (P_sa - P_thor - R_sa * Q_sa - P_sp) / L_sa
+
+    if VT_vc <= 0 and dVT_vc_dt < 0.0:
+        dVT_vc_dt = 0.0
     # VT_sa = V_sa + Vu_sa
     # should be + ?, edit: removed P_thor from here. Ignore
 
