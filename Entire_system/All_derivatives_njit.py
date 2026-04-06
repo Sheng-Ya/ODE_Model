@@ -189,7 +189,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         PmbCO2 = Pb_CO2
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
-    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
+    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * max(0, MRV) - (KpCO2 + KcCO2) * PaCO2_n)
     VAflow = min(max(VAflow, 0.04), 1.0)
     VD = GV_dead * VAflow + V0_dead
 
@@ -482,17 +482,20 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dVT_rv_dt = Q_tr - Q_rv
     dVT_ra_dt = Q_ra - Q_tr
 
-    if VT_lv <= Vu_lv and dVT_lv_dt < 0.0:
-        dVT_lv_dt = 0.0
+    K_penalty = 1000.0  # mL/s — must exceed max outflow rate
+    alpha = 100.0  # 1/mL — decay rate (penalty negligible ~0.05 mL above Vu)
+    # Add smooth penalty — always active, but negligible away from boundary
+    penalty = K_penalty * math.exp(-alpha * max((VT_lv - Vu_lv), -0.05))
+    dVT_lv_dt += penalty
 
-    if VT_la <= Vu_la and dVT_la_dt < 0.0:
-        dVT_la_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_la - Vu_la), -0.05))
+    dVT_la_dt += penalty
 
-    if VT_rv <= Vu_rv and dVT_rv_dt < 0.0:
-        dVT_rv_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_rv - Vu_rv), -0.05))
+    dVT_rv_dt += penalty
 
-    if VT_ra <= Vu_ra and dVT_ra_dt < 0.0:
-        dVT_ra_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_ra - Vu_ra), -0.05))
+    dVT_ra_dt += penalty
 
     dV_rv_dt = dVT_rv_dt * (VT_rv > Vu_rv)
     Wh_rv = (P_thor - P_rv) * dV_rv_dt
@@ -596,8 +599,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Q_amv = (P_amv - P_vc) / R_amv
 
     dVT_amv_dt = Q_amp - Q_amv
-    if VT_amv <= 0 and dVT_amv_dt < 0.0:
-        dVT_amv_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_amv - 0), -0.05))
+    dVT_amv_dt += penalty
 
     ## systemic peripheral and venous circulation
     # extrasplanchnic
@@ -642,8 +645,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
     dQ_sa_dt = (P_sa - P_thor - R_sa * Q_sa - P_sp) / L_sa
 
-    if VT_vc <= 0 and dVT_vc_dt < 0.0:
-        dVT_vc_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_vc - 0), -0.05))
+    dVT_vc_dt += penalty
     # VT_sa = V_sa + Vu_sa
     # should be + ?, edit: removed P_thor from here. Ignore
 
@@ -815,8 +818,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Metabolism Dynamic
     MRR = max((MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal), 1)
-    MRV = 0 if MRV < 0 or MRR <= 1 else MRV
-
+    # MRV = 0 if MRV < 0 or MRR <= 1 else MRV
     dMRV_dt = ((MRR - 1) - MRV) / tau_MRV
 
     # # Cardiovascular Controller

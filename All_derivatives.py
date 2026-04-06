@@ -191,7 +191,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         PmbCO2 = Pb_CO2
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
-    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * MRV - (KpCO2 + KcCO2) * PaCO2_n)
+    VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * max(0, MRV) - (KpCO2 + KcCO2) * PaCO2_n)
     VAflow = min(max(VAflow, 0.04), 1.0)
     VD = GV_dead * VAflow + V0_dead
 
@@ -711,18 +711,20 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dVT_ra_dt = Q_ra - Qi_rv
     dVT_rv_dt = Qi_rv - Q_rv
 
+    K_penalty = 1000.0  # mL/s — must exceed max outflow rate
+    alpha = 100.0  # 1/mL — decay rate (penalty negligible ~0.05 mL above Vu)
+    # Add smooth penalty — always active, but negligible away from boundary
+    penalty = K_penalty * math.exp(-alpha * max((VT_lv - Vu_lv), -0.05))
+    dVT_lv_dt += penalty
 
-    if VT_lv <= Vu_lv and dVT_lv_dt < 0.0:
-        dVT_lv_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_la - Vu_la), -0.05))
+    dVT_la_dt += penalty
 
-    if VT_la <= Vu_la and dVT_la_dt < 0.0:
-        dVT_la_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_rv - Vu_rv), -0.05))
+    dVT_rv_dt += penalty
 
-    if VT_rv <= Vu_rv and dVT_rv_dt < 0.0:
-        dVT_rv_dt = 0.0
-
-    if VT_ra <= Vu_ra and dVT_ra_dt < 0.0:
-        dVT_ra_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_ra - Vu_ra), -0.05))
+    dVT_ra_dt += penalty
 
 
     # Dynamics with smooth transition
@@ -848,8 +850,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # should have this to prevent backflow if implementing partially collapsible tube
     # Q_amv = max((P_amv - P_vc), 0.0) / R_amv
     dVT_amv_dt = Q_amp - Q_amv
-    if VT_amv <= 0 and dVT_amv_dt < 0.0:
-        dVT_amv_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_amv - 0), -0.05))
+    dVT_amv_dt += penalty
 
     AA = Vu_amv
 
@@ -915,8 +917,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # AA = (VT_lv + VT_rv + VT_la + VT_ra + (V_sa + Vu_sa) + VT_amv + VT_rmv + (V_ev + Vu_ev) + VT_sv + VT_hv + VT_bv +
     #       (V_s_peripheral + Vu_jp) + VT_vc + VT_pa + VT_pp + VT_pv)
-    if VT_vc <= 0 and dVT_vc_dt < 0.0:
-        dVT_vc_dt = 0.0
+    penalty = K_penalty * math.exp(-alpha * max((VT_vc - 0), -0.05))
+    dVT_vc_dt += penalty
     # ============================================================================
     # GAS EXCHANGE
     # ============================================================================
@@ -1076,8 +1078,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Metabolism Dynamic
     MRR = max((MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal), 1)
-    MRV = 0 if MRV < 0 or MRR <= 1 else MRV
-
+    # MRV = 0 if MRV < 0 or MRR <= 1 else MRV
     dMRV_dt = ((MRR - 1) - MRV) / tau_MRV
 
     # # Cardiovascular Controller
