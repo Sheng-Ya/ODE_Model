@@ -344,7 +344,8 @@ def simulate():
     )
 
     if ODE_solution.status == -1:
-        return 0.0, 0.0, 0.0
+        print("ODE solver failed:", ODE_solution.message)
+        return ODE_solution
 
     # Post-processing: use buffer to get recent data
     i_buffer = Next_Conditions["i"].item() % BUFFER_LIMIT

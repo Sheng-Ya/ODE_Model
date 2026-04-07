@@ -180,7 +180,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         PamCO2 = Pa_CO2
 
         PvbO2 = max(CBO2 / alpha_O2, 1)  # henry
-        PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (1 + beta2 * PvbO2)
+        PvbCO2 = (max(CvbCO2 / (C2 * Z - CvbCO2), 1e-10) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (1 + beta2 * PvbO2)
         G_bp = (1 / R_bpn) * (1 + xb_O2 + xb_CO2)
         R_bp = 1 / G_bp
         P_bv = (VT_bv - Vu_bv) / C_bv if VT_bv >= Vu_bv else VT_bv / C_bv
@@ -343,7 +343,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dphi_dt = activation_H_derivative(t - time_since_beat, 0, T, rise_time_atr, rise_time_ven, fall_time_ven, ahead1)
 
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
-    P_peri = math.exp((V_heart_peri - (Vu_ra + Vu_la + Vu_lv + Vu_rv + V_nominal)) / V_scale)
+    P_peri = math.exp(min((V_heart_peri - (Vu_ra + Vu_la + Vu_lv + Vu_rv + V_nominal)) / V_scale, 50))
 
     V_lv = (VT_lv - Vu_lv) * (VT_lv > Vu_lv)
     V_ra = (VT_ra - Vu_ra) * (VT_ra > Vu_ra)
@@ -685,14 +685,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     d2Pa_O2_dt2 = (PA_O2_delay - (T1 + T2) * dPa_O2_dt - Pa_O2) / (T1 * T2)
     d2Pa_CO2_dt2 = (PA_CO2_delay - (T1 + T2) * dPa_CO2_dt - Pa_CO2) / (T1 * T2)
 
-    FCO2 = (PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2))
+    FCO2 = max((PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2)), 1e-10)
     CeCO2 = (C2 * Z) * (FCO2 ** (1 / a2_gas)) / (1 + (FCO2 ** (1 / a2_gas)))
 
     # alpha_O2 = 0.0000317
     # alpha_CO2 = 0.000667
 
     # FO2 = (PA_O2 * (1 + beta1 * PA_CO2)) / (K1 * (1 + alpha1 * PA_CO2))
-    PAO2_virt = PA_O2 * (PaCO2_n / PA_CO2) ** scale_param3
+    PAO2_virt = max(PA_O2 * (PaCO2_n / max(PA_CO2, 1e-10)) ** scale_param3, 1e-10)
     SaO2 = (PAO2_virt ** C_O2_param2) / (PAO2_virt ** C_O2_param2 + scale_param4 ** C_O2_param2)
     CeO2 = (C_O2_param1 * 150 * SaO2) + C_O2_param3 * PA_O2
 
@@ -730,13 +730,14 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # brain
     PvbO2 = max(CBO2 / alpha_O2, 1)  # henry
-    PvbCO2 = ((CvbCO2 / (C2 * Z - CvbCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (
+    CvbCO2_ratio = max(CvbCO2 / (C2 * Z - CvbCO2), 1e-10)
+    PvbCO2 = (CvbCO2_ratio ** a2_gas) * (K2 * (1 + alpha2 * PvbO2)) / (
             1 + beta2 * PvbO2)  # haldane effect/ CO2 dissociation curve
 
     # FbO2 = (PvbO2 * (1 + beta1 * PvbCO2)) / (K1 * (1 + alpha1 * PvbCO2))  # bohr curve
     # CvbO2_1 = (C1 * Z) * (FbO2 ** (1 / a1)) / (1 + (FbO2 ** (1 / a1)))  # bohr curve
 
-    PvbO2_virt = PvbO2 * (PaCO2_n / PvbCO2) ** scale_param3
+    PvbO2_virt = PvbO2 * (PaCO2_n / max(PvbCO2, 1e-10)) ** scale_param3
     SvbO2 = (PvbO2_virt ** C_O2_param2) / (PvbO2_virt ** C_O2_param2 + scale_param4 ** C_O2_param2)
     CvbO2 = C_O2_param1 * 150 * SvbO2 + C_O2_param3 * PvbO2
 
@@ -745,14 +746,15 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # if CTO2 slightly negative but goes back later, it's fine. Not fine if it decreases below -1
     # if CTO2 < -1:
     #     PvtO2 = CTO2 / alpha_O2
-    PvtCO2 = ((CvtCO2 / (C2 * Z - CvtCO2)) ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (
+    CvtCO2_ratio = max(CvtCO2 / (C2 * Z - CvtCO2), 1e-10)
+    PvtCO2 = (CvtCO2_ratio ** a2_gas) * (K2 * (1 + alpha2 * PvtO2)) / (
             1 + beta2 * PvtO2)  # haldane effect/ CO2 dissociation curve
 
     # serna and carlos
     # FtO2 = (PvtO2 * (1 + beta1 * PvtCO2)) / (K1 * (1 + alpha1 * PvtCO2))  # bohr curve
     # CvtO2_1 = (C1 * Z) * (FtO2 ** (1 / a1)) / (1 + (FtO2 ** (1 / a1)))  # bohr curve
     # ursino model 1997
-    PvtO2_virt = PvtO2 * (PaCO2_n / PvtCO2) ** scale_param3
+    PvtO2_virt = PvtO2 * (PaCO2_n / max(PvtCO2, 1e-10)) ** scale_param3
     SvtO2 = (PvtO2_virt ** C_O2_param2) / (PvtO2_virt ** C_O2_param2 + scale_param4 ** C_O2_param2)
     CvtO2 = C_O2_param1 * 150 * SvtO2 + C_O2_param3 * PvtO2
 
