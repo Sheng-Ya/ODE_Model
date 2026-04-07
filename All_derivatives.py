@@ -668,8 +668,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         K2_vc = (K1_vc * Vvc_min) / math.exp(Vu_vc / Vvc_min) # for c1 continuity
         D2 = D1 - K2_vc * math.exp(Vu_vc / Vvc_min) # for continuity
-        P_vc = D2 + K2_vc * math.exp(VT_vc / Vvc_min) + P_thor # + source_values
-        R_vc = Kr_vc * (1 - (VT_vc / Vu_vc)) ** 2 + Rvc_n
+        P_vc = D2 + K2_vc * math.exp(max(VT_vc, Vvc_min) / Vvc_min) + P_thor # + source_values
+        R_vc = Kr_vc * (1 - (max(VT_vc, Vvc_min) / Vu_vc)) ** 2 + Rvc_n
         # R_vc = Kr_vc * (Vvc_max / (VT_vc - Vu_vc)) ** 2 + Rvc_n
 
 
@@ -710,21 +710,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     dVT_ra_dt = Q_ra - Qi_rv
     dVT_rv_dt = Qi_rv - Q_rv
-
-    K_penalty = 1000.0  # mL/s — must exceed max outflow rate
-    alpha = 100.0  # 1/mL — decay rate (penalty negligible ~0.05 mL above Vu)
-    # Add smooth penalty — always active, but negligible away from boundary
-    penalty = K_penalty * math.exp(-alpha * max((VT_lv - Vu_lv), -0.05))
-    dVT_lv_dt += penalty
-
-    penalty = K_penalty * math.exp(-alpha * max((VT_la - Vu_la), -0.05))
-    dVT_la_dt += penalty
-
-    penalty = K_penalty * math.exp(-alpha * max((VT_rv - Vu_rv), -0.05))
-    dVT_rv_dt += penalty
-
-    penalty = K_penalty * math.exp(-alpha * max((VT_ra - Vu_ra), -0.05))
-    dVT_ra_dt += penalty
 
 
     # Dynamics with smooth transition
@@ -833,7 +818,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if VT_amv >= Vu_amv:
         P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
-        P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
+        P_amv = max(P_im + P_0_am * (1 - (max(VT_amv, 0) / Vu_amv) ** -1.5), 0.0001)
 
     Q_amp = max((P_sp - P_amv), 0.0001) / R_amp
 
@@ -850,8 +835,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # should have this to prevent backflow if implementing partially collapsible tube
     # Q_amv = max((P_amv - P_vc), 0.0) / R_amv
     dVT_amv_dt = Q_amp - Q_amv
-    penalty = K_penalty * math.exp(-alpha * max((VT_amv - 0), -0.05))
-    dVT_amv_dt += penalty
 
     AA = Vu_amv
 
@@ -917,8 +900,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # AA = (VT_lv + VT_rv + VT_la + VT_ra + (V_sa + Vu_sa) + VT_amv + VT_rmv + (V_ev + Vu_ev) + VT_sv + VT_hv + VT_bv +
     #       (V_s_peripheral + Vu_jp) + VT_vc + VT_pa + VT_pp + VT_pv)
-    penalty = K_penalty * math.exp(-alpha * max((VT_vc - 0), -0.05))
-    dVT_vc_dt += penalty
     # ============================================================================
     # GAS EXCHANGE
     # ============================================================================

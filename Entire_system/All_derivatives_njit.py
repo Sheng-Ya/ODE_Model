@@ -472,8 +472,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     else:
         K2_vc = (K1_vc * Vvc_min) / math.exp(Vu_vc / Vvc_min)  # for c1 continuity
         D2 = D1 - K2_vc * math.exp(Vu_vc / Vvc_min)  # for continuity
-        P_vc = D2 + K2_vc * math.exp(VT_vc / Vvc_min) + P_thor  # + source_values
-        R_vc = Kr_vc * (1 - (VT_vc / Vu_vc)) ** 2 + Rvc_n
+        P_vc = D2 + K2_vc * math.exp(max(VT_vc, Vvc_min) / Vvc_min) + P_thor  # + source_values
+        R_vc = Kr_vc * (1 - (max(VT_vc, Vvc_min) / Vu_vc)) ** 2 + Rvc_n
     # C_vc = 1 / K1_vc
     # P_vc = V_vc / C_vc + P_thor
 
@@ -481,21 +481,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     dVT_rv_dt = Q_tr - Q_rv
     dVT_ra_dt = Q_ra - Q_tr
-
-    K_penalty = 1000.0  # mL/s — must exceed max outflow rate
-    alpha = 100.0  # 1/mL — decay rate (penalty negligible ~0.05 mL above Vu)
-    # Add smooth penalty — always active, but negligible away from boundary
-    penalty = K_penalty * math.exp(-alpha * max((VT_lv - Vu_lv), -0.05))
-    dVT_lv_dt += penalty
-
-    penalty = K_penalty * math.exp(-alpha * max((VT_la - Vu_la), -0.05))
-    dVT_la_dt += penalty
-
-    penalty = K_penalty * math.exp(-alpha * max((VT_rv - Vu_rv), -0.05))
-    dVT_rv_dt += penalty
-
-    penalty = K_penalty * math.exp(-alpha * max((VT_ra - Vu_ra), -0.05))
-    dVT_ra_dt += penalty
 
     dV_rv_dt = dVT_rv_dt * (VT_rv > Vu_rv)
     Wh_rv = (P_thor - P_rv) * dV_rv_dt
@@ -583,7 +568,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     if VT_amv >= Vu_amv:
         P_amv = max(V_amv / C_amv + P_im, 0.0001)
     else:
-        P_amv = max(P_im + P_0_am * (1 - (VT_amv / Vu_amv) ** -1.5), 0.0001)
+        P_amv = max(P_im + P_0_am * (1 - (max(VT_amv, 0) / Vu_amv) ** -1.5), 0.0001)
 
     Q_amp = max((P_sp - P_amv), 0.0001) / R_amp
 
@@ -599,8 +584,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Q_amv = (P_amv - P_vc) / R_amv
 
     dVT_amv_dt = Q_amp - Q_amv
-    penalty = K_penalty * math.exp(-alpha * max((VT_amv - 0), -0.05))
-    dVT_amv_dt += penalty
 
     ## systemic peripheral and venous circulation
     # extrasplanchnic
@@ -645,8 +628,6 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     dP_sp_dt = (Q_sa - Q_jp) / C_jp
     dQ_sa_dt = (P_sa - P_thor - R_sa * Q_sa - P_sp) / L_sa
 
-    penalty = K_penalty * math.exp(-alpha * max((VT_vc - 0), -0.05))
-    dVT_vc_dt += penalty
     # VT_sa = V_sa + Vu_sa
     # should be + ?, edit: removed P_thor from here. Ignore
 
