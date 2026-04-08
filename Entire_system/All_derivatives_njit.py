@@ -870,8 +870,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     Y_v = (Yv_min + Yv_max * math.exp((I - Io_v) / kcc_v)) / (1 + math.exp((I - Io_v) / kcc_v))
     first_term = (fev_o + fev_inf * math.exp((f_ab - fab_o) / kev)) / (1 + math.exp((f_ab - fab_o) / kev))
-    f_v = first_term - Wt_v * Nt - Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v
-    # f_v1 = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
+    f_v = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
 
     # Fetch delayed values
     f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
