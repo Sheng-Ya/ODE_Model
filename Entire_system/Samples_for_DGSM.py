@@ -938,28 +938,13 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_20_31_03.npy", X)
-    X = np.load("DGSM_500_X_rest_50_31_03.npy")
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", type=int, required=True)
-    parser.add_argument("--n-jobs", type=int, required=True)
-    args = parser.parse_args()
-
-    task_id = args.task_id
-    block_size = X.shape[1] + 1
-    basepoints_per_job = 25
-    rows_per_job = block_size * basepoints_per_job
-    start = task_id * rows_per_job
-    end = (task_id + 1) * rows_per_job
-    X = X[start:end]
+    # np.save("DGSM_500_X_rest_20_10_04.npy", X)
+    X = np.load("DGSM_500_X_rest_20_10_04.npy")
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
-    print(f"Task {task_id}: rows {start} to {end}")
-    # print(f"Number of samples created: {len(X_job)}")
+    print(f"Number of samples created: {len(X)}")
     # AA = param_samples[0]
     # print(AA)
 
-    # Result = parallel_simulations(param_samples, Next_Conditions, n_jobs=64)
-    Result = parallel_simulations(param_samples, n_jobs=args.n_jobs)
-    np.save(f'Result_task_{task_id:02d}.npy', Result)
+    Result = parallel_simulations(param_samples, n_jobs=256)
+    np.save(f'DGSM_Result_rest_20_10_04.npy', Result)

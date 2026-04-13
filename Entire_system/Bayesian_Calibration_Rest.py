@@ -201,18 +201,19 @@ sp = ProblemSpec({
         # further added params
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-        [0.045 * lower, 0.045 * upper], [0.3 * lower, 0.3 * upper], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
+        [0.045 * lower, 0.045 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
         [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
 # # Rest: parameters contribute at least 1% and up to 90% sensitivity for 25 targets
 subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
                'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
-               'fes_o', 'fev_inf', 'fev_o', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv',
-               'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv',
-               'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n',
-               'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la',
-               'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
+               'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
+               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
+               'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
+               'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
+               'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
+
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -290,7 +291,7 @@ if __name__ == "__main__":
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=3,
+        threshold=3.0,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
@@ -435,10 +436,10 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_rest_{percent}_1_4_threewave.npy", nroy_points)
-    np.save(f"NROY_Params_rest_{percent}_1_4_threewave.npy", params_post_hm)
-    np.save(f"NROY_Implaus_rest_{percent}_1_4_threewave.npy", impl_scores)
-    np.save(f"test_param_rest_{percent}_1_4_threewave.npy", test_parameters)
+    np.save(f"NROY_Points_rest_{percent}_12_4.npy", nroy_points)
+    np.save(f"NROY_Params_rest_{percent}_12_4.npy", params_post_hm)
+    np.save(f"NROY_Implaus_rest_{percent}_12_4.npy", impl_scores)
+    np.save(f"test_param_rest_{percent}_12_4.npy", test_parameters)
 
 
     # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results))}_{percent}_rest.png")

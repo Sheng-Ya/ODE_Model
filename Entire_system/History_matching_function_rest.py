@@ -672,7 +672,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
-            parent = "Emulator_wave"
+            parent = "Emulator_wave_1wave"
 
         output_names = [
             "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -1037,7 +1037,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             print(f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
 
             # save
-            parent = os.path.join("Emulator_wave", target_name)
+            parent = os.path.join("Emulator_wave_1wave", target_name)
             os.makedirs(parent, exist_ok=True)
             joblib.dump(emulator, os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib"))
 
@@ -1137,30 +1137,19 @@ class HistoryMatchingWorkflow(HistoryMatching):
         for i in range(start_i, n_waves):
             # 0th wave had 155173
             if i == 1: # 110599
-                self.threshold = 2.5
+                self.threshold = 3.0
             if i == 2: # 154081
-                self.threshold = 2.0
-            if i == 3: # 49467
-                self.threshold = 1.75
-            if i == 4: # 32871
-                self.threshold = 1.5
-            if i == 5: # 11903
-                self.threshold = 1.25
-            if i == 6: # 1157
-                self.threshold = 1.125
-            if i == 7:
-                self.threshold = 1.0
-            if i == 8:
-                self.threshold = 1.0
-                n_simulations = 5000
+                self.threshold = 3.0
 
             # if i == 1: # 110599
+            #     self.threshold = 1.5
+            # if i == 2: # 110599
             #     self.threshold = 1.25
-            # if i == 2: # 154081
+            # if i == 3: # 110599
             #     self.threshold = 1.125
-            # if i == 3: # 49467
+            # if i == 4: # 154081
             #     self.threshold = 1.0
-            # if i == 4: # 32871
+            # if i == 5: # 49467
             #     self.threshold = 1.0
             #     n_simulations = 5000
 
@@ -1255,10 +1244,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         df["Implausibility"] = impl_scores_plausible.cpu().numpy().mean(axis=1)
         g = sns.PairGrid(df, vars=self.calibration_params, corner=True)
 
-        # norm = Normalize(
-        #     vmin=df["Implausibility"].min(),  # pyright: ignore[reportArgumentType]
-        #     vmax=df["Implausibility"].max(),  # pyright: ignore[reportArgumentType]
-        # )
+        norm = Normalize(
+            vmin=df["Implausibility"].min(),  # pyright: ignore[reportArgumentType]
+            vmax=df["Implausibility"].max(),  # pyright: ignore[reportArgumentType]
+        )
         cmap = plt.cm.get_cmap("viridis")
 
         # added

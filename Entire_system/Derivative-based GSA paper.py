@@ -11,18 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-# X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy')
-# Result = np.load('Result_DGSM_delay_09_03_final.npy')
-# X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_rl_14_03_26.npy')
-# Result = np.load('Result_DGSM_delay_14_03_final.npy')
-# X = np.load('DGSM_500_X_exercise_20_no_Pthor_Vtot_13_03_26.npy')[:81842,:]
-# Result = np.load('DGSM_500_X_Result_20_no_Pthor_Vtot_13_03_26.npy')
-# Result = np.load('DGSM_bounds/DGSM_500_Result_rest_50_no_Pthor_Vtot_ErsRrs_10_03_26.npy')
+X = np.load('DGSM_500_X_rest_20_10_04.npy')
+Result = np.load('DGSM_500_Result_rest_20_10_04.npy')
 
-# # need to add dc
-X = np.load('DGSM_500_X_rest_20_23_03.npy')
-Result = np.load('DGSM_500_Result_rest_20_23_03.npy')
-
+# Result = np.vstack([Result0, Result1, Result3, Result4])
+# np.save("DGSM_500_Result_rest_20_10_04.npy", Result)
 lower = 0.8
 upper = 1.2
 
@@ -80,7 +73,13 @@ mask_blocks_conv = np.array([
     for i in base_idx
 ])
 
-mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv #& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
+HR_col = 25
+mask_blocks_conv_tidal = np.array([
+    np.all(np.abs(Result[i + 1:i + block_size, HR_col] - Result[i, HR_col]) < 0.03)
+    for i in base_idx
+])
+
+mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv & mask_blocks_std #& mask_blocks_conv_tidal#& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
 print(np.count_nonzero(mask_blocks))
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)
@@ -90,7 +89,7 @@ mask_full = np.repeat(mask_blocks, block_size)
 X = X[mask_full]
 Result = Result[mask_full]
 
-HR = Result[:, 7]
+HR = Result[:, 17]
 
 # new +/-50%,90% does not have dc
 sp = ProblemSpec({
@@ -107,7 +106,8 @@ sp = ProblemSpec({
         "C_amv", "C_bv", "C_ev", "C_hv",
         "C_rmv", "C_sv", "kr_am", "P_0",
         "R_amv_n", "R_bv_n", "R_ev_n", "R_hv_n",
-        "R_rmv_n", "R_sv_n", "K1_vc",
+        "R_rmv_n", "R_sv_n", "K1_vc","D1",
+        "Vvc_min", "Kr_vc",
         "Rvc_n", "C_pa", "C_pp",
         "C_pv", "L_pa", "R_pa", "R_pp",
         "R_pv", "Emax_la", "P0_la", "Emax_ra",
@@ -192,7 +192,8 @@ sp = ProblemSpec({
         [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
         [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [10 * lower, 10 * upper],
         [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
-        [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
+        [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
+        [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
         [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
         [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
@@ -239,9 +240,9 @@ sp = ProblemSpec({
         [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
-        [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
-        [50 * lower, 50 * upper], [38.703 * lower, 38.703 * upper],
-        # DGSM at rest had different Vu_la and Vu_ra
+        [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
+        [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
+
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
         [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -260,7 +261,7 @@ sp = ProblemSpec({
         # further added params
         [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-        [0.045 * lower, 0.045 * upper], [0.3 * lower, 0.3 * upper], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
+        [0.045 * lower, 0.045 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
         [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
@@ -480,7 +481,11 @@ for r in range(n_rows):
         if k_ax < n_out and r == n_rows - 1:
             axes[k_ax].set_xlabel("DGSM")
 
-plt.show()
+# plt.show()
+plt.savefig("DGSM_20.png", dpi=300, bbox_inches="tight")
+plt.close()
+
+
 #
 #
 #

@@ -701,16 +701,14 @@ if __name__ == "__main__":
             plt.grid(True)
             plt.show()
 
-
-    # # Set global style
     # plt.rcParams.update({
-    #     "font.size": 14,  # Larger font
+    #     "font.size": 15,  # Larger font
     #     # "font.weight": "bold",  # Bold text
     #     # "axes.labelweight": "bold",
-    #     "axes.titlesize": 16,
+    #     "axes.titlesize": 15,
     #     # "axes.titleweight": "bold",
-    #     "legend.fontsize": 10,
-    #     "lines.linewidth": 1.5,  # Thicker lines
+    #     "legend.fontsize": 15,
+    #     "lines.linewidth": 3.5,  # Thicker lines
     # })
 
 

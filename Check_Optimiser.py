@@ -236,16 +236,17 @@
 # plt.legend()
 # plt.show()
 
-# # Set global style
-# plt.rcParams.update({
-#     "font.size": 20,  # Larger font
-#     "font.weight": "bold",  # Bold text
-#     # "axes.labelweight": "bold",
-#     "axes.titlesize": 16,
-#     # "axes.titleweight": "bold",
-#     "legend.fontsize": 20,
-#     "lines.linewidth": 3.5,  # Thicker lines
-# })
+from matplotlib import pyplot as plt
+# Set global style
+plt.rcParams.update({
+    "font.size": 15,  # Larger font
+    # "font.weight": "bold",  # Bold text
+    # "axes.labelweight": "bold",
+    "axes.titlesize": 15,
+    # "axes.titleweight": "bold",
+    "legend.fontsize": 15,
+    "lines.linewidth": 1,  # Thicker lines
+})
 #
 #
 # bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]

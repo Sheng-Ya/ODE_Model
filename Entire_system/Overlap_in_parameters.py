@@ -42,7 +42,7 @@ def parse_sensitivity_file(filename):
 
 
 if __name__ == "__main__":
-    filename = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_31_03_26/DGSM_20.txt"
+    filename = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_12_04/DGSM_20.txt"
     # filename = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/Calibration Exercise/DGSM_20_exercise.txt"
     output_params, param_counts = parse_sensitivity_file(filename)
 

@@ -848,7 +848,7 @@ if __name__ == "__main__":
     # TEST_TXT = "test.txt"  # <- your uploaded file
     MODEL_NAME = "GaussianProcessMatern32"
     N_SAMPLES = 4096
-    N_JOBS = 256
+    N_JOBS = 64
     TRAIN_SIZE_CAP = 4096
 
     def safe_name(s: str) -> str:
@@ -970,22 +970,22 @@ if __name__ == "__main__":
     # parameters contribute at least 1% and up to 90% sensitivity for 25 targets
     subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
                    'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
-                   'fes_o', 'fev_inf', 'fev_o', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv',
-                   'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv',
-                   'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n',
-                   'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la',
-                   'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sp', 'Wb_sv'}
+                   'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
+                   'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
+                   'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
+                   'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
+                   'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
 
     sp_filtered = make_sp_filtered(sp, subset_vars)
     param_keys = list(sp_filtered["names"])
     X = sample_inputs_from_spec(sp_filtered, n_samples=N_SAMPLES, random_seed=42, method="lhs")
     X = X.cpu().numpy() if getattr(X, "is_cuda", False) else X.numpy()
-    np.save(f"LHCS_1000_X_20.npy", X)
+    np.save(f"LHCS_X_20.npy", X)
     #
     param_samples = [dict(zip(param_keys, row)) for row in X]
     Result = parallel_simulations(param_samples, n_jobs=N_JOBS)
     Result = np.asarray(Result)
-    np.save(f"LHCS_1000_Result_20.npy", Result)
+    np.save(f"LHCS_Result_20.npy", Result)
 
     # X = np.load(f'LHCS_20000_X_rest_no_Pthor_Vtot_22_01_2026.npy')
     # Result = np.load('LHCS_20000_Result_rest_no_Pthor.npy')
