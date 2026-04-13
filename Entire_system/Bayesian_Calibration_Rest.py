@@ -245,14 +245,14 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # ----------------------------
 # change (emulator for rest/exercise)
 Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
-
+# LA RA Contraction Volume diff edited to avoid negative volumes
 observation = {"Heart Rate": (1.23, 0.05), "Systolic Pressure": (123, 324), "Diastolic Pressure": (76.7, 65.61), "EDV": (152.1, 767.29),
 "ESV": (62.3, 243.36), "Max RV Volume": (151.9, 1004.89), "Min RV Volume": (64.4, 299.29), "Max RV Pressure": (22.5, 56.25),
 "Min RV Pressure": (4.0, 9.0), "Min RA Volume": (30.6, 76.4), "Max RA Volume": (92.4, 380.25),
 "Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (32.9, 75.69),
 "Max LA Volume": (68.3, 306.25),
 "Max LA Pressure Atrial contraction": (13.0, 9.0),
-"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (9.4, 11.56), "RA Contraction Volume diff": (11.6, 16.81),
+"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (9.4, 9.8), "RA Contraction Volume diff": (11.6, 14.95),
 "LV Pressure Deriv": (1461.0, 146689.0), "RV Pressure Deriv": (271.0, 3025.0), "Tidal Volume": (0.850, 0.16),
 "Minute Ventilation": (11.4, 15.21), "PaO2": (102.3, 125.44), "PaCO2": (35.5, 24.01)}
 
