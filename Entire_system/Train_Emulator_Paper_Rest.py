@@ -987,8 +987,8 @@ if __name__ == "__main__":
     Result = np.asarray(Result)
     np.save(f"LHCS_Result_20.npy", Result)
 
-    # X = np.load(f'LHCS_20000_X_rest_no_Pthor_Vtot_22_01_2026.npy')
-    # Result = np.load('LHCS_20000_Result_rest_no_Pthor.npy')
+    # X = np.load(f'LHCS_X_20.npy')
+    # Result = np.load('LHCS_Result_20.npy')
 
     # =========================
     # 5) Preprocess samples before training
@@ -1033,35 +1033,21 @@ if __name__ == "__main__":
     # +/-50%
     parent_dir = "Emulator_Paper_same_1000"
 
-    for j, target_name in enumerate(output_names_full):
-        print("\n" + "=" * 100)
-        print(f"[{j + 1}/{len(output_names_full)}] Target = {target_name}")
-        print("=" * 100)
+    feature_mask = np.ptp(X, axis=0) != 0
+    X_train = X[:, feature_mask]
 
-        # # lookup subset vars from DGSM file (keys are normalized)
-        # key = safe_name(target_name)
-        #
-        # subset_vars = dgsm_subset[key]
-        # print(f"Using {len(subset_vars)} varying params for {target_name}")
-        #
-        # # build sp_filtered for this target
-        # X_target = X_filtered(X, sp, subset_vars)
-        feature_mask = np.ptp(X, axis=0) != 0
-        X_train = X[:, feature_mask]
+    def train_one_emulator(j, target_name):
+        print(f"\n[{j + 1}/{len(output_names_full)}] Target = {target_name}")
 
-        # target column index in the *kept* Result
         Y = Result_all[:, j:j + 1]  # (N,1) – good for AutoEmulate
 
-        # ---- train ----
         ae = AutoEmulate(X_train, Y, log_level="info", models=[MODEL_NAME], model_params=params)
         ae.summarise()
         best = ae.best_result()
 
         print(f"R² test: {getattr(best, 'r2_test', None)} | RMSE test: {getattr(best, 'rmse_test', None)}")
 
-        # ---- save ----
         out_dir = safe_name(target_name)
-        out_dir = f"{out_dir}"
         full_out_dir = os.path.join(parent_dir, out_dir)
         os.makedirs(full_out_dir, exist_ok=True)
         joblib.dump(best, f"{full_out_dir}/{MODEL_NAME}_{target_name}_best.joblib")
@@ -1070,3 +1056,7 @@ if __name__ == "__main__":
             f"{full_out_dir}/{MODEL_NAME}_{target_name}_meta.joblib"
         )
         ae.plot(best, fname=f"{full_out_dir}/{MODEL_NAME}_{target_name}.png")
+
+    Parallel(n_jobs=25, backend="loky")(
+        delayed(train_one_emulator)(j, name) for j, name in enumerate(output_names_full)
+    )
