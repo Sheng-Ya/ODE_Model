@@ -135,7 +135,8 @@ def extract_fast_caches(emulators, output_names):
 
 
 def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
-                           output_names, gp_caches):
+                           output_names, gp_caches,
+                           rho_LA_t, rho_RA_t):
     """Potential energy calling GPyTorch directly — no autoemulate overhead.
 
     Bypasses the expensive autoemulate wrapper:
@@ -184,13 +185,25 @@ def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
             mus[i]   = mean_t * c["y_std"] + c["y_mean"]
             vars_[i] = var_t  * c["y_std"] ** 2
 
-        # Emulators 17/18 now predict pre-atrial-contraction volumes;
-        # calibration targets are diffs (b4_contract - min_volume).
-        # Var(A - B) = Var(A) + Var(B) under independent emulators.
+        # Emulators 17/18 predict pre-atrial-contraction volumes; calibration
+        # targets are diffs (b4_contract - min_volume).
+        # Var(A - B) = Var(A) + Var(B) - 2 * Cov(A, B)
+        #            = Var(A) + Var(B) - 2 * rho * sqrt(Var(A) * Var(B))
+        # where rho is the cross-output correlation estimated once from the
+        # training-simulator outputs (see rho_LA / rho_RA computation at module
+        # level). This is a plug-in estimator for the unknown Cov(GP_A, GP_B)
+        # between two independently-fit GPs; it shrinks the diff variance below
+        # the conservative Var(A)+Var(B) upper bound when A and B are positively
+        # correlated (which they are: pre-contract and min volumes both rise
+        # and fall with filling / elastance / vascular tone).
         mus[17]   = mus[17] - mus[13]
-        vars_[17] = vars_[17] + vars_[13]
+        vars_[17] = (vars_[17] + vars_[13]
+                     - 2.0 * rho_LA_t * (vars_[17] * vars_[13]).clamp(min=1e-20).sqrt()
+                    ).clamp(min=1e-10)
         mus[18]   = mus[18] - mus[9]
-        vars_[18] = vars_[18] + vars_[9]
+        vars_[18] = (vars_[18] + vars_[9]
+                     - 2.0 * rho_RA_t * (vars_[18] * vars_[9]).clamp(min=1e-20).sqrt()
+                    ).clamp(min=1e-10)
 
         # Gaussian likelihood + soft 1-sigma barrier:
         #   log p(y | theta) = -0.5 * sum_i [ z_i^2 + log(s_i^2) ]
@@ -466,9 +479,45 @@ obs_stds_t = obs_vars_t.sqrt()
 prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
 prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
 
+# ---- Cross-output correlations for the LA/RA contraction diff variance ----
+# The diff = V_pre_contract - V_min is computed from two GPs that were fit
+# independently. A first-order correction for the unknown Cov(GP_A, GP_B) is
+# to plug in the empirical correlation of the underlying simulator outputs
+# across the training set.
+# Raw simulator output columns (31 total) have 6 dropped at emulator training
+# time: [11, 14, 17, 20, 27, 30]. After the drop, in the 25-output space:
+#   idx  9 -> Min_RA_Volume                (B for RA diff)
+#   idx 13 -> Min_LA_Volume                (B for LA diff)
+#   idx 17 -> V_pre_contract_LA            (A for LA diff)
+#   idx 18 -> V_pre_contract_RA            (A for RA diff)
+print("\n" + "=" * 60)
+print("STEP 3b -- Cross-output correlations from training set")
+print("=" * 60)
+
+_lhcs_path = "LHCS_Result_20.npy"
+_raw_R = np.load(_lhcs_path)
+_ok = _raw_R[:, 0] != 0
+_raw_R = _raw_R[_ok]
+_COLS_DROP = [11, 14, 17, 20, 27, 30]
+_R25 = np.delete(_raw_R, _COLS_DROP, axis=1)       # (n_train_ok, 25)
+assert _R25.shape[1] == 25, f"expected 25 cols after drop, got {_R25.shape[1]}"
+
+rho_LA = float(np.corrcoef(_R25[:, 17], _R25[:, 13])[0, 1])
+rho_RA = float(np.corrcoef(_R25[:, 18], _R25[:,  9])[0, 1])
+print(f"  rho(V_pre_contract_LA, Min_LA_Volume) = {rho_LA:+.3f}")
+print(f"  rho(V_pre_contract_RA, Min_RA_Volume) = {rho_RA:+.3f}")
+print(f"  (positive -> diff variance shrinks below Var(A)+Var(B))")
+
+# Clamp to [-0.999, 0.999] to avoid degenerate Var(diff) ~= 0 under rho -> 1
+rho_LA = max(-0.999, min(0.999, rho_LA))
+rho_RA = max(-0.999, min(0.999, rho_RA))
+rho_LA_t = torch.tensor(rho_LA, dtype=torch.float32)
+rho_RA_t = torch.tensor(rho_RA, dtype=torch.float32)
+
 # Build the fast potential energy function (uses pre-computed GP caches)
 potential_fn = make_fast_potential_fn(
     prior_lo, prior_hi, obs_means_t, obs_vars_t, output_names, gp_caches,
+    rho_LA_t, rho_RA_t,
 )
 
 # --- Convert initial point to unconstrained space via logit ---
