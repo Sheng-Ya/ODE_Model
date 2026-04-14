@@ -826,9 +826,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x[row_mask, :]
         y = y[row_mask, :]
 
-        y[:, 17] = y[:, 17] - y[:, 13]
-        y[:, 18] = y[:, 18] - y[:, 9]
-
         within = (y >= (col_mean - 3 * col_std)) & (y <= (col_mean + 3 * col_std))
         row_mask = within.all(dim=1)
 

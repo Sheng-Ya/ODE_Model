@@ -65,8 +65,8 @@ EMULATOR_DIR = "Emulator_wave_1wave"     # GP emulators from last refitted wave
 KNN_K = 50                               # neighbours for density estimation
 
 # NUTS MCMC
-N_WARMUP        = 200                    # warmup (step-size + mass-matrix adapt)
-N_SAMPLES       = 1000                   # posterior draws per chain
+N_WARMUP        = 100                    # warmup (step-size + mass-matrix adapt)
+N_SAMPLES       = 300                   # posterior draws per chain
 N_CHAINS        = 1                      # independent chains (1 if multiproc fails)
 MAX_TREE_DEPTH  = 7
 TARGET_ACCEPT   = 0.8
@@ -165,7 +165,9 @@ def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
         ).sum()
 
         # ---- GP log-likelihood (fast GPyTorch path) ----
-        ll = torch.tensor(0.0, dtype=torch.float32)
+        # Collect all predictions first so we can derive diffs for cols 17/18
+        mus = [None] * len(output_names)
+        vars_ = [None] * len(output_names)
         for i, name in enumerate(output_names):
             c = gp_caches[name]
 
@@ -179,12 +181,51 @@ def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
             var_t  = output.variance.squeeze().clamp(min=1e-10)
 
             # Affine y-inverse-transform (StandardizeTransform)
-            mu_i  = mean_t * c["y_std"] + c["y_mean"]
-            var_i = var_t  * c["y_std"] ** 2
+            mus[i]   = mean_t * c["y_std"] + c["y_mean"]
+            vars_[i] = var_t  * c["y_std"] ** 2
 
-            total_var = obs_vars_t[i] + var_i
-            residual  = obs_means_t[i] - mu_i
-            ll = ll - 0.5 * (residual ** 2 / total_var + torch.log(total_var))
+        # Emulators 17/18 now predict pre-atrial-contraction volumes;
+        # calibration targets are diffs (b4_contract - min_volume).
+        # Var(A - B) = Var(A) + Var(B) under independent emulators.
+        mus[17]   = mus[17] - mus[13]
+        vars_[17] = vars_[17] + vars_[13]
+        mus[18]   = mus[18] - mus[9]
+        vars_[18] = vars_[18] + vars_[9]
+
+        # Gaussian likelihood + soft 1-sigma barrier:
+        #   log p(y | theta) = -0.5 * sum_i [ z_i^2 + log(s_i^2) ]
+        #                    -        sum_i  LAMBDA * max(|z_i| - 1, 0)^2
+        #   z_i = (y_i - mu_i) / s_i,  s_i^2 = obs_var_i + GP_var_i(theta)
+        #
+        # Why this shape:
+        #   - The Gaussian term is the original likelihood -> recovers the tight
+        #     posterior of the previous run (each output pulled toward its target
+        #     with curvature 1/s_i^2).
+        #   - The relu(|z|-1)^2 term is exactly 0 for |z| <= 1, so it adds NO
+        #     pressure on already-compliant outputs (no spread inflation), and
+        #     grows quadratically outside, sharply discouraging any output from
+        #     drifting past 1 sigma.
+        #   - Effective curvature outside 1 sigma is (1 + 2*LAMBDA)/s_i^2, i.e.
+        #     residuals beyond 1 sigma "feel" an effective sigma of
+        #     s_i / sqrt(1 + 2*LAMBDA).
+        #     LAMBDA=2 -> ~0.45 s_i (moderate); 5 -> ~0.30 s_i (strong barrier).
+        #   - C^1-smooth everywhere: relu derivative is 0 on both sides of |z|=1,
+        #     so the barrier joins smoothly to the Gaussian -> NUTS step-size
+        #     adaptation stays well-behaved.
+        #   - Numerical stability: total_var clamped to >=1e-10; tail gradient
+        #     grows only as |z| (Gaussian) + |z|-1 (barrier), no exp/divisive blow-up.
+        #
+        # Mathematically sound: this is a product of a proper Gaussian density
+        # and a (proper, up to normalising constant) prior on the residual that
+        # puts mass on |z| <= 1 with quadratic decay outside.
+        LAMBDA = 0.0   # barrier strength; raise for harder >1 sigma penalty
+        ll = torch.tensor(0.0, dtype=torch.float32)
+        for i in range(len(output_names)):
+            total_var = (obs_vars_t[i] + vars_[i]).clamp(min=1e-10)
+            z = (obs_means_t[i] - mus[i]) / total_var.sqrt()
+            ll = ll - 0.5 * (z ** 2 + torch.log(total_var))
+            excess = torch.relu(z.abs() - 1.0)
+            ll = ll - LAMBDA * excess ** 2
 
         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
         return -(ll + log_det_jac)
@@ -371,14 +412,21 @@ print("\n  GP predictions at densest point (fast cache):")
 print(f"  {'Output':<40} {'Pred':>10} {'Target':>10} "
       f"{'|d|/s':>7}")
 print("  " + "-" * 75)
+mus_check = [None] * len(output_names)
 for i, name in enumerate(output_names):
     c = gp_caches[name]
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         xt = (theta_t - c["x_mean"]) / c["x_std"]
         output = c["gp"](xt.unsqueeze(0))
         mean_t = output.mean.squeeze()
-        mu_fast = (mean_t * c["y_std"] + c["y_mean"]).item()
+        mus_check[i] = (mean_t * c["y_std"] + c["y_mean"]).item()
 
+# Convert cols 17/18 from pre-contract volumes to contraction volume diffs
+mus_check[17] = mus_check[17] - mus_check[13]
+mus_check[18] = mus_check[18] - mus_check[9]
+
+for i, name in enumerate(output_names):
+    mu_fast = mus_check[i]
     obs_mean = observation[name.replace("_", " ")][0]
     obs_std  = observation[name.replace("_", " ")][1] ** 0.5
     sigma_away = abs(mu_fast - obs_mean) / obs_std
@@ -425,10 +473,15 @@ potential_fn = make_fast_potential_fn(
 
 # --- Convert initial point to unconstrained space via logit ---
 eps = 1e-6 * (prior_hi - prior_lo).clamp(min=1e-20)
-top_chain_idx = np.argsort(densities)[-(N_CHAINS):][::-1]
-init_theta = torch.tensor(
-    nroy_subset[top_chain_idx], dtype=torch.float32,
-)
+# top_chain_idx = np.argsort(densities)[-(N_CHAINS):][::-1]
+# init_theta = torch.tensor(
+#     nroy_subset[top_chain_idx], dtype=torch.float32,
+# )
+
+rng = np.random.default_rng(RANDOM_SEED)
+start_idx = rng.choice(n_nroy, size=N_CHAINS, replace=False)
+init_theta = torch.tensor(nroy_subset[start_idx], dtype=torch.float32)
+
 init_theta = torch.clamp(init_theta, prior_lo + eps, prior_hi - eps)
 
 # logit: z = log( (theta - lo) / (hi - theta) )
@@ -542,13 +595,21 @@ print(f"{'Output':<45} {'Pred':>10} {'Target':>10} "
       f"{'|d|/s':>8} {'<=1s':>5}")
 print("-" * 85)
 
-n_within = 0
+preds_med = [None] * len(output_names)
 for i, name in enumerate(output_names):
     c = gp_caches[name]
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         xt = (x_med.squeeze() - c["x_mean"]) / c["x_std"]
         out = c["gp"](xt.unsqueeze(0))
-        pred = (out.mean.squeeze() * c["y_std"] + c["y_mean"]).item()
+        preds_med[i] = (out.mean.squeeze() * c["y_std"] + c["y_mean"]).item()
+
+# Convert cols 17/18 from pre-contract volumes to contraction volume diffs
+preds_med[17] = preds_med[17] - preds_med[13]
+preds_med[18] = preds_med[18] - preds_med[9]
+
+n_within = 0
+for i, name in enumerate(output_names):
+    pred = preds_med[i]
     tgt  = obs_means_t[i].item()
     std  = obs_stds_t[i].item()
     sig  = abs(pred - tgt) / std
@@ -576,6 +637,9 @@ for k, idx in enumerate(check_idx):
             out = c["gp"](xt.unsqueeze(0))
             pred_matrix[k, i] = (out.mean.squeeze() * c["y_std"]
                                  + c["y_mean"]).item()
+    # Convert cols 17/18 from pre-contract volumes to contraction volume diffs
+    pred_matrix[k, 17] = pred_matrix[k, 17] - pred_matrix[k, 13]
+    pred_matrix[k, 18] = pred_matrix[k, 18] - pred_matrix[k, 9]
 
 print(f"{'Output':<45} {'Mean Pred':>10} {'Std Pred':>10} "
       f"{'Target':>10} {'% <=1s':>8}")
@@ -595,7 +659,7 @@ print("\n" + "=" * 60)
 print("STEP 7 -- Saving results")
 print("=" * 60)
 
-out_dir = f"MCMC_Rest_{PERCENT}_{DATE_SUFFIX}"
+out_dir = f"MCMC_Rest_{PERCENT}_14_04"
 os.makedirs(out_dir, exist_ok=True)
 
 np.save(os.path.join(out_dir, "posterior_samples.npy"), posterior_np)
@@ -636,7 +700,7 @@ print("STEP 8 -- Plots")
 print("=" * 60)
 
 # 8a. Trace plots + marginal posteriors (first 8 params)
-n_plot = min(8, ndim)
+n_plot = ndim
 fig, axes = plt.subplots(n_plot, 2, figsize=(14, 3 * n_plot))
 if n_plot == 1:
     axes = axes[np.newaxis, :]
