@@ -723,32 +723,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
 
-        # Emulators now predict pre-contraction volumes; compute diffs for implausibility
-        # LA_Contraction_Volume_diff = b4_LA_contract (col 17) - Min_LA_Volume (col 13)
-        # RA_Contraction_Volume_diff = b4_RA_contract (col 18) - Min_RA_Volume (col 9)
-        mean_tensor[:, 17] = mean_tensor[:, 17] - mean_tensor[:, 13]
-        mean_tensor[:, 18] = mean_tensor[:, 18] - mean_tensor[:, 9]
-        # Var(A - B) = Var(A) + Var(B) assuming independent emulators
-        var_tensor[:, 17] = var_tensor[:, 17] + var_tensor[:, 13]
-        var_tensor[:, 18] = var_tensor[:, 18] + var_tensor[:, 9]
-
         get_reusable_executor().shutdown(wait=True)
 
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
 
         # Filter non-physiological emulator predictions before NROY selection:
-        # col 17 = LA_Contraction_Volume_diff, col 18 = RA_Contraction_Volume_diff (must be > 0)
         # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
-        phys_mask = (
-            (mean_tensor[:, 17] > 0)
-            & (mean_tensor[:, 18] > 0)
-            & (mean_tensor[:, 13] > test_x[:, 201])
-            & (mean_tensor[:, 9] > test_x[:, 203])
-        )
-        test_x = test_x[phys_mask]
-        mean_tensor = mean_tensor[phys_mask]
-        impl_scores = impl_scores[phys_mask]
+        # phys_mask = (
+        #     (mean_tensor[:, 13] > test_x[:, 201])
+        #     & (mean_tensor[:, 9] > test_x[:, 203])
+        # )
+        # test_x = test_x[phys_mask]
+        # mean_tensor = mean_tensor[phys_mask]
+        # impl_scores = impl_scores[phys_mask]
 
         mask = self._create_nroy_mask(impl_scores)
 
@@ -831,15 +819,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         x = x[row_mask]
         y = y[row_mask]
-        phys_mask = (
-            (y[:, 17] > 0)
-            & (y[:, 18] > 0)
-            & (y[:, 13] > x[:, 201])
-            & (y[:, 9] > x[:, 203])
-        )
-
-        x = x[phys_mask, :]
-        y = y[phys_mask, :]
+        # phys_mask = (
+        #     (y[:, 13] > x[:, 201])
+        #     & (y[:, 9] > x[:, 203])
+        # )
+        #
+        # x = x[phys_mask, :]
+        # y = y[phys_mask, :]
 
         # self.train_y = torch.cat([self.train_y, y], dim=0)
         # self.train_x = torch.cat([self.train_x, x], dim=0)

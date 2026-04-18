@@ -615,11 +615,11 @@ def run_basepoint(base_sample, old_Parameters):
         print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
 
-def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_03_final.npy'):
+def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_04_final.npy'):
     results_all = []
 
-    # if os.path.exists(save_path):
-    #     os.remove(save_path)
+    if os.path.exists(save_path):
+        os.remove(save_path)
 
     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
     block_size = len(param_samples[0]) + 1
@@ -637,7 +637,7 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
         if base is None: # base failed → whole block invalid
             results_all.extend(np.zeros((block_size, 31)))
             print("block_failed")
-            # np.save(save_path, np.array(results_all))
+            np.save(save_path, np.array(results_all))
             continue
 
         # # Otherwise, run full block in parallel
@@ -657,7 +657,7 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
         # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
 
         # Save after each block
-        # np.save(save_path, np.array(results_all))
+        np.save(save_path, np.array(results_all))
 
     return results_all
 
@@ -825,6 +825,7 @@ if __name__ == "__main__":
             "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
             "Vu_ra", "Vu_rv",
 
+            "V_tot",
             "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
             "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
             "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -911,6 +912,7 @@ if __name__ == "__main__":
             [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
             [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
 
+            [5027.15 * lower, 5027.15 * upper],
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -937,9 +939,9 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_20_10_04.npy", X)
-    X = np.load("DGSM_500_X_rest_20_10_04.npy")
+    X = finite_diff.sample(sp, 500)
+    np.save("DGSM_500_X_rest_20_14_04_V_tot.npy", X)
+    X = np.load("DGSM_500_X_rest_20_14_04_V_tot.npy")
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
@@ -947,4 +949,4 @@ if __name__ == "__main__":
     # print(AA)
 
     Result = parallel_simulations(param_samples, n_jobs=256)
-    np.save(f'DGSM_Result_rest_20_10_04.npy', Result)
+    np.save(f'DGSM_Result_rest_20_14_04_V_tot.npy', Result)

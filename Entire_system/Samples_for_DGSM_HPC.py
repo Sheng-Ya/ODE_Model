@@ -757,8 +757,8 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
 
 if __name__ == "__main__":
-    lower = 0.8
-    upper = 1.2
+    lower = 0.5
+    upper = 1.5
 
     sp = ProblemSpec({
         'names': [
@@ -938,8 +938,8 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_rest_20_10_04.npy", X)
-    X = np.load("DGSM_500_X_rest_20_10_04.npy")[:273*300,:]
+    # np.save("DGSM_500_X_rest_50_14_04.npy", X)
+    X = np.load("DGSM_500_X_rest_50_14_04.npy")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-id", type=int, required=True)
@@ -962,5 +962,5 @@ if __name__ == "__main__":
 
     # Result = parallel_simulations(param_samples, n_jobs=256)
     Result = parallel_simulations(param_samples, n_jobs=args.n_jobs)
-    np.save(f'Result_task_{task_id:02d}.npy', Result)
+    np.save(f'Result_task_50_{task_id:02d}.npy', Result)
     # np.save(f'DGSM_Result_rest_20_10_04.npy', Result)

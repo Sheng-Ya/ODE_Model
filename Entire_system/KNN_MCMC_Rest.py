@@ -28,6 +28,7 @@ Usage:
 
 import math
 import os
+import json
 import warnings
 import joblib
 import numpy as np
@@ -49,6 +50,10 @@ os.environ["LOKY_MAX_CPU_COUNT"] = "8"   # set before sklearn/joblib uses loky
 
 warnings.filterwarnings("ignore")
 
+# posterior_np = np.load("MCMC_Rest_20_16_04_1200_lambda50/posterior_samples.npy")
+# pred_matrix = np.load("MCMC_Rest_20_16_04_1200_lambda50/pred_check_matrix.npy")
+
+
 # ================================================================
 # SETTINGS
 # ================================================================
@@ -60,23 +65,23 @@ pyro.set_rng_seed(RANDOM_SEED)
 DATE_SUFFIX  = "12_4"                    # matches HM output file names
 PERCENT      = 20                        # param range +/-% used in HM
 EMULATOR_DIR = "Emulator_wave_1wave"     # GP emulators from last refitted wave
+out_dir = f"MCMC_Rest_{PERCENT}_18_04_1200"
+os.makedirs(out_dir, exist_ok=True)
 
 # KNN
 KNN_K = 50                               # neighbours for density estimation
 
 # NUTS MCMC
-N_WARMUP        = 100                    # warmup (step-size + mass-matrix adapt)
-N_SAMPLES       = 300                   # posterior draws per chain
+N_WARMUP        = 200                    # warmup (step-size + mass-matrix adapt)
+N_SAMPLES       = 3000                   # posterior draws per chain
 N_CHAINS        = 1                      # independent chains (1 if multiproc fails)
 MAX_TREE_DEPTH  = 7
 TARGET_ACCEPT   = 0.8
 
 # Posterior predictive
-N_PRED_CHECK = 200                       # posterior samples for predictive check
+N_PRED_CHECK = 1500                       # posterior samples for predictive check
 
-
-SQRT3 = math.sqrt(3.0)
-
+# Likelihood: Gaussian
 
 def extract_fast_caches(emulators, output_names):
     """Pre-warm GPyTorch prediction caches and extract y-transform params.
@@ -136,7 +141,7 @@ def extract_fast_caches(emulators, output_names):
 
 def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
                            output_names, gp_caches,
-                           rho_LA_t, rho_RA_t):
+                           ):
     """Potential energy calling GPyTorch directly — no autoemulate overhead.
 
     Bypasses the expensive autoemulate wrapper:
@@ -166,7 +171,6 @@ def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
         ).sum()
 
         # ---- GP log-likelihood (fast GPyTorch path) ----
-        # Collect all predictions first so we can derive diffs for cols 17/18
         mus = [None] * len(output_names)
         vars_ = [None] * len(output_names)
         for i, name in enumerate(output_names):
@@ -185,60 +189,19 @@ def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
             mus[i]   = mean_t * c["y_std"] + c["y_mean"]
             vars_[i] = var_t  * c["y_std"] ** 2
 
-        # Emulators 17/18 predict pre-atrial-contraction volumes; calibration
-        # targets are diffs (b4_contract - min_volume).
-        # Var(A - B) = Var(A) + Var(B) - 2 * Cov(A, B)
-        #            = Var(A) + Var(B) - 2 * rho * sqrt(Var(A) * Var(B))
-        # where rho is the cross-output correlation estimated once from the
-        # training-simulator outputs (see rho_LA / rho_RA computation at module
-        # level). This is a plug-in estimator for the unknown Cov(GP_A, GP_B)
-        # between two independently-fit GPs; it shrinks the diff variance below
-        # the conservative Var(A)+Var(B) upper bound when A and B are positively
-        # correlated (which they are: pre-contract and min volumes both rise
-        # and fall with filling / elastance / vascular tone).
-        mus[17]   = mus[17] - mus[13]
-        vars_[17] = (vars_[17] + vars_[13]
-                     - 2.0 * rho_LA_t * (vars_[17] * vars_[13]).clamp(min=1e-20).sqrt()
-                    ).clamp(min=1e-10)
-        mus[18]   = mus[18] - mus[9]
-        vars_[18] = (vars_[18] + vars_[9]
-                     - 2.0 * rho_RA_t * (vars_[18] * vars_[9]).clamp(min=1e-20).sqrt()
-                    ).clamp(min=1e-10)
-
-        # Gaussian likelihood + soft 1-sigma barrier:
+        # Gaussian likelihood:
         #   log p(y | theta) = -0.5 * sum_i [ z_i^2 + log(s_i^2) ]
-        #                    -        sum_i  LAMBDA * max(|z_i| - 1, 0)^2
         #   z_i = (y_i - mu_i) / s_i,  s_i^2 = obs_var_i + GP_var_i(theta)
         #
         # Why this shape:
         #   - The Gaussian term is the original likelihood -> recovers the tight
         #     posterior of the previous run (each output pulled toward its target
         #     with curvature 1/s_i^2).
-        #   - The relu(|z|-1)^2 term is exactly 0 for |z| <= 1, so it adds NO
-        #     pressure on already-compliant outputs (no spread inflation), and
-        #     grows quadratically outside, sharply discouraging any output from
-        #     drifting past 1 sigma.
-        #   - Effective curvature outside 1 sigma is (1 + 2*LAMBDA)/s_i^2, i.e.
-        #     residuals beyond 1 sigma "feel" an effective sigma of
-        #     s_i / sqrt(1 + 2*LAMBDA).
-        #     LAMBDA=2 -> ~0.45 s_i (moderate); 5 -> ~0.30 s_i (strong barrier).
-        #   - C^1-smooth everywhere: relu derivative is 0 on both sides of |z|=1,
-        #     so the barrier joins smoothly to the Gaussian -> NUTS step-size
-        #     adaptation stays well-behaved.
-        #   - Numerical stability: total_var clamped to >=1e-10; tail gradient
-        #     grows only as |z| (Gaussian) + |z|-1 (barrier), no exp/divisive blow-up.
-        #
-        # Mathematically sound: this is a product of a proper Gaussian density
-        # and a (proper, up to normalising constant) prior on the residual that
-        # puts mass on |z| <= 1 with quadratic decay outside.
-        LAMBDA = 0.0   # barrier strength; raise for harder >1 sigma penalty
         ll = torch.tensor(0.0, dtype=torch.float32)
         for i in range(len(output_names)):
             total_var = (obs_vars_t[i] + vars_[i]).clamp(min=1e-10)
             z = (obs_means_t[i] - mus[i]) / total_var.sqrt()
             ll = ll - 0.5 * (z ** 2 + torch.log(total_var))
-            excess = torch.relu(z.abs() - 1.0)
-            ll = ll - LAMBDA * excess ** 2
 
         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
         return -(ll + log_det_jac)
@@ -282,8 +245,8 @@ observation = {
     "Max LA Volume": (68.3, 306.25),
     "Max LA Pressure Atrial contraction": (13.0, 9.0),
     "Max LA Pressure Mitral Opening": (12.0, 9.0),
-    "LA Contraction Volume diff": (9.4, 11.56),
-    "RA Contraction Volume diff": (11.6, 16.81),
+    "LA Contraction Volume diff": (41.8, 62.41),
+    "RA Contraction Volume diff": (46.1, 73.96),
     "LV Pressure Deriv": (1461.0, 146689.0),
     "RV Pressure Deriv": (271.0, 3025.0),
     "Tidal Volume": (0.850, 0.16),
@@ -382,80 +345,77 @@ first_gp = list(gp_caches.values())[0]["gp"]
 print(f"  Cached {len(gp_caches)} GPs "
       f"(n_train={first_gp.train_inputs[0].shape[-2]})")
 
-# ============================================================
-# 3. KNN DENSITY ESTIMATION
-# ============================================================
-print("\n" + "=" * 60)
-print("STEP 3 -- KNN density estimation")
-print("=" * 60)
-
-# Standardise so that all dimensions contribute equally to distance
-scaler = StandardScaler()
-nroy_scaled = scaler.fit_transform(nroy_subset)
-
-knn = NearestNeighbors(n_neighbors=KNN_K, metric="euclidean", n_jobs=8)
-knn.fit(nroy_scaled)
-
-# Density ~ 1 / (mean distance to k neighbours)
-distances, _ = knn.kneighbors(nroy_scaled)
-mean_dist = distances.mean(axis=1)
-densities = 1.0 / (mean_dist + 1e-10)
-
-# Densest point = optimal MCMC starting position
-densest_idx = np.argmax(densities)
-best_start = nroy_subset[densest_idx]
-
-print(f"  k = {KNN_K}")
-print(f"  Densest NROY index: {densest_idx}")
-print(f"  Density at best:    {densities[densest_idx]:.4f}")
-print(f"  Mean density:       {densities.mean():.4f}")
-
-top_10 = np.argsort(densities)[-10:][::-1]
-print(f"  Top-10 densest idx: {top_10.tolist()}")
-
-# Sanity check: GP predictions at densest point
-# NOTE: autoemulate uses output_from_samples=True, so predict_mean_and_variance
-# returns a Monte Carlo estimate (noisy). Our fast-cache is the exact analytical
-# GP prediction with affine y-inverse-transform — more accurate, not less.
-# We verify the fast-cache against a second independent gp() call to confirm
-# the x-standardisation and combined y-transform are correct.
-theta_t = torch.tensor(best_start, dtype=torch.float32)
-
-print("\n  GP predictions at densest point (fast cache):")
-print(f"  {'Output':<40} {'Pred':>10} {'Target':>10} "
-      f"{'|d|/s':>7}")
-print("  " + "-" * 75)
-mus_check = [None] * len(output_names)
-for i, name in enumerate(output_names):
-    c = gp_caches[name]
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        xt = (theta_t - c["x_mean"]) / c["x_std"]
-        output = c["gp"](xt.unsqueeze(0))
-        mean_t = output.mean.squeeze()
-        mus_check[i] = (mean_t * c["y_std"] + c["y_mean"]).item()
-
-# Convert cols 17/18 from pre-contract volumes to contraction volume diffs
-mus_check[17] = mus_check[17] - mus_check[13]
-mus_check[18] = mus_check[18] - mus_check[9]
-
-for i, name in enumerate(output_names):
-    mu_fast = mus_check[i]
-    obs_mean = observation[name.replace("_", " ")][0]
-    obs_std  = observation[name.replace("_", " ")][1] ** 0.5
-    sigma_away = abs(mu_fast - obs_mean) / obs_std
-    flag = "" if sigma_away <= 1.0 else " *"
-    print(f"  {name:<40} {mu_fast:10.3f} {obs_mean:10.3f} "
-          f"{sigma_away:7.2f}{flag}")
-
-# Verify: two independent gp() calls at same point give identical results
-# (confirms no stale caches or state-dependent prediction)
-c0 = gp_caches[output_names[0]]
-with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    xt = (theta_t - c0["x_mean"]) / c0["x_std"]
-    mu_a = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
-    mu_b = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
-assert mu_a == mu_b, f"GP prediction not deterministic: {mu_a} vs {mu_b}"
-print("\n  Determinism check passed (two gp() calls match exactly)")
+# # ============================================================
+# # 3. KNN DENSITY ESTIMATION
+# # ============================================================
+# print("\n" + "=" * 60)
+# print("STEP 3 -- KNN density estimation")
+# print("=" * 60)
+#
+# # Standardise so that all dimensions contribute equally to distance
+# scaler = StandardScaler()
+# nroy_scaled = scaler.fit_transform(nroy_subset)
+#
+# knn = NearestNeighbors(n_neighbors=KNN_K, metric="euclidean", n_jobs=8)
+# knn.fit(nroy_scaled)
+#
+# # Density ~ 1 / (mean distance to k neighbours)
+# distances, _ = knn.kneighbors(nroy_scaled)
+# mean_dist = distances.mean(axis=1)
+# densities = 1.0 / (mean_dist + 1e-10)
+#
+# # Densest point = optimal MCMC starting position
+# densest_idx = np.argmax(densities)
+# best_start = nroy_subset[densest_idx]
+#
+# print(f"  k = {KNN_K}")
+# print(f"  Densest NROY index: {densest_idx}")
+# print(f"  Density at best:    {densities[densest_idx]:.4f}")
+# print(f"  Mean density:       {densities.mean():.4f}")
+#
+# top_10 = np.argsort(densities)[-10:][::-1]
+# print(f"  Top-10 densest idx: {top_10.tolist()}")
+#
+# # Sanity check: GP predictions at densest point
+# # NOTE: autoemulate uses output_from_samples=True, so predict_mean_and_variance
+# # returns a Monte Carlo estimate (noisy). Our fast-cache is the exact analytical
+# # GP prediction with affine y-inverse-transform — more accurate, not less.
+# # We verify the fast-cache against a second independent gp() call to confirm
+# # the x-standardisation and combined y-transform are correct.
+# theta_t = torch.tensor(best_start, dtype=torch.float32)
+#
+# print("\n  GP predictions at densest point (fast cache):")
+# print(f"  {'Output':<40} {'Pred':>10} {'Target':>10} "
+#       f"{'|d|/s':>7}")
+# print("  " + "-" * 75)
+# mus_check = [None] * len(output_names)
+# for i, name in enumerate(output_names):
+#     c = gp_caches[name]
+#     with torch.no_grad(), gpytorch.settings.fast_pred_var():
+#         xt = (theta_t - c["x_mean"]) / c["x_std"]
+#         output = c["gp"](xt.unsqueeze(0))
+#         mean_t = output.mean.squeeze()
+#         mus_check[i] = (mean_t * c["y_std"] + c["y_mean"]).item()
+#
+#
+# for i, name in enumerate(output_names):
+#     mu_fast = mus_check[i]
+#     obs_mean = observation[name.replace("_", " ")][0]
+#     obs_std  = observation[name.replace("_", " ")][1] ** 0.5
+#     sigma_away = abs(mu_fast - obs_mean) / obs_std
+#     flag = "" if sigma_away <= 1.0 else " *"
+#     print(f"  {name:<40} {mu_fast:10.3f} {obs_mean:10.3f} "
+#           f"{sigma_away:7.2f}{flag}")
+#
+# # Verify: two independent gp() calls at same point give identical results
+# # (confirms no stale caches or state-dependent prediction)
+# c0 = gp_caches[output_names[0]]
+# with torch.no_grad(), gpytorch.settings.fast_pred_var():
+#     xt = (theta_t - c0["x_mean"]) / c0["x_std"]
+#     mu_a = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
+#     mu_b = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
+# assert mu_a == mu_b, f"GP prediction not deterministic: {mu_a} vs {mu_b}"
+# print("\n  Determinism check passed (two gp() calls match exactly)")
 
 # ============================================================
 # 4. PYRO NUTS MCMC  (custom potential_fn — no model tracing)
@@ -479,45 +439,9 @@ obs_stds_t = obs_vars_t.sqrt()
 prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
 prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
 
-# ---- Cross-output correlations for the LA/RA contraction diff variance ----
-# The diff = V_pre_contract - V_min is computed from two GPs that were fit
-# independently. A first-order correction for the unknown Cov(GP_A, GP_B) is
-# to plug in the empirical correlation of the underlying simulator outputs
-# across the training set.
-# Raw simulator output columns (31 total) have 6 dropped at emulator training
-# time: [11, 14, 17, 20, 27, 30]. After the drop, in the 25-output space:
-#   idx  9 -> Min_RA_Volume                (B for RA diff)
-#   idx 13 -> Min_LA_Volume                (B for LA diff)
-#   idx 17 -> V_pre_contract_LA            (A for LA diff)
-#   idx 18 -> V_pre_contract_RA            (A for RA diff)
-print("\n" + "=" * 60)
-print("STEP 3b -- Cross-output correlations from training set")
-print("=" * 60)
-
-_lhcs_path = "LHCS_Result_20.npy"
-_raw_R = np.load(_lhcs_path)
-_ok = _raw_R[:, 0] != 0
-_raw_R = _raw_R[_ok]
-_COLS_DROP = [11, 14, 17, 20, 27, 30]
-_R25 = np.delete(_raw_R, _COLS_DROP, axis=1)       # (n_train_ok, 25)
-assert _R25.shape[1] == 25, f"expected 25 cols after drop, got {_R25.shape[1]}"
-
-rho_LA = float(np.corrcoef(_R25[:, 17], _R25[:, 13])[0, 1])
-rho_RA = float(np.corrcoef(_R25[:, 18], _R25[:,  9])[0, 1])
-print(f"  rho(V_pre_contract_LA, Min_LA_Volume) = {rho_LA:+.3f}")
-print(f"  rho(V_pre_contract_RA, Min_RA_Volume) = {rho_RA:+.3f}")
-print(f"  (positive -> diff variance shrinks below Var(A)+Var(B))")
-
-# Clamp to [-0.999, 0.999] to avoid degenerate Var(diff) ~= 0 under rho -> 1
-rho_LA = max(-0.999, min(0.999, rho_LA))
-rho_RA = max(-0.999, min(0.999, rho_RA))
-rho_LA_t = torch.tensor(rho_LA, dtype=torch.float32)
-rho_RA_t = torch.tensor(rho_RA, dtype=torch.float32)
-
 # Build the fast potential energy function (uses pre-computed GP caches)
 potential_fn = make_fast_potential_fn(
-    prior_lo, prior_hi, obs_means_t, obs_vars_t, output_names, gp_caches,
-    rho_LA_t, rho_RA_t,
+    prior_lo, prior_hi, obs_means_t, obs_vars_t, output_names, gp_caches
 )
 
 # --- Convert initial point to unconstrained space via logit ---
@@ -652,10 +576,6 @@ for i, name in enumerate(output_names):
         out = c["gp"](xt.unsqueeze(0))
         preds_med[i] = (out.mean.squeeze() * c["y_std"] + c["y_mean"]).item()
 
-# Convert cols 17/18 from pre-contract volumes to contraction volume diffs
-preds_med[17] = preds_med[17] - preds_med[13]
-preds_med[18] = preds_med[18] - preds_med[9]
-
 n_within = 0
 for i, name in enumerate(output_names):
     pred = preds_med[i]
@@ -686,9 +606,6 @@ for k, idx in enumerate(check_idx):
             out = c["gp"](xt.unsqueeze(0))
             pred_matrix[k, i] = (out.mean.squeeze() * c["y_std"]
                                  + c["y_mean"]).item()
-    # Convert cols 17/18 from pre-contract volumes to contraction volume diffs
-    pred_matrix[k, 17] = pred_matrix[k, 17] - pred_matrix[k, 13]
-    pred_matrix[k, 18] = pred_matrix[k, 18] - pred_matrix[k, 9]
 
 print(f"{'Output':<45} {'Mean Pred':>10} {'Std Pred':>10} "
       f"{'Target':>10} {'% <=1s':>8}")
@@ -708,18 +625,75 @@ print("\n" + "=" * 60)
 print("STEP 7 -- Saving results")
 print("=" * 60)
 
-out_dir = f"MCMC_Rest_{PERCENT}_14_04"
-os.makedirs(out_dir, exist_ok=True)
-
 np.save(os.path.join(out_dir, "posterior_samples.npy"), posterior_np)
 np.save(os.path.join(out_dir, "posterior_median.npy"), post_median)
 np.save(os.path.join(out_dir, "posterior_mean.npy"), post_mean)
 np.save(os.path.join(out_dir, "posterior_std.npy"), post_std)
 np.save(os.path.join(out_dir, "subset_vars.npy"),
         np.array(subset_vars, dtype=object))
-np.save(os.path.join(out_dir, "knn_densities.npy"), densities)
-np.save(os.path.join(out_dir, "knn_best_start.npy"), best_start)
+# np.save(os.path.join(out_dir, "knn_densities.npy"), densities)
+# np.save(os.path.join(out_dir, "knn_best_start.npy"), best_start)
 np.save(os.path.join(out_dir, "pred_check_matrix.npy"), pred_matrix)
+
+# ---- Additional saves for robust MCMC analysis ----
+
+# 1. Per-chain samples in constrained space (for R-hat / split-R-hat).
+z_chains_all = mcmc.get_samples(group_by_chain=True)["theta"]          # (C, N, d)
+posterior_chains_np = (prior_lo + torch.sigmoid(z_chains_all)
+                       * (prior_hi - prior_lo)).detach().cpu().numpy()
+np.save(os.path.join(out_dir, "posterior_chains.npy"), posterior_chains_np)
+
+# 2. Unconstrained samples (for warm-starting or geometry diagnostics).
+np.save(os.path.join(out_dir, "posterior_z.npy"),
+        posterior_z.detach().cpu().numpy())
+
+# 3. Pyro MCMC diagnostics: step size, divergences, n_eff, r_hat, etc.
+try:
+    diag = mcmc.diagnostics()
+    def _jsonify(v):
+        if isinstance(v, dict):
+            return {k: _jsonify(x) for k, x in v.items()}
+        if hasattr(v, "tolist"):
+            return v.tolist()
+        if isinstance(v, (list, tuple)):
+            return [_jsonify(x) for x in v]
+        return v
+    with open(os.path.join(out_dir, "mcmc_diagnostics.json"), "w") as f:
+        json.dump(_jsonify(diag), f, indent=2, default=str)
+except Exception as e:
+    print(f"  WARN: could not save mcmc_diagnostics.json: {e}")
+
+# 4. Log-posterior trace (useful for convergence check).
+log_post_trace = np.zeros(posterior_z.shape[0])
+for k in range(posterior_z.shape[0]):
+    with torch.no_grad():
+        log_post_trace[k] = -potential_fn({"theta": posterior_z[k]}).item()
+np.save(os.path.join(out_dir, "log_posterior_trace.npy"), log_post_trace)
+
+# 5. Run configuration (for reproducibility).
+config = {
+    "random_seed":     RANDOM_SEED,
+    "n_warmup":        N_WARMUP,
+    "n_samples":       N_SAMPLES,
+    "n_chains":        N_CHAINS,
+    "target_accept":   TARGET_ACCEPT,
+    "max_tree_depth":  MAX_TREE_DEPTH,
+    "emulator_dir":    EMULATOR_DIR,
+    "date_suffix":     DATE_SUFFIX,
+    "percent":         PERCENT,
+    "knn_k":           KNN_K,
+    "n_pred_check":    N_PRED_CHECK,
+}
+with open(os.path.join(out_dir, "config.json"), "w") as f:
+    json.dump(config, f, indent=2)
+
+# 6. Observation targets + NROY bounds (make analysis self-contained).
+np.save(os.path.join(out_dir, "obs_means.npy"), obs_means_t.numpy())
+np.save(os.path.join(out_dir, "obs_vars.npy"),  obs_vars_t.numpy())
+np.save(os.path.join(out_dir, "output_names.npy"),
+        np.array(output_names, dtype=object))
+np.save(os.path.join(out_dir, "prior_lower.npy"), prior_lower)
+np.save(os.path.join(out_dir, "prior_upper.npy"), prior_upper)
 
 # Full 224-dim parameter vector at posterior median
 # Non-calibration params stay at their nominal (fixed) values
@@ -816,20 +790,20 @@ plt.savefig(
 )
 plt.close()
 
-# 8c. KNN density histogram
-fig, ax = plt.subplots(figsize=(8, 4))
-ax.hist(densities, bins=100, density=True, alpha=0.7, color="steelblue")
-ax.axvline(
-    densities[densest_idx], color="red", ls="--",
-    label=f"densest (idx {densest_idx})"
-)
-ax.set_xlabel("KNN density (1 / mean dist to k neighbours)")
-ax.set_ylabel("Frequency")
-ax.set_title(f"KNN density distribution (k={KNN_K}, n={n_nroy})")
-ax.legend()
-plt.tight_layout()
-plt.savefig(os.path.join(out_dir, "knn_density_hist.png"), dpi=200)
-plt.close()
-
-print(f"  Plots saved to {out_dir}/")
-print("\nDone.")
+# # 8c. KNN density histogram
+# fig, ax = plt.subplots(figsize=(8, 4))
+# ax.hist(densities, bins=100, density=True, alpha=0.7, color="steelblue")
+# ax.axvline(
+#     densities[densest_idx], color="red", ls="--",
+#     label=f"densest (idx {densest_idx})"
+# )
+# ax.set_xlabel("KNN density (1 / mean dist to k neighbours)")
+# ax.set_ylabel("Frequency")
+# ax.set_title(f"KNN density distribution (k={KNN_K}, n={n_nroy})")
+# ax.legend()
+# plt.tight_layout()
+# plt.savefig(os.path.join(out_dir, "knn_density_hist.png"), dpi=200)
+# plt.close()
+#
+# print(f"  Plots saved to {out_dir}/")
+# print("\nDone.")
