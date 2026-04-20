@@ -41,6 +41,7 @@ from pyro.infer import MCMC, NUTS, HMC
 
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
+from scipy.stats import norm as _scipy_norm
 
 import matplotlib
 matplotlib.use("Agg")
@@ -65,14 +66,53 @@ pyro.set_rng_seed(RANDOM_SEED)
 DATE_SUFFIX  = "12_4"                    # matches HM output file names
 PERCENT      = 20                        # param range +/-% used in HM
 EMULATOR_DIR = "Emulator_wave_1wave"     # GP emulators from last refitted wave
-out_dir = f"MCMC_Rest_{PERCENT}_18_04_1200"
+out_dir = f"MCMC_Rest_{PERCENT}_20_04_3000_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
 # KNN
 KNN_K = 50                               # neighbours for density estimation
 
+# ---- Gaussian copula prior on NROY points --------------------------------
+# Rationale (see also the diagnostic NROY_joint_multimodality_check.py):
+#   - Full-covariance GMM in 60D has ~1891 free params per component, so BIC
+#     massively overpenalises extra components; the sweep collapsed to K=1 =
+#     plain MVN, which cannot represent the skew visible in NROY marginals.
+#   - Pairwise hexbin of the top-skewed NROY axes showed one connected
+#     high-density region per panel (skewed/corner-concentrated but not
+#     multimodal), so a unimodal-in-z Gaussian copula is adequate.
+#   - Copula factorisation (Sklar): p(theta) = c(F_1..F_d) * prod_i p_i.
+#     Per-axis Gaussian KDE captures marginal skew exactly (continuous,
+#     differentiable, no component-count hyperparameter). The Gaussian
+#     copula models only the dependency in rank-Gaussianised space with
+#     one correlation matrix R — far fewer params than a full-cov GMM and
+#     the right object to estimate given ~178k NROY points.
+USE_COPULA_PRIOR   = True          # False -> uniform box prior
+KDE_SUBSAMPLE      = 5000          # subsample size per-axis KDE eval at MCMC
+KDE_BANDWIDTH      = "silverman"   # "silverman" | "scott" | float
+CORR_SHRINK        = 0.0           # linear shrinkage of R toward identity
+COPULA_F_EPS       = 1e-6          # clamp for Phi^{-1}(F_i) at marginal tails
+
+# ---- Logspline marginals (replaces per-axis Gaussian KDE) ------------------
+# The Silverman + Gaussian-KDE marginals produce
+#   (a) subsample-noise wiggles on near-uniform axes,
+#   (b) inward-shifted peaks on axes that pile up against HM bounds (Gaussian
+#       kernels leak mass past the boundary).
+# Diagnostic: Plot_Copula_Marginals_vs_NROY.py vs ..._logspline.py.
+# Fix: per-axis penalised cubic B-spline log-density on [L_i, U_i]:
+#   log f_i(x) = sum_j beta_j * B_j(x)  on [prior_lower[i], prior_upper[i]]
+# fit by penalised maximum likelihood (P-spline; Eilers & Marx 1996).
+# Bounded support is enforced by the clamped knot vector (non-zero density
+# at the HM bound is allowed; density is exactly zero outside).
+# MCMC evaluation: precomputed (x_grid, f_grid, cdf_grid) per axis, then
+# torch.searchsorted + piecewise-linear interp + analytic piecewise-quadratic
+# CDF.  Differentiable; O(log G) per axis per step, cheaper than the KDE loop.
+USE_LOGSPLINE_MARGINALS = True
+LOGSPLINE_N_INTERIOR    = 14        # interior knots on [L_i, U_i]
+LOGSPLINE_LAMBDA        = 5.0       # 2nd-difference smoothness penalty
+LOGSPLINE_N_GRID        = 1000      # per-axis fine grid for Z + CDF + MCMC
+
 # NUTS MCMC
-N_WARMUP        = 200                    # warmup (step-size + mass-matrix adapt)
+N_WARMUP        = 500                    # warmup (step-size + mass-matrix adapt)
 N_SAMPLES       = 3000                   # posterior draws per chain
 N_CHAINS        = 1                      # independent chains (1 if multiproc fails)
 MAX_TREE_DEPTH  = 7
@@ -345,13 +385,503 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
     }
 
 
-def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t, bc):
+def fit_gaussian_copula(data_np, n_kde=5000, bandwidth="silverman",
+                        corr_shrink=0.0, f_eps=1e-6, random_state=0):
+    """Fit a Gaussian copula with per-axis Gaussian-KDE marginals.
+
+    Structure (Sklar's theorem):
+        p(theta) = c(F_1(theta_1), ..., F_d(theta_d)) * prod_i f_i(theta_i)
+    Gaussian copula:
+        c(u) = MVN(Phi^{-1}(u); 0, R) / prod_i phi(Phi^{-1}(u_i))
+    so
+        log p(theta) = -0.5 z^T (R^{-1} - I) z - 0.5 log|R|
+                       + sum_i log f_i(theta_i),
+    with z_i = Phi^{-1}(F_i(theta_i)).
+
+    Fitting choices:
+      - Marginals f_i, F_i: univariate Gaussian KDE on a per-axis subsample
+        of NROY points of size `n_kde`. KDE gives a smooth, differentiable
+        log-density (important: NUTS needs continuous gradients); the
+        subsample keeps per-step MCMC cost at O(d * n_kde) erf calls.
+      - Bandwidths: Silverman's rule h_i = 1.06 * sigma_i * N^{-1/5} using
+        the full NROY sample std (more accurate than subsample std).
+      - Correlation matrix R: estimated in z-space via mid-rank empirical
+        CDF on ALL NROY points (z_i = Phi^{-1}((rank_i + 0.5) / N)), then
+        normalised to unit diagonal. Mid-rank is the standard, robust
+        copula-R estimator; it differs from the KDE CDF by O(h), far
+        below the sample-size uncertainty in R.
+
+    data_np: (N, d) NROY points in original parameter units.
+    Returns a dict of torch tensors ready for `_copula_log_prob`.
+    """
+    rng = np.random.default_rng(random_state)
+    data_np = np.asarray(data_np, dtype=np.float64)
+    N, d = data_np.shape
+
+    # ---- 1. per-axis KDE subsample -----------------------------------
+    if N > n_kde:
+        idx = rng.choice(N, size=n_kde, replace=False)
+        kde_data = data_np[idx]                          # (n_kde, d)
+    else:
+        kde_data = data_np
+    M = kde_data.shape[0]
+
+    # ---- 2. bandwidths (Silverman / Scott / scalar) ------------------
+    sigma = data_np.std(axis=0, ddof=1)
+    if bandwidth == "silverman":
+        h = 1.06 * sigma * N ** (-1.0 / 5.0)
+    elif bandwidth == "scott":
+        h = 1.059 * sigma * N ** (-1.0 / (d + 4.0))  # d-aware Scott, rarely used here
+    else:
+        h = np.full(d, float(bandwidth))
+    # Guard zero-variance axes (should have been caught upstream)
+    h = np.maximum(h, 1e-8)
+
+    # ---- 3. rank-Gaussianise all NROY points for R estimation --------
+    # mid-rank empirical CDF: F_i(theta_i) = (rank_i + 0.5) / N
+    ranks = np.argsort(np.argsort(data_np, axis=0), axis=0).astype(np.float64)
+    F_all = (ranks + 0.5) / N                            # (N, d)
+    z_all = _scipy_norm.ppf(np.clip(F_all, f_eps, 1.0 - f_eps))  # (N, d)
+
+    # ---- 4. correlation matrix R + shrinkage -------------------------
+    R = np.cov(z_all, rowvar=False, ddof=1)
+    sigma_R = np.sqrt(np.diag(R))
+    R = R / sigma_R[:, None] / sigma_R[None, :]          # force unit diagonal
+    if corr_shrink > 0.0:
+        R = (1.0 - corr_shrink) * R + corr_shrink * np.eye(d)
+
+    # ---- 5. Cholesky (R = L L^T) + log|R| ----------------------------
+    L_R = np.linalg.cholesky(R)
+    log_det_R = 2.0 * np.sum(np.log(np.diag(L_R)))
+    eigvals = np.linalg.eigvalsh(R)
+
+    return {
+        # torch caches for MCMC
+        "kde_data": torch.tensor(kde_data.T, dtype=torch.float32),   # (d, M)
+        "kde_h":    torch.tensor(h,          dtype=torch.float32),   # (d,)
+        "kde_M":    torch.tensor(float(M),   dtype=torch.float32),
+        "L_R":      torch.tensor(L_R,        dtype=torch.float32),   # (d, d) lower
+        "half_logdet_R": torch.tensor(0.5 * log_det_R, dtype=torch.float32),
+        "F_eps":    torch.tensor(f_eps,      dtype=torch.float32),
+        # numpy diagnostics
+        "R_eig_min": float(eigvals.min()),
+        "R_eig_max": float(eigvals.max()),
+        "R_cond":    float(eigvals.max() / max(eigvals.min(), 1e-30)),
+        "h_np":      h,
+        "M":         int(M),
+        "N":         int(N),
+    }
+
+
+def _copula_log_prob(theta, cop):
+    """Differentiable log-density of a Gaussian copula with Gaussian-KDE
+    marginals.  Returns log p(theta) up to a theta-independent constant.
+
+    Evaluation:
+        u_ik = (theta_i - kde_data_ik) / h_i       shape (d, M)
+        f_i(theta_i) = (1/(M h_i)) sum_k phi(u_ik)
+        F_i(theta_i) = (1/M) sum_k Phi(u_ik)
+        z_i          = Phi^{-1}(F_i(theta_i))
+        log p(theta) = -0.5 (||L_R^{-1} z||^2 - ||z||^2) - 0.5 log|R|
+                       + sum_i log f_i(theta_i)
+
+    Subtraction of ||z||^2 cancels the per-axis standard-normal denominator
+    in the copula density (so marginals in p_i carry the skew, not the
+    MVN). That matches the Sklar factorisation exactly.
+    """
+    u = (theta.unsqueeze(-1) - cop["kde_data"]) / cop["kde_h"].unsqueeze(-1)   # (d, M)
+
+    # log f_i: log-sum-exp over M kernels, then 1/(M*h_i) normaliser
+    log_phi = -0.5 * u ** 2 - 0.5 * math.log(2.0 * math.pi)                    # (d, M)
+    log_fi = (torch.logsumexp(log_phi, dim=-1)
+              - torch.log(cop["kde_M"]) - torch.log(cop["kde_h"]))             # (d,)
+
+    # F_i via Phi(u) averaged over kernels, clamped for finite Phi^{-1}
+    Fi = 0.5 * (1.0 + torch.erf(u / math.sqrt(2.0))).mean(dim=-1)              # (d,)
+    Fi = Fi.clamp(cop["F_eps"], 1.0 - cop["F_eps"])
+    z  = math.sqrt(2.0) * torch.erfinv(2.0 * Fi - 1.0)                          # (d,)
+
+    # Copula density in z-space: R^{-1} - I quadratic form via one tri-solve
+    w = torch.linalg.solve_triangular(
+        cop["L_R"], z.unsqueeze(-1), upper=False
+    ).squeeze(-1)                                                              # (d,)
+    log_copula = -0.5 * ((w ** 2).sum() - (z ** 2).sum()) - cop["half_logdet_R"]
+
+    return log_copula + log_fi.sum()
+
+
+# ============================================================
+# Logspline (P-spline) copula prior — replacement for the per-axis
+# Silverman Gaussian KDE used above.  See the block comment at
+# USE_LOGSPLINE_MARGINALS in the settings section for motivation.
+# ============================================================
+def _fit_logspline_1d(data, lo, hi,
+                      n_interior=14, smooth_lambda=5.0, n_grid=1000):
+    """Penalised cubic B-spline log-density on the closed interval [lo, hi].
+
+    Parameterisation:
+        log f(x) = sum_j beta_j * B_j(x),  x in [lo, hi]
+    Clamped cubic B-spline basis (multiplicity (k+1) at each boundary) so
+    that density at x = lo and x = hi is a free parameter (captures NROY
+    boundary pile-up).  beta is fit by penalised MLE with second-difference
+    penalty (P-spline):
+        max_beta  sum_i B(x_i) beta - N log Z(beta) - lambda || D^2 beta ||^2
+    Z(beta) = integral_lo^hi exp(B(x) beta) dx, computed by Simpson's rule
+    on a fine grid.
+
+    Returns (x_grid, f_grid, ok_flag) with f_grid normalised so that
+        integral_lo^hi f_grid dx = 1.
+    """
+    from scipy.interpolate import BSpline as _BSpline_
+    from scipy.integrate import simpson as _simpson_
+    from scipy.optimize import minimize as _minimize_
+
+    k = 3
+    # Clamped knot vector: k+1 repeats at each boundary so design_matrix
+    # produces a full-rank basis including boundary support.
+    interior = np.linspace(lo, hi, n_interior + 2)[1:-1]
+    t = np.concatenate([np.full(k + 1, lo), interior, np.full(k + 1, hi)])
+    n_basis = len(t) - k - 1
+
+    data = np.clip(np.asarray(data, dtype=np.float64), lo, hi)
+    N = len(data)
+
+    x_grid = np.linspace(lo, hi, n_grid)
+    B_grid = np.asarray(
+        _BSpline_.design_matrix(x_grid, t, k, extrapolate=False).todense()
+    )                                                             # (G, n_basis)
+    B_data = np.asarray(
+        _BSpline_.design_matrix(data, t, k, extrapolate=False).todense()
+    )                                                             # (N, n_basis)
+
+    D = np.diff(np.eye(n_basis), n=2, axis=0)
+    P = D.T @ D
+    B_data_sum = B_data.sum(axis=0)
+
+    def neg_lp(beta):
+        eta_g = B_grid @ beta
+        m = eta_g.max()
+        Zs = _simpson_(np.exp(eta_g - m), x=x_grid)
+        log_Z = np.log(Zs) + m
+        return -((B_data @ beta).sum()
+                 - N * log_Z
+                 - smooth_lambda * (beta @ P @ beta))
+
+    def grad(beta):
+        eta_g = B_grid @ beta
+        m = eta_g.max()
+        fu = np.exp(eta_g - m)
+        Zs = _simpson_(fu, x=x_grid)
+        p_norm = fu / Zs
+        int_Bp = _simpson_(B_grid * p_norm[:, None], x=x_grid, axis=0)
+        return -(B_data_sum - N * int_Bp - 2.0 * smooth_lambda * (P @ beta))
+
+    res = _minimize_(
+        neg_lp, np.zeros(n_basis), jac=grad, method="L-BFGS-B",
+        options={"maxiter": 500, "ftol": 1e-10, "gtol": 1e-8},
+    )
+    beta_hat = res.x
+    eta_g = B_grid @ beta_hat
+    m = eta_g.max()
+    Z = _simpson_(np.exp(eta_g - m), x=x_grid) * np.exp(m)
+    f_grid = np.exp(eta_g) / Z
+    return x_grid, f_grid, bool(res.success)
+
+
+def fit_logspline_copula(data_np, prior_lower, prior_upper,
+                         n_interior=14, smooth_lambda=5.0, n_grid=1000,
+                         corr_shrink=0.0, f_eps=1e-6, axis_names=None):
+    """Fit a Gaussian copula with per-axis logspline (P-spline) marginals.
+
+    Unlike `fit_gaussian_copula`:
+      - Marginals f_i are bounded to [prior_lower[i], prior_upper[i]] by
+        construction (support enforced by the clamped B-spline knot vector).
+      - No Silverman boundary bias; no subsample noise.
+      - MCMC evaluation is O(log G) per axis via precomputed grids +
+        searchsorted + linear interp (see _logspline_copula_log_prob).
+
+    Dependence structure R is estimated identically to `fit_gaussian_copula`:
+    mid-rank empirical CDF -> rank-Gaussianisation -> sample correlation.
+    (Using the fitted logspline CDF for rank-Gaussianisation instead of
+     the mid-rank estimator is possible but differs by O(h_kde) in the
+     old method and by O(n_grid^-2) here — negligible vs. sample noise in
+     R.  Keeping mid-rank preserves the validated copula-R estimator.)
+
+    Returns a dict of torch tensors ready for `_logspline_copula_log_prob`,
+    plus numpy diagnostics.
+    """
+    data_np = np.asarray(data_np, dtype=np.float64)
+    N, d = data_np.shape
+    prior_lower = np.asarray(prior_lower, dtype=np.float64)
+    prior_upper = np.asarray(prior_upper, dtype=np.float64)
+
+    # ---- 1. per-axis logsplines -----------------------------------------
+    x_grids = np.zeros((d, n_grid), dtype=np.float64)
+    f_grids = np.zeros((d, n_grid), dtype=np.float64)
+    cdf_grids = np.zeros((d, n_grid), dtype=np.float64)
+    n_bad_fit = 0
+    for i in range(d):
+        lo = float(prior_lower[i])
+        hi = float(prior_upper[i])
+        # Tighten to empirical extent if data is strictly inside bounds
+        # (avoids fitting a long flat tail of zero density outside NROY).
+        emp_lo = float(data_np[:, i].min())
+        emp_hi = float(data_np[:, i].max())
+        lo = max(lo, emp_lo - 1e-9)
+        hi = min(hi, emp_hi + 1e-9)
+        xg, fg, ok = _fit_logspline_1d(
+            data_np[:, i], lo, hi,
+            n_interior=n_interior,
+            smooth_lambda=smooth_lambda,
+            n_grid=n_grid,
+        )
+        x_grids[i] = xg
+        f_grids[i] = fg
+        # Cumulative trapezoidal -> CDF on grid (monotone, starts at 0)
+        dx = np.diff(xg)
+        cdf = np.zeros(n_grid)
+        cdf[1:] = np.cumsum(0.5 * (fg[:-1] + fg[1:]) * dx)
+        cdf /= cdf[-1]                                            # enforce CDF(hi) = 1
+        cdf_grids[i] = cdf
+        if not ok:
+            n_bad_fit += 1
+            if axis_names is not None:
+                print(f"    WARNING: logspline MLE did not converge cleanly "
+                      f"on axis '{axis_names[i]}'")
+
+    # ---- 2. rank-Gaussianise via mid-rank empirical CDF -----------------
+    ranks = np.argsort(np.argsort(data_np, axis=0), axis=0).astype(np.float64)
+    F_all = (ranks + 0.5) / N
+    z_all = _scipy_norm.ppf(np.clip(F_all, f_eps, 1.0 - f_eps))   # (N, d)
+
+    # ---- 3. correlation matrix R + shrinkage ---------------------------
+    R = np.cov(z_all, rowvar=False, ddof=1)
+    sigma_R = np.sqrt(np.diag(R))
+    R = R / sigma_R[:, None] / sigma_R[None, :]
+    if corr_shrink > 0.0:
+        R = (1.0 - corr_shrink) * R + corr_shrink * np.eye(d)
+
+    # ---- 4. Cholesky + diagnostics --------------------------------------
+    try:
+        L_R = np.linalg.cholesky(R)
+    except np.linalg.LinAlgError:
+        jitter = 1e-8
+        while True:
+            try:
+                L_R = np.linalg.cholesky(R + jitter * np.eye(d))
+                break
+            except np.linalg.LinAlgError:
+                jitter *= 10.0
+                if jitter > 1e-2:
+                    raise
+    half_logdet_R = float(np.log(np.diag(L_R)).sum())
+    eigvals = np.linalg.eigvalsh(R)
+
+    return {
+        "marginal_type":  "logspline",
+        # torch caches for MCMC (float32 matches the GP backend dtype)
+        "x_grid":         torch.tensor(x_grids,   dtype=torch.float32),   # (d, G)
+        "f_grid":         torch.tensor(f_grids,   dtype=torch.float32),   # (d, G)
+        "cdf_grid":       torch.tensor(cdf_grids, dtype=torch.float32),   # (d, G)
+        "L_R":            torch.tensor(L_R,        dtype=torch.float32),  # (d, d)
+        "half_logdet_R":  torch.tensor(half_logdet_R, dtype=torch.float32),
+        "F_eps":          torch.tensor(float(f_eps), dtype=torch.float32),
+        # numpy diagnostics
+        "R_eig_min":      float(eigvals.min()),
+        "R_eig_max":      float(eigvals.max()),
+        "R_cond":         float(eigvals.max() / max(eigvals.min(), 1e-30)),
+        "N":              int(N),
+        "n_grid":         int(n_grid),
+        "n_interior":     int(n_interior),
+        "smooth_lambda":  float(smooth_lambda),
+        "n_bad_fit":      int(n_bad_fit),
+    }
+
+
+def _logspline_copula_log_prob(theta, cop):
+    """Differentiable log-density of a Gaussian copula with per-axis
+    logspline marginals; O(log G) per axis via precomputed grids.
+
+    Evaluation:
+        bin          = searchsorted(x_grid, theta)              # (d,)
+        dx           = x_hi - x_lo
+        slope        = (f_hi - f_lo) / dx
+        f_i(theta_i) = f_lo + slope * (theta_i - x_lo)          # linear in theta
+        F_i(theta_i) = F_lo + f_lo * (theta_i - x_lo)
+                             + 0.5 * slope * (theta_i - x_lo)^2 # quadratic
+        z_i          = Phi^{-1}(F_i)
+        log p(theta) = -0.5 (||L_R^{-1} z||^2 - ||z||^2)
+                       - half_logdet_R
+                       + sum_i log f_i(theta_i)
+
+    F_i is the analytic integral of the piecewise-linear f_i, so
+    dF_i / dtheta_i == f_i(theta_i) at every evaluation — the gradient
+    that NUTS sees is consistent between f_i and F_i.
+    """
+    x_grid   = cop["x_grid"]        # (d, G)
+    f_grid   = cop["f_grid"]        # (d, G)
+    cdf_grid = cop["cdf_grid"]      # (d, G)
+    L_R      = cop["L_R"]
+    half_logdet_R = cop["half_logdet_R"]
+    F_eps    = cop["F_eps"]
+    d, G = x_grid.shape
+
+    theta_c = theta.to(x_grid.dtype)
+
+    # Per-axis bin search (right edge of bracketing interval).  With 2D
+    # sorted_sequence, searchsorted operates along the last dim per row.
+    idx_hi = torch.searchsorted(
+        x_grid, theta_c.unsqueeze(-1).contiguous()
+    ).squeeze(-1)                                                 # (d,)
+    idx_hi = idx_hi.clamp(min=1, max=G - 1)
+    idx_lo = idx_hi - 1
+
+    # Gather per-axis bin edges and grid values.
+    arange_d = torch.arange(d, device=x_grid.device)
+    x_lo = x_grid[arange_d, idx_lo]
+    x_hi = x_grid[arange_d, idx_hi]
+    f_lo = f_grid[arange_d, idx_lo]
+    f_hi = f_grid[arange_d, idx_hi]
+    F_lo = cdf_grid[arange_d, idx_lo]
+
+    dx     = (x_hi - x_lo).clamp_min(1e-30)
+    slope  = (f_hi - f_lo) / dx
+    delta  = theta_c - x_lo
+
+    # Piecewise-linear f, piecewise-quadratic F (analytic integral of f).
+    f_th   = (f_lo + slope * delta).clamp_min(1e-30)
+    F_th   = F_lo + f_lo * delta + 0.5 * slope * delta ** 2
+    F_th   = F_th.clamp(F_eps, 1.0 - F_eps)
+
+    # Inverse standard-normal CDF.
+    z = math.sqrt(2.0) * torch.erfinv(2.0 * F_th - 1.0)          # (d,)
+
+    # Copula density: -0.5 (w'w - z'z) - log|L_R|  via one tri-solve.
+    w = torch.linalg.solve_triangular(
+        L_R, z.unsqueeze(-1), upper=False
+    ).squeeze(-1)                                                # (d,)
+    log_copula = -0.5 * ((w ** 2).sum() - (z ** 2).sum()) - half_logdet_R
+
+    log_f = torch.log(f_th).sum()
+    return log_copula + log_f
+
+
+def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_lower,
+                                 prior_upper, out_dir, n_bins=40, n_cols=7):
+    """Save per-axis prior marginals overlaid on the empirical NROY histograms.
+
+    For logspline marginals, this reuses the fitted (x_grid, f_grid) already
+    stored in `copula_cache`, so no second fitting pass is needed. For KDE
+    marginals, it evaluates the Gaussian-KDE density on a plotting grid using
+    the cached subsample and bandwidths.
+    """
+    if copula_cache is None:
+        print("  Skipping prior-marginal plot (uniform box prior).")
+        return None
+
+    print("  Saving prior marginals vs NROY plot...")
+
+    nroy_subset = np.asarray(nroy_subset, dtype=np.float64)
+    prior_lower = np.asarray(prior_lower, dtype=np.float64)
+    prior_upper = np.asarray(prior_upper, dtype=np.float64)
+
+    ndim = len(subset_vars)
+    n_rows = math.ceil(ndim / n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(3.0 * n_cols, 2.2 * n_rows))
+    axes = np.atleast_2d(axes)
+
+    marginal_type = copula_cache.get("marginal_type", "kde")
+    legend_added = False
+
+    for j, name in enumerate(subset_vars):
+        ax = axes[j // n_cols, j % n_cols]
+        data_j = nroy_subset[:, j]
+
+        ax.hist(
+            data_j, bins=n_bins, density=True,
+            color="steelblue", alpha=0.45, edgecolor="none",
+            label="NROY points" if not legend_added else None,
+        )
+
+        L = float(prior_lower[j])
+        U = float(prior_upper[j])
+        emp_lo = float(data_j.min())
+        emp_hi = float(data_j.max())
+        L = max(L, emp_lo - 1e-9)
+        U = min(U, emp_hi + 1e-9)
+
+        if marginal_type == "logspline":
+            xg = copula_cache["x_grid"][j].detach().cpu().numpy()
+            fg = copula_cache["f_grid"][j].detach().cpu().numpy()
+            ax.plot(xg, fg, color="crimson", lw=1.3,
+                    label="logspline marginal" if not legend_added else None)
+        else:
+            xg = np.linspace(L, U, 600)
+            kde_data_j = copula_cache["kde_data"][j].detach().cpu().numpy()
+            h_j = float(copula_cache["kde_h"][j].item())
+            u = (xg[:, None] - kde_data_j[None, :]) / h_j
+            fg = np.exp(-0.5 * u ** 2).sum(axis=1)
+            fg /= (kde_data_j.size * h_j * math.sqrt(2.0 * math.pi))
+            ax.plot(xg, fg, color="crimson", lw=1.3,
+                    label="KDE marginal" if not legend_added else None)
+
+        ax.axvline(L, color="grey", ls=":", lw=0.5, alpha=0.6)
+        ax.axvline(U, color="grey", ls=":", lw=0.5, alpha=0.6)
+        ax.set_title(name, fontsize=8)
+        ax.tick_params(labelsize=6)
+        ax.set_xlabel("value", fontsize=6)
+        ax.set_ylabel("density", fontsize=6)
+        legend_added = True
+
+    for k in range(ndim, n_rows * n_cols):
+        axes[k // n_cols, k % n_cols].axis("off")
+
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="upper center", ncol=2, fontsize=10,
+                   bbox_to_anchor=(0.5, 1.0))
+
+    if marginal_type == "logspline":
+        title = (
+            f"Logspline (P-spline) marginals on HM bounds "
+            f"[n_interior={LOGSPLINE_N_INTERIOR}, lambda={LOGSPLINE_LAMBDA}] "
+            f"vs NROY empirical distribution"
+        )
+        out_name = "copula_marginals_vs_NROY_logspline.png"
+    else:
+        title = (
+            f"Gaussian-KDE copula marginals on HM bounds "
+            f"[bandwidth={KDE_BANDWIDTH}] vs NROY empirical distribution"
+        )
+        out_name = "copula_marginals_vs_NROY_kde.png"
+
+    fig.suptitle(title, y=1.005, fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.985])
+
+    out_path = os.path.join(out_dir, out_name)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {out_path}")
+    return out_path
+
+def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
+                                   bc, copula=None):
     """Batched, manual Matern-3/2 potential.  No gpytorch calls at inference.
 
     Replaces the 25-output Python loop with two batched tensor ops:
       k_star (n_out, n) — one call to _matern32_cross
       variance          — one batched triangular solve via cholesky_solve
     Gradient flows through all of these, so Pyro NUTS autograd works unchanged.
+
+    Prior:
+      - copula=None  -> uniform prior on the NROY box [prior_lo, prior_hi]
+                        (only the sigmoid reparam Jacobian contributes)
+      - copula dict  -> Gaussian copula with per-axis KDE marginals fitted
+                        on NROY points, evaluated on theta via
+                        _copula_log_prob().  The sigmoid reparam is kept
+                        as the unconstrained-space transform; its Jacobian
+                        is added so NUTS targets the correct distribution
+                        in z.
     """
     log_width = torch.log(prior_hi - prior_lo)
 
@@ -377,6 +907,14 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t, 
             + log_width
         ).sum()
 
+        if copula is not None:
+            if copula.get("marginal_type") == "logspline":
+                log_prior = _logspline_copula_log_prob(theta, copula)
+            else:
+                log_prior = _copula_log_prob(theta, copula)
+        else:
+            log_prior = torch.zeros((), dtype=theta.dtype, device=theta.device)
+
         x_t = (theta - x_mean) / x_std                                   # (d,)
 
         k_star = _matern32_cross(x_t, X_train, lengthscale, outputscale)  # (n_out, n)
@@ -395,7 +933,8 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t, 
         ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
 
         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
-        return -(ll + log_det_jac)
+        log_prior = torch.nan_to_num(log_prior, nan=-1e8, posinf=-1e8, neginf=-1e8)
+        return -(ll + log_prior + log_det_jac)
 
     return _potential
 
@@ -539,6 +1078,165 @@ if narrow.any():
 print(f"  NROY points loaded:    {n_nroy}")
 print(f"  Calibration params:    {ndim}")
 print(f"  Full parameter vector: {len(all_param_names)}")
+
+# ============================================================
+# 1b. FIT GAUSSIAN COPULA PRIOR ON NROY POINTS
+# ============================================================
+# The HM bounds dict only retains per-axis min/max of surviving points, so a
+# uniform box prior throws away all joint-space information. We instead fit a
+# Gaussian copula to the NROY cloud:
+#     p(theta) = c(F_1..F_d) * prod_i f_i(theta_i)
+# with per-axis Gaussian-KDE marginals (f_i, F_i) and a single correlation
+# matrix R modelling the dependency in rank-Gaussianised space. Motivation
+# (replaces the previous full-cov GMM + BIC approach):
+#   1. A full-cov GMM has d + d(d+1)/2 ~= 1891 free params per component at
+#      d=69, so BIC's p*log(N) penalty dominates the log-likelihood gain and
+#      collapses K to 1, reproducing a plain MVN that cannot represent the
+#      visible skew in axes like T0, GT_v, P_n, ahead1.
+#   2. Diagnostic hexbins (see NROY_joint_multimodality_check.py) showed
+#      each skewed-axis pair as a single connected high-density region, not
+#      disjoint modes. Marginal bimodality is a projection artefact of
+#      corner-concentrated unimodal density in a ~60D box -- exactly the
+#      case the Gaussian copula handles well.
+#   3. The copula decouples marginals from dependency: KDE captures skew in
+#      each p_i exactly, and R captures the joint correlations. No K-sweep
+#      is required, so BIC misbehaviour is sidestepped entirely.
+copula_prior_cache = None
+if USE_COPULA_PRIOR:
+    print("\n" + "=" * 60)
+    if USE_LOGSPLINE_MARGINALS:
+        print("STEP 1b -- Fitting Gaussian copula prior (logspline marginals)")
+    else:
+        print("STEP 1b -- Fitting Gaussian copula prior (Gaussian KDE marginals)")
+    print("=" * 60)
+
+    # Zero-variance columns (degenerate NROY dims) -> fall back to uniform
+    axis_std = nroy_subset.std(axis=0, ddof=1)
+    zero_var = axis_std < 1e-12
+    if zero_var.any():
+        bad = [subset_vars[i] for i in np.where(zero_var)[0]]
+        print(f"  WARNING: zero-variance NROY dims {bad}; "
+              f"falling back to uniform prior")
+        copula_prior_cache = None
+    elif USE_LOGSPLINE_MARGINALS:
+        print(f"  Fitting on N={n_nroy} points, d={ndim}")
+        print(f"  Logspline: n_interior={LOGSPLINE_N_INTERIOR}, "
+              f"lambda={LOGSPLINE_LAMBDA}, grid={LOGSPLINE_N_GRID}")
+        print(f"  R shrinkage toward I: {CORR_SHRINK}")
+
+        import time as _time_
+        _t0 = _time_.time()
+        copula_prior_cache = fit_logspline_copula(
+            nroy_subset,
+            prior_lower=prior_lower,
+            prior_upper=prior_upper,
+            n_interior=LOGSPLINE_N_INTERIOR,
+            smooth_lambda=LOGSPLINE_LAMBDA,
+            n_grid=LOGSPLINE_N_GRID,
+            corr_shrink=CORR_SHRINK,
+            f_eps=COPULA_F_EPS,
+            axis_names=subset_vars,
+        )
+        print(f"  Fit time: {_time_.time() - _t0:.1f} s  "
+              f"(non-converged axes: {copula_prior_cache['n_bad_fit']})")
+        print(f"  R eigenvalues: min={copula_prior_cache['R_eig_min']:.3e}, "
+              f"max={copula_prior_cache['R_eig_max']:.3e}, "
+              f"cond={copula_prior_cache['R_cond']:.2e}")
+
+        # Sanity check: log-density finite at a random NROY point
+        _test_idx = np.random.default_rng(RANDOM_SEED).integers(0, n_nroy)
+        _test_theta = torch.tensor(nroy_subset[_test_idx], dtype=torch.float32)
+        with torch.no_grad():
+            _lp = _logspline_copula_log_prob(_test_theta, copula_prior_cache)
+        print(f"  log p(theta) at NROY[{_test_idx}] = {_lp.item():.4f} "
+              f"(should be finite)")
+        assert torch.isfinite(_lp), "Logspline-copula log-density non-finite"
+
+        # Sanity check 2: gradient w.r.t. theta is finite (NUTS needs it)
+        _grad_theta = torch.tensor(nroy_subset[_test_idx],
+                                   dtype=torch.float32, requires_grad=True)
+        _lp_g = _logspline_copula_log_prob(_grad_theta, copula_prior_cache)
+        _lp_g.backward()
+        assert torch.isfinite(_grad_theta.grad).all(), (
+            "Logspline-copula gradient non-finite; check grid density / "
+            "bounds / F_eps"
+        )
+        print(f"  gradient check passed: "
+              f"max|d log p / d theta| = "
+              f"{_grad_theta.grad.abs().max().item():.3e}")
+
+        # Save for reproducibility / diagnostics
+        copula_dump = {
+            "marginal_type":  "logspline",
+            "x_grid":         copula_prior_cache["x_grid"].cpu().numpy(),
+            "f_grid":         copula_prior_cache["f_grid"].cpu().numpy(),
+            "cdf_grid":       copula_prior_cache["cdf_grid"].cpu().numpy(),
+            "L_R":            copula_prior_cache["L_R"].cpu().numpy(),
+            "half_logdet_R":  float(copula_prior_cache["half_logdet_R"].item()),
+            "F_eps":          float(copula_prior_cache["F_eps"].item()),
+            "N":              copula_prior_cache["N"],
+            "n_grid":         copula_prior_cache["n_grid"],
+            "n_interior":     copula_prior_cache["n_interior"],
+            "smooth_lambda":  copula_prior_cache["smooth_lambda"],
+            "R_eig_min":      copula_prior_cache["R_eig_min"],
+            "R_eig_max":      copula_prior_cache["R_eig_max"],
+            "R_cond":         copula_prior_cache["R_cond"],
+            "corr_shrink":    CORR_SHRINK,
+            "subset_vars":    subset_vars,
+            "prior_lower":    np.asarray(prior_lower, dtype=np.float64),
+            "prior_upper":    np.asarray(prior_upper, dtype=np.float64),
+        }
+        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+    else:
+        print(f"  Fitting on N={n_nroy} points, d={ndim}")
+        print(f"  KDE subsample per axis: {KDE_SUBSAMPLE}")
+        print(f"  Bandwidth rule: {KDE_BANDWIDTH}")
+        print(f"  R shrinkage toward I: {CORR_SHRINK}")
+
+        copula_prior_cache = fit_gaussian_copula(
+            nroy_subset,
+            n_kde=KDE_SUBSAMPLE,
+            bandwidth=KDE_BANDWIDTH,
+            corr_shrink=CORR_SHRINK,
+            f_eps=COPULA_F_EPS,
+            random_state=RANDOM_SEED,
+        )
+        print(f"  R eigenvalues: min={copula_prior_cache['R_eig_min']:.3e}, "
+              f"max={copula_prior_cache['R_eig_max']:.3e}, "
+              f"cond={copula_prior_cache['R_cond']:.2e}")
+        print(f"  Median bandwidth (Silverman): "
+              f"{np.median(copula_prior_cache['h_np']):.4g}")
+
+        # Sanity check: log-density finite at a random NROY point
+        _test_idx = np.random.default_rng(RANDOM_SEED).integers(0, n_nroy)
+        _test_theta = torch.tensor(nroy_subset[_test_idx], dtype=torch.float32)
+        with torch.no_grad():
+            _lp = _copula_log_prob(_test_theta, copula_prior_cache)
+        print(f"  log p(theta) at NROY[{_test_idx}] = {_lp.item():.4f} "
+              f"(should be finite)")
+        assert torch.isfinite(_lp), "Copula log-density non-finite on NROY point"
+
+        # Save for reproducibility / diagnostics
+        copula_dump = {
+            "marginal_type":  "kde",
+            "kde_data":       copula_prior_cache["kde_data"].cpu().numpy(),
+            "kde_h":          copula_prior_cache["kde_h"].cpu().numpy(),
+            "L_R":            copula_prior_cache["L_R"].cpu().numpy(),
+            "half_logdet_R":  float(copula_prior_cache["half_logdet_R"].item()),
+            "F_eps":          float(copula_prior_cache["F_eps"].item()),
+            "M":              copula_prior_cache["M"],
+            "N":              copula_prior_cache["N"],
+            "R_eig_min":      copula_prior_cache["R_eig_min"],
+            "R_eig_max":      copula_prior_cache["R_eig_max"],
+            "bandwidth_rule": KDE_BANDWIDTH,
+            "corr_shrink":    CORR_SHRINK,
+            "subset_vars":    subset_vars,
+        }
+        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+else:
+    print("\n  USE_COPULA_PRIOR = False -> uniform box prior on NROY bounds")
 
 # ============================================================
 # 2. LOAD GP EMULATORS
@@ -801,11 +1499,22 @@ obs_stds_t = obs_vars_t.sqrt()
 prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
 prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
 
+# Save a diagnostic plot of the fitted prior marginals before MCMC starts.
+_ = plot_prior_marginals_vs_nroy(
+    copula_prior_cache,
+    nroy_subset=nroy_subset,
+    subset_vars=subset_vars,
+    prior_lower=prior_lower,
+    prior_upper=prior_upper,
+    out_dir=out_dir,
+)
+
 # Build the fast potential energy function — batched manual Matern-3/2 path.
 # The old gpytorch-based make_fast_potential_fn() is still used above for the
 # verification block; NUTS runs against the batched version below.
 potential_fn = make_fast_potential_fn_batched(
-    prior_lo, prior_hi, obs_means_t, obs_vars_t, batched_cache
+    prior_lo, prior_hi, obs_means_t, obs_vars_t, batched_cache,
+    copula=copula_prior_cache,
 )
 
 # --- Convert initial point to unconstrained space via logit ---
@@ -1042,6 +1751,28 @@ config = {
     "percent":         PERCENT,
     "knn_k":           KNN_K,
     "n_pred_check":    N_PRED_CHECK,
+    "use_copula_prior":     bool(USE_COPULA_PRIOR and copula_prior_cache is not None),
+    "marginal_type":        (copula_prior_cache.get("marginal_type")
+                             if copula_prior_cache is not None else None),
+    "kde_subsample":        (KDE_SUBSAMPLE
+                             if USE_COPULA_PRIOR and not USE_LOGSPLINE_MARGINALS
+                             else None),
+    "kde_bandwidth":        (KDE_BANDWIDTH
+                             if USE_COPULA_PRIOR and not USE_LOGSPLINE_MARGINALS
+                             else None),
+    "logspline_n_interior": (LOGSPLINE_N_INTERIOR
+                             if USE_COPULA_PRIOR and USE_LOGSPLINE_MARGINALS
+                             else None),
+    "logspline_lambda":     (LOGSPLINE_LAMBDA
+                             if USE_COPULA_PRIOR and USE_LOGSPLINE_MARGINALS
+                             else None),
+    "logspline_n_grid":     (LOGSPLINE_N_GRID
+                             if USE_COPULA_PRIOR and USE_LOGSPLINE_MARGINALS
+                             else None),
+    "corr_shrink":          CORR_SHRINK if USE_COPULA_PRIOR else None,
+    "copula_f_eps":         COPULA_F_EPS if USE_COPULA_PRIOR else None,
+    "copula_R_cond":        (copula_prior_cache["R_cond"]
+                             if copula_prior_cache is not None else None),
 }
 with open(os.path.join(out_dir, "config.json"), "w") as f:
     json.dump(config, f, indent=2)
