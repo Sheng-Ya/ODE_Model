@@ -66,7 +66,7 @@ pyro.set_rng_seed(RANDOM_SEED)
 DATE_SUFFIX  = "12_4"                    # matches HM output file names
 PERCENT      = 20                        # param range +/-% used in HM
 EMULATOR_DIR = "Emulator_wave_1wave"     # GP emulators from last refitted wave
-out_dir = f"MCMC_Rest_{PERCENT}_20_04_3000_logspline_copula_prior"
+out_dir = f"MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
 # KNN
@@ -114,7 +114,7 @@ LOGSPLINE_N_GRID        = 1000      # per-axis fine grid for Z + CDF + MCMC
 # NUTS MCMC
 N_WARMUP        = 500                    # warmup (step-size + mass-matrix adapt)
 N_SAMPLES       = 3000                   # posterior draws per chain
-N_CHAINS        = 1                      # independent chains (1 if multiproc fails)
+N_CHAINS        = 4                      # independent chains (sequential loop; Windows-safe)
 MAX_TREE_DEPTH  = 7
 TARGET_ACCEPT   = 0.8
 
@@ -1532,13 +1532,11 @@ init_theta = torch.clamp(init_theta, prior_lo + eps, prior_hi - eps)
 
 # logit: z = log( (theta - lo) / (hi - theta) )
 theta_01 = (init_theta - prior_lo) / (prior_hi - prior_lo)
-init_z = torch.log(theta_01 / (1.0 - theta_01))        # (N_CHAINS, ndim)
-if N_CHAINS == 1:
-    init_z = init_z.squeeze(0)                           # (ndim,) for 1 chain
+init_z_all = torch.log(theta_01 / (1.0 - theta_01))    # (N_CHAINS, ndim)
 
-# Verify initial potential is finite
+# Verify initial potential is finite (use chain-0 start)
 with torch.no_grad():
-    z_test = init_z if init_z.dim() == 1 else init_z[0]
+    z_test = init_z_all[0]
     pe0 = potential_fn({"theta": z_test})
     print(f"  Initial potential energy: {pe0.item():.4f}")
     assert torch.isfinite(pe0), f"Initial PE is {pe0.item()}, check NROY start"
@@ -1551,50 +1549,78 @@ print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
       f"norm={grad_check.norm().item():.4f}")
 assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
-# ---------- NUTS kernel ----------
-nuts = NUTS(
-    potential_fn=potential_fn,
-    step_size=1e-3,
-    adapt_step_size=True,
-    adapt_mass_matrix=True,
-    max_tree_depth=MAX_TREE_DEPTH,
-    target_accept_prob=TARGET_ACCEPT,
-    jit_compile=False,
-)
-
-mcmc = MCMC(
-    nuts,
-    num_samples=N_SAMPLES,
-    warmup_steps=N_WARMUP,
-    num_chains=N_CHAINS,
-    initial_params={"theta": init_z},
-)
-
+# ---------- Sequential multi-chain NUTS ----------
+# Pyro's native parallel multi-chain uses multiprocessing.spawn, which on
+# Windows requires an `if __name__ == "__main__":` guard AND a picklable
+# potential_fn.  This script has neither (the potential_fn closes over
+# large torch-tensor caches), so we run chains sequentially instead.
+# Posterior samples, split-R-hat and ESS are identical to parallel chains;
+# only wall time is N_CHAINS x longer.
 print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
 print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
 print(f"  target_accept_prob = {TARGET_ACCEPT}")
-print("  Running NUTS...")
+print("  Running NUTS chains sequentially...")
 
-try:
-    mcmc.run()
-except Exception as nuts_err:
-    print(f"\n  NUTS failed: {nuts_err}")
-    print("  Falling back to HMC (no tree-building)...")
-    hmc = HMC(
+chain_samples_z  = []   # list of (N_SAMPLES, ndim) tensors
+chain_diag_list  = []   # per-chain diagnostics dicts
+chain_fell_back  = []   # which chains used HMC fallback
+
+for c in range(N_CHAINS):
+    print(f"\n  --- Chain {c + 1}/{N_CHAINS} ---")
+    pyro.set_rng_seed(RANDOM_SEED + c)
+    init_z_c = init_z_all[c].clone()
+
+    nuts_c = NUTS(
         potential_fn=potential_fn,
         step_size=1e-3,
         adapt_step_size=True,
-        num_steps=20,
+        adapt_mass_matrix=True,
+        max_tree_depth=MAX_TREE_DEPTH,
+        target_accept_prob=TARGET_ACCEPT,
         jit_compile=False,
     )
-    mcmc = MCMC(
-        hmc,
+    mcmc_c = MCMC(
+        nuts_c,
         num_samples=N_SAMPLES,
         warmup_steps=N_WARMUP,
         num_chains=1,
-        initial_params={"theta": init_z if init_z.dim() == 1 else init_z[0]},
+        initial_params={"theta": init_z_c},
     )
-    mcmc.run()
+
+    fell_back = False
+    try:
+        mcmc_c.run()
+    except Exception as nuts_err:
+        print(f"  chain {c}: NUTS failed ({nuts_err})")
+        print(f"  chain {c}: falling back to HMC")
+        hmc_c = HMC(
+            potential_fn=potential_fn,
+            step_size=1e-3,
+            adapt_step_size=True,
+            num_steps=20,
+            jit_compile=False,
+        )
+        mcmc_c = MCMC(
+            hmc_c,
+            num_samples=N_SAMPLES,
+            warmup_steps=N_WARMUP,
+            num_chains=1,
+            initial_params={"theta": init_z_c},
+        )
+        mcmc_c.run()
+        fell_back = True
+
+    chain_samples_z.append(mcmc_c.get_samples()["theta"])   # (N_SAMPLES, ndim)
+    try:
+        chain_diag_list.append(mcmc_c.diagnostics())
+    except Exception as diag_err:
+        print(f"  chain {c}: diagnostics() failed: {diag_err}")
+        chain_diag_list.append({})
+    chain_fell_back.append(fell_back)
+
+# Stack into (C, N, d); keep last MCMC object for any residual references.
+z_chains = torch.stack(chain_samples_z, dim=0)
+mcmc = mcmc_c
 
 # ============================================================
 # 5. DIAGNOSTICS
@@ -1604,14 +1630,11 @@ print("STEP 5 -- MCMC diagnostics")
 print("=" * 60)
 
 # Samples are in unconstrained space — transform back to [lo, hi]
-posterior_z = mcmc.get_samples(group_by_chain=False)["theta"]   # (N, ndim)
+posterior_z = z_chains.reshape(-1, z_chains.shape[-1])          # (C*N, ndim)
 posterior = prior_lo + torch.sigmoid(posterior_z) * (prior_hi - prior_lo)
 posterior_np = posterior.detach().cpu().numpy()
 
-posterior_chains = None
-if N_CHAINS > 1:
-    z_chains = mcmc.get_samples(group_by_chain=True)["theta"]  # (C, N, ndim)
-    posterior_chains = prior_lo + torch.sigmoid(z_chains) * (prior_hi - prior_lo)
+posterior_chains = prior_lo + torch.sigmoid(z_chains) * (prior_hi - prior_lo)  # (C, N, ndim)
 
 post_mean   = posterior_np.mean(axis=0)
 post_std    = posterior_np.std(axis=0)
@@ -1706,28 +1729,49 @@ np.save(os.path.join(out_dir, "pred_check_matrix.npy"), pred_matrix)
 # ---- Additional saves for robust MCMC analysis ----
 
 # 1. Per-chain samples in constrained space (for R-hat / split-R-hat).
-z_chains_all = mcmc.get_samples(group_by_chain=True)["theta"]          # (C, N, d)
-posterior_chains_np = (prior_lo + torch.sigmoid(z_chains_all)
-                       * (prior_hi - prior_lo)).detach().cpu().numpy()
+posterior_chains_np = posterior_chains.detach().cpu().numpy()          # (C, N, d)
 np.save(os.path.join(out_dir, "posterior_chains.npy"), posterior_chains_np)
+np.save(os.path.join(out_dir, "posterior_chains_z.npy"),
+        z_chains.detach().cpu().numpy())
 
 # 2. Unconstrained samples (for warm-starting or geometry diagnostics).
 np.save(os.path.join(out_dir, "posterior_z.npy"),
         posterior_z.detach().cpu().numpy())
 
-# 3. Pyro MCMC diagnostics: step size, divergences, n_eff, r_hat, etc.
+# 3. Pyro MCMC diagnostics: per-chain Pyro output + proper split-R-hat / ESS.
+#    Split-R-hat needs >=2 chains, so we compute it from z_chains directly
+#    rather than relying on the single-chain mcmc_c.diagnostics() which
+#    reports r_hat=NaN per chain.
+def _jsonify(v):
+    if isinstance(v, dict):
+        return {k: _jsonify(x) for k, x in v.items()}
+    if hasattr(v, "tolist"):
+        return v.tolist()
+    if isinstance(v, (list, tuple)):
+        return [_jsonify(x) for x in v]
+    return v
+
+diag_out = {
+    "per_chain": [_jsonify(d) for d in chain_diag_list],
+    "chain_fell_back_to_hmc": chain_fell_back,
+}
 try:
-    diag = mcmc.diagnostics()
-    def _jsonify(v):
-        if isinstance(v, dict):
-            return {k: _jsonify(x) for k, x in v.items()}
-        if hasattr(v, "tolist"):
-            return v.tolist()
-        if isinstance(v, (list, tuple)):
-            return [_jsonify(x) for x in v]
-        return v
+    from pyro.ops.stats import split_gelman_rubin, effective_sample_size
+    # z_chains: (C, N, d) with chain_dim=0, sample_dim=1
+    r_hat_z = split_gelman_rubin(z_chains)        # (d,)
+    n_eff_z = effective_sample_size(z_chains)     # (d,)
+    diag_out["split_r_hat_z"] = r_hat_z.tolist()
+    diag_out["n_eff_z"]       = n_eff_z.tolist()
+    diag_out["r_hat_max"]     = float(r_hat_z.max().item())
+    diag_out["n_eff_min"]     = float(n_eff_z.min().item())
+    print(f"  max split-R-hat (unconstrained): {r_hat_z.max().item():.4f}")
+    print(f"  min ESS (unconstrained):         {n_eff_z.min().item():.1f}")
+except Exception as e:
+    print(f"  WARN: could not compute split-R-hat / ESS: {e}")
+
+try:
     with open(os.path.join(out_dir, "mcmc_diagnostics.json"), "w") as f:
-        json.dump(_jsonify(diag), f, indent=2, default=str)
+        json.dump(diag_out, f, indent=2, default=str)
 except Exception as e:
     print(f"  WARN: could not save mcmc_diagnostics.json: {e}")
 
