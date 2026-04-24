@@ -8,9 +8,8 @@ from multiprocessing import resource_tracker
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-# from History_matching_function_new import HistoryMatchingWorkflow
 from History_matching_function_exercise import HistoryMatchingWorkflow
-from AutoEmulate_Simulator import Cardiopulmonary
+from AutoEmulate_Simulator_Exercise import Cardiopulmonary
 
 # ----------------------------
 # SETTINGS
@@ -44,13 +43,14 @@ sp = ProblemSpec({
         "C_amv", "C_bv", "C_ev", "C_hv",
         "C_rmv", "C_sv", "kr_am", "P_0",
         "R_amv_n", "R_bv_n", "R_ev_n", "R_hv_n",
-        "R_rmv_n", "R_sv_n", "K1_vc",
+        "R_rmv_n", "R_sv_n", "K1_vc", "D1",
+        "Vvc_min", "Kr_vc",
         "Rvc_n", "C_pa", "C_pp",
         "C_pv", "L_pa", "R_pa", "R_pp",
         "R_pv", "Emax_la", "P0_la", "Emax_ra",
         "P0_ra", "KE_la", "KE_ra", "P0_lv",
-        "P0_rv", # "g_thor", "P_thormax_n", "P_thormin_n",
-        "VT_n", "s",
+        "P0_rv",
+        "s",
         # cardio control
         "fab_o", "fes_o", "fes_inf", "fes_max",
         "fev_o", "fev_inf", "kes", "kev",
@@ -72,7 +72,7 @@ sp = ProblemSpec({
         "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
         "theta_spn", "theta_svn", "x_sh", "x_sp",
         "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min",
-        "k_ab", "P_n", "P_n_max","f_acCO2_n",
+        "k_ab", "P_n", "P_n_max", "f_acCO2_n",
         "f_ac_max", "f_ac_min", "k_ac", "K_H",
         "PaO2_ac_n", "G_ap", "GT_s", "GT_v",
         "T0", "A", "B", "C",
@@ -94,7 +94,6 @@ sp = ProblemSpec({
         "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
         "Vu_ra", "Vu_rv",
 
-        # "V_tot",
         "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
         "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
         "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -118,118 +117,298 @@ sp = ProblemSpec({
     ],
 
     'bounds': [
-        # gas
-        [0.03255 * lower, 0.03255 * upper], [95.352875 * lower, 95.352875 * upper], [219.87923 * lower, 219.87923 * upper], [1.478863 * lower, 1.478863 * upper],
-        [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
-        # resp control
-        [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
-        [0.1475378 * lower, 0.1475378 * upper], [0.0673 * lower, 0.0673 * upper],
-        [23.443241 * 0.8, 23.443241 * 1.2], [2.5542483 * 0.8, 2.5542483 * 1.2],
-        # cardio
-        [4.1222 * lower, 4.1222 * upper], [0.23145378 * lower, 0.23145378 * upper], [0.00022 * lower, 0.00022 * upper], [0.052346922 * lower, 0.052346922 * upper],
-        [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
-        [6.28 * lower, 6.28 * upper], [71.67763 * lower, 71.67763 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
-        [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
-        [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
-        [0.0025 * lower, 0.0025 * upper], [0.858606 * lower, 0.858606 * upper], [5.8 * lower, 5.8 * upper],
-        [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.018694889 * lower, 0.018694889 * upper], [0.07217374 * lower, 0.07217374 * upper],
-        [0.0056 * lower, 0.0056 * upper], [0.44709387 * lower, 0.44709387 * upper], [0.48517895 * lower, 0.48517895 * upper], [0.45 * lower, 0.45 * upper],
-        [0.45 * lower, 0.45 * upper], [0.050607458 * lower, 0.050607458 * upper], [0.050639037 * lower, 0.050639037 * upper], [1.2157186 * lower, 1.2157186 * upper],
-        [1.4471314 * lower, 1.4471314 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
-        [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
-        # cardio control
-        [27.367292 * lower, 27.367292 * upper], [18.058544 * lower, 18.058544 * upper], [2.29108 * lower, 2.29108 * upper], [80 * lower, 80 * upper],
-        [3.1820138 * lower, 3.1820138 * upper], [6.7277966 * lower, 6.7277966 * upper], [0.056592535 * lower, 0.056592535 * upper], [7.06 * lower, 7.06 * upper],
-        [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.42316517 * lower, 0.42316517 * upper], [0.126 * lower, 0.126 * upper],
-        [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.103440516 * lower, 0.103440516 * upper], [0.0162 * lower, 0.0162 * upper],
-        [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper], [-0.037 * upper, -0.037 * lower],
-        [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower], [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower],
-        [-0.68 * upper, -0.68 * lower], [-1.9959266 * upper, -1.9959266 * lower], [-0.936753 * upper, -0.936753 * lower], [-1.265388 * upper, -1.265388 * lower],
-        [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper], [0.2 * lower, 0.2 * upper],
-        [-0.3997 * upper, -0.3997 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower],
-        [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-        [2.64079 * lower, 2.64079 * upper], [1.1812366 * lower, 1.1812366 * upper], [2.6832807 * lower, 2.6832807 * upper], [0.475 * lower, 0.475 * upper],
-        [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper], [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper],
-        [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
-        [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
-        #
-        [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
-        [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
-        [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
-        [13.32 * lower, 13.32 * upper], [14.818589 * lower, 14.818589 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
-        [6 * lower, 6 * upper], [44.497673 * lower, 44.497673 * upper], [56.017685 * lower, 56.017685 * upper], [2.52 * lower, 2.52 * upper],
-        [13.191743 * lower, 13.191743 * upper], [78.366745 * lower, 78.366745 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
-        [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
-        [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13487929 * upper, -0.13487929 * lower], [0.096727274 * lower, 0.096727274 * upper],
-        [0.65129995 * lower, 0.65129995 * upper],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
-        [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.94312525 * lower, 0.94312525 * upper],
-        [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
-        [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
-        [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper], [0.17130482 * lower, 0.17130482 * upper],
-        [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.49281165 * lower, 0.49281165 * upper], [0.1454013 * lower, 0.1454013 * upper],
-        [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
-        # added params
-        [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-        [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5854855 * lower, 3.5854855 * upper], [1.309 * lower, 1.309 * upper],
-        [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-        [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
-        [0.0000317 * lower, 0.0000317 * upper], [410.5057 * lower, 410.5057 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
-        [350 * lower, 350 * upper], [0.0015954844 * lower, 0.0015954844 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
-        [104 * lower, 104 * upper], [252.03343 * lower, 252.03343 * upper], [93.16 * lower, 93.16 * upper],
-        [571.8116 * lower, 571.8116 * upper], [123 * lower, 123 * upper],
-        [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [51.687237 * lower, 51.687237 * upper], [14.495223 * lower, 14.495223 * upper],
-        [80.43748 * lower, 80.43748 * upper], [45.325554 * lower, 45.325554 * upper],
-
-        # [5027.6 * 0.8, 5027.6 * 1.2],
-        [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
-        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
-        [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [254.12979 * lower, 254.12979 * upper],
-        [635.5291 * lower, 635.5291 * upper], [190.95 * lower, 190.95 * upper], [1344.4786 * lower, 1344.4786 * upper], [20 * lower, 20 * upper],
-        [30 * lower, 30 * upper], [2.076 * lower, 2.076 * upper], [0.8 * lower, 0.8 * upper], [2 * lower, 2 * upper],
-        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [1.5 * lower, 1.5 * upper], [20 * lower, 20 * upper],
-        [10 * lower, 10 * upper], [5 * lower, 5 * upper], [40 * lower, 40 * upper], [10 * lower, 10 * upper],
-        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
-        [2 * lower, 2 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [5 * lower, 5 * upper],
-        [5 * lower, 5 * upper], [5 * lower, 5 * upper], [2 * lower, 2 * upper], [0.2 * lower, 0.2 * upper],
-        [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.011977742 * lower, 0.011977742 * upper], [0.011158622 * lower, 0.011158622 * upper],
-        [0.1 * lower, 0.1 * upper], [0.2 * lower, 0.2 * upper], [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper],
-        [20 * lower, 20 * upper], [0.01 * lower, 0.01 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
-        [0.25 * lower, 0.25 * upper], [50 * lower, 50 * upper],
-
-        # further added params
-        [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
-        [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-        [0.040595327 * lower, 0.040595327 * upper], [0.17735814 * lower, 0.17735814 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.9 * 0.95, 0.9 * 1.05],
-        [0.0872665 * lower, 0.0872665 * upper], [1.1885242 * 0.85, 1.1885242 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [121.800674 * lower, 121.800674 * upper], [47.22817 * lower, 47.22817 * upper]]
+        [0.032569754878 * lower, 0.032569754878 * upper],  # beta2 [MAP]
+        [75.07418230369 * lower, 75.07418230369 * upper],  # C2 [MAP]
+        [167.144972777718 * lower, 167.144972777718 * upper],  # K2 [MAP]
+        [2.064005449204 * lower, 2.064005449204 * upper],  # a2 [MAP]
+        [0.05591 * lower, 0.05591 * upper],
+        [346000 * lower, 346000 * upper],
+        [0.1698 * lower, 0.1698 * upper],
+        [0.2332 * lower, 0.2332 * upper],
+        [1 * lower, 1 * upper],
+        [0.2025 * lower, 0.2025 * upper],
+        [0.00000000472 * lower, 0.00000000472 * upper],
+        [0.137907482418 * lower, 0.137907482418 * upper],  # V0_dead [MAP]
+        [0.0673 * lower, 0.0673 * upper],
+        [18.865464214162 * lower, 18.865464214162 * upper],  # E_rs [MAP]
+        [3.425655660867 * lower, 3.425655660867 * upper],  # R_rs [MAP]
+        [3.180597455363 * lower, 3.180597455363 * upper],  # C_jp [MAP]
+        [0.28 * lower, 0.28 * upper],
+        [0.00022 * lower, 0.00022 * upper],
+        [0.051839943263 * lower, 0.051839943263 * upper],  # R_sa [MAP]
+        [9.4 * lower, 9.4 * upper],
+        [10.71 * lower, 10.71 * upper],
+        [20 * lower, 20 * upper],
+        [3.57 * lower, 3.57 * upper],
+        [6.28 * lower, 6.28 * upper],
+        [53.340709006166 * lower, 53.340709006166 * upper],  # C_sv [MAP]
+        [24.17 * lower, 24.17 * upper],
+        [10 * lower, 10 * upper],
+        [0.0833 * lower, 0.0833 * upper],
+        [0.075 * lower, 0.075 * upper],
+        [0.04 * lower, 0.04 * upper],
+        [0.224 * lower, 0.224 * upper],
+        [0.125 * lower, 0.125 * upper],
+        [0.038 * lower, 0.038 * upper],
+        [0.15 * lower, 0.15 * upper],
+        [0.3855 * lower, 0.3855 * upper],
+        [50 * lower, 50 * upper],
+        [10000 * lower, 10000 * upper],
+        [0.021862201529 * lower, 0.021862201529 * upper],  # Rvc_n [MAP]
+        [0.76 * lower, 0.76 * upper],
+        [5.8 * lower, 5.8 * upper],
+        [25.37 * lower, 25.37 * upper],
+        [0.00018 * lower, 0.00018 * upper],
+        [0.019828017421 * lower, 0.019828017421 * upper],  # R_pa [MAP]
+        [0.076316866291 * lower, 0.076316866291 * upper],  # R_pp [MAP]
+        [0.0056 * lower, 0.0056 * upper],
+        [0.389267762687 * lower, 0.389267762687 * upper],  # Emax_la [MAP]
+        [0.504855552204 * lower, 0.504855552204 * upper],  # P0_la [MAP]
+        [0.382347744148 * lower, 0.382347744148 * upper],  # Emax_ra [MAP]
+        [0.387423247065 * lower, 0.387423247065 * upper],  # P0_ra [MAP]
+        [0.056375357675 * lower, 0.056375357675 * upper],  # KE_la [MAP]
+        [0.043179183322 * lower, 0.043179183322 * upper],  # KE_ra [MAP]
+        [1.50056676174 * lower, 1.50056676174 * upper],  # P0_lv [MAP]
+        [1.338495841285 * lower, 1.338495841285 * upper],  # P0_rv [MAP]
+        [0.04 * lower, 0.04 * upper],
+        [21.551737299718 * lower, 21.551737299718 * upper],  # fab_o [MAP]
+        [15.971069930971 * lower, 15.971069930971 * upper],  # fes_o [MAP]
+        [2.06580197715 * lower, 2.06580197715 * upper],  # fes_inf [MAP]
+        [80 * lower, 80 * upper],
+        [3.627818402509 * lower, 3.627818402509 * upper],  # fev_o [MAP]
+        [5.421471609934 * lower, 5.421471609934 * upper],  # fev_inf [MAP]
+        [0.065341862051 * lower, 0.065341862051 * upper],  # kes [MAP]
+        [7.06 * lower, 7.06 * upper],
+        [0.658 * lower, 0.658 * upper],
+        [0.65 * lower, 0.65 * upper],
+        [0.395105159176 * lower, 0.395105159176 * upper],  # Io_sv [MAP]
+        [0.126 * lower, 0.126 * upper],
+        [0.114 * lower, 0.114 * upper],
+        [0.13 * lower, 0.13 * upper],
+        [0.099698834039 * lower, 0.099698834039 * upper],  # kcc_sv [MAP]
+        [0.0162 * lower, 0.0162 * upper],
+        [9 * lower, 9 * upper],
+        [-0.0283 * upper, -0.0283 * lower],
+        [5.5 * lower, 5.5 * upper],
+        [-0.037 * upper, -0.037 * lower],
+        [64.9 * lower, 64.9 * upper],
+        [-0.437 * upper, -0.437 * lower],
+        [1.9 * lower, 1.9 * upper],
+        [-0.0008 * upper, -0.0008 * lower],
+        [-0.68 * upper, -0.68 * lower],
+        [-1.995254021212 * upper, -1.995254021212 * lower],  # Wb_sh [MAP]
+        [-1.1375 * upper, -1.1375 * lower],
+        [-0.981421145881 * upper, -0.981421145881 * lower],  # Wb_sv [MAP]
+        [1 * lower, 1 * upper],
+        [1.716 * lower, 1.716 * upper],
+        [1.716 * lower, 1.716 * upper],
+        [0.2 * lower, 0.2 * upper],
+        [-0.3997 * upper, -0.3997 * lower],
+        [-0.3997 * upper, -0.3997 * lower],
+        [-0.103 * upper, -0.103 * lower],
+        [0.4 * lower, 0.4 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [2.079377662633 * lower, 2.079377662633 * upper],  # Emax_lv0 [MAP]
+        [1.207199670036 * lower, 1.207199670036 * upper],  # Emax_rv0 [MAP]
+        [2.602033266982 * lower, 2.602033266982 * upper],  # fes_min [MAP]
+        [0.475 * lower, 0.475 * upper],
+        [0.282 * lower, 0.282 * upper],
+        [2.47 * lower, 2.47 * upper],
+        [1.94 * lower, 1.94 * upper],
+        [2.47 * lower, 2.47 * upper],
+        [0.695 * lower, 0.695 * upper],
+        [-58.29 * upper, -58.29 * lower],
+        [-74.21 * upper, -74.21 * lower],
+        [-58.29 * upper, -58.29 * lower],
+        [-265.4 * upper, -265.4 * lower],
+        [3.51 * lower, 3.51 * upper],
+        [1.655 * lower, 1.655 * upper],
+        [5.27 * lower, 5.27 * upper],
+        [2.49 * lower, 2.49 * upper],
+        [1 * lower, 1 * upper],
+        [1.5 * lower, 1.5 * upper],
+        [6 * lower, 6 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [45 * lower, 45 * upper],
+        [30 * lower, 30 * upper],
+        [30 * lower, 30 * upper],
+        [3.6 * lower, 3.6 * upper],
+        [13.32 * lower, 13.32 * upper],
+        [11.46674882662 * lower, 11.46674882662 * upper],  # theta_svn [MAP]
+        [53 * lower, 53 * upper],
+        [6 * lower, 6 * upper],
+        [6 * lower, 6 * upper],
+        [38.771561996394 * lower, 38.771561996394 * upper],  # PaCO2_n [MAP]
+        [41.210583308438 * lower, 41.210583308438 * upper],  # f_ab_max [MAP]
+        [2.52 * lower, 2.52 * upper],
+        [10.241696157506 * lower, 10.241696157506 * upper],  # k_ab [MAP]
+        [92.268364155564 * lower, 92.268364155564 * 1.05],  # P_n [MAP]
+        [112 * 0.9, 112 * upper],
+        [1.4 * lower, 1.4 * upper],
+        [12.3 * lower, 12.3 * upper],
+        [0.835 * lower, 0.835 * upper],
+        [29.27 * lower, 29.27 * upper],
+        [3 * lower, 3 * upper],
+        [45 * lower, 45 * upper],
+        [11.76 * lower, 11.76 * upper],
+        [-0.112245382259 * upper, -0.112245382259 * lower],  # GT_s [MAP]
+        [0.078282298884 * lower, 0.078282298884 * upper],  # GT_v [MAP]
+        [0.50742169344 * lower, 0.50742169344 * upper],  # T0 [MAP]
+        [20.9 * lower, 20.9 * upper],
+        [92.8 * lower, 92.8 * upper],
+        [10570 * lower, 10570 * upper],
+        [-5.251 * upper, -5.251 * lower],
+        [0.14 * lower, 0.14 * upper],
+        [10 * lower, 10 * upper],
+        [1.043348622918 * lower, 1.043348622918 * upper],  # MO2_bp [MAP]
+        [6.57 * lower, 6.57 * upper],
+        [0.11 * lower, 0.11 * upper],
+        [0.155 * lower, 0.155 * upper],
+        [35 * lower, 35 * upper],
+        [30 * lower, 30 * upper],
+        [11.11 * lower, 11.11 * upper],
+        [142.8 * lower, 142.8 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [0.86 * lower, 0.86 * upper],
+        [19.71 * lower, 19.71 * upper],
+        [12660 * lower, 12660 * upper],
+        [0.133448870752 * lower, 0.133448870752 * upper],  # Cvam_O2_n [MAP]
+        [30 * lower, 30 * upper],
+        [40 * lower, 40 * upper],
+        [0.399026272887 * lower, 0.399026272887 * upper],  # Io_met [MAP]
+        [0.156823424904 * lower, 0.156823424904 * upper],  # kmet [MAP]
+        [0.516 * lower, 0.516 * upper],
+        [20 * lower, 20 * upper],
+        [-1.87 * upper, -1.87 * lower],
+        [1000 * lower, 1000 * upper],
+        [5000 * lower, 5000 * upper],
+        [2 * lower, 2 * upper],
+        [7 * lower, 7 * upper],
+        [1.309 * lower, 1.309 * upper],
+        [1200 * lower, 1200 * upper],
+        [200 * lower, 200 * upper],
+        [2 * lower, 2 * upper],
+        [3.034085813966 * lower, 3.034085813966 * upper],  # Kv_mi [MAP]
+        [1.309 * lower, 1.309 * upper],
+        [2000 * lower, 2000 * upper],
+        [2000 * lower, 2000 * upper],
+        [2 * lower, 2 * upper],
+        [6.059819855009 * lower, 6.059819855009 * upper],  # Kv_po [MAP]
+        [1.309 * lower, 1.309 * upper],
+        [2000 * lower, 2000 * upper],
+        [200 * lower, 200 * upper],
+        [2 * lower, 2 * upper],
+        [3.003002129452 * lower, 3.003002129452 * upper],  # Kv_tr [MAP]
+        [1.309 * lower, 1.309 * upper],
+        [0.0000317 * lower, 0.0000317 * upper],
+        [350 * lower, 350 * upper],
+        [400 * lower, 400 * upper],
+        [400 * lower, 400 * upper],
+        [350 * lower, 350 * upper],
+        [0.001510640109 * lower, 0.001510640109 * upper],  # C_O2_param1 [MAP]
+        [2.6 * lower, 2.6 * upper],
+        [0.0000303 * lower, 0.0000303 * upper],
+        [104 * lower, 104 * upper],
+        [242.392116675323 * lower, 242.392116675323 * upper],  # Vu_bv [MAP]
+        [93.16 * lower, 93.16 * upper],
+        [510.877098670281 * lower, 510.877098670281 * upper],  # Vu_jp [MAP]
+        [123 * lower, 123 * upper],
+        [116.68 * lower, 116.68 * upper],
+        [114 * lower, 114 * upper],
+        [26.609335699832 * lower, 26.609335699832 * upper],  # Vu_la [MAP]
+        [18.125484078127 * lower, 18.125484078127 * upper],  # Vu_lv [MAP]
+        [34.114134017235 * lower, 34.114134017235 * upper],  # Vu_ra [MAP]
+        [43.687753626913 * lower, 43.687753626913 * upper],  # Vu_rv [MAP]
+        [8 * lower, 8 * upper],
+        [8 * lower, 8 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper],
+        [246.112339205338 * lower, 246.112339205338 * upper],  # Vu_amv0 [MAP]
+        [546.87106973063 * lower, 546.87106973063 * upper],  # Vu_ev0 [MAP]
+        [190.95 * lower, 190.95 * upper],
+        [1202.05160085603 * lower, 1202.05160085603 * upper],  # Vu_sv0 [MAP]
+        [20 * lower, 20 * upper],
+        [30 * lower, 30 * upper],
+        [2.076 * lower, 2.076 * upper],
+        [0.8 * lower, 0.8 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [1.5 * lower, 1.5 * upper],
+        [20 * lower, 20 * upper],
+        [10 * lower, 10 * upper],
+        [5 * lower, 5 * upper],
+        [40 * lower, 40 * upper],
+        [10 * lower, 10 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper],
+        [2 * lower, 2 * upper],
+        [0.2 * lower, 0.2 * upper],
+        [4 * lower, 4 * upper],
+        [0.3 * lower, 0.3 * upper],
+        [0.012678051291 * lower, 0.012678051291 * upper],  # KE_lv [MAP]
+        [0.012526831858 * lower, 0.012526831858 * upper],  # KE_rv [MAP]
+        [0.1 * lower, 0.1 * upper],
+        [0.2 * lower, 0.2 * upper],
+        [3 * lower, 3 * upper],
+        [2.5 * lower, 2.5 * upper],
+        [20 * lower, 20 * upper],
+        [0.01 * lower, 0.01 * upper],
+        [50 * lower, 50 * upper],
+        [0.25 * lower, 0.25 * upper],
+        [0.25 * lower, 0.25 * upper],
+        [50 * lower, 50 * upper],
+        [4.9 * lower, 4.9 * upper],
+        [0.3 * lower, 0.3 * upper],
+        [26.6 * lower, 26.6 * upper],
+        [0.04 * lower, 0.04 * upper],
+        [80 * lower, 80 * upper],
+        [0.044588980624 * lower, 0.044588980624 * upper],  # rise_time_atr [MAP]
+        [0.338070928104 * lower, 0.338070928104 * upper],  # rise_time_ven [MAP]
+        [0.498317998504 * 0.85, 0.498317998504 * 1.15],  # fall_time_ven [MAP]
+        [0.903728113538 * 0.92, 0.903728113538 * 1.08],  # ahead1 [MAP]
+        [0.0873 * lower, 0.0873 * upper],
+        [1.175949527879 * 0.85, 1.175949527879 * 1.15],  # r [MAP]
+        [1.312192049544 * 0.85, 1.312192049544 * 1.15],  # l [MAP]
+        [136.066107675331 * lower, 136.066107675331 * upper],  # V_nominal [MAP]
+        [43.442083472162 * lower, 43.442083472162 * upper],  # V_scale [MAP]
+    ]
 })
 
-# # Rest: 64 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-# subset_vars = {'a2', 'C2', 'C_jp', 'C_O2_param1', 'C_pa', 'C_sa', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
-#                    'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o',
-#                    'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
-#                    'kmet', 'Kv_mi', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_po', 'R_pp',
-#                    'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'T0', 'theta_svn', 'V0_dead', 'V_nominal',
-#                    'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-#                    'Wb_sh', 'Wb_sp', 'Wb_sv'}
-
 # # Exercise: 65 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-subset_vars = {'C2', 'C_jp', 'C_O2_param1', 'C_pv', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
-               'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_o', 'fev_inf', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv',
-               'GR_amp', 'GT_s', 'GT_v', 'GV_dead', 'GV_sv', 'Io_met', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la',
-               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'P_n_max', 'PaCO2_n',
-               'phi_max', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven', 'T0', 'tauMR', 'V0_dead',
-               'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-               'Wp_v', 'Yv_max', 'r', 'l'}
+subset_vars = {'a2', 'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_pv', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
+               'fall_time_ven', 'fes_o', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GT_v', 'GV_dead',
+               'GV_sv', 'Io_sh', 'Io_sp', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp',
+               'P0_lv', 'P0_rv', 'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_bpn', 'R_pa', 'R_po', 'R_pp',
+               'R_rs', 'R_sa', 'rise_time_ven', 'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest',
+               'Vu_ev0', 'Vu_jp', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max'}
 
-subset_overlap = {'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_rv0', 'f_ab_max', 'fab_o',
-                  'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv',
-                  'kes', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa',
-                  'rise_time_ven', 'T0', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv',
-                  'Vu_ra', 'Vu_rv', 'Vu_sv0', 'r'}
+subset_overlap = {'a2','ahead1','C2','C_jp','C_O2_param1','C_sv','E_rs','Emax_lv0','Emax_rv0','fall_time_ven','fes_o',
+                  'fev_o','GT_s','GT_v','KE_la','KE_lv','KE_ra','KE_rv','kes','l','MO2_bp','P0_lv','P0_rv','PaCO2_n',
+                  'r','R_pa','R_pp','R_rs','R_sa','rise_time_ven','Rvc_n','T0','V0_dead','V_nominal','V_scale','Vu_ev0',
+                  'Vu_jp','Vu_lv','Vu_ra','Vu_rv','Vu_sv0'}
 
-subset_exercise_only = {'C_pv', 'Cvb_O2_n', 'fall_time_ven', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
-                        'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P0_ra', 'P_n_max', 'phi_max', 'R_amp0', 'tauMR', 'VA_rest', 'Wp_v',
-                        'Yv_max', 'l'}
+
+subset_exercise_only = {'C_pv','Cvb_O2_n','G_ap','GEmax_lv','GEmax_rv','GR_amp','GV_dead','GV_sv','Io_sh','Io_sp',
+                        'KcCO2','KcMRV','P_n_max','phi_max','R_amp0','R_bpn','R_po','tauMR','VA_rest','Wp_v','Yv_max'}
+
 
 # MUST SORT SO ITS THE SAME ORDER
 subset_vars = [name for name in sp["names"] if name in subset_vars]
@@ -264,40 +443,16 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # change (emulator for rest/exercise)
 Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
 
-
-# # # rest
-# observation = {"Heart Rate": (1.1, 0.1), "Systolic Pressure": (105, 5), "Diastolic Pressure": (70, 3), "EDV": (163, 23),
-# "ESV": (50, 10), "Max RV Volume": (186, 21), "Min RV Volume": (52, 9), "Max RV Pressure": (24, 2),
-# "Min RV Pressure": (2, 1), "Min RA Volume": (45, 15), "Max RA Volume": (93, 16),
-# "Max RA Pressure Atrial contraction": (7, 2), "Max RA Pressure Tricuspid Opening": (7, 2), "Min LA Volume": (45, 15),
-# "Max LA Volume": (72, 12),
-# "Max LA Pressure Atrial contraction": (7, 2),
-# "Max LA Pressure Mitral Opening": (7, 2), "LA Contraction Volume diff": (10, 2), "RA Contraction Volume diff": (10, 2),
-# "LV Pressure Deriv": (1600, 305), "RV Pressure Deriv": (500, 150), "Tidal Volume": (0.5, 0.1),
-# "Minute Ventilation": (6.5, 0.5), "PaO2": (95, 4.5), "PaCO2": (40, 2)}
-
-# # # Rest (second is variance, not standard deviation)
-# observation = {"Heart Rate": (1.1, 0.01), "Systolic Pressure": (105, 25), "Diastolic Pressure": (70, 9), "EDV": (163, 529),
-# "ESV": (50, 100), "Max RV Volume": (186, 441), "Min RV Volume": (52, 81), "Max RV Pressure": (24, 4),
-# "Min RV Pressure": (2, 1), "Min RA Volume": (45, 225), "Max RA Volume": (93, 256),
-# "Max RA Pressure Atrial contraction": (7, 4), "Max RA Pressure Tricuspid Opening": (7, 4), "Min LA Volume": (45, 225),
-# "Max LA Volume": (72, 144),
-# "Max LA Pressure Atrial contraction": (7, 4),
-# "Max LA Pressure Mitral Opening": (7, 4), "LA Contraction Volume diff": (10, 4), "RA Contraction Volume diff": (10, 4),
-# "LV Pressure Deriv": (1600, 93025), "RV Pressure Deriv": (500, 22500), "Tidal Volume": (0.5, 0.01),
-# "Minute Ventilation": (6.5, 0.25), "PaO2": (95, 20.25), "PaCO2": (40, 4)}
-
 # # Exercise (second is variance, not standard deviation)
-observation = {"Heart Rate": (2.7, 0.04), "Systolic Pressure": (180, 400), "Diastolic Pressure": (72, 25), "EDV": (180, 625),
-"ESV": (30, 100), "Max RV Volume": (200, 625), "Min RV Volume": (35, 100), "Max RV Pressure": (40, 25),
-"Min RV Pressure": (5, 4), "Min RA Volume": (35, 100), "Max RA Volume": (85, 225),
-"Max RA Pressure Atrial contraction": (9, 4), "Max RA Pressure Tricuspid Opening": (9, 4), "Min LA Volume": (35, 100),
-"Max LA Volume": (80, 225),
-"Max LA Pressure Atrial contraction": (12, 9),
-"Max LA Pressure Mitral Opening": (12, 9), "LA Contraction Volume diff": (15, 9), "RA Contraction Volume diff": (15, 9),
-"LV Pressure Deriv": (3000, 250000), "RV Pressure Deriv": (1000, 40000), "Tidal Volume": (2.2, 0.16),
-"Minute Ventilation": (70, 225), "PaO2": (100, 25), "PaCO2": (36, 9)}
-
+observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Diastolic Pressure": (76.4, 82.81),
+"EDV": (145.5, 681.21), "ESV": (45.5, 75.69), "Max RV Volume": (139.4, 681.21), "Min RV Volume": (40.3, 112.36),
+"Max RV Pressure": (29.5, 56.25), "Min RV Pressure": (9.9, 31.36), "Min RA Volume": (27.9, 25.0),
+"Max RA Volume": (77.3, 342.25), "Max RA Pressure Atrial contraction": (12, 16),
+"Max RA Pressure Tricuspid Opening": (11, 16), "Min LA Volume": (23.0, 94.09), "Max LA Volume": (66.3, 388.09),
+"Max LA Pressure Atrial contraction": (19, 49), "Max LA Pressure Mitral Opening": (19, 64),
+"LA Contraction Volume diff": (33.8, 81.0), "RA Contraction Volume diff": (40.3, 36.0),
+"LV Pressure Deriv": (1750, 272484), "RV Pressure Deriv": (713, 12100), "Tidal Volume": (2220, 409600),
+"Minute Ventilation": (62.6, 320.41), "PaO2": (97.2, 36.0), "PaCO2": (38.4, 6.76)}
 
 # ----------------------------
 # BAYESIAN CALIBRATION
@@ -305,12 +460,12 @@ observation = {"Heart Rate": (2.7, 0.04), "Systolic Pressure": (180, 400), "Dias
 if __name__ == "__main__":
 
     # # nroy_samples_rest.pt rows are the same as in NROY_Points_rest_20.npy
-    # AAA = np.load("NROY_Points_rest_20.npy")
-    # AAAA = np.load("NROY_Implaus_rest_20.npy")
-    # AAAAA = np.load("test_param_rest_20.npy")
+    # AAA = np.load("Calibration_Exercise_New/NROY_Points_exercise_50.npy")
+    # AAAA = np.load("Calibration_Exercise_New/NROY_Implaus_exercise_50.npy")
+    # AAAAA = np.load("Calibration_Exercise_New/test_param_exercise_50.npy")
     # #
     # # # # Filter A and AA
-    # mask = np.all(AAAA < 2.6, axis=1)
+    # mask = np.all(AAAA < 2.75, axis=1)
     # AAAA_filtered = AAAA[mask]
     # AAAAA_filtered = AAAAA[mask]
     # index_for_sort = np.argsort(-AAAA_filtered, axis=1)
@@ -319,14 +474,14 @@ if __name__ == "__main__":
     # implausibility_sorted_by_col0 = I_sorted[row_idx]
     # index_of_implausibility_sorted_by_col0 = index_for_sort[row_idx]
     # samples = AAAAA_filtered[row_idx]
-    # #
-    # # mask2 = AA_filtered[:, 7] < 2
-    # # AA_filtered1  = AA_filtered[mask2]
-    # # AAA_filtered1 = AAA_filtered[mask2]
-    # #
+    #
+    # mask2 = AA_filtered[:, 7] < 2
+    # AA_filtered1  = AA_filtered[mask2]
+    # AAA_filtered1 = AAA_filtered[mask2]
+    #
     # param_keys = list(sp["names"])
     # param_samples = [dict(zip(param_keys, row)) for row in samples]
-    # print(param_samples[-1])
+    # print(param_samples[-50])
 
 
     hmw = HistoryMatchingWorkflow(
@@ -334,7 +489,7 @@ if __name__ == "__main__":
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=6,
+        threshold=3,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
@@ -344,10 +499,10 @@ if __name__ == "__main__":
     )
 
     # --- PRE-WAVE: Train initial emulators from hybrid samples ---
-    hmw.pre_wave_train_emulators(n_simulations=2048, refit_on_all_data=False)
+    hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
 
     size = 200000
-    _ = hmw.run_waves(n_waves=10, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=3, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
@@ -365,29 +520,5 @@ if __name__ == "__main__":
     np.save(f"NROY_Implaus_exercise_{percent}.npy", impl_scores)
     np.save(f"test_param_exercise_{percent}.npy", test_parameters)
 
-
-    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_{percent}.png")
     print(len(hmw.wave_results)-1)
-    hmw.plot_wave((len(hmw.wave_results)-2), fname=f"{size}_wave_{(len(hmw.wave_results)-2)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-3), fname=f"{size}_wave_{(len(hmw.wave_results)-3)}_{percent}.png")
-    hmw.plot_wave((len(hmw.wave_results)-4), fname=f"{size}_wave_{(len(hmw.wave_results)-4)}_{percent}.png")
-    # hmw.plot_wave((len(hmw.wave_results)-5), fname=f"{size}_wave_{(len(hmw.wave_results)-5)}_{percent}.png")
-
-
-
-
-
-
-    #
-    # model_post_hm = hmw.emulator  # Use the emulator from history matching
-    # parameter_range = {k: v for k, v in params_post_hm.items() if k in subset_vars}
-    #
-    # bc = BayesianCalibration(
-    #     emulator=model_post_hm,
-    #     parameter_range=parameter_range,
-    #     observations={k: torch.tensor(v[0]) for k, v in observation.items()},
-    #     # take account of the emulator uncertainty
-    #     model_uncertainty=True,
-    #     # specify observation noise as variance
-    #     observation_noise={k: v[1] ** 2 for k, v in observation.items()}
-    # )
+    hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_{percent}.png")

@@ -788,7 +788,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             print(f"  Saved diagnostic plot: {fname}")
 
 
-    def pre_wave_train_emulators(self, n_simulations: int = 2048, refit_on_all_data: bool = False) -> None:
+    def pre_wave_train_emulators(self, n_simulations: int = 4096, refit_on_all_data: bool = False) -> None:
         """
         Pre-wave step: generate hybrid samples, run them through the simulator,
         train one emulator per output, and save them to Emulator_exercise/.
@@ -842,6 +842,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(self.emulator, path1)
             print(f"  Saved to {path1}")
+
+        # torch.save(x, "X_train.pt")
+        # torch.save(y, "Y_train.pt")
 
         print("=" * 60)
         print("PRE-WAVE: All emulators trained and saved to Emulator_exercise/")
@@ -955,16 +958,19 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # variances = {}
         #
         # for name in output_names:
-        #     if self.nroy_samples is None:
-        #         target_emulator = models[name].model
-        #     else:
-        #         target_emulator = models[name]
-        #
-        #     means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
+        #     target_emulator = models[name]
+        #     with torch.no_grad():
+        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
+        #             test_x[:, self.parameter_idx]
+        #         )
 
         n_jobs = len(output_names)
+
         def predict_one_output(name, X):
-            target_emulator = models[name]
+            if use_raw_model:
+                target_emulator = models[name].model
+            else:
+                target_emulator = models[name]
 
             mean, var = target_emulator.predict_mean_and_variance(X)
             return name, mean, var
@@ -1054,8 +1060,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x[row_mask]
         y = y[row_mask]
 
-        self.train_y = torch.cat([self.train_y, y], dim=0)
-        self.train_x = torch.cat([self.train_x, x], dim=0)
+        # self.train_y = torch.cat([self.train_y, y], dim=0)
+        # self.train_x = torch.cat([self.train_x, x], dim=0)
+        self.train_y = y
+        self.train_x = x
 
         return x, y
 
@@ -1262,7 +1270,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             if refit_emulator:
                 # data_msg = "all data" if refit_on_all_data else "most recent data"
                 # msg = f"Refitting emulator on {data_msg}."
-                logger.info(msg)
+                # logger.info(msg)
                 if refit_on_all_data:
                     X_fit = self.train_x
                     Y_fit = self.train_y[:, j:j+1]
@@ -1277,6 +1285,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(self.emulator, path1)
+
+        # torch.save(x, f"X_train_wave_{(len(self.wave_results) - 1)}_exercise_.pt")
+        # torch.save(y, f"Y_train_wave_{(len(self.wave_results) - 1)}_exercise_.pt")
 
         # Return test parameters and impl scores for this run/wave
         return torch.cat(test_parameters_list, 0), torch.cat(impl_scores_list, 0)
@@ -1341,26 +1352,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         self.wave_results = []
         for i in range(start_i, n_waves):
-            if i == 1 or i == 2:
-                self.threshold = 5
-            if i == 3:
-                self.threshold = 4.5
-            if i == 4:
-                self.threshold = 4
-                # n_simulations = 2048
-            if i == 5:
-                self.threshold = 3.5
-                # n_simulations = 1024
-            if i == 6:
-                self.threshold = 3.3
-                # n_simulations = 1024
-            if i == 7:
-                self.threshold = 3.15
-                # n_simulations = 1024
-            if i == 8:
-                self.threshold = 3.0
-            if i == 9:
-                self.threshold = 2.8
+            if i == 1:
+                self.threshold = 3
+            if i == 2:
+                self.threshold = 3
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
