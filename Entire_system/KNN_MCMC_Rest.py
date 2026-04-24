@@ -290,6 +290,29 @@ def _matern32_cross(x_t, X_train, lengthscale, outputscale):
     return outputscale.unsqueeze(-1) * (1.0 + SQRT3 * r) * torch.exp(-SQRT3 * r)
 
 
+def _matern32_cross_fast(x_t, X_train_scaled, X_train_scaled_norm2,
+                         lengthscale, outputscale):
+    """Same as _matern32_cross, but uses the identity
+        ||a - b||^2 = ||a||^2 + ||b||^2 - 2 a.b
+    to avoid materialising an (n_out, n, d) intermediate tensor.
+
+    X_train_scaled:       (n_out, n, d) — X_train / lengthscale[i], precomputed
+    X_train_scaled_norm2: (n_out, n)    — ||X_train / lengthscale[i]||^2, precomputed
+
+    The cross term is a BLAS-accelerated batched matvec (einsum), and the
+    squared-norm reduction happens on (n_out, n) instead of (n_out, n, d).
+    Gradient flows through x_t exactly as before.
+    """
+    x_scaled = x_t.unsqueeze(0) / lengthscale                       # (n_out, d)
+    x_norm2  = (x_scaled ** 2).sum(dim=-1)                          # (n_out,)
+    # cross[i, n] = <x_scaled[i], X_train_scaled[i, n]>
+    cross = torch.einsum('od,ond->on', x_scaled, X_train_scaled)    # (n_out, n)
+    r_sq = (x_norm2.unsqueeze(-1) + X_train_scaled_norm2
+            - 2.0 * cross).clamp_min(1e-30)
+    r = torch.sqrt(r_sq)                                            # (n_out, n)
+    return outputscale.unsqueeze(-1) * (1.0 + SQRT3 * r) * torch.exp(-SQRT3 * r)
+
+
 def build_batched_fast_caches(emulators, output_names, gp_caches):
     """Extract hyperparameters, stack across outputs, precompute L and alpha.
 
@@ -376,12 +399,21 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
         (y_train - mean_const.unsqueeze(-1)).unsqueeze(-1), L
     ).squeeze(-1)                                                        # (n_out, n)
 
+    # Per-test-step speedup: cache the scaled training inputs and their
+    # squared norms so _matern32_cross_fast can compute
+    # ||x/ls - X/ls||^2 = ||x/ls||^2 + ||X/ls||^2 - 2 <x/ls, X/ls>
+    # without allocating an (n_out, n, d) difference tensor every NUTS step.
+    X_train_scaled       = X_scaled.contiguous()                         # (n_out, n, d)
+    X_train_scaled_norm2 = (X_train_scaled ** 2).sum(dim=-1)             # (n_out, n)
+
     return {
         "X_train": X_train, "lengthscale": lengthscale,
         "outputscale": outputscale, "mean_const": mean_const,
         "L": L, "alpha": alpha,
         "x_mean": x_mean, "x_std": x_std,
         "y_mean": y_mean, "y_std": y_std,
+        "X_train_scaled": X_train_scaled,
+        "X_train_scaled_norm2": X_train_scaled_norm2,
     }
 
 
@@ -686,6 +718,9 @@ def fit_logspline_copula(data_np, prior_lower, prior_upper,
         "L_R":            torch.tensor(L_R,        dtype=torch.float32),  # (d, d)
         "half_logdet_R":  torch.tensor(half_logdet_R, dtype=torch.float32),
         "F_eps":          torch.tensor(float(f_eps), dtype=torch.float32),
+        # Per-axis gather indices. Cached once so the NUTS inner loop does
+        # not recreate it from scratch every call to _logspline_copula_log_prob.
+        "arange_d":       torch.arange(d, dtype=torch.long),
         # numpy diagnostics
         "R_eig_min":      float(eigvals.min()),
         "R_eig_max":      float(eigvals.max()),
@@ -737,7 +772,7 @@ def _logspline_copula_log_prob(theta, cop):
     idx_lo = idx_hi - 1
 
     # Gather per-axis bin edges and grid values.
-    arange_d = torch.arange(d, device=x_grid.device)
+    arange_d = cop["arange_d"]
     x_lo = x_grid[arange_d, idx_lo]
     x_hi = x_grid[arange_d, idx_hi]
     f_lo = f_grid[arange_d, idx_lo]
@@ -885,16 +920,17 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
     """
     log_width = torch.log(prior_hi - prior_lo)
 
-    X_train     = bc["X_train"]
-    lengthscale = bc["lengthscale"]
-    outputscale = bc["outputscale"]
-    mean_const  = bc["mean_const"]
-    L           = bc["L"]
-    alpha       = bc["alpha"]
-    x_mean      = bc["x_mean"]
-    x_std       = bc["x_std"]
-    y_mean      = bc["y_mean"]
-    y_std       = bc["y_std"]
+    lengthscale          = bc["lengthscale"]
+    outputscale          = bc["outputscale"]
+    mean_const           = bc["mean_const"]
+    L                    = bc["L"]
+    alpha                = bc["alpha"]
+    x_mean               = bc["x_mean"]
+    x_std                = bc["x_std"]
+    y_mean               = bc["y_mean"]
+    y_std                = bc["y_std"]
+    X_train_scaled       = bc["X_train_scaled"]
+    X_train_scaled_norm2 = bc["X_train_scaled_norm2"]
 
     def _potential(z_dict):
         z = z_dict["theta"]
@@ -917,13 +953,21 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
 
         x_t = (theta - x_mean) / x_std                                   # (d,)
 
-        k_star = _matern32_cross(x_t, X_train, lengthscale, outputscale)  # (n_out, n)
+        k_star = _matern32_cross_fast(
+            x_t, X_train_scaled, X_train_scaled_norm2,
+            lengthscale, outputscale,
+        )                                                                # (n_out, n)
 
         mu_latent = mean_const + (k_star * alpha).sum(dim=-1)            # (n_out,)
 
-        # v = K^{-1} k_star  via one batched triangular solve
-        v = torch.cholesky_solve(k_star.unsqueeze(-1), L).squeeze(-1)    # (n_out, n)
-        var_latent = (outputscale - (k_star * v).sum(dim=-1)).clamp(min=1e-10)
+        # var_latent[i] = outputscale[i] - k*_i^T K_i^{-1} k*_i
+        #              = outputscale[i] - ||L_i^{-1} k*_i||^2
+        # One batched forward-substitution replaces the two tri-solves of
+        # cholesky_solve, and we never materialise v = K^{-1} k*.
+        w = torch.linalg.solve_triangular(
+            L, k_star.unsqueeze(-1), upper=False,
+        ).squeeze(-1)                                                    # (n_out, n)
+        var_latent = (outputscale - (w ** 2).sum(dim=-1)).clamp(min=1e-10)
 
         mus   = mu_latent * y_std + y_mean                               # (n_out,)
         vars_ = var_latent * y_std ** 2                                  # (n_out,)
