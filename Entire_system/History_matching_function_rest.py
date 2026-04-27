@@ -254,24 +254,71 @@ class HistoryMatching(TorchDeviceMixin):
         TensorLike
             Tensor of implausibility scores.
         """
+        adjusted_pred_means, adjusted_pred_vars = (
+            self._transform_atrial_contraction_outputs(pred_means, pred_vars)
+        )
+
         # Additional variance due to model discrepancy (defaults to 0)
         discrepancy = torch.full_like(
             self.obs_vars, self.discrepancy, device=self.device
         )
         # obs_vars is the obs uncertainty, eg HR 1.1, std 0.1. Discrepancy is the uncertainty of the emulator prediction in that area
         # Calculate total variance
-        Vs = pred_vars + discrepancy + self.obs_vars
-
-        adjusted_pred_means = pred_means.clone()
-
-        la_den = adjusted_pred_means[:, 14] - adjusted_pred_means[:, 13]
-        ra_den = adjusted_pred_means[:, 10] - adjusted_pred_means[:, 9]
-
-        adjusted_pred_means[:, 17] = (adjusted_pred_means[:, 17] - adjusted_pred_means[:, 13]) / la_den
-        adjusted_pred_means[:, 18] = (adjusted_pred_means[:, 18] - adjusted_pred_means[:, 9]) / ra_den
+        Vs = adjusted_pred_vars + discrepancy + self.obs_vars
 
         # Calculate implausibility
         return torch.abs(self.obs_means - adjusted_pred_means) / torch.sqrt(Vs)
+
+    @staticmethod
+    def _safe_ratio_denominator(denominator: TensorLike, eps: float = 1e-8) -> TensorLike:
+        eps_tensor = torch.full_like(denominator, eps)
+        signed_eps = torch.where(denominator < 0, -eps_tensor, eps_tensor)
+        return torch.where(denominator.abs() < eps, signed_eps, denominator)
+
+    def _transform_atrial_contraction_outputs(
+        self,
+        pred_means: TensorLike,
+        pred_vars: TensorLike,
+    ) -> tuple[TensorLike, TensorLike]:
+        adjusted_pred_means = pred_means.clone()
+        adjusted_pred_vars = pred_vars.clone()
+
+        # Outputs 17/18 are emulated as the pre-atrial volume; history matching
+        # now compares the ratio of atrial-contraction volume to total filling.
+        # Propagate emulator variance with a first-order delta-method approximation.
+        la_min = pred_means[:, 13]
+        la_max = pred_means[:, 14]
+        la_pre = pred_means[:, 17]
+        la_den = self._safe_ratio_denominator(la_max - la_min)
+
+        adjusted_pred_means[:, 17] = (la_pre - la_min) / la_den
+
+        d_la_dmin = (la_pre - la_max) / (la_den ** 2)
+        d_la_dmax = -(la_pre - la_min) / (la_den ** 2)
+        d_la_dpre = 1.0 / la_den
+        adjusted_pred_vars[:, 17] = (
+            (d_la_dmin ** 2) * pred_vars[:, 13]
+            + (d_la_dmax ** 2) * pred_vars[:, 14]
+            + (d_la_dpre ** 2) * pred_vars[:, 17]
+        ).clamp(min=0.0)
+
+        ra_min = pred_means[:, 9]
+        ra_max = pred_means[:, 10]
+        ra_pre = pred_means[:, 18]
+        ra_den = self._safe_ratio_denominator(ra_max - ra_min)
+
+        adjusted_pred_means[:, 18] = (ra_pre - ra_min) / ra_den
+
+        d_ra_dmin = (ra_pre - ra_max) / (ra_den ** 2)
+        d_ra_dmax = -(ra_pre - ra_min) / (ra_den ** 2)
+        d_ra_dpre = 1.0 / ra_den
+        adjusted_pred_vars[:, 18] = (
+            (d_ra_dmin ** 2) * pred_vars[:, 9]
+            + (d_ra_dmax ** 2) * pred_vars[:, 10]
+            + (d_ra_dpre ** 2) * pred_vars[:, 18]
+        ).clamp(min=0.0)
+
+        return adjusted_pred_means, adjusted_pred_vars
 
     @staticmethod
     def generate_param_bounds(
@@ -676,11 +723,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
             test_x = self.simulator.sample_inputs(n).to(self.device)
             # +/-20 %
             parent = "Emulator_Paper_same_1000"
+            # parent = "Emulator_initial_V_tot"
             # # +/-50%
             # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
             parent = "Emulator_wave_1wave"
+            # parent = "Emulator_wave_V_tot"
 
         output_names = [
             "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -730,10 +779,14 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
+        adjusted_mean_tensor, adjusted_var_tensor = self._transform_atrial_contraction_outputs(
+            mean_tensor,
+            var_tensor,
+        )
 
         get_reusable_executor().shutdown(wait=True)
 
-        assert var_tensor is not None
+        assert adjusted_var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
 
         # Filter non-physiological emulator predictions before NROY selection:
@@ -744,17 +797,18 @@ class HistoryMatchingWorkflow(HistoryMatching):
         )
         test_x = test_x[phys_mask]
         mean_tensor = mean_tensor[phys_mask]
+        adjusted_mean_tensor = adjusted_mean_tensor[phys_mask]
         impl_scores = impl_scores[phys_mask]
 
         mask = self._create_nroy_mask(impl_scores)
 
         min_col_13 = mean_tensor[mask, 13].min()
-        min_col_17 = mean_tensor[mask, 17].min()
-        min_col_18 = mean_tensor[mask, 18].min()
+        min_col_17 = adjusted_mean_tensor[mask, 17].min()
+        min_col_18 = adjusted_mean_tensor[mask, 18].min()
 
         print("min mean_tensor[:,13] where impl_score < 3:", min_col_13.item())
-        print("min mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
-        print("min mean_tensor[:,18] where impl_score < 3:", min_col_18.item())
+        print("min adjusted mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
+        print("min adjusted mean_tensor[:,18] where impl_score < 3:", min_col_18.item())
 
         return test_x, impl_scores
 
@@ -1072,6 +1126,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             # save
             parent = os.path.join("Emulator_wave_1wave", target_name)
+            # parent = os.path.join("Emulator_wave_V_tot", target_name)
             os.makedirs(parent, exist_ok=True)
             joblib.dump(emulator, os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib"))
 
