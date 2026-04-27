@@ -453,7 +453,7 @@ def make_figure(
 
     # Panel A: global union discovery
     ax = axes[0]
-    ax.plot(block_grid, metrics["union_active_size"], color=blue, marker="o", label="Active union size")
+    ax.plot(block_grid, metrics["union_active_size"], color=blue, marker="o", label="Overall union size")
     ax.plot(
         block_grid,
         metrics["union_cumulative_size"],
@@ -551,8 +551,8 @@ def make_figure(
         f"Active plateau = {union_exact_blocks}",
     ]
     if union_relaxed_blocks is not None:
-        # extra_handles.append(plt.Line2D([0], [0], color=line_dark, linestyle="-.", linewidth=1.5))
-        extra_labels.append(f"Relaxed active plateau = {union_relaxed_blocks}")
+        extra_handles.append(plt.Line2D([0], [0], color=line_dark, linestyle="-.", linewidth=1.5))
+        extra_labels.append(f"Relaxed plateau = {union_relaxed_blocks}")
     ax.legend(
         handles1 + handles2 + extra_handles,
         labels1 + labels2 + extra_labels,

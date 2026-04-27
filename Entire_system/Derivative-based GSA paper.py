@@ -10,14 +10,19 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
+percentage = 20
 
 X = np.load('DGSM_500_X_rest_20_10_04.npy')
 Result = np.load('DGSM_500_Result_rest_20_10_04.npy')
 
-# Result = np.vstack([Result0, Result1, Result3, Result4])
-# np.save("DGSM_500_Result_rest_20_10_04.npy", Result)
-lower = 0.8
-upper = 1.2
+# X = np.load('DGSM_500_X_rest_50_14_04.npy')
+# Result = np.load('DGSM_500_Result_rest_50_14_04.npy')
+
+# Result = np.vstack([Result0, Result1, Result2, Result3])
+# np.save("DGSM_500_Result_rest_50_14_04.npy", Result)
+
+lower = 1 - percentage/100
+upper = 1 + percentage/100
 
 Stroke_Volume = Result[:, 3] - Result[:, 4]
 Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
@@ -79,7 +84,7 @@ mask_blocks_conv_tidal = np.array([
     for i in base_idx
 ])
 
-mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv & mask_blocks_std #& mask_blocks_conv_tidal#& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
+mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv & mask_blocks_std # & mask_blocks_conv_tidal#& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
 print(np.count_nonzero(mask_blocks))
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)
@@ -266,15 +271,25 @@ sp = ProblemSpec({
 })
 
 output_names = [
-    "Heart Rate", "Systolic Pressure", "Diastolic Pressure", "EDV", "ESV",
+    "Heart Rate", "LV Systolic Pressure", "LV Diastolic Pressure", "LV EDV", "LV ESV",
     "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
-    "Min RA Volume", "Max RA Volume", "Min RA Pressure A descent", "Max RA Pressure Atrial contraction",
-    "Max RA Pressure Tricuspid Opening", "Min RA Pressure V descent",
-    "Min LA Volume", "Max LA Volume", "Min LA Pressure A descent", "Max LA Pressure Atrial contraction",
-    "Max LA Pressure Mitral Opening", "Min LA Pressure V descent",
-    "LA Contraction Volume diff", "RA Contraction Volume diff", "LV Pressure Deriv", "RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
+    "Min RA Volume", "Max RA Volume", "Min RA Pressure A descent", "Max RA Pressure A Wave",
+    "Max RA Pressure V Wave", "Min RA Pressure V descent",
+    "Min LA Volume", "Max LA Volume", "Min LA Pressure A descent", "Max LA Pressure A Wave",
+    "Max LA Pressure V Wave", "Min LA Pressure V descent",
+    "LA Pre-Atrial Contraction Volume", "RA Pre-Atrial Contraction Volume", "Max LV Pressure Deriv", "Max RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
     "Cardiac Output", "PaO2", "PaCO2", "Percentage Volume Change",
     "Stroke Volume", "Ejection Fraction"]
+
+output_names_reduced = [
+    "Heart Rate", "LV Systolic Pressure", "LV Diastolic Pressure", "LV EDV", "LV ESV",
+    "Max RV Volume", "Min RV Volume", "Max RV Pressure", "Min RV Pressure",
+    "Min RA Volume", "Max RA Volume", "Max RA Pressure A Wave",
+    "Max RA Pressure V Wave",
+    "Min LA Volume", "Max LA Volume", "Max LA Pressure A Wave",
+    "Max LA Pressure V Wave",
+    "LA Pre-Atrial Contraction Volume", "RA Pre-Atrial Contraction Volume", "Max LV Pressure Deriv", "Max RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
+    "PaO2", "PaCO2"]
 
 
 
@@ -373,8 +388,9 @@ for j, out_name in enumerate(output_names):
 
 coverage = 0.9
 min_frac = 0.01   # at least 1% of original total
-n_cols = 7
-n_out = len(output_names)
+n_cols = 4
+plot_output_names = output_names_reduced
+n_out = len(plot_output_names)
 n_rows = math.ceil(n_out / n_cols)
 
 fig, axes = plt.subplots(
@@ -386,7 +402,7 @@ axes = np.atleast_1d(axes).ravel()
 
 dgsm_summary = OrderedDict()
 
-for ax, out_name in zip(axes, output_names):
+for ax, out_name in zip(axes, plot_output_names):
     dg = dgsm_by_output[out_name]["dgsm"]
     cf = dgsm_by_output[out_name]["conf"]
     pn = dgsm_by_output[out_name]["names"]
@@ -453,7 +469,7 @@ for ax, out_name in zip(axes, output_names):
     y = np.arange(len(dg_keep))
     ax.barh(y, dg_keep[::-1], xerr=cf_keep[::-1])
     ax.set_yticks(y)
-    ax.set_yticklabels(pn_keep[::-1], fontsize=7)
+    ax.set_yticklabels(pn_keep[::-1], fontsize=9)
     ax.set_title(
         f"{out_name}\n{coverage*100:.0f}% DGSM, params >= {min_frac*100:.0f}% ({len(dg_keep)} params){note}",
         fontsize=10
@@ -474,15 +490,16 @@ for ax, out_name in zip(axes, output_names):
 for ax in axes[n_out:]:
     ax.axis("off")
 
-# x-label only on bottom row
+# x-label on bottom row and selected additional outputs
+extra_xlabel_outputs = {"Tidal Volume", "Minute Ventilation", "PaO2"}
 for r in range(n_rows):
     for c in range(n_cols):
         k_ax = r * n_cols + c
-        if k_ax < n_out and r == n_rows - 1:
+        if k_ax < n_out and (r == n_rows - 1 or plot_output_names[k_ax] in extra_xlabel_outputs):
             axes[k_ax].set_xlabel("DGSM")
 
 # plt.show()
-plt.savefig("DGSM_20.png", dpi=300, bbox_inches="tight")
+plt.savefig(f"DGSM_{percentage}_reduced_tidal.png", dpi=300, bbox_inches="tight")
 plt.close()
 
 

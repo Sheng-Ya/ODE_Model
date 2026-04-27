@@ -262,8 +262,16 @@ class HistoryMatching(TorchDeviceMixin):
         # Calculate total variance
         Vs = pred_vars + discrepancy + self.obs_vars
 
+        adjusted_pred_means = pred_means.clone()
+
+        la_den = adjusted_pred_means[:, 14] - adjusted_pred_means[:, 13]
+        ra_den = adjusted_pred_means[:, 10] - adjusted_pred_means[:, 9]
+
+        adjusted_pred_means[:, 17] = (adjusted_pred_means[:, 17] - adjusted_pred_means[:, 13]) / la_den
+        adjusted_pred_means[:, 18] = (adjusted_pred_means[:, 18] - adjusted_pred_means[:, 9]) / ra_den
+
         # Calculate implausibility
-        return torch.abs(self.obs_means - pred_means) / torch.sqrt(Vs)
+        return torch.abs(self.obs_means - adjusted_pred_means) / torch.sqrt(Vs)
 
     @staticmethod
     def generate_param_bounds(
@@ -730,13 +738,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Filter non-physiological emulator predictions before NROY selection:
         # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
-        # phys_mask = (
-        #     (mean_tensor[:, 13] > test_x[:, 201])
-        #     & (mean_tensor[:, 9] > test_x[:, 203])
-        # )
-        # test_x = test_x[phys_mask]
-        # mean_tensor = mean_tensor[phys_mask]
-        # impl_scores = impl_scores[phys_mask]
+        phys_mask = (
+            (mean_tensor[:, 13] > test_x[:, 201])
+            & (mean_tensor[:, 9] > test_x[:, 203])
+        )
+        test_x = test_x[phys_mask]
+        mean_tensor = mean_tensor[phys_mask]
+        impl_scores = impl_scores[phys_mask]
 
         mask = self._create_nroy_mask(impl_scores)
 

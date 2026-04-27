@@ -142,10 +142,11 @@ if __name__ == "__main__":
 #
 #
 # if __name__ == "__main__":
-#     # file50 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_bounds/DGSM_50_rest.txt"
-#     file20 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_Exercise_Paper/DGSM_Exercise_20.txt"
-#     # file50 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/Calibration Exercise/DGSM_20_exercise.txt"
-#     file50 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_12_04/DGSM_20.txt"
+#     file20 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_Rest_Paper/DGSM_20.txt"
+#     file50 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_Rest_Paper/DGSM_50_tidal.txt"
+#
+#     # file20 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_Exercise_Paper/DGSM_Exercise_20.txt"
+#     # file50 = "C:/Users/vanes/Downloads/exercise_model/ODE_Exercise/Entire_system/DGSM_12_04/DGSM_20.txt"
 #
 #     output_params_50, param_counts_50 = parse_sensitivity_file(file50)
 #     output_params_20, param_counts_20 = parse_sensitivity_file(file20)

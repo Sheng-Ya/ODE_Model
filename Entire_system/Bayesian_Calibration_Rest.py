@@ -252,7 +252,7 @@ observation = {"Heart Rate": (1.23, 0.05), "Systolic Pressure": (123, 324), "Dia
 "Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (32.9, 75.69),
 "Max LA Volume": (68.3, 306.25),
 "Max LA Pressure Atrial contraction": (13.0, 9.0),
-"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (41.8, 62.41), "RA Contraction Volume diff": (46.1, 73.96),
+"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (0.25, 0.0002777), "RA Contraction Volume diff": (0.25, 0.0002777),
 "LV Pressure Deriv": (1461.0, 146689.0), "RV Pressure Deriv": (271.0, 3025.0), "Tidal Volume": (0.850, 0.16),
 "Minute Ventilation": (11.4, 15.21), "PaO2": (102.3, 125.44), "PaCO2": (35.5, 24.01)}
 
