@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import warnings
 import numpy as np
 from scipy.stats import gaussian_kde
@@ -551,7 +552,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         remainder_to_sample = n % num_means
 
         # Determine number of parallel jobs
-        n_jobs = 64  # use all cores
+        n_jobs = multiprocessing.cpu_count()  # use all cores
 
         # Split permuted means into batches
         chunk_size = math.ceil(num_means / n_jobs)
