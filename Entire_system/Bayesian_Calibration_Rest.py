@@ -12,6 +12,7 @@ resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
 from History_matching_function_rest import HistoryMatchingWorkflow
+# from draft import HistoryMatchingWorkflow
 from AutoEmulate_Simulator_Rest import Cardiopulmonary
 
 # ----------------------------
@@ -23,6 +24,13 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 random_seed = 42
 set_random_seed(random_seed)
 pyro.set_rng_seed(random_seed)
+
+# Treat atrial contraction as a physiologic interval constraint rather than a
+# point target. The workflow estimates the ratio-prediction error empirically
+# from the emulator outputs and uses that to score how likely each sample is to
+# fall inside this band.
+atrial_ratio_bounds = (0.20, 0.30)
+atrial_ratio_min_probability = 0.05
 
 # ----------------------------
 # PROBLEM SPECIFICATION
@@ -226,6 +234,10 @@ param_ranges: dict[str, tuple[float, float]] = {
 }
 
 output_names = [
+    # The emulator folders for LA/RA contraction outputs are legacy names.
+    # The raw simulator columns at indices 17/18 are pre-atrial chamber volumes,
+    # which are later transformed inside `HistoryMatchingWorkflow` before
+    # implausibility scoring.
     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV",
     "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
     "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
@@ -245,14 +257,16 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # ----------------------------
 # change (emulator for rest/exercise)
 Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
-# LA RA Contraction Volume diff edited to avoid negative volumes
+# The LA/RA pre-atrial entries are retained for output alignment; when the
+# ratio bounds below are active, the workflow enforces the atrial target via a
+# probability-of-being-in-range filter instead of a point-target score.
 observation = {"Heart Rate": (1.23, 0.05), "Systolic Pressure": (123, 324), "Diastolic Pressure": (76.7, 65.61), "EDV": (152.1, 767.29),
 "ESV": (62.3, 243.36), "Max RV Volume": (151.9, 1004.89), "Min RV Volume": (64.4, 299.29), "Max RV Pressure": (22.5, 56.25),
 "Min RV Pressure": (4.0, 9.0), "Min RA Volume": (30.6, 76.4), "Max RA Volume": (92.4, 380.25),
 "Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (32.9, 75.69),
 "Max LA Volume": (68.3, 306.25),
 "Max LA Pressure Atrial contraction": (13.0, 9.0),
-"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (0.25, 0.0002777), "RA Contraction Volume diff": (0.25, 0.0002777),
+"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (41.8, 62.41), "RA Contraction Volume diff": (46.1, 73.96),
 "LV Pressure Deriv": (1461.0, 146689.0), "RV Pressure Deriv": (271.0, 3025.0), "Tidal Volume": (0.850, 0.16),
 "Minute Ventilation": (11.4, 15.21), "PaO2": (102.3, 125.44), "PaCO2": (35.5, 24.01)}
 
@@ -285,6 +299,11 @@ if __name__ == "__main__":
     # param_keys = list(sp["names"])
     # param_samples = [dict(zip(param_keys, row)) for row in samples]
     # print(param_samples[-1])
+    X = np.load("LHCS_X_20.npy")
+    Result = np.load("LHCS_Result_20.npy")
+    cols_to_drop = np.array([11, 14, 17, 20, 27, 30])
+    keep = np.setdiff1d(np.arange(Result.shape[1]), cols_to_drop)
+    Result = Result[:, keep]
 
     hmw = HistoryMatchingWorkflow(
         simulator=Simulator,
@@ -293,9 +312,9 @@ if __name__ == "__main__":
         # optional parameters
         threshold=3.0,
         random_seed=random_seed,
-        # train_x=X,
-        # train_y=Result,
         calibration_params=subset_vars,
+        atrial_ratio_bounds=atrial_ratio_bounds,
+        atrial_ratio_min_probability=atrial_ratio_min_probability,
     )
 
     # # X = torch.load("nroy_samples_rest_new.pt", map_location="cpu").to("cpu")
