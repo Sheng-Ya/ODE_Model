@@ -254,9 +254,9 @@ class HistoryMatching(TorchDeviceMixin):
         TensorLike
             Tensor of implausibility scores.
         """
-        adjusted_pred_means, adjusted_pred_vars = (
-            self._transform_atrial_contraction_outputs(pred_means, pred_vars)
-        )
+        # adjusted_pred_means, adjusted_pred_vars = (
+        #     self._transform_atrial_contraction_outputs(pred_means, pred_vars)
+        # )
 
         # Additional variance due to model discrepancy (defaults to 0)
         discrepancy = torch.full_like(
@@ -264,10 +264,10 @@ class HistoryMatching(TorchDeviceMixin):
         )
         # obs_vars is the obs uncertainty, eg HR 1.1, std 0.1. Discrepancy is the uncertainty of the emulator prediction in that area
         # Calculate total variance
-        Vs = adjusted_pred_vars + discrepancy + self.obs_vars
+        Vs = pred_vars + discrepancy + self.obs_vars
 
         # Calculate implausibility
-        return torch.abs(self.obs_means - adjusted_pred_means) / torch.sqrt(Vs)
+        return torch.abs(self.obs_means - pred_means) / torch.sqrt(Vs)
 
     @staticmethod
     def _safe_ratio_denominator(denominator: TensorLike, eps: float = 1e-8) -> TensorLike:
@@ -779,14 +779,14 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
-        adjusted_mean_tensor, adjusted_var_tensor = self._transform_atrial_contraction_outputs(
-            mean_tensor,
-            var_tensor,
-        )
+        # adjusted_mean_tensor, adjusted_var_tensor = self._transform_atrial_contraction_outputs(
+        #     mean_tensor,
+        #     var_tensor,
+        # )
 
         get_reusable_executor().shutdown(wait=True)
 
-        assert adjusted_var_tensor is not None
+        # assert adjusted_var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
 
         # Filter non-physiological emulator predictions before NROY selection:
@@ -794,17 +794,23 @@ class HistoryMatchingWorkflow(HistoryMatching):
         phys_mask = (
             (mean_tensor[:, 13] > test_x[:, 201])
             & (mean_tensor[:, 9] > test_x[:, 203])
+            & ((mean_tensor[:, 17] - mean_tensor[:, 13])/(mean_tensor[:, 14] - mean_tensor[:, 13]) > 0.2)
+            & ((mean_tensor[:, 17] - mean_tensor[:, 13]) / (mean_tensor[:, 14] - mean_tensor[:, 13]) < 0.3)
+            & ((mean_tensor[:, 18] - mean_tensor[:, 9]) / (mean_tensor[:, 10] - mean_tensor[:, 9]) > 0.2)
+            & ((mean_tensor[:, 18] - mean_tensor[:, 9]) / (mean_tensor[:, 10] - mean_tensor[:, 9]) < 0.3)
+            & (mean_tensor[:, 10] > mean_tensor[:, 9])
+            & (mean_tensor[:, 14] > mean_tensor[:, 13])
         )
         test_x = test_x[phys_mask]
         mean_tensor = mean_tensor[phys_mask]
-        adjusted_mean_tensor = adjusted_mean_tensor[phys_mask]
+        # adjusted_mean_tensor = adjusted_mean_tensor[phys_mask]
         impl_scores = impl_scores[phys_mask]
 
         mask = self._create_nroy_mask(impl_scores)
 
         min_col_13 = mean_tensor[mask, 13].min()
-        min_col_17 = adjusted_mean_tensor[mask, 17].min()
-        min_col_18 = adjusted_mean_tensor[mask, 18].min()
+        min_col_17 = mean_tensor[mask, 17].min()
+        min_col_18 = mean_tensor[mask, 18].min()
 
         print("min mean_tensor[:,13] where impl_score < 3:", min_col_13.item())
         print("min adjusted mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
