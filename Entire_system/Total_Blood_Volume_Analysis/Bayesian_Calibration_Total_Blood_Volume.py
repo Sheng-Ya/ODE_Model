@@ -11,7 +11,7 @@ import torch
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-from History_matching_function_rest import HistoryMatchingWorkflow
+from History_matching_function_rest_total_blood_volume import HistoryMatchingWorkflow
 from AutoEmulate_Simulator_Rest import Cardiopulmonary
 
 # ----------------------------
@@ -23,6 +23,13 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 random_seed = 42
 set_random_seed(random_seed)
 pyro.set_rng_seed(random_seed)
+
+# Treat atrial contraction as a physiologic interval constraint rather than a
+# near-zero point target. This matches the working Rest calibration path and
+# avoids over-constraining the emulator with implausible contraction-difference
+# point observations.
+atrial_ratio_bounds = (0.20, 0.30)
+atrial_ratio_min_probability = 0.05
 
 # ----------------------------
 # PROBLEM SPECIFICATION
@@ -296,6 +303,8 @@ if __name__ == "__main__":
         # train_x=X,
         # train_y=Result,
         calibration_params=subset_vars,
+        atrial_ratio_bounds=atrial_ratio_bounds,
+        atrial_ratio_min_probability=atrial_ratio_min_probability,
     )
 
     # # X = torch.load("nroy_samples_rest_new.pt", map_location="cpu").to("cpu")

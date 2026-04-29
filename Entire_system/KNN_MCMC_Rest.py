@@ -65,8 +65,9 @@ pyro.set_rng_seed(RANDOM_SEED)
 
 DATE_SUFFIX  = "12_4"                    # matches HM output file names
 PERCENT      = 20                        # param range +/-% used in HM
-EMULATOR_DIR = "Emulator_wave_1wave"     # GP emulators from last refitted wave
-out_dir = f"MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
+root = "three_implaus_pre_A_calib"
+EMULATOR_DIR = f"{root}/Emulator_wave_1wave"     # GP emulators from last refitted wave
+out_dir = f"{root}/MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
 # KNN
@@ -1085,10 +1086,10 @@ print("STEP 1 -- Loading history matching results")
 print("=" * 60)
 
 nroy_points_np = np.load(
-    f"NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy"
+    f"{root}/NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy"
 )
 nroy_params_dict = np.load(
-    f"NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True
+    f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
@@ -1281,6 +1282,20 @@ if USE_COPULA_PRIOR:
         print(f"  Saved copula to {out_dir}/copula_prior.joblib")
 else:
     print("\n  USE_COPULA_PRIOR = False -> uniform box prior on NROY bounds")
+
+# Prior bounds as tensors
+prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
+prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
+
+# Save a diagnostic plot of the fitted prior marginals before MCMC starts.
+_ = plot_prior_marginals_vs_nroy(
+    copula_prior_cache,
+    nroy_subset=nroy_subset,
+    subset_vars=subset_vars,
+    prior_lower=prior_lower,
+    prior_upper=prior_upper,
+    out_dir=out_dir,
+)
 
 # ============================================================
 # 2. LOAD GP EMULATORS
@@ -1538,20 +1553,6 @@ obs_vars_t = torch.tensor(
     dtype=torch.float32,
 )
 obs_stds_t = obs_vars_t.sqrt()
-
-# Prior bounds as tensors
-prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
-prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
-
-# Save a diagnostic plot of the fitted prior marginals before MCMC starts.
-_ = plot_prior_marginals_vs_nroy(
-    copula_prior_cache,
-    nroy_subset=nroy_subset,
-    subset_vars=subset_vars,
-    prior_lower=prior_lower,
-    prior_upper=prior_upper,
-    out_dir=out_dir,
-)
 
 # Build the fast potential energy function — batched manual Matern-3/2 path.
 # The old gpytorch-based make_fast_potential_fn() is still used above for the
