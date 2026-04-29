@@ -187,9 +187,12 @@ sp = ProblemSpec({
 })
 
 # ── Load and filter ──────────────────────────────────────────────
-AAAA = np.load("NROY_Implaus_rest_20_12_4.npy")
-AAAAA = np.load("test_param_rest_20_12_4.npy")
-Param_ranges = np.load("NROY_Params_rest_20_12_4.npy", allow_pickle=True).item()
+root_folder = "three_implaus_pre_A_calib"
+end = "12_4"
+Figure_path = f"{root_folder}/implausibility_wave_3_rest.png"
+AAAA = np.load(f"{root_folder}/NROY_Implaus_rest_20_{end}.npy")
+AAAAA = np.load(f"{root_folder}/test_param_rest_20_{end}.npy")
+Param_ranges = np.load(f"{root_folder}/NROY_Params_rest_20_{end}.npy", allow_pickle=True).item()
 # keep rows where every implausibility value is < 3
 mask = np.all(AAAA < 3, axis=1)
 X_calibrated = AAAAA[mask]
@@ -248,7 +251,7 @@ for j in range(n_params, len(axes)):
 # axes[0].legend(fontsize=9, loc='upper left')
 # plt.suptitle('Implausibility vs Parameters — Densest NROY Point (red star)', fontsize=14, y=1.01)
 plt.tight_layout()
-plt.savefig("implausibility_wave_3_rest.png", dpi=200, bbox_inches='tight')
+plt.savefig(Figure_path, dpi=200, bbox_inches='tight')
 print("\nPlot saved.")
 
 

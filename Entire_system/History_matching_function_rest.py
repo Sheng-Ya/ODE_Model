@@ -552,7 +552,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         remainder_to_sample = n % num_means
 
         # Determine number of parallel jobs
-        n_jobs = multiprocessing.cpu_count()  # use all cores
+        n_jobs = 64 # multiprocessing.cpu_count()  # use all cores
 
         # Split permuted means into batches
         chunk_size = math.ceil(num_means / n_jobs)
@@ -813,9 +813,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
             & (mean_tensor[:, 14] > mean_tensor[:, 13])
             & atrial_ratio_mask
         )
-        test_x = test_x[phys_mask]
-        mean_tensor = mean_tensor[phys_mask]
-        impl_scores = impl_scores[phys_mask]
+        # test_x = test_x[phys_mask]
+        # mean_tensor = mean_tensor[phys_mask]
+        # impl_scores = impl_scores[phys_mask]
+
+        impl_scores[~phys_mask] = 4
 
         mask = self._create_nroy_mask(impl_scores)
 
@@ -1242,10 +1244,14 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.wave_results = []
         for i in range(start_i, n_waves):
             # 0th wave had 155173
-            if i == 1: # 110599
-                self.threshold = 3.0
-            if i == 2: # 154081
-                self.threshold = 3.0
+            # if i == 0: # 110599
+            #     self.threshold = 3.5 # change
+            # if i == 1:  # 154081
+            #     self.threshold = 3.0
+            # if i == 2: # 154081
+            #     self.threshold = 3.0
+            # if i == 3:  # 154081
+            #     self.threshold = 3.0
 
             # if i == 1: # 110599
             #     self.threshold = 1.5

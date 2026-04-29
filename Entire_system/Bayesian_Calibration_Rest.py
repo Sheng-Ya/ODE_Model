@@ -299,11 +299,11 @@ if __name__ == "__main__":
     # param_keys = list(sp["names"])
     # param_samples = [dict(zip(param_keys, row)) for row in samples]
     # print(param_samples[-1])
-    X = np.load("LHCS_X_20.npy")
-    Result = np.load("LHCS_Result_20.npy")
-    cols_to_drop = np.array([11, 14, 17, 20, 27, 30])
-    keep = np.setdiff1d(np.arange(Result.shape[1]), cols_to_drop)
-    Result = Result[:, keep]
+    # X = np.load("LHCS_X_20.npy")
+    # Result = np.load("LHCS_Result_20.npy")
+    # cols_to_drop = np.array([11, 14, 17, 20, 27, 30])
+    # keep = np.setdiff1d(np.arange(Result.shape[1]), cols_to_drop)
+    # Result = Result[:, keep]
 
     hmw = HistoryMatchingWorkflow(
         simulator=Simulator,
