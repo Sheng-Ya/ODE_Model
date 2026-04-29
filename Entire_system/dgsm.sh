@@ -1,9 +1,9 @@
 #!/bin/bash
-#PBS -N dgsm_rest_50
-#PBS -l select=1:ncpus=128:mem=64gb
-#PBS -l walltime=3:00:00
+#PBS -N dgsm_exercise_20
+#PBS -l select=1:ncpus=128:mem=80gb
+#PBS -l walltime=7:00:00
 #PBS -o O_Logs -e E_Logs
-#PBS -J 0-3
+#PBS -J 0-2
 
 cd $PBS_O_WORKDIR || exit 1
 
@@ -24,7 +24,7 @@ BASEPOINTS_PER_JOB=125
 
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 conda activate py312 || exit 1
-python -u Samples_for_DGSM_HPC.py \
+python -u Samples_for_DGSM_HPC_Exercise.py \
     --task-id "${TASK_ID}" \
     --n-jobs "${N_JOBS}" \
     --basepoints-per-job "${BASEPOINTS_PER_JOB}" \

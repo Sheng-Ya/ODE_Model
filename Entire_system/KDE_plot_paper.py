@@ -48,17 +48,24 @@ PLOTTED_OUTPUT_NAMES = [
     if idx not in REMOVED_OUTPUT_INDICES
 ]
 
-SUBSET_IDX = [
-    0, 1, 2, 3, 11, 13, 14, 15, 18, 24, 37, 42, 43, 45, 46, 47, 48, 49,
-    50, 51, 52, 54, 55, 56, 58, 59, 60, 64, 68, 79, 81, 93, 94, 95, 120,
-    124, 125, 127, 128, 137, 138, 139, 146, 158, 161, 162, 174, 179, 184,
-    191, 195, 197, 201, 202, 203, 204, 215, 216, 218, 246, 247, 263, 264,
-    265, 266, 268, 269, 270, 271,
-]
+# # Rest
+# SUBSET_IDX = [
+#     0, 1, 2, 3, 11, 13, 14, 15, 18, 24, 37, 42, 43, 45, 46, 47, 48, 49,
+#     50, 51, 52, 54, 55, 56, 58, 59, 60, 64, 68, 79, 81, 93, 94, 95, 120,
+#     124, 125, 127, 128, 137, 138, 139, 146, 158, 161, 162, 174, 179, 184,
+#     191, 195, 197, 201, 202, 203, 204, 215, 216, 218, 246, 247, 263, 264,
+#     265, 266, 268, 269, 270, 271,
+# ]
+
+# V_tot
+SUBSET_IDX = [0, 1, 2, 3, 11, 13, 14, 18, 45, 46, 49, 50, 51, 52, 55, 56, 58, 60, 79, 93, 94, 95, 124, 125, 127, 128,
+              137, 138, 139, 146, 158, 161, 191, 197, 201, 202, 203, 204, 205, 217, 219, 247, 248, 265, 266, 267, 269,
+              270, 271, 272]
 
 
 def load_initial_results() -> np.ndarray:
-    result_initial = np.load(SCRIPT_DIR / "LHCS_Result_20.npy")
+    # result_initial = np.load(SCRIPT_DIR / "LHCS_Result_20.npy")
+    result_initial = np.load(SCRIPT_DIR / "Total_Blood_Volume_Analysis" / "LHCS_Result_20_v_tot.npy")
 
     if result_initial.shape[1] == len(ALL_OUTPUT_NAMES):
         result_initial = np.delete(result_initial, REMOVED_OUTPUT_INDICES, axis=1)
@@ -78,10 +85,15 @@ def resolve_run_paths() -> tuple[Path, Path, Path, Path, Path]:
         #     SCRIPT_DIR / "4wave_pre_A_calib" / "Emulator_wave_4wave",
         #     "4wave",
         # ),
+        # (
+        #     SCRIPT_DIR / "three_implaus_pre_A_calib",
+        #     SCRIPT_DIR / "Emulator_wave_1wave",
+        #     "12_4",
+        # ),
         (
-            SCRIPT_DIR / "three_implaus_pre_A_calib",
-            SCRIPT_DIR / "Emulator_wave_1wave",
-            "12_4",
+            SCRIPT_DIR / "Total_Blood_Volume_Analysis",
+            SCRIPT_DIR / "Total_Blood_Volume_Analysis" / "Emulator_wave_V_tot",
+            "V_tot",
         ),
     ]
 

@@ -1,0 +1,1993 @@
+"""
+KNN_MCMC_Rest.py — Post-history-matching calibration pipeline
+
+Pipeline:
+  1. Load NROY results from history matching (3-sigma threshold)
+  2. KNN density estimation -> find densest region as MCMC start
+  3. Pyro NUTS MCMC -> posterior distribution targeting 1 sigma of rest targets
+
+Why NUTS over emcee / random-walk MH:
+  - 69 calibration parameters: gradient-based NUTS scales as O(d^{1/4}),
+    whereas emcee's stretch move degrades rapidly past ~30 dims.
+  - The GP emulators (autoemulate TransformedEmulator with GPyTorch)
+    support with_grad=True, so the full chain
+        theta -> x_transform -> GP kernel -> predictive mean/var -> log_prob
+    is differentiable through torch autograd.
+  - NUTS automatically adapts step size and mass matrix during warmup,
+    handling the very different scales across the 69 parameters.
+  - ~100-200x more sample-efficient than emcee for this dimensionality.
+
+Expects in working directory:
+  NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY parameter vectors
+  NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY bounds dict
+  {EMULATOR_DIR}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
+
+Usage:
+  python KNN_MCMC_Rest.py
+"""
+
+import math
+# import os
+import json
+import warnings
+import joblib
+import numpy as np
+import torch
+import gpytorch
+
+import pyro
+# import pyro.distributions as dist
+from pyro.infer import MCMC, NUTS, HMC
+
+# from sklearn.neighbors import NearestNeighbors
+# from sklearn.preprocessing import StandardScaler
+from scipy.stats import norm as _scipy_norm
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import os
+os.environ["LOKY_MAX_CPU_COUNT"] = "8"   # set before sklearn/joblib uses loky
+
+warnings.filterwarnings("ignore")
+
+# posterior_np = np.load("MCMC_Rest_20_16_04_1200_lambda50/posterior_samples.npy")
+# pred_matrix = np.load("MCMC_Rest_20_16_04_1200_lambda50/pred_check_matrix.npy")
+
+
+# ================================================================
+# SETTINGS
+# ================================================================
+RANDOM_SEED = 42
+np.random.seed(RANDOM_SEED)
+torch.manual_seed(RANDOM_SEED)
+pyro.set_rng_seed(RANDOM_SEED)
+
+DATE_SUFFIX  = "12_4"                    # matches HM output file names
+PERCENT      = 20                        # param range +/-% used in HM
+root = "three_implaus_pre_A_calib"
+EMULATOR_DIR = f"{root}/Emulator_wave_1wave"     # GP emulators from last refitted wave
+out_dir = f"{root}/MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
+os.makedirs(out_dir, exist_ok=True)
+
+# KNN
+KNN_K = 50                               # neighbours for density estimation
+
+# ---- Gaussian copula prior on NROY points --------------------------------
+# Rationale (see also the diagnostic NROY_joint_multimodality_check.py):
+#   - Full-covariance GMM in 60D has ~1891 free params per component, so BIC
+#     massively overpenalises extra components; the sweep collapsed to K=1 =
+#     plain MVN, which cannot represent the skew visible in NROY marginals.
+#   - Pairwise hexbin of the top-skewed NROY axes showed one connected
+#     high-density region per panel (skewed/corner-concentrated but not
+#     multimodal), so a unimodal-in-z Gaussian copula is adequate.
+#   - Copula factorisation (Sklar): p(theta) = c(F_1..F_d) * prod_i p_i.
+#     Per-axis Gaussian KDE captures marginal skew exactly (continuous,
+#     differentiable, no component-count hyperparameter). The Gaussian
+#     copula models only the dependency in rank-Gaussianised space with
+#     one correlation matrix R — far fewer params than a full-cov GMM and
+#     the right object to estimate given ~178k NROY points.
+USE_COPULA_PRIOR   = True          # False -> uniform box prior
+KDE_SUBSAMPLE      = 5000          # subsample size per-axis KDE eval at MCMC
+KDE_BANDWIDTH      = "silverman"   # "silverman" | "scott" | float
+CORR_SHRINK        = 0.0           # linear shrinkage of R toward identity
+COPULA_F_EPS       = 1e-6          # clamp for Phi^{-1}(F_i) at marginal tails
+
+# ---- Logspline marginals (replaces per-axis Gaussian KDE) ------------------
+# The Silverman + Gaussian-KDE marginals produce
+#   (a) subsample-noise wiggles on near-uniform axes,
+#   (b) inward-shifted peaks on axes that pile up against HM bounds (Gaussian
+#       kernels leak mass past the boundary).
+# Diagnostic: Plot_Copula_Marginals_vs_NROY.py vs ..._logspline.py.
+# Fix: per-axis penalised cubic B-spline log-density on [L_i, U_i]:
+#   log f_i(x) = sum_j beta_j * B_j(x)  on [prior_lower[i], prior_upper[i]]
+# fit by penalised maximum likelihood (P-spline; Eilers & Marx 1996).
+# Bounded support is enforced by the clamped knot vector (non-zero density
+# at the HM bound is allowed; density is exactly zero outside).
+# MCMC evaluation: precomputed (x_grid, f_grid, cdf_grid) per axis, then
+# torch.searchsorted + piecewise-linear interp + analytic piecewise-quadratic
+# CDF.  Differentiable; O(log G) per axis per step, cheaper than the KDE loop.
+USE_LOGSPLINE_MARGINALS = True
+LOGSPLINE_N_INTERIOR    = 14        # interior knots on [L_i, U_i]
+LOGSPLINE_LAMBDA        = 5.0       # 2nd-difference smoothness penalty
+LOGSPLINE_N_GRID        = 1000      # per-axis fine grid for Z + CDF + MCMC
+
+# NUTS MCMC
+N_WARMUP        = 500                    # warmup (step-size + mass-matrix adapt)
+N_SAMPLES       = 3000                   # posterior draws per chain
+N_CHAINS        = 1                      # independent chains (sequential loop; Windows-safe)
+MAX_TREE_DEPTH  = 7
+TARGET_ACCEPT   = 0.8
+
+# Posterior predictive
+N_PRED_CHECK = 1500                       # posterior samples for predictive check
+
+# Likelihood: Gaussian
+
+def extract_fast_caches(emulators, output_names):
+    """Pre-warm GPyTorch prediction caches and extract y-transform params.
+
+    Instead of reimplementing the Matern-3/2 kernel manually (which can diverge
+    numerically from GPyTorch's internal noise/jitter handling), this stores a
+    reference to each GP model and calls GPyTorch directly during MCMC.  The
+    only part of the autoemulate pipeline that is bypassed is the expensive
+    delta_method/vmap wrapper, which is unnecessary for affine y-transforms
+    (StandardizeTransform: y = y_t * std + mean).
+
+    NOTE: The autoemulate pipeline has TWO y-inverse-transforms:
+      1. GP's own y_transform (standardize_y=True by default in the GP class)
+      2. TransformedEmulator's y_transforms
+    Both are affine (StandardizeTransform), so we pre-combine them into a
+    single affine: y_final = y_gp * combined_std + combined_mean.
+    """
+    caches = {}
+    for name in output_names:
+        te = emulators[name]
+        gp = te.model
+        gp.eval()
+        gp.likelihood.eval()
+
+        # ---- x-transform (TransformedEmulator's only; GP has standardize_x=False) ----
+        x_mean = te.x_transforms[0].mean.detach().squeeze(0)   # (d,)
+        x_std  = te.x_transforms[0].std.detach().squeeze(0)    # (d,)
+
+        # ---- y-transforms: combine GP's + TransformedEmulator's ----
+        # TransformedEmulator's y-inverse: y_te = y_t * te_std + te_mean
+        te_y_mean = te.y_transforms[0].mean.detach().squeeze()  # scalar
+        te_y_std  = te.y_transforms[0].std.detach().squeeze()   # scalar
+
+        # GP's own y-inverse: y_gp_out = y_gp * gp_std + gp_mean
+        # (applied inside Emulator.predict before TransformedEmulator sees it)
+        if gp.y_transform is not None and getattr(gp.y_transform, '_is_fitted', False):
+            gp_y_mean = gp.y_transform.mean.detach().squeeze()
+            gp_y_std  = gp.y_transform.std.detach().squeeze()
+            # Compose: y_final = (y_gp * gp_std + gp_mean) * te_std + te_mean
+            combined_y_std  = gp_y_std * te_y_std
+            combined_y_mean = gp_y_mean * te_y_std + te_y_mean
+        else:
+            combined_y_std  = te_y_std
+            combined_y_mean = te_y_mean
+
+        # Pre-warm GPyTorch prediction strategy (triggers Cholesky once)
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            _ = gp(gp.train_inputs[0][:1])
+
+        caches[name] = {
+            "gp": gp,
+            "x_mean": x_mean, "x_std": x_std,
+            "y_mean": combined_y_mean, "y_std": combined_y_std,
+        }
+    return caches
+
+
+# def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
+#                            output_names, gp_caches,
+#                            ):
+#     """Potential energy calling GPyTorch directly — no autoemulate overhead.
+#
+#     Bypasses the expensive autoemulate wrapper:
+#       - delta_method with vmap/jacrev/hessian
+#       - Distribution object creation
+#       - make_positive_definite
+#     Keeps GPyTorch's exact kernel computation + cached prediction strategy.
+#
+#     For affine y-transforms (StandardizeTransform), the inverse is just:
+#         mu  = mean_t * y_std + y_mean
+#         var = var_t  * y_std²
+#     """
+#     log_width = torch.log(prior_hi - prior_lo)
+#
+#     def _potential(z_dict):
+#         z = z_dict["theta"]                                          # (ndim,)
+#
+#         # ---- sigmoid transform to constrained space ----
+#         sig_z = torch.sigmoid(z)
+#         theta = prior_lo + sig_z * (prior_hi - prior_lo)
+#
+#         # ---- log |det J| of sigmoid ----
+#         log_det_jac = (
+#             torch.nn.functional.logsigmoid(z)
+#             + torch.nn.functional.logsigmoid(-z)
+#             + log_width
+#         ).sum()
+#
+#         # ---- GP log-likelihood (fast GPyTorch path) ----
+#         mus = [None] * len(output_names)
+#         vars_ = [None] * len(output_names)
+#         for i, name in enumerate(output_names):
+#             c = gp_caches[name]
+#
+#             # Standardise input
+#             x_t = (theta - c["x_mean"]) / c["x_std"]                # (d,)
+#
+#             # GPyTorch prediction (cached Cholesky — no recomputation)
+#             with gpytorch.settings.fast_pred_var():
+#                 output = c["gp"](x_t.unsqueeze(0))
+#             mean_t = output.mean.squeeze()
+#             var_t  = output.variance.squeeze().clamp(min=1e-10)
+#
+#             # Affine y-inverse-transform (StandardizeTransform)
+#             mus[i]   = mean_t * c["y_std"] + c["y_mean"]
+#             vars_[i] = var_t  * c["y_std"] ** 2
+#
+#         # Gaussian likelihood:
+#         #   log p(y | theta) = -0.5 * sum_i [ z_i^2 + log(s_i^2) ]
+#         #   z_i = (y_i - mu_i) / s_i,  s_i^2 = obs_var_i + GP_var_i(theta)
+#         #
+#         # Why this shape:
+#         #   - The Gaussian term is the original likelihood -> recovers the tight
+#         #     posterior of the previous run (each output pulled toward its target
+#         #     with curvature 1/s_i^2).
+#         ll = torch.tensor(0.0, dtype=torch.float32)
+#         for i in range(len(output_names)):
+#             total_var = (obs_vars_t[i] + vars_[i]).clamp(min=1e-10)
+#             z = (obs_means_t[i] - mus[i]) / total_var.sqrt()
+#             ll = ll - 0.5 * (z ** 2 + torch.log(total_var))
+#
+#         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
+#         return -(ll + log_det_jac)
+#
+#     return _potential
+
+
+# ================================================================
+# BATCHED / MANUAL MATERN-3/2 PATH  (no gpytorch at inference time)
+# ================================================================
+# Stacks all 25 GPs into a single set of (n_out, ...) tensors that share
+# X_train, precomputes the Cholesky of each training kernel + its alpha,
+# and runs a hand-written Matern-3/2 kernel.  Removes GPyTorch's per-call
+# MultivariateNormal / LazyTensor / fast_pred_var overhead (which dominates
+# at batch size 1) and also removes the 25-output Python loop — replaced by
+# batched matmul / triangular solve.
+#
+# Math recap (for one output, written without batch dim):
+#   training kernel  K  = outputscale * matern32(X, X; ls) + noise * I
+#   Cholesky         L  : L L^T = K
+#   alpha               = K^{-1} (y_train - mean_const)
+#   at a new point x*:
+#       k*  = outputscale * matern32(x*, X; ls)
+#       mu_latent  = mean_const + k* . alpha
+#       var_latent = outputscale - k* . (K^{-1} k*)
+#   then the combined affine y-inverse-transform gives final mu, var.
+# This matches what `gp(x)` returns in GPyTorch eval mode (latent, no noise).
+
+SQRT3 = math.sqrt(3.0)
+
+
+def _matern32_cross(x_t, X_train, lengthscale, outputscale):
+    """k(x_t, X_train) for Matern-3/2, batched over outputs.
+
+    x_t:         (d,)        — one test point, shared across outputs
+    X_train:     (n, d)      — shared training inputs
+    lengthscale: (n_out, d)
+    outputscale: (n_out,)
+    returns k_star: (n_out, n)
+    """
+    # scaled per-output:  (x_t - X_train) / lengthscale[i]   →  (n_out, n, d)
+    diff = (x_t.unsqueeze(0).unsqueeze(1) - X_train.unsqueeze(0)) \
+           / lengthscale.unsqueeze(1)
+    # euclidean distance with tiny epsilon for gradient stability at r=0
+    r = torch.sqrt((diff ** 2).sum(dim=-1) + 1e-30)              # (n_out, n)
+    return outputscale.unsqueeze(-1) * (1.0 + SQRT3 * r) * torch.exp(-SQRT3 * r)
+
+
+def _matern32_cross_fast(x_t, X_train_scaled, X_train_scaled_norm2,
+                         lengthscale, outputscale):
+    """Same as _matern32_cross, but uses the identity
+        ||a - b||^2 = ||a||^2 + ||b||^2 - 2 a.b
+    to avoid materialising an (n_out, n, d) intermediate tensor.
+
+    X_train_scaled:       (n_out, n, d) — X_train / lengthscale[i], precomputed
+    X_train_scaled_norm2: (n_out, n)    — ||X_train / lengthscale[i]||^2, precomputed
+
+    The cross term is a BLAS-accelerated batched matvec (einsum), and the
+    squared-norm reduction happens on (n_out, n) instead of (n_out, n, d).
+    Gradient flows through x_t exactly as before.
+    """
+    x_scaled = x_t.unsqueeze(0) / lengthscale                       # (n_out, d)
+    x_norm2  = (x_scaled ** 2).sum(dim=-1)                          # (n_out,)
+    # cross[i, n] = <x_scaled[i], X_train_scaled[i, n]>
+    cross = torch.einsum('od,ond->on', x_scaled, X_train_scaled)    # (n_out, n)
+    r_sq = (x_norm2.unsqueeze(-1) + X_train_scaled_norm2
+            - 2.0 * cross).clamp_min(1e-30)
+    r = torch.sqrt(r_sq)                                            # (n_out, n)
+    return outputscale.unsqueeze(-1) * (1.0 + SQRT3 * r) * torch.exp(-SQRT3 * r)
+
+
+def build_batched_fast_caches(emulators, output_names, gp_caches):
+    """Extract hyperparameters, stack across outputs, precompute L and alpha.
+
+    Requires all 25 GPs to share the same X_train and the same x-transform.
+    That is the autoemulate default when they are trained together; we
+    assert it here so a silent mismatch can't poison the posterior.
+    """
+    first_gp = emulators[output_names[0]].model
+    X_train = first_gp.train_inputs[0].detach().to(torch.float32).clone()
+    n_train, d = X_train.shape
+    n_out = len(output_names)
+
+    y_train   = torch.empty(n_out, n_train, dtype=torch.float32)
+    lengthscale = torch.empty(n_out, d, dtype=torch.float32)
+    outputscale = torch.empty(n_out, dtype=torch.float32)
+    noise       = torch.empty(n_out, dtype=torch.float32)
+    mean_const  = torch.empty(n_out, dtype=torch.float32)
+    y_mean      = torch.empty(n_out, dtype=torch.float32)
+    y_std       = torch.empty(n_out, dtype=torch.float32)
+
+    # x-transform shared across all GPs — taken from first, asserted for rest
+    x_mean = gp_caches[output_names[0]]["x_mean"].detach().to(torch.float32).clone()
+    x_std  = gp_caches[output_names[0]]["x_std"].detach().to(torch.float32).clone()
+
+    for i, name in enumerate(output_names):
+        gp = emulators[name].model
+        c  = gp_caches[name]
+
+        Xi = gp.train_inputs[0].detach().to(torch.float32)
+        assert Xi.shape == X_train.shape, \
+            f"{name}: train_inputs shape {Xi.shape} != {X_train.shape}"
+        assert torch.allclose(Xi, X_train, atol=1e-5, rtol=1e-5), \
+            f"{name}: train_inputs differ from reference GP — batched stacking requires shared X_train"
+        assert torch.allclose(c["x_mean"].to(torch.float32), x_mean, atol=1e-5), \
+            f"{name}: x_mean differs from reference"
+        assert torch.allclose(c["x_std"].to(torch.float32), x_std, atol=1e-5), \
+            f"{name}: x_std differs from reference"
+
+        _yt = gp.train_targets.detach().to(torch.float32)
+        if _yt.dim() > 1:
+            _yt = _yt.reshape(-1)
+        assert _yt.shape == (n_train,), \
+            f"{name}: train_targets shape {tuple(_yt.shape)} (expected ({n_train},))"
+        y_train[i] = _yt
+
+        ls = gp.covar_module.base_kernel.lengthscale.detach().squeeze().to(torch.float32)
+        assert ls.shape == (d,), f"{name}: lengthscale shape {ls.shape} (expected ({d},))"
+        lengthscale[i] = ls
+
+        outputscale[i] = gp.covar_module.outputscale.detach().squeeze().to(torch.float32)
+
+        _noise = gp.likelihood.noise.detach().to(torch.float32).reshape(-1)
+        assert _noise.numel() in (1, n_train), \
+            f"{name}: likelihood.noise has {_noise.numel()} elements (expected 1 or {n_train})"
+        noise[i] = _noise[0] if _noise.numel() == 1 else _noise.mean()
+
+        # Evaluate the mean module on X_train directly — works for any mean type,
+        # catches cases where `hasattr(..., 'constant')` silently falls through.
+        with torch.no_grad():
+            _tm = gp.mean_module(X_train).detach().to(torch.float32).reshape(-1)
+        assert _tm.shape == (n_train,), \
+            f"{name}: mean_module(X_train) has shape {tuple(_tm.shape)} (expected ({n_train},))"
+        _tm_const = _tm[0]
+        if not torch.allclose(_tm, _tm_const.expand_as(_tm), atol=1e-5, rtol=1e-4):
+            raise NotImplementedError(
+                f"{name}: mean_module ({type(gp.mean_module).__name__}) is not constant "
+                f"over training inputs (range {_tm.min().item():.4g}..{_tm.max().item():.4g}). "
+                f"Batched path supports ConstantMean / ZeroMean only."
+            )
+        mean_const[i] = _tm_const
+
+        y_mean[i] = c["y_mean"].detach().to(torch.float32)
+        y_std[i]  = c["y_std"].detach().to(torch.float32)
+
+    # Build training-kernel batch K (n_out, n, n) and factorise once.
+    X_scaled = X_train.unsqueeze(0) / lengthscale.unsqueeze(1)           # (n_out, n, d)
+    dists    = torch.cdist(X_scaled, X_scaled, p=2.0)                    # (n_out, n, n)
+    K_base   = (1.0 + SQRT3 * dists) * torch.exp(-SQRT3 * dists)
+    K        = outputscale.view(-1, 1, 1) * K_base
+    K        = K + noise.view(-1, 1, 1) * torch.eye(n_train).unsqueeze(0)
+    L        = torch.linalg.cholesky(K)                                  # (n_out, n, n)
+
+    alpha = torch.cholesky_solve(
+        (y_train - mean_const.unsqueeze(-1)).unsqueeze(-1), L
+    ).squeeze(-1)                                                        # (n_out, n)
+
+    # Per-test-step speedup: cache the scaled training inputs and their
+    # squared norms so _matern32_cross_fast can compute
+    # ||x/ls - X/ls||^2 = ||x/ls||^2 + ||X/ls||^2 - 2 <x/ls, X/ls>
+    # without allocating an (n_out, n, d) difference tensor every NUTS step.
+    X_train_scaled       = X_scaled.contiguous()                         # (n_out, n, d)
+    X_train_scaled_norm2 = (X_train_scaled ** 2).sum(dim=-1)             # (n_out, n)
+
+    return {
+        "X_train": X_train, "lengthscale": lengthscale,
+        "outputscale": outputscale, "mean_const": mean_const,
+        "L": L, "alpha": alpha,
+        "x_mean": x_mean, "x_std": x_std,
+        "y_mean": y_mean, "y_std": y_std,
+        "X_train_scaled": X_train_scaled,
+        "X_train_scaled_norm2": X_train_scaled_norm2,
+    }
+
+
+def fit_gaussian_copula(data_np, n_kde=5000, bandwidth="silverman",
+                        corr_shrink=0.0, f_eps=1e-6, random_state=0):
+    """Fit a Gaussian copula with per-axis Gaussian-KDE marginals.
+
+    Structure (Sklar's theorem):
+        p(theta) = c(F_1(theta_1), ..., F_d(theta_d)) * prod_i f_i(theta_i)
+    Gaussian copula:
+        c(u) = MVN(Phi^{-1}(u); 0, R) / prod_i phi(Phi^{-1}(u_i))
+    so
+        log p(theta) = -0.5 z^T (R^{-1} - I) z - 0.5 log|R|
+                       + sum_i log f_i(theta_i),
+    with z_i = Phi^{-1}(F_i(theta_i)).
+
+    Fitting choices:
+      - Marginals f_i, F_i: univariate Gaussian KDE on a per-axis subsample
+        of NROY points of size `n_kde`. KDE gives a smooth, differentiable
+        log-density (important: NUTS needs continuous gradients); the
+        subsample keeps per-step MCMC cost at O(d * n_kde) erf calls.
+      - Bandwidths: Silverman's rule h_i = 1.06 * sigma_i * N^{-1/5} using
+        the full NROY sample std (more accurate than subsample std).
+      - Correlation matrix R: estimated in z-space via mid-rank empirical
+        CDF on ALL NROY points (z_i = Phi^{-1}((rank_i + 0.5) / N)), then
+        normalised to unit diagonal. Mid-rank is the standard, robust
+        copula-R estimator; it differs from the KDE CDF by O(h), far
+        below the sample-size uncertainty in R.
+
+    data_np: (N, d) NROY points in original parameter units.
+    Returns a dict of torch tensors ready for `_copula_log_prob`.
+    """
+    rng = np.random.default_rng(random_state)
+    data_np = np.asarray(data_np, dtype=np.float64)
+    N, d = data_np.shape
+
+    # ---- 1. per-axis KDE subsample -----------------------------------
+    if N > n_kde:
+        idx = rng.choice(N, size=n_kde, replace=False)
+        kde_data = data_np[idx]                          # (n_kde, d)
+    else:
+        kde_data = data_np
+    M = kde_data.shape[0]
+
+    # ---- 2. bandwidths (Silverman / Scott / scalar) ------------------
+    sigma = data_np.std(axis=0, ddof=1)
+    if bandwidth == "silverman":
+        h = 1.06 * sigma * N ** (-1.0 / 5.0)
+    elif bandwidth == "scott":
+        h = 1.059 * sigma * N ** (-1.0 / (d + 4.0))  # d-aware Scott, rarely used here
+    else:
+        h = np.full(d, float(bandwidth))
+    # Guard zero-variance axes (should have been caught upstream)
+    h = np.maximum(h, 1e-8)
+
+    # ---- 3. rank-Gaussianise all NROY points for R estimation --------
+    # mid-rank empirical CDF: F_i(theta_i) = (rank_i + 0.5) / N
+    ranks = np.argsort(np.argsort(data_np, axis=0), axis=0).astype(np.float64)
+    F_all = (ranks + 0.5) / N                            # (N, d)
+    z_all = _scipy_norm.ppf(np.clip(F_all, f_eps, 1.0 - f_eps))  # (N, d)
+
+    # ---- 4. correlation matrix R + shrinkage -------------------------
+    R = np.cov(z_all, rowvar=False, ddof=1)
+    sigma_R = np.sqrt(np.diag(R))
+    R = R / sigma_R[:, None] / sigma_R[None, :]          # force unit diagonal
+    if corr_shrink > 0.0:
+        R = (1.0 - corr_shrink) * R + corr_shrink * np.eye(d)
+
+    # ---- 5. Cholesky (R = L L^T) + log|R| ----------------------------
+    L_R = np.linalg.cholesky(R)
+    log_det_R = 2.0 * np.sum(np.log(np.diag(L_R)))
+    eigvals = np.linalg.eigvalsh(R)
+
+    return {
+        # torch caches for MCMC
+        "kde_data": torch.tensor(kde_data.T, dtype=torch.float32),   # (d, M)
+        "kde_h":    torch.tensor(h,          dtype=torch.float32),   # (d,)
+        "kde_M":    torch.tensor(float(M),   dtype=torch.float32),
+        "L_R":      torch.tensor(L_R,        dtype=torch.float32),   # (d, d) lower
+        "half_logdet_R": torch.tensor(0.5 * log_det_R, dtype=torch.float32),
+        "F_eps":    torch.tensor(f_eps,      dtype=torch.float32),
+        # numpy diagnostics
+        "R_eig_min": float(eigvals.min()),
+        "R_eig_max": float(eigvals.max()),
+        "R_cond":    float(eigvals.max() / max(eigvals.min(), 1e-30)),
+        "h_np":      h,
+        "M":         int(M),
+        "N":         int(N),
+    }
+
+
+def _copula_log_prob(theta, cop):
+    """Differentiable log-density of a Gaussian copula with Gaussian-KDE
+    marginals.  Returns log p(theta) up to a theta-independent constant.
+
+    Evaluation:
+        u_ik = (theta_i - kde_data_ik) / h_i       shape (d, M)
+        f_i(theta_i) = (1/(M h_i)) sum_k phi(u_ik)
+        F_i(theta_i) = (1/M) sum_k Phi(u_ik)
+        z_i          = Phi^{-1}(F_i(theta_i))
+        log p(theta) = -0.5 (||L_R^{-1} z||^2 - ||z||^2) - 0.5 log|R|
+                       + sum_i log f_i(theta_i)
+
+    Subtraction of ||z||^2 cancels the per-axis standard-normal denominator
+    in the copula density (so marginals in p_i carry the skew, not the
+    MVN). That matches the Sklar factorisation exactly.
+    """
+    u = (theta.unsqueeze(-1) - cop["kde_data"]) / cop["kde_h"].unsqueeze(-1)   # (d, M)
+
+    # log f_i: log-sum-exp over M kernels, then 1/(M*h_i) normaliser
+    log_phi = -0.5 * u ** 2 - 0.5 * math.log(2.0 * math.pi)                    # (d, M)
+    log_fi = (torch.logsumexp(log_phi, dim=-1)
+              - torch.log(cop["kde_M"]) - torch.log(cop["kde_h"]))             # (d,)
+
+    # F_i via Phi(u) averaged over kernels, clamped for finite Phi^{-1}
+    Fi = 0.5 * (1.0 + torch.erf(u / math.sqrt(2.0))).mean(dim=-1)              # (d,)
+    Fi = Fi.clamp(cop["F_eps"], 1.0 - cop["F_eps"])
+    z  = math.sqrt(2.0) * torch.erfinv(2.0 * Fi - 1.0)                          # (d,)
+
+    # Copula density in z-space: R^{-1} - I quadratic form via one tri-solve
+    w = torch.linalg.solve_triangular(
+        cop["L_R"], z.unsqueeze(-1), upper=False
+    ).squeeze(-1)                                                              # (d,)
+    log_copula = -0.5 * ((w ** 2).sum() - (z ** 2).sum()) - cop["half_logdet_R"]
+
+    return log_copula + log_fi.sum()
+
+
+# ============================================================
+# Logspline (P-spline) copula prior — replacement for the per-axis
+# Silverman Gaussian KDE used above.  See the block comment at
+# USE_LOGSPLINE_MARGINALS in the settings section for motivation.
+# ============================================================
+def _fit_logspline_1d(data, lo, hi,
+                      n_interior=14, smooth_lambda=5.0, n_grid=1000):
+    """Penalised cubic B-spline log-density on the closed interval [lo, hi].
+
+    Parameterisation:
+        log f(x) = sum_j beta_j * B_j(x),  x in [lo, hi]
+    Clamped cubic B-spline basis (multiplicity (k+1) at each boundary) so
+    that density at x = lo and x = hi is a free parameter (captures NROY
+    boundary pile-up).  beta is fit by penalised MLE with second-difference
+    penalty (P-spline):
+        max_beta  sum_i B(x_i) beta - N log Z(beta) - lambda || D^2 beta ||^2
+    Z(beta) = integral_lo^hi exp(B(x) beta) dx, computed by Simpson's rule
+    on a fine grid.
+
+    Returns (x_grid, f_grid, ok_flag) with f_grid normalised so that
+        integral_lo^hi f_grid dx = 1.
+    """
+    from scipy.interpolate import BSpline as _BSpline_
+    from scipy.integrate import simpson as _simpson_
+    from scipy.optimize import minimize as _minimize_
+
+    k = 3
+    # Clamped knot vector: k+1 repeats at each boundary so design_matrix
+    # produces a full-rank basis including boundary support.
+    interior = np.linspace(lo, hi, n_interior + 2)[1:-1]
+    t = np.concatenate([np.full(k + 1, lo), interior, np.full(k + 1, hi)])
+    n_basis = len(t) - k - 1
+
+    data = np.clip(np.asarray(data, dtype=np.float64), lo, hi)
+    N = len(data)
+
+    x_grid = np.linspace(lo, hi, n_grid)
+    B_grid = np.asarray(
+        _BSpline_.design_matrix(x_grid, t, k, extrapolate=False).todense()
+    )                                                             # (G, n_basis)
+    B_data = np.asarray(
+        _BSpline_.design_matrix(data, t, k, extrapolate=False).todense()
+    )                                                             # (N, n_basis)
+
+    D = np.diff(np.eye(n_basis), n=2, axis=0)
+    P = D.T @ D
+    B_data_sum = B_data.sum(axis=0)
+
+    def neg_lp(beta):
+        eta_g = B_grid @ beta
+        m = eta_g.max()
+        Zs = _simpson_(np.exp(eta_g - m), x=x_grid)
+        log_Z = np.log(Zs) + m
+        return -((B_data @ beta).sum()
+                 - N * log_Z
+                 - smooth_lambda * (beta @ P @ beta))
+
+    def grad(beta):
+        eta_g = B_grid @ beta
+        m = eta_g.max()
+        fu = np.exp(eta_g - m)
+        Zs = _simpson_(fu, x=x_grid)
+        p_norm = fu / Zs
+        int_Bp = _simpson_(B_grid * p_norm[:, None], x=x_grid, axis=0)
+        return -(B_data_sum - N * int_Bp - 2.0 * smooth_lambda * (P @ beta))
+
+    res = _minimize_(
+        neg_lp, np.zeros(n_basis), jac=grad, method="L-BFGS-B",
+        options={"maxiter": 500, "ftol": 1e-10, "gtol": 1e-8},
+    )
+    beta_hat = res.x
+    eta_g = B_grid @ beta_hat
+    m = eta_g.max()
+    Z = _simpson_(np.exp(eta_g - m), x=x_grid) * np.exp(m)
+    f_grid = np.exp(eta_g) / Z
+    return x_grid, f_grid, bool(res.success)
+
+
+def fit_logspline_copula(data_np, prior_lower, prior_upper,
+                         n_interior=14, smooth_lambda=5.0, n_grid=1000,
+                         corr_shrink=0.0, f_eps=1e-6, axis_names=None):
+    """Fit a Gaussian copula with per-axis logspline (P-spline) marginals.
+
+    Unlike `fit_gaussian_copula`:
+      - Marginals f_i are bounded to [prior_lower[i], prior_upper[i]] by
+        construction (support enforced by the clamped B-spline knot vector).
+      - No Silverman boundary bias; no subsample noise.
+      - MCMC evaluation is O(log G) per axis via precomputed grids +
+        searchsorted + linear interp (see _logspline_copula_log_prob).
+
+    Dependence structure R is estimated identically to `fit_gaussian_copula`:
+    mid-rank empirical CDF -> rank-Gaussianisation -> sample correlation.
+    (Using the fitted logspline CDF for rank-Gaussianisation instead of
+     the mid-rank estimator is possible but differs by O(h_kde) in the
+     old method and by O(n_grid^-2) here — negligible vs. sample noise in
+     R.  Keeping mid-rank preserves the validated copula-R estimator.)
+
+    Returns a dict of torch tensors ready for `_logspline_copula_log_prob`,
+    plus numpy diagnostics.
+    """
+    data_np = np.asarray(data_np, dtype=np.float64)
+    N, d = data_np.shape
+    prior_lower = np.asarray(prior_lower, dtype=np.float64)
+    prior_upper = np.asarray(prior_upper, dtype=np.float64)
+
+    # ---- 1. per-axis logsplines -----------------------------------------
+    x_grids = np.zeros((d, n_grid), dtype=np.float64)
+    f_grids = np.zeros((d, n_grid), dtype=np.float64)
+    cdf_grids = np.zeros((d, n_grid), dtype=np.float64)
+    n_bad_fit = 0
+    for i in range(d):
+        lo = float(prior_lower[i])
+        hi = float(prior_upper[i])
+        # Tighten to empirical extent if data is strictly inside bounds
+        # (avoids fitting a long flat tail of zero density outside NROY).
+        emp_lo = float(data_np[:, i].min())
+        emp_hi = float(data_np[:, i].max())
+        lo = max(lo, emp_lo - 1e-9)
+        hi = min(hi, emp_hi + 1e-9)
+        xg, fg, ok = _fit_logspline_1d(
+            data_np[:, i], lo, hi,
+            n_interior=n_interior,
+            smooth_lambda=smooth_lambda,
+            n_grid=n_grid,
+        )
+        x_grids[i] = xg
+        f_grids[i] = fg
+        # Cumulative trapezoidal -> CDF on grid (monotone, starts at 0)
+        dx = np.diff(xg)
+        cdf = np.zeros(n_grid)
+        cdf[1:] = np.cumsum(0.5 * (fg[:-1] + fg[1:]) * dx)
+        cdf /= cdf[-1]                                            # enforce CDF(hi) = 1
+        cdf_grids[i] = cdf
+        if not ok:
+            n_bad_fit += 1
+            if axis_names is not None:
+                print(f"    WARNING: logspline MLE did not converge cleanly "
+                      f"on axis '{axis_names[i]}'")
+
+    # ---- 2. rank-Gaussianise via mid-rank empirical CDF -----------------
+    ranks = np.argsort(np.argsort(data_np, axis=0), axis=0).astype(np.float64)
+    F_all = (ranks + 0.5) / N
+    z_all = _scipy_norm.ppf(np.clip(F_all, f_eps, 1.0 - f_eps))   # (N, d)
+
+    # ---- 3. correlation matrix R + shrinkage ---------------------------
+    R = np.cov(z_all, rowvar=False, ddof=1)
+    sigma_R = np.sqrt(np.diag(R))
+    R = R / sigma_R[:, None] / sigma_R[None, :]
+    if corr_shrink > 0.0:
+        R = (1.0 - corr_shrink) * R + corr_shrink * np.eye(d)
+
+    # ---- 4. Cholesky + diagnostics --------------------------------------
+    try:
+        L_R = np.linalg.cholesky(R)
+    except np.linalg.LinAlgError:
+        jitter = 1e-8
+        while True:
+            try:
+                L_R = np.linalg.cholesky(R + jitter * np.eye(d))
+                break
+            except np.linalg.LinAlgError:
+                jitter *= 10.0
+                if jitter > 1e-2:
+                    raise
+    half_logdet_R = float(np.log(np.diag(L_R)).sum())
+    eigvals = np.linalg.eigvalsh(R)
+
+    return {
+        "marginal_type":  "logspline",
+        # torch caches for MCMC (float32 matches the GP backend dtype)
+        "x_grid":         torch.tensor(x_grids,   dtype=torch.float32),   # (d, G)
+        "f_grid":         torch.tensor(f_grids,   dtype=torch.float32),   # (d, G)
+        "cdf_grid":       torch.tensor(cdf_grids, dtype=torch.float32),   # (d, G)
+        "L_R":            torch.tensor(L_R,        dtype=torch.float32),  # (d, d)
+        "half_logdet_R":  torch.tensor(half_logdet_R, dtype=torch.float32),
+        "F_eps":          torch.tensor(float(f_eps), dtype=torch.float32),
+        # Per-axis gather indices. Cached once so the NUTS inner loop does
+        # not recreate it from scratch every call to _logspline_copula_log_prob.
+        "arange_d":       torch.arange(d, dtype=torch.long),
+        # numpy diagnostics
+        "R_eig_min":      float(eigvals.min()),
+        "R_eig_max":      float(eigvals.max()),
+        "R_cond":         float(eigvals.max() / max(eigvals.min(), 1e-30)),
+        "N":              int(N),
+        "n_grid":         int(n_grid),
+        "n_interior":     int(n_interior),
+        "smooth_lambda":  float(smooth_lambda),
+        "n_bad_fit":      int(n_bad_fit),
+    }
+
+
+def _logspline_copula_log_prob(theta, cop):
+    """Differentiable log-density of a Gaussian copula with per-axis
+    logspline marginals; O(log G) per axis via precomputed grids.
+
+    Evaluation:
+        bin          = searchsorted(x_grid, theta)              # (d,)
+        dx           = x_hi - x_lo
+        slope        = (f_hi - f_lo) / dx
+        f_i(theta_i) = f_lo + slope * (theta_i - x_lo)          # linear in theta
+        F_i(theta_i) = F_lo + f_lo * (theta_i - x_lo)
+                             + 0.5 * slope * (theta_i - x_lo)^2 # quadratic
+        z_i          = Phi^{-1}(F_i)
+        log p(theta) = -0.5 (||L_R^{-1} z||^2 - ||z||^2)
+                       - half_logdet_R
+                       + sum_i log f_i(theta_i)
+
+    F_i is the analytic integral of the piecewise-linear f_i, so
+    dF_i / dtheta_i == f_i(theta_i) at every evaluation — the gradient
+    that NUTS sees is consistent between f_i and F_i.
+    """
+    x_grid   = cop["x_grid"]        # (d, G)
+    f_grid   = cop["f_grid"]        # (d, G)
+    cdf_grid = cop["cdf_grid"]      # (d, G)
+    L_R      = cop["L_R"]
+    half_logdet_R = cop["half_logdet_R"]
+    F_eps    = cop["F_eps"]
+    d, G = x_grid.shape
+
+    theta_c = theta.to(x_grid.dtype)
+
+    # Per-axis bin search (right edge of bracketing interval).  With 2D
+    # sorted_sequence, searchsorted operates along the last dim per row.
+    idx_hi = torch.searchsorted(
+        x_grid, theta_c.unsqueeze(-1).contiguous()
+    ).squeeze(-1)                                                 # (d,)
+    idx_hi = idx_hi.clamp(min=1, max=G - 1)
+    idx_lo = idx_hi - 1
+
+    # Gather per-axis bin edges and grid values.
+    arange_d = cop["arange_d"]
+    x_lo = x_grid[arange_d, idx_lo]
+    x_hi = x_grid[arange_d, idx_hi]
+    f_lo = f_grid[arange_d, idx_lo]
+    f_hi = f_grid[arange_d, idx_hi]
+    F_lo = cdf_grid[arange_d, idx_lo]
+
+    dx     = (x_hi - x_lo).clamp_min(1e-30)
+    slope  = (f_hi - f_lo) / dx
+    delta  = theta_c - x_lo
+
+    # Piecewise-linear f, piecewise-quadratic F (analytic integral of f).
+    f_th   = (f_lo + slope * delta).clamp_min(1e-30)
+    F_th   = F_lo + f_lo * delta + 0.5 * slope * delta ** 2
+    F_th   = F_th.clamp(F_eps, 1.0 - F_eps)
+
+    # Inverse standard-normal CDF.
+    z = math.sqrt(2.0) * torch.erfinv(2.0 * F_th - 1.0)          # (d,)
+
+    # Copula density: -0.5 (w'w - z'z) - log|L_R|  via one tri-solve.
+    w = torch.linalg.solve_triangular(
+        L_R, z.unsqueeze(-1), upper=False
+    ).squeeze(-1)                                                # (d,)
+    log_copula = -0.5 * ((w ** 2).sum() - (z ** 2).sum()) - half_logdet_R
+
+    log_f = torch.log(f_th).sum()
+    return log_copula + log_f
+
+
+def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_lower,
+                                 prior_upper, out_dir, n_bins=40, n_cols=7):
+    """Save per-axis prior marginals overlaid on the empirical NROY histograms.
+
+    For logspline marginals, this reuses the fitted (x_grid, f_grid) already
+    stored in `copula_cache`, so no second fitting pass is needed. For KDE
+    marginals, it evaluates the Gaussian-KDE density on a plotting grid using
+    the cached subsample and bandwidths.
+    """
+    if copula_cache is None:
+        print("  Skipping prior-marginal plot (uniform box prior).")
+        return None
+
+    print("  Saving prior marginals vs NROY plot...")
+
+    nroy_subset = np.asarray(nroy_subset, dtype=np.float64)
+    prior_lower = np.asarray(prior_lower, dtype=np.float64)
+    prior_upper = np.asarray(prior_upper, dtype=np.float64)
+
+    ndim = len(subset_vars)
+    n_rows = math.ceil(ndim / n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(3.0 * n_cols, 2.2 * n_rows))
+    axes = np.atleast_2d(axes)
+
+    marginal_type = copula_cache.get("marginal_type", "kde")
+    legend_added = False
+
+    for j, name in enumerate(subset_vars):
+        ax = axes[j // n_cols, j % n_cols]
+        data_j = nroy_subset[:, j]
+
+        ax.hist(
+            data_j, bins=n_bins, density=True,
+            color="steelblue", alpha=0.45, edgecolor="none",
+            label="NROY points" if not legend_added else None,
+        )
+
+        L = float(prior_lower[j])
+        U = float(prior_upper[j])
+        emp_lo = float(data_j.min())
+        emp_hi = float(data_j.max())
+        L = max(L, emp_lo - 1e-9)
+        U = min(U, emp_hi + 1e-9)
+
+        if marginal_type == "logspline":
+            xg = copula_cache["x_grid"][j].detach().cpu().numpy()
+            fg = copula_cache["f_grid"][j].detach().cpu().numpy()
+            ax.plot(xg, fg, color="crimson", lw=1.3,
+                    label="logspline marginal" if not legend_added else None)
+        else:
+            xg = np.linspace(L, U, 600)
+            kde_data_j = copula_cache["kde_data"][j].detach().cpu().numpy()
+            h_j = float(copula_cache["kde_h"][j].item())
+            u = (xg[:, None] - kde_data_j[None, :]) / h_j
+            fg = np.exp(-0.5 * u ** 2).sum(axis=1)
+            fg /= (kde_data_j.size * h_j * math.sqrt(2.0 * math.pi))
+            ax.plot(xg, fg, color="crimson", lw=1.3,
+                    label="KDE marginal" if not legend_added else None)
+
+        ax.axvline(L, color="grey", ls=":", lw=0.5, alpha=0.6)
+        ax.axvline(U, color="grey", ls=":", lw=0.5, alpha=0.6)
+        ax.set_title(name, fontsize=8)
+        ax.tick_params(labelsize=6)
+        ax.set_xlabel("value", fontsize=6)
+        ax.set_ylabel("density", fontsize=6)
+        legend_added = True
+
+    for k in range(ndim, n_rows * n_cols):
+        axes[k // n_cols, k % n_cols].axis("off")
+
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, loc="upper center", ncol=2, fontsize=10,
+                   bbox_to_anchor=(0.5, 1.0))
+
+    if marginal_type == "logspline":
+        title = (
+            f"Logspline (P-spline) marginals on HM bounds "
+            f"[n_interior={LOGSPLINE_N_INTERIOR}, lambda={LOGSPLINE_LAMBDA}] "
+            f"vs NROY empirical distribution"
+        )
+        out_name = "copula_marginals_vs_NROY_logspline.png"
+    else:
+        title = (
+            f"Gaussian-KDE copula marginals on HM bounds "
+            f"[bandwidth={KDE_BANDWIDTH}] vs NROY empirical distribution"
+        )
+        out_name = "copula_marginals_vs_NROY_kde.png"
+
+    fig.suptitle(title, y=1.005, fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.985])
+
+    out_path = os.path.join(out_dir, out_name)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {out_path}")
+    return out_path
+
+def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
+                                   bc, copula=None):
+    """Batched, manual Matern-3/2 potential.  No gpytorch calls at inference.
+
+    Replaces the 25-output Python loop with two batched tensor ops:
+      k_star (n_out, n) — one call to _matern32_cross
+      variance          — one batched triangular solve via cholesky_solve
+    Gradient flows through all of these, so Pyro NUTS autograd works unchanged.
+
+    Prior:
+      - copula=None  -> uniform prior on the NROY box [prior_lo, prior_hi]
+                        (only the sigmoid reparam Jacobian contributes)
+      - copula dict  -> Gaussian copula with per-axis KDE marginals fitted
+                        on NROY points, evaluated on theta via
+                        _copula_log_prob().  The sigmoid reparam is kept
+                        as the unconstrained-space transform; its Jacobian
+                        is added so NUTS targets the correct distribution
+                        in z.
+    """
+    log_width = torch.log(prior_hi - prior_lo)
+
+    lengthscale          = bc["lengthscale"]
+    outputscale          = bc["outputscale"]
+    mean_const           = bc["mean_const"]
+    L                    = bc["L"]
+    alpha                = bc["alpha"]
+    x_mean               = bc["x_mean"]
+    x_std                = bc["x_std"]
+    y_mean               = bc["y_mean"]
+    y_std                = bc["y_std"]
+    X_train_scaled       = bc["X_train_scaled"]
+    X_train_scaled_norm2 = bc["X_train_scaled_norm2"]
+
+    def _potential(z_dict):
+        z = z_dict["theta"]
+        sig_z = torch.sigmoid(z)
+        theta = prior_lo + sig_z * (prior_hi - prior_lo)
+
+        log_det_jac = (
+            torch.nn.functional.logsigmoid(z)
+            + torch.nn.functional.logsigmoid(-z)
+            + log_width
+        ).sum()
+
+        if copula is not None:
+            if copula.get("marginal_type") == "logspline":
+                log_prior = _logspline_copula_log_prob(theta, copula)
+            else:
+                log_prior = _copula_log_prob(theta, copula)
+        else:
+            log_prior = torch.zeros((), dtype=theta.dtype, device=theta.device)
+
+        x_t = (theta - x_mean) / x_std                                   # (d,)
+
+        k_star = _matern32_cross_fast(
+            x_t, X_train_scaled, X_train_scaled_norm2,
+            lengthscale, outputscale,
+        )                                                                # (n_out, n)
+
+        mu_latent = mean_const + (k_star * alpha).sum(dim=-1)            # (n_out,)
+
+        # var_latent[i] = outputscale[i] - k*_i^T K_i^{-1} k*_i
+        #              = outputscale[i] - ||L_i^{-1} k*_i||^2
+        # One batched forward-substitution replaces the two tri-solves of
+        # cholesky_solve, and we never materialise v = K^{-1} k*.
+        w = torch.linalg.solve_triangular(
+            L, k_star.unsqueeze(-1), upper=False,
+        ).squeeze(-1)                                                    # (n_out, n)
+        var_latent = (outputscale - (w ** 2).sum(dim=-1)).clamp(min=1e-10)
+
+        mus   = mu_latent * y_std + y_mean                               # (n_out,)
+        vars_ = var_latent * y_std ** 2                                  # (n_out,)
+
+        total_var = (obs_vars_t + vars_).clamp(min=1e-10)
+        z_norm = (obs_means_t - mus) / total_var.sqrt()
+        ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
+
+        ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
+        log_prior = torch.nan_to_num(log_prior, nan=-1e8, posinf=-1e8, neginf=-1e8)
+        return -(ll + log_prior + log_det_jac)
+
+    return _potential
+
+
+def batched_predict_mean(theta_batch, bc):
+    """Mean-only batched prediction for N points  × n_out outputs.
+
+    theta_batch: (B, d)    — unstandardised params
+    returns:     (B, n_out) of final predictions (post y-inverse-transform)
+    """
+    X_train     = bc["X_train"]            # (n, d)
+    lengthscale = bc["lengthscale"]        # (n_out, d)
+    outputscale = bc["outputscale"]        # (n_out,)
+    mean_const  = bc["mean_const"]         # (n_out,)
+    alpha       = bc["alpha"]              # (n_out, n)
+    x_mean      = bc["x_mean"]
+    x_std       = bc["x_std"]
+    y_mean      = bc["y_mean"]
+    y_std       = bc["y_std"]
+
+    x_t = (theta_batch - x_mean) / x_std                                 # (B, d)
+    # diff: (B, n_out, n, d)
+    diff = (x_t.unsqueeze(1).unsqueeze(2) - X_train.unsqueeze(0).unsqueeze(0)) \
+           / lengthscale.unsqueeze(0).unsqueeze(2)
+    r = torch.sqrt((diff ** 2).sum(dim=-1) + 1e-30)                      # (B, n_out, n)
+    k_star = outputscale.view(1, -1, 1) * (1.0 + SQRT3 * r) * torch.exp(-SQRT3 * r)
+    mu_latent = mean_const + (k_star * alpha.unsqueeze(0)).sum(dim=-1)   # (B, n_out)
+    return mu_latent * y_std + y_mean
+
+
+# ================================================================
+# OUTPUT NAMES (same order as emulators / simulator outputs)
+# ================================================================
+output_names = [
+    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV",
+    "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
+    "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume",
+    "Max_RA_Pressure_Atrial_contraction",
+    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+    "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff",
+    "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
+    "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+    "PaO2", "PaCO2",
+]
+
+# ================================================================
+# REST TARGETS: {name_with_spaces: (population_mean, population_variance)}
+# ================================================================
+observation = {
+    "Heart Rate": (1.23, 0.05),
+    "Systolic Pressure": (123, 324),
+    "Diastolic Pressure": (76.7, 65.61),
+    "EDV": (152.1, 767.29),
+    "ESV": (62.3, 243.36),
+    "Max RV Volume": (151.9, 1004.89),
+    "Min RV Volume": (64.4, 299.29),
+    "Max RV Pressure": (22.5, 56.25),
+    "Min RV Pressure": (4.0, 9.0),
+    "Min RA Volume": (30.6, 76.4),
+    "Max RA Volume": (92.4, 380.25),
+    "Max RA Pressure Atrial contraction": (8.0, 9.0),
+    "Max RA Pressure Tricuspid Opening": (5.0, 9.0),
+    "Min LA Volume": (32.9, 75.69),
+    "Max LA Volume": (68.3, 306.25),
+    "Max LA Pressure Atrial contraction": (13.0, 9.0),
+    "Max LA Pressure Mitral Opening": (12.0, 9.0),
+    "LA Contraction Volume diff": (41.8, 62.41),
+    "RA Contraction Volume diff": (46.1, 73.96),
+    "LV Pressure Deriv": (1461.0, 146689.0),
+    "RV Pressure Deriv": (271.0, 3025.0),
+    "Tidal Volume": (0.850, 0.16),
+    "Minute Ventilation": (11.4, 15.21),
+    "PaO2": (102.3, 125.44),
+    "PaCO2": (35.5, 24.01),
+}
+
+# ================================================================
+# CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis)
+# ================================================================
+# rest
+subset_vars_set = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
+               'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+               'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
+               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
+               'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
+               'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
+               'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
+
+
+# total blood volume
+# subset_vars_set = {
+#     'a2', 'ahead1', 'beta2', 'C2', 'C_O2_param1', 'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_rv0',
+#                'f_ab_max', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'K2',
+#                'k_ab', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n',
+#                'PaCO2_n', 'r', 'R_rs', 'R_sa', 'rise_time_ven', 'T0', 'V0_dead', 'V_nominal', 'V_scale', 'V_tot',
+#                'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh'
+# }
+
+
+
+
+
+# ============================================================
+# 1. LOAD HISTORY MATCHING RESULTS
+# ============================================================
+print("=" * 60)
+print("STEP 1 -- Loading history matching results")
+print("=" * 60)
+
+nroy_points_np = np.load(
+    f"{root}/NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy"
+)
+nroy_params_dict = np.load(
+    f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True
+).item()
+
+# Parameter ordering from the HM bounds dict (matches sp["names"])
+all_param_names = list(nroy_params_dict.keys())
+
+# Calibration subset, preserved in the order they appear in the full vector
+subset_vars = [n for n in all_param_names if n in subset_vars_set]
+param_idx = [all_param_names.index(n) for n in subset_vars]
+ndim = len(subset_vars)
+
+# Extract calibration columns from NROY points
+nroy_subset = nroy_points_np[:, param_idx].astype(np.float32)
+n_nroy = nroy_subset.shape[0]
+
+# NROY bounds for priors
+prior_lower = np.array(
+    [nroy_params_dict[n][0] for n in subset_vars], dtype=np.float32
+)
+prior_upper = np.array(
+    [nroy_params_dict[n][1] for n in subset_vars], dtype=np.float32
+)
+
+# Warn about degenerate bounds
+range_width = prior_upper - prior_lower
+narrow = range_width < 1e-12
+if narrow.any():
+    names_narrow = [subset_vars[i] for i in np.where(narrow)[0]]
+    print(f"  WARNING: {len(names_narrow)} params have degenerate NROY "
+          f"range and will be effectively fixed: {names_narrow}")
+
+print(f"  NROY points loaded:    {n_nroy}")
+print(f"  Calibration params:    {ndim}")
+print(f"  Full parameter vector: {len(all_param_names)}")
+
+# ============================================================
+# 1b. FIT GAUSSIAN COPULA PRIOR ON NROY POINTS
+# ============================================================
+# The HM bounds dict only retains per-axis min/max of surviving points, so a
+# uniform box prior throws away all joint-space information. We instead fit a
+# Gaussian copula to the NROY cloud:
+#     p(theta) = c(F_1..F_d) * prod_i f_i(theta_i)
+# with per-axis Gaussian-KDE marginals (f_i, F_i) and a single correlation
+# matrix R modelling the dependency in rank-Gaussianised space. Motivation
+# (replaces the previous full-cov GMM + BIC approach):
+#   1. A full-cov GMM has d + d(d+1)/2 ~= 1891 free params per component at
+#      d=69, so BIC's p*log(N) penalty dominates the log-likelihood gain and
+#      collapses K to 1, reproducing a plain MVN that cannot represent the
+#      visible skew in axes like T0, GT_v, P_n, ahead1.
+#   2. Diagnostic hexbins (see NROY_joint_multimodality_check.py) showed
+#      each skewed-axis pair as a single connected high-density region, not
+#      disjoint modes. Marginal bimodality is a projection artefact of
+#      corner-concentrated unimodal density in a ~60D box -- exactly the
+#      case the Gaussian copula handles well.
+#   3. The copula decouples marginals from dependency: KDE captures skew in
+#      each p_i exactly, and R captures the joint correlations. No K-sweep
+#      is required, so BIC misbehaviour is sidestepped entirely.
+copula_prior_cache = None
+if USE_COPULA_PRIOR:
+    print("\n" + "=" * 60)
+    if USE_LOGSPLINE_MARGINALS:
+        print("STEP 1b -- Fitting Gaussian copula prior (logspline marginals)")
+    else:
+        print("STEP 1b -- Fitting Gaussian copula prior (Gaussian KDE marginals)")
+    print("=" * 60)
+
+    # Zero-variance columns (degenerate NROY dims) -> fall back to uniform
+    axis_std = nroy_subset.std(axis=0, ddof=1)
+    zero_var = axis_std < 1e-12
+    if zero_var.any():
+        bad = [subset_vars[i] for i in np.where(zero_var)[0]]
+        print(f"  WARNING: zero-variance NROY dims {bad}; "
+              f"falling back to uniform prior")
+        copula_prior_cache = None
+    elif USE_LOGSPLINE_MARGINALS:
+        print(f"  Fitting on N={n_nroy} points, d={ndim}")
+        print(f"  Logspline: n_interior={LOGSPLINE_N_INTERIOR}, "
+              f"lambda={LOGSPLINE_LAMBDA}, grid={LOGSPLINE_N_GRID}")
+        print(f"  R shrinkage toward I: {CORR_SHRINK}")
+
+        import time as _time_
+        _t0 = _time_.time()
+        copula_prior_cache = fit_logspline_copula(
+            nroy_subset,
+            prior_lower=prior_lower,
+            prior_upper=prior_upper,
+            n_interior=LOGSPLINE_N_INTERIOR,
+            smooth_lambda=LOGSPLINE_LAMBDA,
+            n_grid=LOGSPLINE_N_GRID,
+            corr_shrink=CORR_SHRINK,
+            f_eps=COPULA_F_EPS,
+            axis_names=subset_vars,
+        )
+        print(f"  Fit time: {_time_.time() - _t0:.1f} s  "
+              f"(non-converged axes: {copula_prior_cache['n_bad_fit']})")
+        print(f"  R eigenvalues: min={copula_prior_cache['R_eig_min']:.3e}, "
+              f"max={copula_prior_cache['R_eig_max']:.3e}, "
+              f"cond={copula_prior_cache['R_cond']:.2e}")
+
+        # Sanity check: log-density finite at a random NROY point
+        _test_idx = np.random.default_rng(RANDOM_SEED).integers(0, n_nroy)
+        _test_theta = torch.tensor(nroy_subset[_test_idx], dtype=torch.float32)
+        with torch.no_grad():
+            _lp = _logspline_copula_log_prob(_test_theta, copula_prior_cache)
+        print(f"  log p(theta) at NROY[{_test_idx}] = {_lp.item():.4f} "
+              f"(should be finite)")
+        assert torch.isfinite(_lp), "Logspline-copula log-density non-finite"
+
+        # Sanity check 2: gradient w.r.t. theta is finite (NUTS needs it)
+        _grad_theta = torch.tensor(nroy_subset[_test_idx],
+                                   dtype=torch.float32, requires_grad=True)
+        _lp_g = _logspline_copula_log_prob(_grad_theta, copula_prior_cache)
+        _lp_g.backward()
+        assert torch.isfinite(_grad_theta.grad).all(), (
+            "Logspline-copula gradient non-finite; check grid density / "
+            "bounds / F_eps"
+        )
+        print(f"  gradient check passed: "
+              f"max|d log p / d theta| = "
+              f"{_grad_theta.grad.abs().max().item():.3e}")
+
+        # Save for reproducibility / diagnostics
+        copula_dump = {
+            "marginal_type":  "logspline",
+            "x_grid":         copula_prior_cache["x_grid"].cpu().numpy(),
+            "f_grid":         copula_prior_cache["f_grid"].cpu().numpy(),
+            "cdf_grid":       copula_prior_cache["cdf_grid"].cpu().numpy(),
+            "L_R":            copula_prior_cache["L_R"].cpu().numpy(),
+            "half_logdet_R":  float(copula_prior_cache["half_logdet_R"].item()),
+            "F_eps":          float(copula_prior_cache["F_eps"].item()),
+            "N":              copula_prior_cache["N"],
+            "n_grid":         copula_prior_cache["n_grid"],
+            "n_interior":     copula_prior_cache["n_interior"],
+            "smooth_lambda":  copula_prior_cache["smooth_lambda"],
+            "R_eig_min":      copula_prior_cache["R_eig_min"],
+            "R_eig_max":      copula_prior_cache["R_eig_max"],
+            "R_cond":         copula_prior_cache["R_cond"],
+            "corr_shrink":    CORR_SHRINK,
+            "subset_vars":    subset_vars,
+            "prior_lower":    np.asarray(prior_lower, dtype=np.float64),
+            "prior_upper":    np.asarray(prior_upper, dtype=np.float64),
+        }
+        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+    else:
+        print(f"  Fitting on N={n_nroy} points, d={ndim}")
+        print(f"  KDE subsample per axis: {KDE_SUBSAMPLE}")
+        print(f"  Bandwidth rule: {KDE_BANDWIDTH}")
+        print(f"  R shrinkage toward I: {CORR_SHRINK}")
+
+        copula_prior_cache = fit_gaussian_copula(
+            nroy_subset,
+            n_kde=KDE_SUBSAMPLE,
+            bandwidth=KDE_BANDWIDTH,
+            corr_shrink=CORR_SHRINK,
+            f_eps=COPULA_F_EPS,
+            random_state=RANDOM_SEED,
+        )
+        print(f"  R eigenvalues: min={copula_prior_cache['R_eig_min']:.3e}, "
+              f"max={copula_prior_cache['R_eig_max']:.3e}, "
+              f"cond={copula_prior_cache['R_cond']:.2e}")
+        print(f"  Median bandwidth (Silverman): "
+              f"{np.median(copula_prior_cache['h_np']):.4g}")
+
+        # Sanity check: log-density finite at a random NROY point
+        _test_idx = np.random.default_rng(RANDOM_SEED).integers(0, n_nroy)
+        _test_theta = torch.tensor(nroy_subset[_test_idx], dtype=torch.float32)
+        with torch.no_grad():
+            _lp = _copula_log_prob(_test_theta, copula_prior_cache)
+        print(f"  log p(theta) at NROY[{_test_idx}] = {_lp.item():.4f} "
+              f"(should be finite)")
+        assert torch.isfinite(_lp), "Copula log-density non-finite on NROY point"
+
+        # Save for reproducibility / diagnostics
+        copula_dump = {
+            "marginal_type":  "kde",
+            "kde_data":       copula_prior_cache["kde_data"].cpu().numpy(),
+            "kde_h":          copula_prior_cache["kde_h"].cpu().numpy(),
+            "L_R":            copula_prior_cache["L_R"].cpu().numpy(),
+            "half_logdet_R":  float(copula_prior_cache["half_logdet_R"].item()),
+            "F_eps":          float(copula_prior_cache["F_eps"].item()),
+            "M":              copula_prior_cache["M"],
+            "N":              copula_prior_cache["N"],
+            "R_eig_min":      copula_prior_cache["R_eig_min"],
+            "R_eig_max":      copula_prior_cache["R_eig_max"],
+            "bandwidth_rule": KDE_BANDWIDTH,
+            "corr_shrink":    CORR_SHRINK,
+            "subset_vars":    subset_vars,
+        }
+        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+else:
+    print("\n  USE_COPULA_PRIOR = False -> uniform box prior on NROY bounds")
+
+# Prior bounds as tensors
+prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
+prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
+
+# Save a diagnostic plot of the fitted prior marginals before MCMC starts.
+_ = plot_prior_marginals_vs_nroy(
+    copula_prior_cache,
+    nroy_subset=nroy_subset,
+    subset_vars=subset_vars,
+    prior_lower=prior_lower,
+    prior_upper=prior_upper,
+    out_dir=out_dir,
+)
+
+# ============================================================
+# 2. LOAD GP EMULATORS
+# ============================================================
+print("\n" + "=" * 60)
+print("STEP 2 -- Loading GP emulators")
+print("=" * 60)
+
+emulators = {}
+for name in output_names:
+    path = os.path.join(
+        EMULATOR_DIR, name,
+        f"GaussianProcessMatern32_{name}_best.joblib",
+    )
+    emulators[name] = joblib.load(path)
+print(f"  Loaded {len(emulators)} emulators from {EMULATOR_DIR}/")
+
+# Pre-compute GP internals (Cholesky, alpha) for fast MCMC evaluation
+print("  Pre-warming GPyTorch prediction caches...")
+gp_caches = extract_fast_caches(emulators, output_names)
+first_gp = list(gp_caches.values())[0]["gp"]
+print(f"  Cached {len(gp_caches)} GPs "
+      f"(n_train={first_gp.train_inputs[0].shape[-2]})")
+
+# ---- Build batched / manual-Matern-3/2 cache and verify vs GPyTorch ----
+print("  Building batched manual-forward cache...")
+batched_cache = build_batched_fast_caches(emulators, output_names, gp_caches)
+print(f"  Batched cache: L={tuple(batched_cache['L'].shape)}, "
+      f"alpha={tuple(batched_cache['alpha'].shape)}")
+
+# print("  Verifying batched path matches GPyTorch path on 5 NROY points...")
+# _rng_check = np.random.default_rng(0)
+# _check_idx = _rng_check.choice(nroy_subset.shape[0], size=5, replace=False)
+# _max_mu_rel_err, _max_var_rel_err = 0.0, 0.0
+# # Per-output worst error so we can see which GP disagrees if this fails.
+# _per_out_mu_err  = np.zeros(len(output_names))
+# _per_out_var_err = np.zeros(len(output_names))
+#
+# IMPORTANT: gpytorch's default is conjugate-gradient solves when
+# n_train > max_cholesky_size (default 800).  With n_train ~1500 that path is
+# *approximate*, so it disagrees with our exact-Cholesky manual path by ~1%.
+# For a fair numerical comparison we force gpytorch onto exact Cholesky too.
+# (This also means our new batched path is strictly more accurate than the
+# previous fast_pred_var-based inference — not a regression.)
+_n_train_here = batched_cache["L"].shape[-1]
+
+# Clear any cached prediction strategy on each GP so it rebuilds under the
+# exact-Cholesky context below (otherwise the cache from the pre-warming step
+# sticks around and keeps using CG).
+for _name in output_names:
+    _g = gp_caches[_name]["gp"]
+    if hasattr(_g, "prediction_strategy"):
+        _g.prediction_strategy = None
+
+# def _ctx_exact():
+#     # Fresh context manager each use — gpytorch.settings contexts are one-shot.
+#     return gpytorch.settings.max_cholesky_size(_n_train_here + 1000)
+#
+# for _tp_np in nroy_subset[_check_idx]:
+#     _tp = torch.tensor(_tp_np, dtype=torch.float32)
+#
+#     _mus_old  = torch.empty(len(output_names))
+#     _vars_old = torch.empty(len(output_names))
+#     for _i, _name in enumerate(output_names):
+#         _c = gp_caches[_name]
+#         with torch.no_grad(), _ctx_exact():
+#             _xt  = (_tp - _c["x_mean"]) / _c["x_std"]
+#             _out = _c["gp"](_xt.unsqueeze(0))
+#             _mus_old[_i]  = _out.mean.squeeze() * _c["y_std"] + _c["y_mean"]
+#             _vars_old[_i] = _out.variance.squeeze().clamp(min=1e-10) * _c["y_std"] ** 2
+#
+#     with torch.no_grad():
+#         _x_t = (_tp - batched_cache["x_mean"]) / batched_cache["x_std"]
+#         _k   = _matern32_cross(_x_t, batched_cache["X_train"],
+#                                batched_cache["lengthscale"],
+#                                batched_cache["outputscale"])
+#         _mu_lat  = batched_cache["mean_const"] + (_k * batched_cache["alpha"]).sum(dim=-1)
+#         _v       = torch.cholesky_solve(_k.unsqueeze(-1), batched_cache["L"]).squeeze(-1)
+#         _var_lat = (batched_cache["outputscale"] - (_k * _v).sum(dim=-1)).clamp(min=1e-10)
+#         _mus_new  = _mu_lat  * batched_cache["y_std"] + batched_cache["y_mean"]
+#         _vars_new = _var_lat * batched_cache["y_std"] ** 2
+#
+#     _mu_err_vec  = ((_mus_new  - _mus_old ).abs() / (_mus_old.abs()  + 1e-8)).cpu().numpy()
+#     _var_err_vec = ((_vars_new - _vars_old).abs() / (_vars_old.abs() + 1e-8)).cpu().numpy()
+#     _per_out_mu_err  = np.maximum(_per_out_mu_err,  _mu_err_vec)
+#     _per_out_var_err = np.maximum(_per_out_var_err, _var_err_vec)
+#     _max_mu_rel_err  = max(_max_mu_rel_err,  float(_mu_err_vec.max()))
+#     _max_var_rel_err = max(_max_var_rel_err, float(_var_err_vec.max()))
+#
+# print(f"  Max relative error across 5 points:  "
+#       f"mean={_max_mu_rel_err:.2e}  variance={_max_var_rel_err:.2e}")
+# if _max_mu_rel_err >= 1e-3 or _max_var_rel_err >= 1e-2:
+#     print("  Per-output error (sorted by mean error, showing worst 10):")
+#     _order = np.argsort(-_per_out_mu_err)[:10]
+#     for _i in _order:
+#         _gp = emulators[output_names[_i]].model
+#         print(f"    {output_names[_i]:<40} "
+#               f"mu_rel={_per_out_mu_err[_i]:.2e}  "
+#               f"var_rel={_per_out_var_err[_i]:.2e}  "
+#               f"mean={type(_gp.mean_module).__name__}  "
+#               f"kernel={type(_gp.covar_module).__name__}/"
+#               f"{type(getattr(_gp.covar_module,'base_kernel',_gp.covar_module)).__name__}")
+# # Tolerances reflect gpytorch's own float32 precision envelope on large kernels,
+# # not ours.  Cross-check (see commit notes): our manual float32 matches a float64
+# # reference to ~1e-6; gpytorch's float32 exact-Cholesky drifts by ~4e-4 in
+# # standardised space on the same input (LazyTensor intermediates).  So the
+# # residual in this assert is gpytorch-side drift — the batched path is at least
+# # as accurate as the gpytorch path it replaces.
+# assert _max_mu_rel_err  < 5e-3, f"Mean mismatch {_max_mu_rel_err:.2e} > 5e-3"
+# assert _max_var_rel_err < 1e-2, f"Variance mismatch {_max_var_rel_err:.2e} > 1e-2"
+# print("  Verification passed — batched path agrees with GPyTorch within float32 envelope.")
+#
+# # ---- Micro-benchmark old vs new potential path ----
+# import time as _time
+# _bench_prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
+# _bench_prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
+# _bench_obs_m = torch.tensor(
+#     [observation[n.replace("_", " ")][0] for n in output_names], dtype=torch.float32,
+# )
+# _bench_obs_v = torch.tensor(
+#     [observation[n.replace("_", " ")][1] for n in output_names], dtype=torch.float32,
+# )
+# _pf_old = make_fast_potential_fn(
+#     _bench_prior_lo, _bench_prior_hi, _bench_obs_m, _bench_obs_v,
+#     output_names, gp_caches,
+# )
+# _pf_new = make_fast_potential_fn_batched(
+#     _bench_prior_lo, _bench_prior_hi, _bench_obs_m, _bench_obs_v, batched_cache,
+# )
+# _z_bench = torch.zeros(ndim, dtype=torch.float32)
+#
+# # warmup (compile JIT caches etc.)
+# # Force exact Cholesky for the old path so its numerics match the new path —
+# # otherwise gpytorch silently uses CG (n_train > default max_cholesky_size=800)
+# # and values disagree by ~1% even though both are "correct" in their own way.
+# for _ in range(3):
+#     with torch.no_grad(), _ctx_exact():
+#         _pf_old({"theta": _z_bench}); _pf_new({"theta": _z_bench})
+#
+# _N_BENCH = 50
+# _t0 = _time.perf_counter()
+# for _ in range(_N_BENCH):
+#     with _ctx_exact():
+#         _zz = _z_bench.clone().requires_grad_(True)
+#         _p = _pf_old({"theta": _zz})
+#         _p.backward()
+# _t_old = (_time.perf_counter() - _t0) / _N_BENCH
+#
+# _t0 = _time.perf_counter()
+# for _ in range(_N_BENCH):
+#     _zz = _z_bench.clone().requires_grad_(True)
+#     _p = _pf_new({"theta": _zz})
+#     _p.backward()
+# _t_new = (_time.perf_counter() - _t0) / _N_BENCH
+#
+# with torch.no_grad(), _ctx_exact():
+#     _po = _pf_old({"theta": _z_bench}).item()
+# with torch.no_grad():
+#     _pn = _pf_new({"theta": _z_bench}).item()
+#
+# print(f"  Potential + grad per call:  old={_t_old*1e3:.2f} ms  "
+#       f"new={_t_new*1e3:.2f} ms  speedup={_t_old/_t_new:.1f}x")
+# print(f"  Potential value agreement (both exact-Chol):  "
+#       f"old={_po:.6f}  new={_pn:.6f}  |d|={abs(_po-_pn):.2e}")
+# # Tolerance is on absolute potential; values are O(1e2..1e4) so 0.5 is tight.
+# assert abs(_po - _pn) < 0.5, f"Potential mismatch {_po} vs {_pn}"
+#
+#
+# # ============================================================
+# # 3. KNN DENSITY ESTIMATION
+# # ============================================================
+# print("\n" + "=" * 60)
+# print("STEP 3 -- KNN density estimation")
+# print("=" * 60)
+#
+# # Standardise so that all dimensions contribute equally to distance
+# scaler = StandardScaler()
+# nroy_scaled = scaler.fit_transform(nroy_subset)
+#
+# knn = NearestNeighbors(n_neighbors=KNN_K, metric="euclidean", n_jobs=8)
+# knn.fit(nroy_scaled)
+#
+# # Density ~ 1 / (mean distance to k neighbours)
+# distances, _ = knn.kneighbors(nroy_scaled)
+# mean_dist = distances.mean(axis=1)
+# densities = 1.0 / (mean_dist + 1e-10)
+#
+# # Densest point = optimal MCMC starting position
+# densest_idx = np.argmax(densities)
+# best_start = nroy_subset[densest_idx]
+#
+# print(f"  k = {KNN_K}")
+# print(f"  Densest NROY index: {densest_idx}")
+# print(f"  Density at best:    {densities[densest_idx]:.4f}")
+# print(f"  Mean density:       {densities.mean():.4f}")
+#
+# top_10 = np.argsort(densities)[-10:][::-1]
+# print(f"  Top-10 densest idx: {top_10.tolist()}")
+#
+# # Sanity check: GP predictions at densest point
+# # NOTE: autoemulate uses output_from_samples=True, so predict_mean_and_variance
+# # returns a Monte Carlo estimate (noisy). Our fast-cache is the exact analytical
+# # GP prediction with affine y-inverse-transform — more accurate, not less.
+# # We verify the fast-cache against a second independent gp() call to confirm
+# # the x-standardisation and combined y-transform are correct.
+# theta_t = torch.tensor(best_start, dtype=torch.float32)
+#
+# print("\n  GP predictions at densest point (fast cache):")
+# print(f"  {'Output':<40} {'Pred':>10} {'Target':>10} "
+#       f"{'|d|/s':>7}")
+# print("  " + "-" * 75)
+# mus_check = [None] * len(output_names)
+# for i, name in enumerate(output_names):
+#     c = gp_caches[name]
+#     with torch.no_grad(), gpytorch.settings.fast_pred_var():
+#         xt = (theta_t - c["x_mean"]) / c["x_std"]
+#         output = c["gp"](xt.unsqueeze(0))
+#         mean_t = output.mean.squeeze()
+#         mus_check[i] = (mean_t * c["y_std"] + c["y_mean"]).item()
+#
+#
+# for i, name in enumerate(output_names):
+#     mu_fast = mus_check[i]
+#     obs_mean = observation[name.replace("_", " ")][0]
+#     obs_std  = observation[name.replace("_", " ")][1] ** 0.5
+#     sigma_away = abs(mu_fast - obs_mean) / obs_std
+#     flag = "" if sigma_away <= 1.0 else " *"
+#     print(f"  {name:<40} {mu_fast:10.3f} {obs_mean:10.3f} "
+#           f"{sigma_away:7.2f}{flag}")
+#
+# # Verify: two independent gp() calls at same point give identical results
+# # (confirms no stale caches or state-dependent prediction)
+# c0 = gp_caches[output_names[0]]
+# with torch.no_grad(), gpytorch.settings.fast_pred_var():
+#     xt = (theta_t - c0["x_mean"]) / c0["x_std"]
+#     mu_a = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
+#     mu_b = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
+# assert mu_a == mu_b, f"GP prediction not deterministic: {mu_a} vs {mu_b}"
+# print("\n  Determinism check passed (two gp() calls match exactly)")
+
+# ============================================================
+# 4. PYRO NUTS MCMC  (custom potential_fn — no model tracing)
+# ============================================================
+print("\n" + "=" * 60)
+print("STEP 4 -- Pyro NUTS MCMC")
+print("=" * 60)
+
+# Observation tensors
+obs_means_t = torch.tensor(
+    [observation[n.replace("_", " ")][0] for n in output_names],
+    dtype=torch.float32,
+)
+obs_vars_t = torch.tensor(
+    [observation[n.replace("_", " ")][1] for n in output_names],
+    dtype=torch.float32,
+)
+obs_stds_t = obs_vars_t.sqrt()
+
+# Build the fast potential energy function — batched manual Matern-3/2 path.
+# The old gpytorch-based make_fast_potential_fn() is still used above for the
+# verification block; NUTS runs against the batched version below.
+potential_fn = make_fast_potential_fn_batched(
+    prior_lo, prior_hi, obs_means_t, obs_vars_t, batched_cache,
+    copula=copula_prior_cache,
+)
+
+# --- Convert initial point to unconstrained space via logit ---
+eps = 1e-6 * (prior_hi - prior_lo).clamp(min=1e-20)
+# top_chain_idx = np.argsort(densities)[-(N_CHAINS):][::-1]
+# init_theta = torch.tensor(
+#     nroy_subset[top_chain_idx], dtype=torch.float32,
+# )
+
+rng = np.random.default_rng(RANDOM_SEED)
+start_idx = rng.choice(n_nroy, size=N_CHAINS, replace=False)
+init_theta = torch.tensor(nroy_subset[start_idx], dtype=torch.float32)
+
+init_theta = torch.clamp(init_theta, prior_lo + eps, prior_hi - eps)
+
+# logit: z = log( (theta - lo) / (hi - theta) )
+theta_01 = (init_theta - prior_lo) / (prior_hi - prior_lo)
+init_z_all = torch.log(theta_01 / (1.0 - theta_01))    # (N_CHAINS, ndim)
+
+# Verify initial potential is finite (use chain-0 start)
+with torch.no_grad():
+    z_test = init_z_all[0]
+    pe0 = potential_fn({"theta": z_test})
+    print(f"  Initial potential energy: {pe0.item():.4f}")
+    assert torch.isfinite(pe0), f"Initial PE is {pe0.item()}, check NROY start"
+
+# Verify gradient is finite at the initial point
+z_grad = z_test.clone().requires_grad_(True)
+pe_grad = potential_fn({"theta": z_grad})
+grad_check = torch.autograd.grad(pe_grad, z_grad)[0]
+print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
+      f"norm={grad_check.norm().item():.4f}")
+assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
+
+# ---------- Sequential multi-chain NUTS ----------
+# Pyro's native parallel multi-chain uses multiprocessing.spawn, which on
+# Windows requires an `if __name__ == "__main__":` guard AND a picklable
+# potential_fn.  This script has neither (the potential_fn closes over
+# large torch-tensor caches), so we run chains sequentially instead.
+# Posterior samples, split-R-hat and ESS are identical to parallel chains;
+# only wall time is N_CHAINS x longer.
+print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
+print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
+print(f"  target_accept_prob = {TARGET_ACCEPT}")
+print("  Running NUTS chains sequentially...")
+
+chain_samples_z  = []   # list of (N_SAMPLES, ndim) tensors
+chain_diag_list  = []   # per-chain diagnostics dicts
+chain_fell_back  = []   # which chains used HMC fallback
+
+for c in range(N_CHAINS):
+    print(f"\n  --- Chain {c + 1}/{N_CHAINS} ---")
+    pyro.set_rng_seed(RANDOM_SEED + c)
+    init_z_c = init_z_all[c].clone()
+
+    nuts_c = NUTS(
+        potential_fn=potential_fn,
+        step_size=1e-3,
+        adapt_step_size=True,
+        adapt_mass_matrix=True,
+        max_tree_depth=MAX_TREE_DEPTH,
+        target_accept_prob=TARGET_ACCEPT,
+        jit_compile=False,
+    )
+    mcmc_c = MCMC(
+        nuts_c,
+        num_samples=N_SAMPLES,
+        warmup_steps=N_WARMUP,
+        num_chains=1,
+        initial_params={"theta": init_z_c},
+    )
+
+    fell_back = False
+    try:
+        mcmc_c.run()
+    except Exception as nuts_err:
+        print(f"  chain {c}: NUTS failed ({nuts_err})")
+        print(f"  chain {c}: falling back to HMC")
+        hmc_c = HMC(
+            potential_fn=potential_fn,
+            step_size=1e-3,
+            adapt_step_size=True,
+            num_steps=20,
+            jit_compile=False,
+        )
+        mcmc_c = MCMC(
+            hmc_c,
+            num_samples=N_SAMPLES,
+            warmup_steps=N_WARMUP,
+            num_chains=1,
+            initial_params={"theta": init_z_c},
+        )
+        mcmc_c.run()
+        fell_back = True
+
+    chain_samples_z.append(mcmc_c.get_samples()["theta"])   # (N_SAMPLES, ndim)
+    try:
+        chain_diag_list.append(mcmc_c.diagnostics())
+    except Exception as diag_err:
+        print(f"  chain {c}: diagnostics() failed: {diag_err}")
+        chain_diag_list.append({})
+    chain_fell_back.append(fell_back)
+
+# Stack into (C, N, d); keep last MCMC object for any residual references.
+z_chains = torch.stack(chain_samples_z, dim=0)
+mcmc = mcmc_c
+
+# ============================================================
+# 5. DIAGNOSTICS
+# ============================================================
+print("\n" + "=" * 60)
+print("STEP 5 -- MCMC diagnostics")
+print("=" * 60)
+
+# Samples are in unconstrained space — transform back to [lo, hi]
+posterior_z = z_chains.reshape(-1, z_chains.shape[-1])          # (C*N, ndim)
+posterior = prior_lo + torch.sigmoid(posterior_z) * (prior_hi - prior_lo)
+posterior_np = posterior.detach().cpu().numpy()
+
+posterior_chains = prior_lo + torch.sigmoid(z_chains) * (prior_hi - prior_lo)  # (C, N, ndim)
+
+post_mean   = posterior_np.mean(axis=0)
+post_std    = posterior_np.std(axis=0)
+post_median = np.median(posterior_np, axis=0)
+post_q05    = np.percentile(posterior_np, 5, axis=0)
+post_q95    = np.percentile(posterior_np, 95, axis=0)
+
+print(f"\n{'Param':<20} {'Median':>12} {'Mean':>12} {'Std':>12} "
+      f"{'5%':>12} {'95%':>12}")
+print("-" * 80)
+for j, name in enumerate(subset_vars):
+    print(f"{name:<20} {post_median[j]:12.6g} {post_mean[j]:12.6g} "
+          f"{post_std[j]:12.6g} {post_q05[j]:12.6g} {post_q95[j]:12.6g}")
+
+# ============================================================
+# 6. POSTERIOR PREDICTIVE CHECK
+# ============================================================
+print("\n" + "=" * 60)
+print("STEP 6 -- Posterior predictive check")
+print("=" * 60)
+
+# --- Check posterior MEDIAN ---
+x_med = torch.tensor(post_median, dtype=torch.float32).unsqueeze(0)
+
+print(f"\n--- Posterior MEDIAN predictions ---")
+print(f"{'Output':<45} {'Pred':>10} {'Target':>10} "
+      f"{'|d|/s':>8} {'<=1s':>5}")
+print("-" * 85)
+
+preds_med = [None] * len(output_names)
+for i, name in enumerate(output_names):
+    c = gp_caches[name]
+    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+        xt = (x_med.squeeze() - c["x_mean"]) / c["x_std"]
+        out = c["gp"](xt.unsqueeze(0))
+        preds_med[i] = (out.mean.squeeze() * c["y_std"] + c["y_mean"]).item()
+
+n_within = 0
+for i, name in enumerate(output_names):
+    pred = preds_med[i]
+    tgt  = obs_means_t[i].item()
+    std  = obs_stds_t[i].item()
+    sig  = abs(pred - tgt) / std
+    ok   = sig <= 1.0
+    n_within += int(ok)
+    print(f"{name:<45} {pred:10.3f} {tgt:10.3f} "
+          f"{sig:8.3f} {'Y' if ok else 'N':>5}")
+print(f"\n  {n_within}/{len(output_names)} outputs within 1 sigma at "
+      f"posterior median")
+
+# --- Posterior predictive distribution (N_PRED_CHECK samples) ---
+print(f"\n--- Posterior predictive distribution ({N_PRED_CHECK} samples) ---")
+check_idx = np.random.choice(
+    len(posterior_np), min(N_PRED_CHECK, len(posterior_np)), replace=False
+)
+n_check = len(check_idx)
+
+# Single batched forward through the manual-Matern-3/2 cache: replaces
+# n_check * 25 = 37,500 individual gpytorch calls with one tensor op.
+with torch.no_grad():
+    theta_batch = torch.tensor(posterior_np[check_idx], dtype=torch.float32)
+    pred_matrix = batched_predict_mean(theta_batch, batched_cache).cpu().numpy()
+
+print(f"{'Output':<45} {'Mean Pred':>10} {'Std Pred':>10} "
+      f"{'Target':>10} {'% <=1s':>8}")
+print("-" * 90)
+for i, name in enumerate(output_names):
+    preds  = pred_matrix[:, i]
+    tgt    = obs_means_t[i].item()
+    std    = obs_stds_t[i].item()
+    within = (np.abs(preds - tgt) <= std).mean() * 100
+    print(f"{name:<45} {preds.mean():10.3f} {preds.std():10.3f} "
+          f"{tgt:10.3f} {within:7.1f}%")
+
+# ============================================================
+# 7. SAVE RESULTS
+# ============================================================
+print("\n" + "=" * 60)
+print("STEP 7 -- Saving results")
+print("=" * 60)
+
+np.save(os.path.join(out_dir, "posterior_samples.npy"), posterior_np)
+np.save(os.path.join(out_dir, "posterior_median.npy"), post_median)
+np.save(os.path.join(out_dir, "posterior_mean.npy"), post_mean)
+np.save(os.path.join(out_dir, "posterior_std.npy"), post_std)
+np.save(os.path.join(out_dir, "subset_vars.npy"),
+        np.array(subset_vars, dtype=object))
+# np.save(os.path.join(out_dir, "knn_densities.npy"), densities)
+# np.save(os.path.join(out_dir, "knn_best_start.npy"), best_start)
+np.save(os.path.join(out_dir, "pred_check_matrix.npy"), pred_matrix)
+
+# ---- Additional saves for robust MCMC analysis ----
+
+# 1. Per-chain samples in constrained space (for R-hat / split-R-hat).
+posterior_chains_np = posterior_chains.detach().cpu().numpy()          # (C, N, d)
+np.save(os.path.join(out_dir, "posterior_chains.npy"), posterior_chains_np)
+np.save(os.path.join(out_dir, "posterior_chains_z.npy"),
+        z_chains.detach().cpu().numpy())
+
+# 2. Unconstrained samples (for warm-starting or geometry diagnostics).
+np.save(os.path.join(out_dir, "posterior_z.npy"),
+        posterior_z.detach().cpu().numpy())
+
+# 3. Pyro MCMC diagnostics: per-chain Pyro output + proper split-R-hat / ESS.
+#    Split-R-hat needs >=2 chains, so we compute it from z_chains directly
+#    rather than relying on the single-chain mcmc_c.diagnostics() which
+#    reports r_hat=NaN per chain.
+def _jsonify(v):
+    if isinstance(v, dict):
+        return {k: _jsonify(x) for k, x in v.items()}
+    if hasattr(v, "tolist"):
+        return v.tolist()
+    if isinstance(v, (list, tuple)):
+        return [_jsonify(x) for x in v]
+    return v
+
+diag_out = {
+    "per_chain": [_jsonify(d) for d in chain_diag_list],
+    "chain_fell_back_to_hmc": chain_fell_back,
+}
+try:
+    from pyro.ops.stats import split_gelman_rubin, effective_sample_size
+    # z_chains: (C, N, d) with chain_dim=0, sample_dim=1
+    r_hat_z = split_gelman_rubin(z_chains)        # (d,)
+    n_eff_z = effective_sample_size(z_chains)     # (d,)
+    diag_out["split_r_hat_z"] = r_hat_z.tolist()
+    diag_out["n_eff_z"]       = n_eff_z.tolist()
+    diag_out["r_hat_max"]     = float(r_hat_z.max().item())
+    diag_out["n_eff_min"]     = float(n_eff_z.min().item())
+    print(f"  max split-R-hat (unconstrained): {r_hat_z.max().item():.4f}")
+    print(f"  min ESS (unconstrained):         {n_eff_z.min().item():.1f}")
+except Exception as e:
+    print(f"  WARN: could not compute split-R-hat / ESS: {e}")
+
+try:
+    with open(os.path.join(out_dir, "mcmc_diagnostics.json"), "w") as f:
+        json.dump(diag_out, f, indent=2, default=str)
+except Exception as e:
+    print(f"  WARN: could not save mcmc_diagnostics.json: {e}")
+
+# 4. Log-posterior trace (useful for convergence check).
+log_post_trace = np.zeros(posterior_z.shape[0])
+for k in range(posterior_z.shape[0]):
+    with torch.no_grad():
+        log_post_trace[k] = -potential_fn({"theta": posterior_z[k]}).item()
+np.save(os.path.join(out_dir, "log_posterior_trace.npy"), log_post_trace)
+
+# 5. Run configuration (for reproducibility).
+config = {
+    "random_seed":     RANDOM_SEED,
+    "n_warmup":        N_WARMUP,
+    "n_samples":       N_SAMPLES,
+    "n_chains":        N_CHAINS,
+    "target_accept":   TARGET_ACCEPT,
+    "max_tree_depth":  MAX_TREE_DEPTH,
+    "emulator_dir":    EMULATOR_DIR,
+    "date_suffix":     DATE_SUFFIX,
+    "percent":         PERCENT,
+    "knn_k":           KNN_K,
+    "n_pred_check":    N_PRED_CHECK,
+    "use_copula_prior":     bool(USE_COPULA_PRIOR and copula_prior_cache is not None),
+    "marginal_type":        (copula_prior_cache.get("marginal_type")
+                             if copula_prior_cache is not None else None),
+    "kde_subsample":        (KDE_SUBSAMPLE
+                             if USE_COPULA_PRIOR and not USE_LOGSPLINE_MARGINALS
+                             else None),
+    "kde_bandwidth":        (KDE_BANDWIDTH
+                             if USE_COPULA_PRIOR and not USE_LOGSPLINE_MARGINALS
+                             else None),
+    "logspline_n_interior": (LOGSPLINE_N_INTERIOR
+                             if USE_COPULA_PRIOR and USE_LOGSPLINE_MARGINALS
+                             else None),
+    "logspline_lambda":     (LOGSPLINE_LAMBDA
+                             if USE_COPULA_PRIOR and USE_LOGSPLINE_MARGINALS
+                             else None),
+    "logspline_n_grid":     (LOGSPLINE_N_GRID
+                             if USE_COPULA_PRIOR and USE_LOGSPLINE_MARGINALS
+                             else None),
+    "corr_shrink":          CORR_SHRINK if USE_COPULA_PRIOR else None,
+    "copula_f_eps":         COPULA_F_EPS if USE_COPULA_PRIOR else None,
+    "copula_R_cond":        (copula_prior_cache["R_cond"]
+                             if copula_prior_cache is not None else None),
+}
+with open(os.path.join(out_dir, "config.json"), "w") as f:
+    json.dump(config, f, indent=2)
+
+# 6. Observation targets + NROY bounds (make analysis self-contained).
+np.save(os.path.join(out_dir, "obs_means.npy"), obs_means_t.numpy())
+np.save(os.path.join(out_dir, "obs_vars.npy"),  obs_vars_t.numpy())
+np.save(os.path.join(out_dir, "output_names.npy"),
+        np.array(output_names, dtype=object))
+np.save(os.path.join(out_dir, "prior_lower.npy"), prior_lower)
+np.save(os.path.join(out_dir, "prior_upper.npy"), prior_upper)
+
+# Full 224-dim parameter vector at posterior median
+# Non-calibration params stay at their nominal (fixed) values
+nominal = np.array(
+    [0.5 * (nroy_params_dict[n][0] + nroy_params_dict[n][1])
+     for n in all_param_names], dtype=np.float32,
+)
+full_median = nominal.copy()
+full_median[param_idx] = post_median.astype(np.float32)
+np.save(os.path.join(out_dir, "full_param_median.npy"), full_median)
+
+# Also save as {name: value} dict for easy simulator use
+posterior_param_dict = {
+    name: float(full_median[i])
+    for i, name in enumerate(all_param_names)
+}
+np.save(os.path.join(out_dir, "posterior_param_dict.npy"),
+        posterior_param_dict)
+
+print(f"  Saved to {out_dir}/")
+
+# ============================================================
+# 8. PLOTS
+# ============================================================
+print("\n" + "=" * 60)
+print("STEP 8 -- Plots")
+print("=" * 60)
+
+# 8a. Trace plots + marginal posteriors (first 8 params)
+n_plot = ndim
+fig, axes = plt.subplots(n_plot, 2, figsize=(14, 3 * n_plot))
+if n_plot == 1:
+    axes = axes[np.newaxis, :]
+
+for j in range(n_plot):
+    # Trace
+    if posterior_chains is not None:
+        for c in range(posterior_chains.shape[0]):
+            axes[j, 0].plot(
+                posterior_chains[c, :, j].cpu().numpy(),
+                alpha=0.5, linewidth=0.5,
+            )
+    else:
+        axes[j, 0].plot(posterior_np[:, j], alpha=0.7, linewidth=0.5)
+    axes[j, 0].set_ylabel(subset_vars[j], fontsize=7)
+    axes[j, 0].set_title(f"Trace: {subset_vars[j]}", fontsize=8)
+
+    # Marginal posterior
+    axes[j, 1].hist(
+        posterior_np[:, j], bins=50, density=True, alpha=0.7, color="steelblue"
+    )
+    axes[j, 1].axvline(
+        post_median[j], color="red", ls="--", lw=1.2, label="median"
+    )
+    axes[j, 1].axvline(
+        prior_lower[j], color="black", ls=":", alpha=0.4, label="NROY bounds"
+    )
+    axes[j, 1].axvline(prior_upper[j], color="black", ls=":", alpha=0.4)
+    axes[j, 1].set_title(f"Marginal: {subset_vars[j]}", fontsize=8)
+    axes[j, 1].legend(fontsize=6)
+
+plt.tight_layout()
+plt.savefig(os.path.join(out_dir, "trace_and_marginals.png"), dpi=200)
+plt.close()
+
+# 8b. Normalised posterior predictive box plot
+fig, ax = plt.subplots(figsize=(16, 5))
+tgt_means_np = obs_means_t.numpy()
+tgt_stds_np  = obs_stds_t.numpy()
+normalised = (pred_matrix - tgt_means_np) / tgt_stds_np
+
+short_names = [n.replace("_", "\n") for n in output_names]
+x_pos = np.arange(len(output_names))
+
+ax.boxplot(
+    normalised, positions=x_pos, widths=0.6,
+    showfliers=False, patch_artist=True,
+    boxprops=dict(facecolor="steelblue", alpha=0.5),
+    medianprops=dict(color="red", linewidth=1.5),
+)
+ax.axhline(0, color="black", ls="-", linewidth=0.5)
+ax.axhline(1,  color="green", ls="--", alpha=0.6, label="+/- 1 sigma")
+ax.axhline(-1, color="green", ls="--", alpha=0.6)
+ax.axhline(3,  color="red",   ls=":",  alpha=0.4, label="+/- 3 sigma")
+ax.axhline(-3, color="red",   ls=":",  alpha=0.4)
+ax.set_xticks(x_pos)
+ax.set_xticklabels(short_names, rotation=90, fontsize=6)
+ax.set_ylabel("(predicted - target) / sigma")
+ax.set_title("Posterior predictive normalised by population sigma")
+ax.legend(fontsize=8)
+plt.tight_layout()
+plt.savefig(
+    os.path.join(out_dir, "posterior_predictive_normalised.png"), dpi=200
+)
+plt.close()
+
+# # 8c. KNN density histogram
+# fig, ax = plt.subplots(figsize=(8, 4))
+# ax.hist(densities, bins=100, density=True, alpha=0.7, color="steelblue")
+# ax.axvline(
+#     densities[densest_idx], color="red", ls="--",
+#     label=f"densest (idx {densest_idx})"
+# )
+# ax.set_xlabel("KNN density (1 / mean dist to k neighbours)")
+# ax.set_ylabel("Frequency")
+# ax.set_title(f"KNN density distribution (k={KNN_K}, n={n_nroy})")
+# ax.legend()
+# plt.tight_layout()
+# plt.savefig(os.path.join(out_dir, "knn_density_hist.png"), dpi=200)
+# plt.close()
+#
+# print(f"  Plots saved to {out_dir}/")
+# print("\nDone.")
