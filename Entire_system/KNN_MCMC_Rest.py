@@ -27,27 +27,27 @@ Usage:
 """
 
 import math
-import os
+# import os
 import json
 import warnings
 import joblib
 import numpy as np
 import torch
 import gpytorch
-
+import multiprocessing
 import pyro
-import pyro.distributions as dist
+# import pyro.distributions as dist
 from pyro.infer import MCMC, NUTS, HMC
 
-from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import StandardScaler
+# from sklearn.neighbors import NearestNeighbors
+# from sklearn.preprocessing import StandardScaler
 from scipy.stats import norm as _scipy_norm
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import os
-os.environ["LOKY_MAX_CPU_COUNT"] = "8"   # set before sklearn/joblib uses loky
+os.environ["LOKY_MAX_CPU_COUNT"] = str(multiprocessing.cpu_count())   # set before sklearn/joblib uses loky
 
 warnings.filterwarnings("ignore")
 
@@ -119,10 +119,21 @@ N_CHAINS        = 4                      # independent chains (sequential loop; 
 MAX_TREE_DEPTH  = 7
 TARGET_ACCEPT   = 0.8
 
+# Atrial contraction is enforced via the active-emptying fraction
+#   r = (V_pre_contraction - V_min) / (V_max - V_min)
+# treated as a derived Gaussian target. The corresponding observation entries
+# (LA/RA Contraction Volume diff) hold the ratio mean and variance, NOT the
+# raw mL difference, so the per-output Gaussian must skip these indices and
+# the ratio is scored separately under the same Gaussian likelihood family.
+LA_MIN_IDX, LA_MAX_IDX, LA_PRE_IDX = 13, 14, 17
+RA_MIN_IDX, RA_MAX_IDX, RA_PRE_IDX = 9, 10, 18
+ATRIAL_GAUSSIAN_SKIP = (LA_PRE_IDX, RA_PRE_IDX)
+ATRIAL_COV_JITTER = 1e-10
+
 # Posterior predictive
 N_PRED_CHECK = 1500                       # posterior samples for predictive check
 
-# Likelihood: Gaussian
+# Likelihood: Gaussian on direct targets + Gaussian on derived atrial ratios
 
 def extract_fast_caches(emulators, output_names):
     """Pre-warm GPyTorch prediction caches and extract y-transform params.
@@ -392,13 +403,33 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
     X_scaled = X_train.unsqueeze(0) / lengthscale.unsqueeze(1)           # (n_out, n, d)
     dists    = torch.cdist(X_scaled, X_scaled, p=2.0)                    # (n_out, n, n)
     K_base   = (1.0 + SQRT3 * dists) * torch.exp(-SQRT3 * dists)
-    K        = outputscale.view(-1, 1, 1) * K_base
-    K        = K + noise.view(-1, 1, 1) * torch.eye(n_train).unsqueeze(0)
+    K_latent = outputscale.view(-1, 1, 1) * K_base
+    K        = K_latent + noise.view(-1, 1, 1) * torch.eye(
+        n_train, dtype=torch.float32
+    ).unsqueeze(0)
     L        = torch.linalg.cholesky(K)                                  # (n_out, n, n)
 
     alpha = torch.cholesky_solve(
         (y_train - mean_const.unsqueeze(-1)).unsqueeze(-1), L
     ).squeeze(-1)                                                        # (n_out, n)
+
+    # Estimate cross-output residual correlation once from the training fit.
+    mu_train_latent = mean_const.unsqueeze(-1) + torch.bmm(
+        K_latent, alpha.unsqueeze(-1)
+    ).squeeze(-1)
+    y_train_phys = y_train * y_std.unsqueeze(-1) + y_mean.unsqueeze(-1)
+    mu_train_phys = mu_train_latent * y_std.unsqueeze(-1) + y_mean.unsqueeze(-1)
+    residual = y_train_phys - mu_train_phys
+    residual_centered = residual - residual.mean(dim=1, keepdim=True)
+    residual_cov = residual_centered @ residual_centered.T / max(n_train - 1, 1)
+    residual_std = torch.sqrt(torch.diagonal(residual_cov).clamp_min(1e-12))
+    residual_corr = residual_cov / (
+        residual_std.unsqueeze(1) * residual_std.unsqueeze(0)
+    ).clamp_min(1e-12)
+    residual_corr = torch.nan_to_num(
+        residual_corr, nan=0.0, posinf=0.0, neginf=0.0
+    )
+    residual_corr.fill_diagonal_(1.0)
 
     # Per-test-step speedup: cache the scaled training inputs and their
     # squared norms so _matern32_cross_fast can compute
@@ -415,6 +446,7 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
         "y_mean": y_mean, "y_std": y_std,
         "X_train_scaled": X_train_scaled,
         "X_train_scaled_norm2": X_train_scaled_norm2,
+        "residual_corr": residual_corr,
     }
 
 
@@ -802,6 +834,47 @@ def _logspline_copula_log_prob(theta, cop):
     return log_copula + log_f
 
 
+def _safe_ratio_denominator(denom, eps=1e-8):
+    """Keep ratio denominators away from zero without flipping sign."""
+    sign = torch.where(denom >= 0, torch.ones_like(denom), -torch.ones_like(denom))
+    return torch.where(denom.abs() < eps, sign * eps, denom)
+
+
+def _local_output_covariance(vars_, residual_corr, idxs):
+    """Approximate local joint covariance from per-output vars and global residual corr."""
+    idx_t = torch.as_tensor(idxs, dtype=torch.long, device=vars_.device)
+    local_var = vars_.index_select(0, idx_t).clamp(min=1e-12)
+    local_std = torch.sqrt(local_var)
+    corr = residual_corr.to(device=vars_.device, dtype=vars_.dtype)
+    corr_sub = corr.index_select(0, idx_t).index_select(1, idx_t)
+    cov = corr_sub * torch.outer(local_std, local_std)
+    eye = torch.eye(len(idxs), dtype=vars_.dtype, device=vars_.device)
+    return 0.5 * (cov + cov.T) + ATRIAL_COV_JITTER * eye
+
+
+def _ratio_moments(mean_vec, cov):
+    """Cubature-propagated mean and variance of the active-emptying fraction.
+
+    `mean_vec` and `cov` describe the joint Gaussian (V_min, V_max, V_pre)
+    GP marginals. Returns (ratio_mean, ratio_var) for
+        r = (V_pre - V_min) / (V_max - V_min)
+    so the caller can fold it into the same Gaussian likelihood machinery as
+    the direct targets (total_var = obs_var + ratio_var).
+    """
+    n_dim = mean_vec.numel()
+    chol = torch.linalg.cholesky(cov)
+    disp = math.sqrt(float(n_dim)) * chol.T
+    sigma_points = torch.cat(
+        (mean_vec.unsqueeze(0) + disp, mean_vec.unsqueeze(0) - disp), dim=0
+    )
+    ratio = (
+        sigma_points[:, 2] - sigma_points[:, 0]
+    ) / _safe_ratio_denominator(sigma_points[:, 1] - sigma_points[:, 0])
+    ratio_mean = ratio.mean()
+    ratio_var = ((ratio - ratio_mean) ** 2).mean().clamp_min(1e-12)
+    return ratio_mean, ratio_var
+
+
 def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_lower,
                                  prior_upper, out_dir, n_bins=40, n_cols=7):
     """Save per-axis prior marginals overlaid on the empirical NROY histograms.
@@ -932,6 +1005,7 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
     y_std                = bc["y_std"]
     X_train_scaled       = bc["X_train_scaled"]
     X_train_scaled_norm2 = bc["X_train_scaled_norm2"]
+    residual_corr        = bc["residual_corr"]
 
     def _potential(z_dict):
         z = z_dict["theta"]
@@ -975,7 +1049,37 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
 
         total_var = (obs_vars_t + vars_).clamp(min=1e-10)
         z_norm = (obs_means_t - mus) / total_var.sqrt()
-        ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
+
+        gaussian_mask = torch.ones_like(mus, dtype=torch.bool)
+        gaussian_mask[list(ATRIAL_GAUSSIAN_SKIP)] = False
+        ll = -0.5 * (
+            z_norm[gaussian_mask] ** 2 + torch.log(total_var[gaussian_mask])
+        ).sum()
+
+        # Atrial active-emptying fraction enters as a Gaussian likelihood term
+        # on a derived ratio. The cubature step propagates the joint emulator
+        # uncertainty across (V_min, V_max, V_pre) into a single ratio
+        # variance, which is then summed with the target variance exactly as
+        # for the direct outputs.
+        la_mean = torch.stack((mus[LA_MIN_IDX], mus[LA_MAX_IDX], mus[LA_PRE_IDX]))
+        ra_mean = torch.stack((mus[RA_MIN_IDX], mus[RA_MAX_IDX], mus[RA_PRE_IDX]))
+        la_cov = _local_output_covariance(
+            vars_, residual_corr, (LA_MIN_IDX, LA_MAX_IDX, LA_PRE_IDX)
+        )
+        ra_cov = _local_output_covariance(
+            vars_, residual_corr, (RA_MIN_IDX, RA_MAX_IDX, RA_PRE_IDX)
+        )
+        la_r_mean, la_r_var = _ratio_moments(la_mean, la_cov)
+        ra_r_mean, ra_r_var = _ratio_moments(ra_mean, ra_cov)
+
+        la_total_var = (obs_vars_t[LA_PRE_IDX] + la_r_var).clamp(min=1e-10)
+        ra_total_var = (obs_vars_t[RA_PRE_IDX] + ra_r_var).clamp(min=1e-10)
+        ll = ll - 0.5 * (
+            (obs_means_t[LA_PRE_IDX] - la_r_mean) ** 2 / la_total_var
+            + torch.log(la_total_var)
+            + (obs_means_t[RA_PRE_IDX] - ra_r_mean) ** 2 / ra_total_var
+            + torch.log(ra_total_var)
+        )
 
         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
         log_prior = torch.nan_to_num(log_prior, nan=-1e8, posinf=-1e8, neginf=-1e8)
@@ -1047,8 +1151,8 @@ observation = {
     "Max LA Volume": (68.3, 306.25),
     "Max LA Pressure Atrial contraction": (13.0, 9.0),
     "Max LA Pressure Mitral Opening": (12.0, 9.0),
-    "LA Contraction Volume diff": (41.8, 62.41),
-    "RA Contraction Volume diff": (46.1, 73.96),
+    "LA Contraction Volume diff": (0.25, 0.0002777),
+    "RA Contraction Volume diff": (0.25, 0.0002777),
     "LV Pressure Deriv": (1461.0, 146689.0),
     "RV Pressure Deriv": (271.0, 3025.0),
     "Tidal Volume": (0.850, 0.16),
@@ -1683,16 +1787,8 @@ posterior_chains = prior_lo + torch.sigmoid(z_chains) * (prior_hi - prior_lo)  #
 
 post_mean   = posterior_np.mean(axis=0)
 post_std    = posterior_np.std(axis=0)
-post_median = np.median(posterior_np, axis=0)
 post_q05    = np.percentile(posterior_np, 5, axis=0)
 post_q95    = np.percentile(posterior_np, 95, axis=0)
-
-print(f"\n{'Param':<20} {'Median':>12} {'Mean':>12} {'Std':>12} "
-      f"{'5%':>12} {'95%':>12}")
-print("-" * 80)
-for j, name in enumerate(subset_vars):
-    print(f"{name:<20} {post_median[j]:12.6g} {post_mean[j]:12.6g} "
-          f"{post_std[j]:12.6g} {post_q05[j]:12.6g} {post_q95[j]:12.6g}")
 
 # ============================================================
 # 6. POSTERIOR PREDICTIVE CHECK
@@ -1700,35 +1796,6 @@ for j, name in enumerate(subset_vars):
 print("\n" + "=" * 60)
 print("STEP 6 -- Posterior predictive check")
 print("=" * 60)
-
-# --- Check posterior MEDIAN ---
-x_med = torch.tensor(post_median, dtype=torch.float32).unsqueeze(0)
-
-print(f"\n--- Posterior MEDIAN predictions ---")
-print(f"{'Output':<45} {'Pred':>10} {'Target':>10} "
-      f"{'|d|/s':>8} {'<=1s':>5}")
-print("-" * 85)
-
-preds_med = [None] * len(output_names)
-for i, name in enumerate(output_names):
-    c = gp_caches[name]
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        xt = (x_med.squeeze() - c["x_mean"]) / c["x_std"]
-        out = c["gp"](xt.unsqueeze(0))
-        preds_med[i] = (out.mean.squeeze() * c["y_std"] + c["y_mean"]).item()
-
-n_within = 0
-for i, name in enumerate(output_names):
-    pred = preds_med[i]
-    tgt  = obs_means_t[i].item()
-    std  = obs_stds_t[i].item()
-    sig  = abs(pred - tgt) / std
-    ok   = sig <= 1.0
-    n_within += int(ok)
-    print(f"{name:<45} {pred:10.3f} {tgt:10.3f} "
-          f"{sig:8.3f} {'Y' if ok else 'N':>5}")
-print(f"\n  {n_within}/{len(output_names)} outputs within 1 sigma at "
-      f"posterior median")
 
 # --- Posterior predictive distribution (N_PRED_CHECK samples) ---
 print(f"\n--- Posterior predictive distribution ({N_PRED_CHECK} samples) ---")
@@ -1742,6 +1809,17 @@ n_check = len(check_idx)
 with torch.no_grad():
     theta_batch = torch.tensor(posterior_np[check_idx], dtype=torch.float32)
     pred_matrix = batched_predict_mean(theta_batch, batched_cache).cpu().numpy()
+
+# Replace the raw mL predictions at the atrial-diff indices with the derived
+# active-emptying fraction so the predictive table, normalised box plot and
+# saved pred_check_matrix.npy compare directly against the ratio targets
+# stored in obs_means_t / obs_vars_t.
+_la_denom = pred_matrix[:, LA_MAX_IDX] - pred_matrix[:, LA_MIN_IDX]
+_ra_denom = pred_matrix[:, RA_MAX_IDX] - pred_matrix[:, RA_MIN_IDX]
+_la_denom = np.where(np.abs(_la_denom) < 1e-8, np.where(_la_denom >= 0, 1e-8, -1e-8), _la_denom)
+_ra_denom = np.where(np.abs(_ra_denom) < 1e-8, np.where(_ra_denom >= 0, 1e-8, -1e-8), _ra_denom)
+pred_matrix[:, LA_PRE_IDX] = (pred_matrix[:, LA_PRE_IDX] - pred_matrix[:, LA_MIN_IDX]) / _la_denom
+pred_matrix[:, RA_PRE_IDX] = (pred_matrix[:, RA_PRE_IDX] - pred_matrix[:, RA_MIN_IDX]) / _ra_denom
 
 print(f"{'Output':<45} {'Mean Pred':>10} {'Std Pred':>10} "
       f"{'Target':>10} {'% <=1s':>8}")
@@ -1762,7 +1840,6 @@ print("STEP 7 -- Saving results")
 print("=" * 60)
 
 np.save(os.path.join(out_dir, "posterior_samples.npy"), posterior_np)
-np.save(os.path.join(out_dir, "posterior_median.npy"), post_median)
 np.save(os.path.join(out_dir, "posterior_mean.npy"), post_mean)
 np.save(os.path.join(out_dir, "posterior_std.npy"), post_std)
 np.save(os.path.join(out_dir, "subset_vars.npy"),

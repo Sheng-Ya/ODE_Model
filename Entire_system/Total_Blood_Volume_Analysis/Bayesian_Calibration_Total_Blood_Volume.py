@@ -12,7 +12,7 @@ resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
 from History_matching_function_rest_total_blood_volume import HistoryMatchingWorkflow
-from AutoEmulate_Simulator_Rest import Cardiopulmonary
+from AutoEmulate_Simulator_Rest_Total_Blood_Volume import Cardiopulmonary
 
 # ----------------------------
 # SETTINGS
