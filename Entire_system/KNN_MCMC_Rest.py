@@ -164,6 +164,12 @@ RA_MIN_IDX, RA_MAX_IDX, RA_PRE_IDX = 9, 10, 18
 ATRIAL_GAUSSIAN_SKIP = (LA_PRE_IDX, RA_PRE_IDX)
 ATRIAL_COV_JITTER = 1e-10
 
+# Display-only atrial pre-contraction volume targets used in the final
+# posterior-predictive box plot. The likelihood remains defined on the
+# active-emptying fraction ratio above.
+LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = 41.8, 7.9
+RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = 46.1, 8.6
+
 # Posterior predictive
 N_PRED_CHECK = 1500                       # posterior samples for predictive check
 
@@ -2134,11 +2140,32 @@ plt.close()
 
 # 8b. Normalised posterior predictive box plot
 fig, ax = plt.subplots(figsize=(16, 5))
-tgt_means_np = obs_means_t.numpy()
-tgt_stds_np  = obs_stds_t.numpy()
-normalised = (pred_matrix - tgt_means_np) / tgt_stds_np
+plot_matrix = pred_matrix.copy()
+plot_tgt_means_np = obs_means_t.numpy().copy()
+plot_tgt_stds_np = obs_stds_t.numpy().copy()
+
+# The likelihood for the atrial observables is defined on the active-emptying
+# fraction ratio, but for visual interpretation it is often more intuitive to
+# display the corresponding pre-atrial-contraction volume:
+#   V_pre = V_min + r * (V_max - V_min)
+plot_matrix[:, LA_PRE_IDX] = (
+    pred_matrix[:, LA_MIN_IDX]
+    + pred_matrix[:, LA_PRE_IDX] * (pred_matrix[:, LA_MAX_IDX] - pred_matrix[:, LA_MIN_IDX])
+)
+plot_matrix[:, RA_PRE_IDX] = (
+    pred_matrix[:, RA_MIN_IDX]
+    + pred_matrix[:, RA_PRE_IDX] * (pred_matrix[:, RA_MAX_IDX] - pred_matrix[:, RA_MIN_IDX])
+)
+plot_tgt_means_np[LA_PRE_IDX] = LA_PRE_DISPLAY_MEAN
+plot_tgt_means_np[RA_PRE_IDX] = RA_PRE_DISPLAY_MEAN
+plot_tgt_stds_np[LA_PRE_IDX] = LA_PRE_DISPLAY_STD
+plot_tgt_stds_np[RA_PRE_IDX] = RA_PRE_DISPLAY_STD
+
+normalised = (plot_matrix - plot_tgt_means_np) / plot_tgt_stds_np
 
 short_names = [n.replace("_", "\n") for n in output_names]
+short_names[LA_PRE_IDX] = "LA\nPre-A\nVolume"
+short_names[RA_PRE_IDX] = "RA\nPre-A\nVolume"
 x_pos = np.arange(len(output_names))
 
 ax.boxplot(
@@ -2155,7 +2182,7 @@ ax.axhline(-3, color="red",   ls=":",  alpha=0.4)
 ax.set_xticks(x_pos)
 ax.set_xticklabels(short_names, rotation=90, fontsize=6)
 ax.set_ylabel("(predicted - target) / sigma")
-ax.set_title("Posterior predictive normalised by population sigma")
+ax.set_title("Posterior predictive normalised by population sigma (atria shown as pre-A volume)")
 ax.legend(fontsize=8)
 plt.tight_layout()
 plt.savefig(

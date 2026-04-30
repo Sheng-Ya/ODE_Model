@@ -6,6 +6,9 @@ import os
 import joblib
 import numpy as np
 
+LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = 41.8, 7.9
+RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = 46.1, 8.6
+
 
 def _log_det_jac_np(z, prior_lo, prior_hi):
     log_width = np.log(prior_hi - prior_lo)
@@ -142,6 +145,99 @@ def _predict_at(theta_np, gp_caches, output_names):
     return mu, sd
 
 
+def _resolve_output_indices(output_names):
+    required = {
+        "la_min": "Min_LA_Volume",
+        "la_max": "Max_LA_Volume",
+        "la_pre": "LA_Contraction_Volume_diff",
+        "ra_min": "Min_RA_Volume",
+        "ra_max": "Max_RA_Volume",
+        "ra_pre": "RA_Contraction_Volume_diff",
+    }
+    name_to_idx = {str(name): i for i, name in enumerate(output_names)}
+    missing = [name for name in required.values() if name not in name_to_idx]
+    if missing:
+        return None
+    return {key: name_to_idx[name] for key, name in required.items()}
+
+
+def _safe_ratio_denominator(x, eps=1e-8):
+    import torch
+
+    sign = torch.where(x >= 0, torch.ones_like(x), -torch.ones_like(x))
+    return torch.where(x.abs() < eps, sign * eps, x)
+
+
+def _local_output_covariance(vars_, residual_corr, idxs, jitter=1e-10):
+    import torch
+
+    idx_t = torch.as_tensor(idxs, dtype=torch.long, device=vars_.device)
+    local_var = vars_.index_select(0, idx_t).clamp(min=1e-12)
+    local_std = torch.sqrt(local_var)
+    corr = residual_corr.to(device=vars_.device, dtype=vars_.dtype)
+    corr_sub = corr.index_select(0, idx_t).index_select(1, idx_t)
+    cov = corr_sub * torch.outer(local_std, local_std)
+    eye = torch.eye(len(idxs), dtype=vars_.dtype, device=vars_.device)
+    return 0.5 * (cov + cov.T) + jitter * eye
+
+
+def _ratio_moments(mean_vec, cov):
+    import torch
+
+    n_dim = mean_vec.numel()
+    chol = torch.linalg.cholesky(cov)
+    disp = math.sqrt(float(n_dim)) * chol.T
+    sigma_points = torch.cat(
+        (mean_vec.unsqueeze(0) + disp, mean_vec.unsqueeze(0) - disp), dim=0
+    )
+    ratio = (
+        sigma_points[:, 2] - sigma_points[:, 0]
+    ) / _safe_ratio_denominator(sigma_points[:, 1] - sigma_points[:, 0])
+    ratio_mean = ratio.mean()
+    ratio_var = ((ratio - ratio_mean) ** 2).mean().clamp_min(1e-12)
+    return ratio_mean, ratio_var
+
+
+def _estimate_residual_corr(gp_caches, output_names):
+    import torch
+    import gpytorch
+
+    residuals = []
+    n_train = None
+
+    for name in output_names:
+        c = gp_caches[name]
+        gp = c["gp"]
+        x_train = gp.train_inputs[0]
+        y_train = gp.train_targets.detach().reshape(-1).to(torch.float32)
+        if n_train is None:
+            n_train = y_train.numel()
+        elif y_train.numel() != n_train:
+            raise ValueError(
+                f"Training target length mismatch while estimating residual correlation for {name}."
+            )
+
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            mu_latent = gp(x_train).mean.detach().reshape(-1).to(torch.float32)
+
+        y_std = c["y_std"].detach().to(torch.float32)
+        y_mean = c["y_mean"].detach().to(torch.float32)
+        y_train_phys = y_train * y_std + y_mean
+        mu_train_phys = mu_latent * y_std + y_mean
+        residuals.append(y_train_phys - mu_train_phys)
+
+    residual = torch.stack(residuals, dim=0)
+    residual_centered = residual - residual.mean(dim=1, keepdim=True)
+    residual_cov = residual_centered @ residual_centered.T / max(n_train - 1, 1)
+    residual_std = torch.sqrt(torch.diagonal(residual_cov).clamp_min(1e-12))
+    residual_corr = residual_cov / (
+        residual_std.unsqueeze(1) * residual_std.unsqueeze(0)
+    ).clamp_min(1e-12)
+    residual_corr = torch.nan_to_num(residual_corr, nan=0.0, posinf=0.0, neginf=0.0)
+    residual_corr.fill_diagonal_(1.0)
+    return residual_corr
+
+
 # ---------------------------------------------------------------------
 # Copula prior loading / evaluation
 # ---------------------------------------------------------------------
@@ -231,7 +327,8 @@ def _logspline_copula_log_prob(theta, cop):
 # ---------------------------------------------------------------------
 
 def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_caches,
-                               output_names, copula=None):
+                               output_names, copula=None, residual_corr=None,
+                               output_indices=None):
     import torch
     import gpytorch
 
@@ -244,7 +341,8 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
         sig_z = torch.sigmoid(z_t)
         theta = prior_lo_t + sig_z * (prior_hi_t - prior_lo_t)
 
-        ll = torch.tensor(0.0, dtype=torch.float32)
+        mus = []
+        vars_ = []
         for i, name in enumerate(output_names):
             c = gp_caches[name]
             xt = (theta - c["x_mean"]) / c["x_std"]
@@ -252,11 +350,52 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
                 out = c["gp"](xt.unsqueeze(0))
             mean_t = out.mean.squeeze()
             var_t = out.variance.squeeze().clamp(min=1e-10)
-            mu = mean_t * c["y_std"] + c["y_mean"]
-            gp_var = var_t * (c["y_std"] ** 2)
-            total_var = (obs_vars_t[i] + gp_var).clamp(min=1e-10)
-            resid = (obs_means_t[i] - mu) / torch.sqrt(total_var)
-            ll = ll - 0.5 * (resid ** 2 + torch.log(total_var))
+            mus.append(mean_t * c["y_std"] + c["y_mean"])
+            vars_.append(var_t * (c["y_std"] ** 2))
+
+        mus = torch.stack(mus)
+        vars_ = torch.stack(vars_)
+
+        total_var = (obs_vars_t + vars_).clamp(min=1e-10)
+        z_norm = (obs_means_t - mus) / torch.sqrt(total_var)
+        ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
+
+        if residual_corr is not None and output_indices is not None:
+            gaussian_mask = torch.ones_like(mus, dtype=torch.bool)
+            atrial_idxs = [output_indices["la_pre"], output_indices["ra_pre"]]
+            gaussian_mask[atrial_idxs] = False
+            ll = -0.5 * (
+                z_norm[gaussian_mask] ** 2 + torch.log(total_var[gaussian_mask])
+            ).sum()
+
+            la_idxs = (
+                output_indices["la_min"],
+                output_indices["la_max"],
+                output_indices["la_pre"],
+            )
+            ra_idxs = (
+                output_indices["ra_min"],
+                output_indices["ra_max"],
+                output_indices["ra_pre"],
+            )
+
+            la_mean = mus[list(la_idxs)]
+            ra_mean = mus[list(ra_idxs)]
+            la_cov = _local_output_covariance(vars_, residual_corr, la_idxs)
+            ra_cov = _local_output_covariance(vars_, residual_corr, ra_idxs)
+            la_r_mean, la_r_var = _ratio_moments(la_mean, la_cov)
+            ra_r_mean, ra_r_var = _ratio_moments(ra_mean, ra_cov)
+
+            la_pre_idx = output_indices["la_pre"]
+            ra_pre_idx = output_indices["ra_pre"]
+            la_total_var = (obs_vars_t[la_pre_idx] + la_r_var).clamp(min=1e-10)
+            ra_total_var = (obs_vars_t[ra_pre_idx] + ra_r_var).clamp(min=1e-10)
+            ll = ll - 0.5 * (
+                (obs_means_t[la_pre_idx] - la_r_mean) ** 2 / la_total_var
+                + torch.log(la_total_var)
+                + (obs_means_t[ra_pre_idx] - ra_r_mean) ** 2 / ra_total_var
+                + torch.log(ra_total_var)
+            )
 
         if copula is None:
             lp = torch.tensor(0.0, dtype=torch.float32)
@@ -325,7 +464,7 @@ def _plot_vs_targets(run_dir, output_names,
                      obs_means, obs_stds,
                      sampled_mu, sampled_sd,
                      refined_mu, refined_sd,
-                     pred_matrix=None):
+                     pred_matrix=None, output_indices=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -333,11 +472,53 @@ def _plot_vs_targets(run_dir, output_names,
     n_out = len(output_names)
     x_pos = np.arange(n_out)
     short_names = [str(n).replace("_", "\n") for n in output_names]
+    plot_obs_means = np.asarray(obs_means, dtype=np.float64).copy()
+    plot_obs_stds = np.asarray(obs_stds, dtype=np.float64).copy()
+    sampled_plot_mu = np.asarray(sampled_mu, dtype=np.float64).copy()
+    sampled_plot_sd = np.asarray(sampled_sd, dtype=np.float64).copy()
+    refined_plot_mu = np.asarray(refined_mu, dtype=np.float64).copy()
+    refined_plot_sd = np.asarray(refined_sd, dtype=np.float64).copy()
+    plot_matrix = None if pred_matrix is None else np.asarray(pred_matrix, dtype=np.float64).copy()
+
+    if output_indices is not None:
+        la_min = output_indices["la_min"]
+        la_max = output_indices["la_max"]
+        la_pre = output_indices["la_pre"]
+        ra_min = output_indices["ra_min"]
+        ra_max = output_indices["ra_max"]
+        ra_pre = output_indices["ra_pre"]
+
+        plot_obs_means[la_pre] = LA_PRE_DISPLAY_MEAN
+        plot_obs_means[ra_pre] = RA_PRE_DISPLAY_MEAN
+        plot_obs_stds[la_pre] = LA_PRE_DISPLAY_STD
+        plot_obs_stds[ra_pre] = RA_PRE_DISPLAY_STD
+        short_names[la_pre] = "LA\nPre-A\nVolume"
+        short_names[ra_pre] = "RA\nPre-A\nVolume"
+
+        if plot_matrix is not None:
+            la_denom = plot_matrix[:, la_max] - plot_matrix[:, la_min]
+            ra_denom = plot_matrix[:, ra_max] - plot_matrix[:, ra_min]
+            la_denom = np.where(
+                np.abs(la_denom) < 1e-8,
+                np.where(la_denom >= 0, 1e-8, -1e-8),
+                la_denom,
+            )
+            ra_denom = np.where(
+                np.abs(ra_denom) < 1e-8,
+                np.where(ra_denom >= 0, 1e-8, -1e-8),
+                ra_denom,
+            )
+            plot_matrix[:, la_pre] = (
+                plot_matrix[:, la_min] + plot_matrix[:, la_pre] * la_denom
+            )
+            plot_matrix[:, ra_pre] = (
+                plot_matrix[:, ra_min] + plot_matrix[:, ra_pre] * ra_denom
+            )
 
     fig, ax = plt.subplots(figsize=(max(12, 0.6 * n_out), 6))
 
-    if pred_matrix is not None:
-        normalised = (pred_matrix - obs_means) / obs_stds
+    if plot_matrix is not None:
+        normalised = (plot_matrix - plot_obs_means) / plot_obs_stds
         ax.boxplot(
             normalised, positions=x_pos, widths=0.5,
             showfliers=False, patch_artist=True,
@@ -354,8 +535,8 @@ def _plot_vs_targets(run_dir, output_names,
     ax.axhline(3, color="red", ls=":", alpha=0.4, label=r"$\pm 3\sigma$")
     ax.axhline(-3, color="red", ls=":", alpha=0.4)
 
-    sampled_res = (sampled_mu - obs_means) / obs_stds
-    sampled_err = sampled_sd / obs_stds
+    sampled_res = (sampled_plot_mu - plot_obs_means) / plot_obs_stds
+    sampled_err = sampled_plot_sd / plot_obs_stds
     ax.errorbar(
         x_pos, sampled_res, yerr=sampled_err,
         fmt="D", color="navy", markersize=6, markeredgecolor="white",
@@ -363,8 +544,8 @@ def _plot_vs_targets(run_dir, output_names,
         label="Sampled MAP",
     )
 
-    refined_res = (refined_mu - obs_means) / obs_stds
-    refined_err = refined_sd / obs_stds
+    refined_res = (refined_plot_mu - plot_obs_means) / plot_obs_stds
+    refined_err = refined_plot_sd / plot_obs_stds
     ax.errorbar(
         x_pos, refined_res, yerr=refined_err,
         fmt="*", color="crimson", markersize=11, markeredgecolor="black",
@@ -437,7 +618,12 @@ def _save_outputs(run_dir, sampled_map, refined_best, all_runs,
 
 def main():
     p = argparse.ArgumentParser(description="Refine theta-space MAP by local optimisation from top posterior draws.")
-    p.add_argument("run_dir", default="MCMC_Rest_20_21_04_3000_logspline_copula_prior", help="Path to a MCMC_Rest_* output directory.")
+    p.add_argument(
+        "run_dir",
+        nargs="?",
+        default=os.path.join("three_implaus_pre_A_calib", "MCMC_Rest_20_21_04_3000_logspline_copula_prior"),
+        help="Path to a MCMC_Rest_* output directory.",
+    )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
     p.add_argument("--n-starts", type=int, default=5, help="How many of the top draws to use as optimisation starts.")
     p.add_argument("--maxiter", type=int, default=200, help="Maximum L-BFGS iterations per start.")
@@ -471,6 +657,8 @@ def main():
 
     print(f"Loading emulators from: {emulator_dir}")
     gp_caches = _load_gp_caches(emulator_dir, output_names)
+    residual_corr = _estimate_residual_corr(gp_caches, output_names)
+    output_indices = _resolve_output_indices(output_names)
     copula = _load_copula_prior(run_dir) if cfg.get("use_copula_prior", False) else None
 
     objective_fn = make_theta_space_objective(
@@ -481,6 +669,8 @@ def main():
         gp_caches=gp_caches,
         output_names=output_names,
         copula=copula,
+        residual_corr=residual_corr,
+        output_indices=output_indices,
     )
 
     refined_best, all_runs = refine_map_multistart(
@@ -538,6 +728,7 @@ def main():
         refined_mu=refined_mu,
         refined_sd=refined_sd,
         pred_matrix=pred_matrix,
+        output_indices=output_indices,
     )
 
     if not args.no_save:
@@ -802,16 +993,18 @@ def main():
     # ------------------------------------------------------------
     # Your existing subset_vars definition
     # ------------------------------------------------------------
-    subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
-                   'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
-                   'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
-                   'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
-                   'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
-                   'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
-                   'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
-
-    # MUST SORT SO IT'S THE SAME ORDER AS sp["names"]
-    subset_vars = [name for name in sp["names"] if name in subset_vars]
+    subset_vars_path = os.path.join(run_dir, "subset_vars.npy")
+    if os.path.exists(subset_vars_path):
+        subset_vars = np.load(subset_vars_path, allow_pickle=True).tolist()
+    else:
+        legacy_subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
+                              'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+                              'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
+                              'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
+                              'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
+                              'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
+                              'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
+        subset_vars = [name for name in sp["names"] if name in legacy_subset_vars]
 
 
     # # ------------------------------------------------------------
