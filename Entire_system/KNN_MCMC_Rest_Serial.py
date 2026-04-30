@@ -24,15 +24,11 @@ Expects in working directory:
 
 Usage:
   python KNN_MCMC_Rest.py
-  python KNN_MCMC_Rest.py --chain-id 0 --n-chains 4
-  python KNN_MCMC_Rest.py --aggregate-only --n-chains 4
 """
 
 import math
 # import os
-import sys
 import json
-import argparse
 import warnings
 import joblib
 import numpy as np
@@ -55,24 +51,6 @@ os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(multiprocessing.cpu_count()))   
 
 warnings.filterwarnings("ignore")
 
-# ================================================================
-# CLI: HPC array-job orchestration
-# ================================================================
-# --chain-id c       : run only chain c (0..N_CHAINS-1) and save
-#                      chain_z_{c}.npy + chain_diag_{c}.joblib in out_dir,
-#                      then exit before diagnostics/plotting.
-# --aggregate-only   : skip chain running; load all chain_z_{c}.npy from
-#                      out_dir and run diagnostics + plots only.
-# --n-chains N       : expected number of chains to run/aggregate.
-# (no args)          : backward-compatible sequential N_CHAINS run.
-_parser = argparse.ArgumentParser()
-_parser.add_argument("--chain-id", type=int, default=-1)
-_parser.add_argument("--aggregate-only", action="store_true")
-_parser.add_argument("--n-chains", type=int, default=None)
-_args, _ = _parser.parse_known_args()
-CHAIN_ID       = _args.chain_id
-AGGREGATE_ONLY = _args.aggregate_only
-
 # posterior_np = np.load("MCMC_Rest_20_16_04_1200_lambda50/posterior_samples.npy")
 # pred_matrix = np.load("MCMC_Rest_20_16_04_1200_lambda50/pred_check_matrix.npy")
 
@@ -85,10 +63,10 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
-DATE_SUFFIX  = "12_4"                    # matches HM output file names
+DATE_SUFFIX  = "V_tot"                    # matches HM output file names
 PERCENT      = 20                        # param range +/-% used in HM
-root = "three_implaus_pre_A_calib"
-EMULATOR_DIR = f"{root}/Emulator_wave_1wave"     # GP emulators from last refitted wave
+root = "Total_Blood_Volume_Analysis_515"
+EMULATOR_DIR = f"{root}/Emulator_wave_V_tot"     # GP emulators from last refitted wave
 out_dir = f"{root}/MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
@@ -137,21 +115,9 @@ LOGSPLINE_N_GRID        = 1000      # per-axis fine grid for Z + CDF + MCMC
 # NUTS MCMC
 N_WARMUP        = 500                    # warmup (step-size + mass-matrix adapt)
 N_SAMPLES       = 3000                   # posterior draws per chain
-N_CHAINS        = 4                      # independent chains
+N_CHAINS        = 4                      # independent chains (sequential loop; Windows-safe)
 MAX_TREE_DEPTH  = 7
 TARGET_ACCEPT   = 0.8
-
-if _args.n_chains is not None:
-    N_CHAINS = _args.n_chains
-if N_CHAINS < 1:
-    raise ValueError(f"--n-chains must be >= 1, got {N_CHAINS}")
-if AGGREGATE_ONLY and CHAIN_ID >= 0:
-    raise ValueError("--aggregate-only and --chain-id are mutually exclusive")
-if CHAIN_ID < -1 or CHAIN_ID >= N_CHAINS:
-    raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
-
-CHAIN_WORKER = CHAIN_ID >= 0
-WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
 
 # Atrial contraction is enforced via the active-emptying fraction
 #   r = (V_pre_contraction - V_min) / (V_max - V_min)
@@ -1198,20 +1164,26 @@ observation = {
 # ================================================================
 # CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis)
 # ================================================================
-subset_vars_set = {
-    'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv',
-    'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
-    'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o',
-    'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2',
-    'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
-    'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la',
-    'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp',
-    'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n', 'T0',
-    'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
-    'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-    'Wb_sh', 'Wb_sv',
-}
+# subset_vars_set = {
+#     'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv',
+#     'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
+#     'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o',
+#     'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2',
+#     'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
+#     'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la',
+#     'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp',
+#     'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n', 'T0',
+#     'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
+#     'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
+#     'Wb_sh', 'Wb_sv',
+# }
 
+# V_tot
+subset_vars_set = {'a2', 'ahead1', 'beta2', 'C2', 'C_O2_param1', 'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_rv0',
+               'f_ab_max', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'K2',
+               'k_ab', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n',
+               'PaCO2_n', 'r', 'R_rs', 'R_sa', 'rise_time_ven', 'T0', 'V0_dead', 'V_nominal', 'V_scale', 'V_tot',
+               'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh'}
 
 
 
@@ -1369,11 +1341,8 @@ if USE_COPULA_PRIOR:
             "prior_lower":    np.asarray(prior_lower, dtype=np.float64),
             "prior_upper":    np.asarray(prior_upper, dtype=np.float64),
         }
-        if WRITE_SHARED_ARTIFACTS:
-            joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
-            print(f"  Saved copula to {out_dir}/copula_prior.joblib")
-        else:
-            print("  Single-chain mode: skipping shared copula_prior.joblib write")
+        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
     else:
         print(f"  Fitting on N={n_nroy} points, d={ndim}")
         print(f"  KDE subsample per axis: {KDE_SUBSAMPLE}")
@@ -1419,11 +1388,8 @@ if USE_COPULA_PRIOR:
             "corr_shrink":    CORR_SHRINK,
             "subset_vars":    subset_vars,
         }
-        if WRITE_SHARED_ARTIFACTS:
-            joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
-            print(f"  Saved copula to {out_dir}/copula_prior.joblib")
-        else:
-            print("  Single-chain mode: skipping shared copula_prior.joblib write")
+        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
 else:
     print("\n  USE_COPULA_PRIOR = False -> uniform box prior on NROY bounds")
 
@@ -1432,19 +1398,14 @@ prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
 prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
 
 # Save a diagnostic plot of the fitted prior marginals before MCMC starts.
-# Array workers skip this shared output to avoid concurrent writes; the
-# aggregate job writes it once.
-if WRITE_SHARED_ARTIFACTS and copula_prior_cache is not None:
-    _ = plot_prior_marginals_vs_nroy(
-        copula_prior_cache,
-        nroy_subset=nroy_subset,
-        subset_vars=subset_vars,
-        prior_lower=prior_lower,
-        prior_upper=prior_upper,
-        out_dir=out_dir,
-    )
-elif not WRITE_SHARED_ARTIFACTS:
-    print("  Single-chain mode: skipping shared prior marginal plot")
+_ = plot_prior_marginals_vs_nroy(
+    copula_prior_cache,
+    nroy_subset=nroy_subset,
+    subset_vars=subset_vars,
+    prior_lower=prior_lower,
+    prior_upper=prior_upper,
+    out_dir=out_dir,
+)
 
 # ============================================================
 # 2. LOAD GP EMULATORS
@@ -1728,11 +1689,9 @@ init_theta = torch.clamp(init_theta, prior_lo + eps, prior_hi - eps)
 theta_01 = (init_theta - prior_lo) / (prior_hi - prior_lo)
 init_z_all = torch.log(theta_01 / (1.0 - theta_01))    # (N_CHAINS, ndim)
 
-# Verify initial potential is finite.  In array mode, check this worker's
-# own initial point rather than chain 0's.
-initial_check_chain = CHAIN_ID if CHAIN_WORKER else 0
+# Verify initial potential is finite (use chain-0 start)
 with torch.no_grad():
-    z_test = init_z_all[initial_check_chain]
+    z_test = init_z_all[0]
     pe0 = potential_fn({"theta": z_test})
     print(f"  Initial potential energy: {pe0.item():.4f}")
     assert torch.isfinite(pe0), f"Initial PE is {pe0.item()}, check NROY start"
@@ -1745,126 +1704,74 @@ print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
       f"norm={grad_check.norm().item():.4f}")
 assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
-# ---------- Multi-chain NUTS (sequential / array-task / aggregate) ----------
-# Three execution modes (see CLI block at top):
-#   1. Default            : run all N_CHAINS sequentially in this process.
-#   2. --chain-id c       : run only chain c, save per-chain output, exit.
-#                           Used by HPC array-job (one task = one chain).
-#   3. --aggregate-only   : skip chains entirely; load chain_z_{c}.npy from
-#                           out_dir for c in 0..N_CHAINS-1.
-# Posterior samples, split-R-hat and ESS are identical regardless of mode;
-# array-job mode collapses wall time from N_CHAINS x to 1 x per chain.
+# ---------- Sequential multi-chain NUTS ----------
+# Pyro's native parallel multi-chain uses multiprocessing.spawn, which on
+# Windows requires an `if __name__ == "__main__":` guard AND a picklable
+# potential_fn.  This script has neither (the potential_fn closes over
+# large torch-tensor caches), so we run chains sequentially instead.
+# Posterior samples, split-R-hat and ESS are identical to parallel chains;
+# only wall time is N_CHAINS x longer.
 print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
 print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
 print(f"  target_accept_prob = {TARGET_ACCEPT}")
-if AGGREGATE_ONLY:
-    print(f"  Mode: AGGREGATE-ONLY (loading per-chain files from {out_dir})")
-elif CHAIN_ID >= 0:
-    print(f"  Mode: SINGLE-CHAIN (chain-id={CHAIN_ID})")
-else:
-    print("  Mode: SEQUENTIAL (all chains in this process)")
+print("  Running NUTS chains sequentially...")
 
 chain_samples_z  = []   # list of (N_SAMPLES, ndim) tensors
 chain_diag_list  = []   # per-chain diagnostics dicts
 chain_fell_back  = []   # which chains used HMC fallback
-mcmc_c           = None
 
-if AGGREGATE_ONLY:
-    for c in range(N_CHAINS):
-        z_path = os.path.join(out_dir, f"chain_z_{c}.npy")
-        if not os.path.exists(z_path):
-            raise FileNotFoundError(
-                f"Aggregate mode: missing {z_path}. "
-                f"Run all N_CHAINS={N_CHAINS} array tasks first."
-            )
-        zc = np.load(z_path)
-        chain_samples_z.append(torch.tensor(zc, dtype=torch.float32))
-        diag_path = os.path.join(out_dir, f"chain_diag_{c}.joblib")
-        if os.path.exists(diag_path):
-            payload = joblib.load(diag_path)
-            chain_diag_list.append(payload.get("diag", {}))
-            chain_fell_back.append(bool(payload.get("fell_back", False)))
-        else:
-            chain_diag_list.append({})
-            chain_fell_back.append(False)
-    print(f"  Loaded {N_CHAINS} chain samples from {out_dir}/")
-else:
-    chains_to_run = [CHAIN_ID] if CHAIN_ID >= 0 else list(range(N_CHAINS))
-    if CHAIN_ID >= 0 and not (0 <= CHAIN_ID < N_CHAINS):
-        raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
+for c in range(N_CHAINS):
+    print(f"\n  --- Chain {c + 1}/{N_CHAINS} ---")
+    pyro.set_rng_seed(RANDOM_SEED + c)
+    init_z_c = init_z_all[c].clone()
 
-    for c in chains_to_run:
-        print(f"\n  --- Chain {c + 1}/{N_CHAINS} ---")
-        pyro.set_rng_seed(RANDOM_SEED + c)
-        init_z_c = init_z_all[c].clone()
+    nuts_c = NUTS(
+        potential_fn=potential_fn,
+        step_size=1e-3,
+        adapt_step_size=True,
+        adapt_mass_matrix=True,
+        max_tree_depth=MAX_TREE_DEPTH,
+        target_accept_prob=TARGET_ACCEPT,
+        jit_compile=False,
+    )
+    mcmc_c = MCMC(
+        nuts_c,
+        num_samples=N_SAMPLES,
+        warmup_steps=N_WARMUP,
+        num_chains=1,
+        initial_params={"theta": init_z_c},
+    )
 
-        nuts_c = NUTS(
+    fell_back = False
+    try:
+        mcmc_c.run()
+    except Exception as nuts_err:
+        print(f"  chain {c}: NUTS failed ({nuts_err})")
+        print(f"  chain {c}: falling back to HMC")
+        hmc_c = HMC(
             potential_fn=potential_fn,
             step_size=1e-3,
             adapt_step_size=True,
-            adapt_mass_matrix=True,
-            max_tree_depth=MAX_TREE_DEPTH,
-            target_accept_prob=TARGET_ACCEPT,
+            num_steps=20,
             jit_compile=False,
         )
         mcmc_c = MCMC(
-            nuts_c,
+            hmc_c,
             num_samples=N_SAMPLES,
             warmup_steps=N_WARMUP,
             num_chains=1,
             initial_params={"theta": init_z_c},
         )
+        mcmc_c.run()
+        fell_back = True
 
-        fell_back = False
-        try:
-            mcmc_c.run()
-        except Exception as nuts_err:
-            print(f"  chain {c}: NUTS failed ({nuts_err})")
-            print(f"  chain {c}: falling back to HMC")
-            hmc_c = HMC(
-                potential_fn=potential_fn,
-                step_size=1e-3,
-                adapt_step_size=True,
-                num_steps=20,
-                jit_compile=False,
-            )
-            mcmc_c = MCMC(
-                hmc_c,
-                num_samples=N_SAMPLES,
-                warmup_steps=N_WARMUP,
-                num_chains=1,
-                initial_params={"theta": init_z_c},
-            )
-            mcmc_c.run()
-            fell_back = True
-
-        z_c = mcmc_c.get_samples()["theta"]                  # (N_SAMPLES, ndim)
-        chain_samples_z.append(z_c)
-        try:
-            diag_c = mcmc_c.diagnostics()
-        except Exception as diag_err:
-            print(f"  chain {c}: diagnostics() failed: {diag_err}")
-            diag_c = {}
-        chain_diag_list.append(diag_c)
-        chain_fell_back.append(fell_back)
-
-        # Single-chain (HPC array task) mode: persist this chain's output
-        # so the aggregator can stack it later.
-        if CHAIN_ID >= 0:
-            np.save(os.path.join(out_dir, f"chain_z_{c}.npy"),
-                    z_c.detach().cpu().numpy())
-            joblib.dump(
-                {"diag": diag_c, "fell_back": fell_back, "chain_id": c},
-                os.path.join(out_dir, f"chain_diag_{c}.joblib"),
-            )
-            print(f"  chain {c}: saved chain_z_{c}.npy "
-                  f"+ chain_diag_{c}.joblib to {out_dir}/")
-
-    # Array-task mode: stop here — aggregation is done by a separate job.
-    if CHAIN_ID >= 0:
-        print(f"\n  Single-chain run complete (chain {CHAIN_ID}). "
-              f"Run with --aggregate-only after all {N_CHAINS} chains finish.")
-        sys.exit(0)
+    chain_samples_z.append(mcmc_c.get_samples()["theta"])   # (N_SAMPLES, ndim)
+    try:
+        chain_diag_list.append(mcmc_c.diagnostics())
+    except Exception as diag_err:
+        print(f"  chain {c}: diagnostics() failed: {diag_err}")
+        chain_diag_list.append({})
+    chain_fell_back.append(fell_back)
 
 # Stack into (C, N, d); keep last MCMC object for any residual references.
 z_chains = torch.stack(chain_samples_z, dim=0)
