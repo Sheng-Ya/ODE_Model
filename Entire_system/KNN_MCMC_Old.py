@@ -29,6 +29,7 @@ Usage:
 import math
 # import os
 import json
+import multiprocessing
 import warnings
 import joblib
 import numpy as np
@@ -47,7 +48,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import os
-os.environ["LOKY_MAX_CPU_COUNT"] = "8"   # set before sklearn/joblib uses loky
+os.environ["LOKY_MAX_CPU_COUNT"] = str(multiprocessing.cpu_count()) # set before sklearn/joblib uses loky
 
 warnings.filterwarnings("ignore")
 
