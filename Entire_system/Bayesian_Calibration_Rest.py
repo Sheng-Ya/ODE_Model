@@ -188,8 +188,8 @@ sp = ProblemSpec({
         [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
-        [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
-        [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
+        [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
+        [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -262,8 +262,8 @@ Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate
 # probability-of-being-in-range filter instead of a point-target score.
 observation = {"Heart Rate": (1.23, 0.05), "Systolic Pressure": (123, 324), "Diastolic Pressure": (76.7, 65.61), "EDV": (152.1, 767.29),
 "ESV": (62.3, 243.36), "Max RV Volume": (151.9, 1004.89), "Min RV Volume": (64.4, 299.29), "Max RV Pressure": (22.5, 56.25),
-"Min RV Pressure": (4.0, 9.0), "Min RA Volume": (30.6, 76.4), "Max RA Volume": (92.4, 380.25),
-"Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (32.9, 75.69),
+"Min RV Pressure": (4.0, 9.0), "Min RA Volume": (45.7, 125.44), "Max RA Volume": (92.4, 380.25),
+"Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (30.6, 84.64),
 "Max LA Volume": (68.3, 306.25),
 "Max LA Pressure Atrial contraction": (13.0, 9.0),
 "Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (41.8, 62.41), "RA Contraction Volume diff": (46.1, 73.96),
@@ -442,7 +442,7 @@ if __name__ == "__main__":
     # plt.close()
 
     size = 200000
-    _ = hmw.run_waves(n_waves=3, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=5, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
