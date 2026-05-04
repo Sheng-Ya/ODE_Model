@@ -1,26 +1,17 @@
 """
-Three-panel comparison of emulator predictive variance before and after history matching.
+Single-panel comparison of emulator predictive variance across history matching stages.
 
-Panels:
-  (a) Pre-HM emulator variance relative to observation variance, using the
-      `Emulator_Paper_same_1000` emulators evaluated on held-out NROY points
-      from a later wave.
-  (b) Post-HM emulator variance relative to observation variance, using the
-      saved emulator snapshot after a specified wave (default: wave 3).
-  (c) Per-output median emulator predictive variance / observation variance across
-      stages: Pre-HM, Wave 1, ..., selected post-HM wave.
-
-Recommended usage for a 4-wave history matching run:
-  - Evaluate on `test_params_wave_4.npy` filtered by `nroy_mask_wave_4.npy`
-  - Compare `Emulator_Paper_same_1000` against `Emulator_wave_3`
-  - Plot stage trajectory for Pre-HM, Wave 1, Wave 2, Wave 3
+The plot shows grouped horizontal box plots of
+`log10(emulator predictive variance / observation variance)` for each target.
+Each stage (Pre-HM, Wave 1, ..., Wave N) is drawn in a different colour, using
+the cached results in `emulator_prediction_cache_3` by default.
 
 Example:
     python Plot_Emulator_Variance_ThreePanel.py ^
         --artifacts-dir . ^
         --eval-wave 4 ^
         --after-wave 3 ^
-        --out emulator_variance_three_panel.png
+        --out emulator_variance_grouped_boxplot.png
 """
 
 from __future__ import annotations
@@ -31,6 +22,7 @@ from pathlib import Path
 from SALib import ProblemSpec
 import joblib
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 import numpy as np
 import torch
 
@@ -128,6 +120,28 @@ observation = {
 }
 
 
+DEFAULT_TARGET_NAME_MAP = {
+    "Systolic Pressure": "LV Systolic Pressure",
+    "Diastolic Pressure": "LV Diastolic Pressure",
+    "EDV": "LV EDV",
+    "ESV": "LV ESV",
+    "Max RA Pressure Atrial contraction": "Max RA Pressure A Wave",
+    "Max RA Pressure Tricuspid Opening": "Max RA Pressure V Wave",
+    "Max LA Pressure Atrial contraction": "Max LA Pressure A Wave",
+    "Max LA Pressure Mitral Opening": "Max LA Pressure V Wave",
+    "LA Contraction Volume diff": "LA Pre-Atrial Contraction Volume",
+    "RA Contraction Volume diff": "RA Pre-Atrial Contraction Volume",
+    "LV Pressure Deriv": "Max LV Pressure Deriv",
+    "RV Pressure Deriv": "Max RV Pressure Deriv",
+}
+STAGE_COLORS = [
+    "#BBA3D6",
+    "#9DB8D8",
+    "#7DB6C0",
+    "#D68484",
+]
+
+
 MODEL_NAME = "GaussianProcessMatern32"
 FLAG_THRESHOLD = 0.1
 RAW_EMULATOR_DIR = "Emulator_Paper_same_1000"
@@ -139,6 +153,11 @@ def unwrap_emulator(obj):
     if model is not None and hasattr(model, "predict_mean_and_variance"):
         return model
     raise TypeError(f"Unsupported emulator object type: {type(obj)!r}")
+
+
+def format_target_name(name: str) -> str:
+    pretty_name = name.replace("_", " ")
+    return DEFAULT_TARGET_NAME_MAP.get(pretty_name, pretty_name)
 
 
 
@@ -257,39 +276,86 @@ def evaluate_emulator_directory(
     return summarise_variance_matrix(var_matrix)
 
 
-def plot_ratio_boxplot(
+def plot_grouped_ratio_boxplot(
     ax,
-    stage_result: dict,
+    stage_results: list[tuple[str, dict]],
     ordered_names: list[str],
-    title: str,
-    show_ylabels: bool,
 ) -> None:
-    data = [
-        np.log10(np.clip(stage_result["ratios"][name], 1e-300, None))
-        for name in ordered_names
-    ]
-    bp = ax.boxplot(
-        data,
-        vert=False,
-        labels=ordered_names if show_ylabels else [""] * len(ordered_names),
-        showfliers=False,
-        patch_artist=True,
-    )
+    n_targets = len(ordered_names)
+    n_stages = len(stage_results)
+    target_spacing = 3.0
+    base_positions = np.arange(n_targets) * target_spacing
+    total_group_height = 2
+    box_width = total_group_height / max(n_stages, 1) * 0.85
 
-    row_lookup = {row["target"]: row for row in stage_result["rows"]}
-    for patch, name in zip(bp["boxes"], ordered_names):
-        med_ratio = row_lookup[name]["ratio_median"]
-        patch.set_facecolor("#d9534f" if med_ratio > FLAG_THRESHOLD else "#5cb85c")
-        patch.set_alpha(0.6)
+    if n_stages == 1:
+        offsets = np.array([0.0])
+    else:
+        offsets = np.linspace(
+            -total_group_height / 2 + box_width / 2,
+            total_group_height / 2 - box_width / 2,
+            n_stages,
+        )
+
+    legend_handles = []
+    for stage_idx, (stage_label, stage_result) in enumerate(stage_results):
+        stage_data = [
+            np.log10(np.clip(stage_result["ratios"][name], 1e-300, None))
+            for name in ordered_names
+        ]
+        color = STAGE_COLORS[stage_idx % len(STAGE_COLORS)]
+        bp = ax.boxplot(
+            stage_data,
+            vert=False,
+            positions=base_positions + offsets[stage_idx],
+            widths=box_width,
+            showfliers=False,
+            patch_artist=True,
+            manage_ticks=False,
+        )
+
+        for patch in bp["boxes"]:
+            patch.set_facecolor(color)
+            patch.set_edgecolor(color)
+            patch.set_alpha(0.7)
+            patch.set_linewidth(1.2)
+        for median in bp["medians"]:
+            median.set_color(color)
+            median.set_linewidth(1.4)
+        for whisker in bp["whiskers"]:
+            whisker.set_color(color)
+            whisker.set_linewidth(1.1)
+        for cap in bp["caps"]:
+            cap.set_color(color)
+            cap.set_linewidth(1.1)
+
+        legend_handles.append(
+            Patch(facecolor=color, edgecolor=color, alpha=0.7, label=stage_label)
+        )
 
     ax.axvline(np.log10(FLAG_THRESHOLD), color="k", linestyle="--", linewidth=1.5)
     ax.axvline(0.0, color="grey", linestyle=":", linewidth=1.5)
-    ax.set_title(title)
+    ax.set_yticks(base_positions)
+    ax.set_yticklabels([format_target_name(name) for name in ordered_names])
+    ax.set_ylim(
+        base_positions[0] - total_group_height / 2 - 0.35,
+        base_positions[-1] + total_group_height / 2 + 0.35,
+    )
+    separator_positions = (base_positions[:-1] + base_positions[1:]) / 2
+    for y in separator_positions:
+        ax.axhline(y, color="#c7c7c7", linewidth=0.7, zorder=0)
+    ax.invert_yaxis()
+    ax.set_ylabel("Target")
     ax.grid(True, linestyle="--", alpha=0.3, axis="x")
-    if show_ylabels:
-        ax.set_ylabel("Output")
-    else:
-        ax.tick_params(axis="y", length=0)
+    ax.legend(
+        handles=legend_handles,
+        loc="center right",
+        bbox_to_anchor=(0.98, 0.5),
+        frameon=True,
+        facecolor="white",
+        edgecolor="#d0d0d0",
+        framealpha=0.9,
+    )
 
 
 def build_stage_series(
@@ -385,7 +451,7 @@ def main() -> None:
         "--after-wave",
         type=int,
         default=3,
-        help="Use the emulator snapshot after this wave for panel (b), and include waves 1..after-wave in panel (c).",
+        help="Include stages Pre-HM, Wave 1, ..., Wave N in the grouped box plot.",
     )
     parser.add_argument(
         "--cache-dir",
@@ -394,7 +460,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--out",
-        default="emulator_variance_three_panel_test.png",
+        default="emulator_variance_grouped_boxplot.png",
         help="Output PNG path.",
     )
     args = parser.parse_args()
@@ -427,92 +493,39 @@ def main() -> None:
         eval_wave=args.eval_wave,
     )
 
-    pre_label, pre_result = stage_results[0]
-    post_label, post_result = stage_results[-1]
-    ordered_names = [
-        row["target"]
-        for row in sorted(pre_result["rows"], key=lambda row: row["ratio_median"])
-    ]
+    pre_hm_lookup = {row["target"]: row for row in stage_results[0][1]["rows"]}
+    ordered_names = sorted(
+        output_names,
+        key=lambda name: pre_hm_lookup[name]["ratio_median"],
+        reverse=True,
+    )
 
     plt.rcParams.update({
-        "font.size": 12,
-        "axes.titlesize": 13,
-        "axes.labelsize": 12,
-        "xtick.labelsize": 11,
-        "ytick.labelsize": 10,
-        "legend.fontsize": 9,
+        "font.size": 24,
+        "axes.titlesize": 26,
+        "axes.labelsize": 24,
+        "xtick.labelsize": 22,
+        "ytick.labelsize": 20,
+        "legend.fontsize": 18,
         "axes.linewidth": 1.2,
         "lines.linewidth": 1.8,
     })
 
-    fig, axes = plt.subplots(
-        1,
-        3,
-        figsize=(23, 9),
-        gridspec_kw={"width_ratios": [1.15, 1.15, 1.35]},
-    )
-    ax_a, ax_b, ax_c = axes
-
-    plot_ratio_boxplot(
-        ax=ax_a,
-        stage_result=pre_result,
+    fig, ax = plt.subplots(figsize=(18, 23))
+    plot_grouped_ratio_boxplot(
+        ax=ax,
+        stage_results=stage_results,
         ordered_names=ordered_names,
-        title=f"(a) {pre_label} emulators",
-        show_ylabels=True,
     )
-    ax_a.set_xlabel(r"$\log_{10}(V_{\mathrm{code}} / V_{\mathrm{obs}})$")
+    ax.set_xlabel(r"$\log_{10}(V_{\mathrm{Emulator}} / V_{\mathrm{obs}})$")
+    # ax.set_title("Grouped emulator variance box plots across stages")
 
-    plot_ratio_boxplot(
-        ax=ax_b,
-        stage_result=post_result,
-        ordered_names=ordered_names,
-        title=f"(b) {post_label} emulators",
-        show_ylabels=False,
-    )
-    ax_b.set_xlabel(r"$\log_{10}(V_{\mathrm{code}} / V_{\mathrm{obs}})$")
-
-    stage_labels = [label for label, _ in stage_results]
-    rel_var_matrix = np.array([
-        [result["rows"][output_names.index(name)]["median_var_over_obs_var"] for name in output_names]
-        for _, result in stage_results
-    ])
-    cmap = plt.get_cmap("tab20")
-    for j, name in enumerate(output_names):
-        ax_c.plot(
-            stage_labels,
-            rel_var_matrix[:, j],
-            marker="o",
-            color=cmap(j % 20),
-            alpha=0.85,
-            label=name.replace("_", " "),
-        )
-    ax_c.plot(
-        stage_labels,
-        np.nanmedian(rel_var_matrix, axis=1),
-        marker="D",
-        color="black",
-        linewidth=3.0,
-        label="median across outputs",
-    )
-    ax_c.axhline(FLAG_THRESHOLD, color="k", linestyle="--", linewidth=1.2)
-    ax_c.axhline(1.0, color="grey", linestyle="--", linewidth=1.2)
-    ax_c.set_yscale("log")
-    ax_c.set_ylabel("median emulator variance / obs variance")
-    ax_c.set_title("(c) Median predictive variance across stages")
-    ax_c.grid(True, which="both", linestyle="--", alpha=0.4)
-    ax_c.legend(
-        loc="center left",
-        bbox_to_anchor=(1.02, 0.5),
-        fontsize=8,
-        frameon=False,
-    )
-
-    fig.suptitle(
-        f"Emulator variance before and after history matching "
-        f"(evaluated on N={eval_points.shape[0]} held-out wave {args.eval_wave} NROY points)",
-        fontsize=15,
-        y=1.01,
-    )
+    # fig.suptitle(
+    #     f"Emulator variance across history matching stages "
+    #     f"(evaluated on N={eval_points.shape[0]} held-out wave {args.eval_wave} NROY points)",
+    #     fontsize=15,
+    #     y=0.98,
+    # )
     fig.tight_layout()
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"Saved plot: {out_path}")
