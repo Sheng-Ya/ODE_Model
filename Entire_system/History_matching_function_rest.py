@@ -58,6 +58,17 @@ from Simulator_new import Simulator
 
 logger = logging.getLogger("autoemulate")
 
+EMULATOR_OUTPUT_NAMES = [
+    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+    "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
+    "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+    "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+    "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+    "PaO2", "PaCO2",
+]
+
 
 class HistoryMatching(TorchDeviceMixin):
     r"""
@@ -420,6 +431,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # If use `run_waves()`, results are stored here
         self.wave_results = []
+        self._current_wave_idx: int | None = None
+        self._save_wave_artifacts = True
+        self._wave_artifacts_dir = "."
+        self._last_wave_train_points: TensorLike | None = None
 
         # Save names and indices of parameters to calibrate
         self.calibration_params = calibration_params or list(
@@ -432,6 +447,56 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.atrial_ratio_bounds = atrial_ratio_bounds
         self.atrial_ratio_min_probability = atrial_ratio_min_probability
         self.atrial_ratio_mc_samples = atrial_ratio_mc_samples
+
+    @staticmethod
+    def _to_numpy(array: TensorLike | np.ndarray) -> np.ndarray:
+        if torch.is_tensor(array):
+            return array.detach().cpu().numpy()
+        return np.asarray(array)
+
+    def _wave_number(self) -> int | None:
+        if self._current_wave_idx is None:
+            return None
+        return self._current_wave_idx + 1
+
+    def _save_wave_numpy_artifacts(
+        self,
+        test_x: TensorLike,
+        impl_scores: TensorLike,
+    ) -> None:
+        if not self._save_wave_artifacts:
+            return
+
+        wave_number = self._wave_number()
+        if wave_number is None:
+            return
+
+        os.makedirs(self._wave_artifacts_dir, exist_ok=True)
+        nroy_mask = self._create_nroy_mask(impl_scores)
+        nroy_points = test_x[nroy_mask]
+
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"test_params_wave_{wave_number}.npy"),
+            self._to_numpy(test_x),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"impl_scores_wave_{wave_number}.npy"),
+            self._to_numpy(impl_scores),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"nroy_mask_wave_{wave_number}.npy"),
+            self._to_numpy(nroy_mask),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"nroy_points_wave_{wave_number}.npy"),
+            self._to_numpy(nroy_points),
+        )
+
+        if self._last_wave_train_points is not None:
+            np.save(
+                os.path.join(self._wave_artifacts_dir, f"train_points_wave_{wave_number}.npy"),
+                self._to_numpy(self._last_wave_train_points),
+            )
 
     def _estimate_ratio_interval_probability(
         self,
@@ -1019,6 +1084,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             f"{n_test_samples} test samples"
         )
         logger.debug(msg)
+        self._last_wave_train_points = None
 
         test_parameters_list, impl_scores_list, nroy_parameters_list = (
             [],
@@ -1093,6 +1159,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # np.save("check.npy", nroy_simulation_samples)
         # save on CPU so it's portable across machines/devices
         torch.save(self.nroy_samples.detach().cpu(), "nroy_samples_rest.pt")
+        self._last_wave_train_points = nroy_simulation_samples.detach().cpu()
         # A = np.load("check.npy")[64:66]
         # print(A[:,-4:])
         # A = torch.from_numpy(A)
@@ -1100,15 +1167,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
 
-        output_names_full = [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
+        output_names_full = EMULATOR_OUTPUT_NAMES
+        wave_number = self._wave_number()
+        snapshot_root = (
+            os.path.join(self._wave_artifacts_dir, f"Emulator_wave_{wave_number}")
+            if self._save_wave_artifacts and wave_number is not None
+            else None
+        )
 
         def fit_one_output(j, target_name, X_fit, Y_fit, parameter_idx, result, device):
             x_fit = X_fit[:, parameter_idx]
@@ -1147,7 +1212,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
             parent = os.path.join("Emulator_wave_1wave", target_name)
             # parent = os.path.join("Emulator_wave_V_tot", target_name)
             os.makedirs(parent, exist_ok=True)
-            joblib.dump(emulator, os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib"))
+            model_filename = f"GaussianProcessMatern32_{target_name}_best.joblib"
+            joblib.dump(emulator, os.path.join(parent, model_filename))
+            if snapshot_root is not None:
+                snapshot_parent = os.path.join(snapshot_root, target_name)
+                os.makedirs(snapshot_parent, exist_ok=True)
+                joblib.dump(emulator, os.path.join(snapshot_parent, model_filename))
 
             return target_name, emulator
 
@@ -1194,6 +1264,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_emulator_on_last_wave: bool = True,
         refit_on_all_data: bool = True,
         resume_wave: bool = False,
+        save_wave_artifacts: bool = True,
+        wave_artifacts_dir: str = ".",
     ) -> list[tuple[TensorLike, TensorLike]]:
         """
         Run multiple waves of the history matching workflow.
@@ -1227,6 +1299,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_on_all_data: bool
             Whether to refit the emulator on all available data after each wave
             or just the data from the most recent simulation run. Defaults to True.
+        save_wave_artifacts: bool
+            Whether to save per-wave emulator snapshots and `.npy` artifacts.
+        wave_artifacts_dir: str
+            Directory where per-wave artifacts are written.
 
         Returns
         -------
@@ -1242,6 +1318,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
             start_i = 0
 
         self.wave_results = []
+        self._save_wave_artifacts = save_wave_artifacts
+        self._wave_artifacts_dir = wave_artifacts_dir
+        if self._save_wave_artifacts:
+            os.makedirs(self._wave_artifacts_dir, exist_ok=True)
         for i in range(start_i, n_waves):
             # 0th wave had 155173
             # if i == 0: # 110599
@@ -1266,6 +1346,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             #     n_simulations = 5000
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
+            self._current_wave_idx = i
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
             test_x, impl_scores = self.run(
                 n_simulations=n_simulations,
@@ -1289,6 +1370,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_rest.png")
 
             # Get NROY points from impl scores and check fraction
+            self._save_wave_numpy_artifacts(test_x, impl_scores)
             nroy_x = self.get_nroy(impl_scores, test_x)
             nroy_frac = nroy_x.shape[0] / test_x.shape[0]
             logger.info(
@@ -1311,6 +1393,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 )
                 break
 
+        self._current_wave_idx = None
         return self.wave_results
 
     def plot_run(
