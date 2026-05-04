@@ -166,14 +166,36 @@ ATRIAL_COV_JITTER = 1e-10
 
 # Display-only atrial pre-contraction volume targets used in the final
 # posterior-predictive box plot. The likelihood remains defined on the
-# active-emptying fraction ratio above.
-LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = 41.8, 7.9
-RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = 46.1, 8.6
+# active-emptying fraction ratio above. The actual display mean/std are
+# derived later from the observation moments for (V_min, V_max, f).
 
 # Posterior predictive
 N_PRED_CHECK = 1500                       # posterior samples for predictive check
 
 # Likelihood: Gaussian on direct targets + Gaussian on derived atrial ratios
+
+
+def _propagated_vpre_display_stats(vmin_mean, vmin_var, vmax_mean, vmax_var,
+                                   f_mean, f_var):
+    """Display-only mean/std for V_pre = V_min + f * (V_max - V_min).
+
+    This mirrors the zero-cross-covariance assumption used by the MCMC
+    observation model: V_min, V_max and the active-emptying fraction f are
+    treated as independent when constructing the display normalisation.
+    """
+    delta_mean = float(vmax_mean) - float(vmin_mean)
+    f_mean = float(f_mean)
+    f_var = float(f_var)
+
+    vpre_mean = float(vmin_mean) + f_mean * delta_mean
+    ef2 = f_mean ** 2 + f_var
+    e1mf2 = (1.0 - f_mean) ** 2 + f_var
+    vpre_var = (
+        e1mf2 * float(vmin_var)
+        + ef2 * float(vmax_var)
+        + f_var * delta_mean ** 2
+    )
+    return vpre_mean, math.sqrt(max(vpre_var, 0.0))
 
 def extract_fast_caches(emulators, output_names):
     """Pre-warm GPyTorch prediction caches and extract y-transform params.
@@ -1183,11 +1205,11 @@ observation = {
     "Min RV Volume": (64.4, 299.29),
     "Max RV Pressure": (22.5, 56.25),
     "Min RV Pressure": (4.0, 9.0),
-    "Min RA Volume": (30.6, 76.4),
+    "Min RA Volume": (45.7, 125.44),
     "Max RA Volume": (92.4, 380.25),
     "Max RA Pressure Atrial contraction": (8.0, 9.0),
     "Max RA Pressure Tricuspid Opening": (5.0, 9.0),
-    "Min LA Volume": (32.9, 75.69),
+    "Min LA Volume": (30.6, 84.64),
     "Max LA Volume": (68.3, 306.25),
     "Max LA Pressure Atrial contraction": (13.0, 9.0),
     "Max LA Pressure Mitral Opening": (12.0, 9.0),
@@ -1200,6 +1222,23 @@ observation = {
     "PaO2": (102.3, 125.44),
     "PaCO2": (35.5, 24.01),
 }
+
+LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
+    observation["Min LA Volume"][0],
+    observation["Min LA Volume"][1],
+    observation["Max LA Volume"][0],
+    observation["Max LA Volume"][1],
+    observation["LA Contraction Volume diff"][0],
+    observation["LA Contraction Volume diff"][1],
+)
+RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
+    observation["Min RA Volume"][0],
+    observation["Min RA Volume"][1],
+    observation["Max RA Volume"][0],
+    observation["Max RA Volume"][1],
+    observation["RA Contraction Volume diff"][0],
+    observation["RA Contraction Volume diff"][1],
+)
 
 # ================================================================
 # CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis)
