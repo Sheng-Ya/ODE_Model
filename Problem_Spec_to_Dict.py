@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 from SALib import ProblemSpec
 
 lower = 0.8
@@ -554,18 +557,68 @@ sp = ProblemSpec({
     ]
 })
 
-# Compute nominal values.
-# Most parameters use the midpoint of their stored bounds, but a small number
-# use intentionally asymmetric bounds around a known nominal value.
+# Compute nominal values from the base value in each bounds expression, rather
+# than from the midpoint of the evaluated bounds.
 precision = 12
-nominal_overrides = {
-    "P_n": 88.826978955737,
-    "P_n_max": 112.0,
-}
+
+
+def _numeric_literals(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return [float(node.value)]
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return [-value for value in _numeric_literals(node.operand)]
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult):
+        return _numeric_literals(node.left) + _numeric_literals(node.right)
+    return []
+
+
+def _nominal_from_bound(bound):
+    lower_candidates = _numeric_literals(bound.elts[0])
+    upper_candidates = _numeric_literals(bound.elts[1])
+
+    for value in lower_candidates:
+        if value in upper_candidates:
+            return value
+
+    if lower_candidates:
+        return lower_candidates[0]
+
+    raise ValueError(f"Could not infer nominal value from bounds expression: {ast.unparse(bound)}")
+
+
+def _nominals_from_problem_spec_source():
+    source = Path(__file__).read_text()
+    module = ast.parse(source)
+
+    for statement in module.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "sp" for target in statement.targets):
+            continue
+        if not isinstance(statement.value, ast.Call) or not statement.value.args:
+            continue
+
+        problem_dict = statement.value.args[0]
+        if not isinstance(problem_dict, ast.Dict):
+            continue
+
+        for key, value in zip(problem_dict.keys, problem_dict.values):
+            if isinstance(key, ast.Constant) and key.value == "bounds":
+                return [
+                    _nominal_from_bound(bound)
+                    for bound in value.elts
+                ]
+
+    raise ValueError("Could not find bounds in ProblemSpec source.")
+
+
 nominal_values = [
-    round(nominal_overrides.get(name, (lo + hi) / 2), precision)
-    for name, (lo, hi) in zip(sp["names"], sp["bounds"])
+    round(value, precision)
+    for value in _nominals_from_problem_spec_source()
 ]
+
+if len(nominal_values) != len(sp["names"]):
+    raise ValueError("ProblemSpec names and nominal values have different lengths.")
 
 # Build the Parameters dictionary
 Parameters = {name: value for name, value in zip(sp["names"], nominal_values)}
