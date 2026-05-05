@@ -189,7 +189,7 @@ sp = ProblemSpec({
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-        [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
+        [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -442,7 +442,7 @@ if __name__ == "__main__":
     # plt.close()
 
     size = 200000
-    _ = hmw.run_waves(n_waves=5, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=4, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

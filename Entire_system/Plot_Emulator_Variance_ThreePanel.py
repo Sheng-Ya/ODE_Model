@@ -438,7 +438,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--artifacts-dir",
-        default="HM_Rest_5",
+        default="HM_Rest_4",
         help="Directory containing test_params_wave_k.npy, nroy_mask_wave_k.npy, and Emulator_wave_k snapshots.",
     )
     parser.add_argument(

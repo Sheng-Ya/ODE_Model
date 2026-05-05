@@ -6,8 +6,53 @@ import os
 import joblib
 import numpy as np
 
-LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = 41.8, 7.9
-RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = 46.1, 8.6
+def _propagated_vpre_display_stats(vmin_mean, vmin_var, vmax_mean, vmax_var,
+                                   f_mean, f_var):
+    """Display-only mean/std for V_pre = V_min + f * (V_max - V_min).
+
+    This mirrors the zero-cross-covariance assumption used by the MCMC
+    observation model: V_min, V_max and the active-emptying fraction f are
+    treated as independent when constructing the display normalisation.
+    """
+    delta_mean = float(vmax_mean) - float(vmin_mean)
+    f_mean = float(f_mean)
+    f_var = float(f_var)
+
+    vpre_mean = float(vmin_mean) + f_mean * delta_mean
+    ef2 = f_mean ** 2 + f_var
+    e1mf2 = (1.0 - f_mean) ** 2 + f_var
+    vpre_var = (
+        e1mf2 * float(vmin_var)
+        + ef2 * float(vmax_var)
+        + f_var * delta_mean ** 2
+    )
+    return vpre_mean, math.sqrt(max(vpre_var, 0.0))
+
+observation = {
+    "Min RA Volume": (45.7, 125.44),
+    "Max RA Volume": (92.4, 380.25),
+    "Min LA Volume": (30.6, 84.64),
+    "Max LA Volume": (68.3, 306.25),
+    "LA Contraction Volume diff": (0.25, 0.0002777),
+    "RA Contraction Volume diff": (0.25, 0.0002777),
+}
+
+LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
+    observation["Min LA Volume"][0],
+    observation["Min LA Volume"][1],
+    observation["Max LA Volume"][0],
+    observation["Max LA Volume"][1],
+    observation["LA Contraction Volume diff"][0],
+    observation["LA Contraction Volume diff"][1],
+)
+RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
+    observation["Min RA Volume"][0],
+    observation["Min RA Volume"][1],
+    observation["Max RA Volume"][0],
+    observation["Max RA Volume"][1],
+    observation["RA Contraction Volume diff"][0],
+    observation["RA Contraction Volume diff"][1],
+)
 
 
 def _log_det_jac_np(z, prior_lo, prior_hi):
@@ -68,7 +113,7 @@ def compute_map(run_dir, top_k=10):
 # ---------------------------------------------------------------------
 
 def _resolve_emulator_dir(run_dir, cfg):
-    emu_cfg = cfg.get("emulator_dir", "Emulator_wave_1wave")
+    emu_cfg = cfg.get("emulator_dir", "Emulator_wave_3") # change
     if os.path.isabs(emu_cfg) and os.path.isdir(emu_cfg):
         return emu_cfg
     candidates = [
@@ -621,7 +666,7 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join("three_implaus_pre_A_calib", "MCMC_Rest_20_21_04_3000_logspline_copula_prior"),
+        default=os.path.join("MCMC_HPC", "MCMC_Rest_20_05_05_1500_logspline_copula_prior"),
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")

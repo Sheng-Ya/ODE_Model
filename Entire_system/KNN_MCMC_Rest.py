@@ -50,6 +50,7 @@ from scipy.stats import norm as _scipy_norm
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import os
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(multiprocessing.cpu_count()))   # set before sklearn/joblib uses loky
 
@@ -73,8 +74,6 @@ _args, _ = _parser.parse_known_args()
 CHAIN_ID       = _args.chain_id
 AGGREGATE_ONLY = _args.aggregate_only
 
-# posterior_np = np.load("MCMC_Rest_20_16_04_1200_lambda50/posterior_samples.npy")
-# pred_matrix = np.load("MCMC_Rest_20_16_04_1200_lambda50/pred_check_matrix.npy")
 
 
 # ================================================================
@@ -87,28 +86,12 @@ pyro.set_rng_seed(RANDOM_SEED)
 
 DATE_SUFFIX  = "12_4"                    # matches HM output file names
 PERCENT      = 20                        # param range +/-% used in HM
-root = "three_implaus_pre_A_calib"
-EMULATOR_DIR = f"{root}/Emulator_wave_1wave"     # GP emulators from last refitted wave
-out_dir = f"{root}/MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
+root = "MCMC_HPC"
+EMULATOR_DIR = f"{root}/Emulator_wave_3"     # GP emulators from last refitted wave
+out_dir = f"{root}/MCMC_Rest_{PERCENT}_05_05_1500_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
-# KNN
-KNN_K = 50                               # neighbours for density estimation
 
-# ---- Gaussian copula prior on NROY points --------------------------------
-# Rationale (see also the diagnostic NROY_joint_multimodality_check.py):
-#   - Full-covariance GMM in 60D has ~1891 free params per component, so BIC
-#     massively overpenalises extra components; the sweep collapsed to K=1 =
-#     plain MVN, which cannot represent the skew visible in NROY marginals.
-#   - Pairwise hexbin of the top-skewed NROY axes showed one connected
-#     high-density region per panel (skewed/corner-concentrated but not
-#     multimodal), so a unimodal-in-z Gaussian copula is adequate.
-#   - Copula factorisation (Sklar): p(theta) = c(F_1..F_d) * prod_i p_i.
-#     Per-axis Gaussian KDE captures marginal skew exactly (continuous,
-#     differentiable, no component-count hyperparameter). The Gaussian
-#     copula models only the dependency in rank-Gaussianised space with
-#     one correlation matrix R — far fewer params than a full-cov GMM and
-#     the right object to estimate given ~178k NROY points.
 USE_COPULA_PRIOR   = True          # False -> uniform box prior
 KDE_SUBSAMPLE      = 5000          # subsample size per-axis KDE eval at MCMC
 KDE_BANDWIDTH      = "silverman"   # "silverman" | "scott" | float
@@ -133,6 +116,7 @@ USE_LOGSPLINE_MARGINALS = True
 LOGSPLINE_N_INTERIOR    = 14        # interior knots on [L_i, U_i]
 LOGSPLINE_LAMBDA        = 5.0       # 2nd-difference smoothness penalty
 LOGSPLINE_N_GRID        = 1000      # per-axis fine grid for Z + CDF + MCMC
+LOGSPLINE_PLOT_DPI      = 1200      # high-resolution PNG export for copula plot
 
 # NUTS MCMC
 N_WARMUP        = 500                    # warmup (step-size + mass-matrix adapt)
@@ -251,76 +235,6 @@ def extract_fast_caches(emulators, output_names):
             "y_mean": combined_y_mean, "y_std": combined_y_std,
         }
     return caches
-
-
-# def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
-#                            output_names, gp_caches,
-#                            ):
-#     """Potential energy calling GPyTorch directly — no autoemulate overhead.
-#
-#     Bypasses the expensive autoemulate wrapper:
-#       - delta_method with vmap/jacrev/hessian
-#       - Distribution object creation
-#       - make_positive_definite
-#     Keeps GPyTorch's exact kernel computation + cached prediction strategy.
-#
-#     For affine y-transforms (StandardizeTransform), the inverse is just:
-#         mu  = mean_t * y_std + y_mean
-#         var = var_t  * y_std²
-#     """
-#     log_width = torch.log(prior_hi - prior_lo)
-#
-#     def _potential(z_dict):
-#         z = z_dict["theta"]                                          # (ndim,)
-#
-#         # ---- sigmoid transform to constrained space ----
-#         sig_z = torch.sigmoid(z)
-#         theta = prior_lo + sig_z * (prior_hi - prior_lo)
-#
-#         # ---- log |det J| of sigmoid ----
-#         log_det_jac = (
-#             torch.nn.functional.logsigmoid(z)
-#             + torch.nn.functional.logsigmoid(-z)
-#             + log_width
-#         ).sum()
-#
-#         # ---- GP log-likelihood (fast GPyTorch path) ----
-#         mus = [None] * len(output_names)
-#         vars_ = [None] * len(output_names)
-#         for i, name in enumerate(output_names):
-#             c = gp_caches[name]
-#
-#             # Standardise input
-#             x_t = (theta - c["x_mean"]) / c["x_std"]                # (d,)
-#
-#             # GPyTorch prediction (cached Cholesky — no recomputation)
-#             with gpytorch.settings.fast_pred_var():
-#                 output = c["gp"](x_t.unsqueeze(0))
-#             mean_t = output.mean.squeeze()
-#             var_t  = output.variance.squeeze().clamp(min=1e-10)
-#
-#             # Affine y-inverse-transform (StandardizeTransform)
-#             mus[i]   = mean_t * c["y_std"] + c["y_mean"]
-#             vars_[i] = var_t  * c["y_std"] ** 2
-#
-#         # Gaussian likelihood:
-#         #   log p(y | theta) = -0.5 * sum_i [ z_i^2 + log(s_i^2) ]
-#         #   z_i = (y_i - mu_i) / s_i,  s_i^2 = obs_var_i + GP_var_i(theta)
-#         #
-#         # Why this shape:
-#         #   - The Gaussian term is the original likelihood -> recovers the tight
-#         #     posterior of the previous run (each output pulled toward its target
-#         #     with curvature 1/s_i^2).
-#         ll = torch.tensor(0.0, dtype=torch.float32)
-#         for i in range(len(output_names)):
-#             total_var = (obs_vars_t[i] + vars_[i]).clamp(min=1e-10)
-#             z = (obs_means_t[i] - mus[i]) / total_var.sqrt()
-#             ll = ll - 0.5 * (z ** 2 + torch.log(total_var))
-#
-#         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
-#         return -(ll + log_det_jac)
-#
-#     return _potential
 
 
 # ================================================================
@@ -488,9 +402,6 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
     residual_corr = residual_cov / (
         residual_std.unsqueeze(1) * residual_std.unsqueeze(0)
     ).clamp_min(1e-12)
-    residual_corr = torch.nan_to_num(
-        residual_corr, nan=0.0, posinf=0.0, neginf=0.0
-    )
     residual_corr.fill_diagonal_(1.0)
 
     # Per-test-step speedup: cache the scaled training inputs and their
@@ -937,6 +848,36 @@ def _ratio_moments(mean_vec, cov):
     return ratio_mean, ratio_var
 
 
+def _format_max_sig_figs(value, sig_figs=4, max_decimals=3):
+    """Format numeric labels with capped sig figs and decimal places."""
+    value = float(value)
+    if not np.isfinite(value):
+        return str(value)
+    if value == 0.0:
+        return "0"
+
+    rounded = float(f"{value:.{sig_figs}g}")
+    abs_rounded = abs(rounded)
+    magnitude = int(math.floor(math.log10(abs_rounded))) if abs_rounded > 0 else 0
+    decimals = min(max(sig_figs - magnitude - 1, 0), max_decimals)
+
+    if decimals > 0:
+        label = f"{rounded:.{decimals}f}".rstrip("0").rstrip(".")
+    else:
+        label = f"{rounded:.0f}"
+
+    # Keep one decimal when rounding collapses a non-integer to an integer
+    # label, e.g. 29.999 -> 30.0, while staying within the sig-fig cap.
+    if (
+        "." not in label
+        and not math.isclose(value, rounded, rel_tol=0.0, abs_tol=1e-12)
+        and abs_rounded < 10 ** (sig_figs - 1)
+    ):
+        label = f"{rounded:.1f}"
+
+    return label
+
+
 def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_lower,
                                  prior_upper, out_dir, n_bins=40, n_cols=7):
     """Save per-axis prior marginals overlaid on the empirical NROY histograms.
@@ -962,7 +903,13 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
     axes = np.atleast_2d(axes)
 
     marginal_type = copula_cache.get("marginal_type", "kde")
+    is_logspline_plot = marginal_type == "logspline"
+    if is_logspline_plot:
+        fig.set_size_inches(2.35 * n_cols, 1.8 * n_rows)
     legend_added = False
+    max_sig_fig_formatter = FuncFormatter(
+        lambda x, _pos: _format_max_sig_figs(x, sig_figs=4)
+    )
 
     for j, name in enumerate(subset_vars):
         ax = axes[j // n_cols, j % n_cols]
@@ -970,8 +917,11 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
 
         ax.hist(
             data_j, bins=n_bins, density=True,
-            color="steelblue", alpha=0.45, edgecolor="none",
-            label="NROY points" if not legend_added else None,
+            color="steelblue",
+            alpha=0.2 if is_logspline_plot else 0.25,
+            edgecolor="white" if is_logspline_plot else "none",
+            linewidth=0.25 if is_logspline_plot else 0.0,
+            # label="NROY sample" if is_logspline_plot and not legend_added else None,
         )
 
         L = float(prior_lower[j])
@@ -984,8 +934,22 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
         if marginal_type == "logspline":
             xg = copula_cache["x_grid"][j].detach().cpu().numpy()
             fg = copula_cache["f_grid"][j].detach().cpu().numpy()
-            ax.plot(xg, fg, color="crimson", lw=1.3,
-                    label="logspline marginal" if not legend_added else None)
+            ax.plot(
+                xg, fg, color="#0b3d91", lw=1.1,
+                # label="Logspline prior" if not legend_added else None,
+            )
+            ax.set_xlim(L, U)
+            ax.set_xticks([L, U])
+            ax.xaxis.set_major_formatter(max_sig_fig_formatter)
+            ax.set_yticks([])
+
+            for spine in ("top", "right"):
+                ax.spines[spine].set_visible(False)
+            for spine in ("left", "bottom"):
+                ax.spines[spine].set_linewidth(0.6)
+                ax.spines[spine].set_color("#4d4d4d")
+            ax.tick_params(axis="x", labelsize=12, length=2.5, width=0.6)
+            ax.tick_params(axis="y", length=0)
         else:
             xg = np.linspace(L, U, 600)
             kde_data_j = copula_cache["kde_data"][j].detach().cpu().numpy()
@@ -995,13 +959,20 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
             fg /= (kde_data_j.size * h_j * math.sqrt(2.0 * math.pi))
             ax.plot(xg, fg, color="crimson", lw=1.3,
                     label="KDE marginal" if not legend_added else None)
+            ax.xaxis.set_major_formatter(max_sig_fig_formatter)
+            ax.yaxis.set_major_formatter(max_sig_fig_formatter)
 
-        ax.axvline(L, color="grey", ls=":", lw=0.5, alpha=0.6)
-        ax.axvline(U, color="grey", ls=":", lw=0.5, alpha=0.6)
-        ax.set_title(name, fontsize=8)
-        ax.tick_params(labelsize=6)
-        ax.set_xlabel("value", fontsize=6)
-        ax.set_ylabel("density", fontsize=6)
+        if not is_logspline_plot:
+            ax.axvline(L, color="grey", ls=":", lw=0.5, alpha=0.6)
+            ax.axvline(U, color="grey", ls=":", lw=0.5, alpha=0.6)
+        # ax.set_title(name, fontsize=8)
+        if is_logspline_plot:
+            ax.set_xlabel(name, fontsize=12, labelpad=2)
+            ax.set_ylabel("")
+        else:
+            ax.tick_params(labelsize=10)
+            ax.set_xlabel(name, fontsize=12)
+            ax.set_ylabel("Density", fontsize=12)
         legend_added = True
 
     for k in range(ndim, n_rows * n_cols):
@@ -1009,15 +980,15 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc="upper center", ncol=2, fontsize=10,
-                   bbox_to_anchor=(0.5, 1.0))
+        fig.legend(handles, labels, loc="upper center", ncol=2, fontsize=12,
+                   frameon=False, bbox_to_anchor=(0.5, 1.0))
 
     if marginal_type == "logspline":
-        title = (
-            f"Logspline (P-spline) marginals on HM bounds "
-            f"[n_interior={LOGSPLINE_N_INTERIOR}, lambda={LOGSPLINE_LAMBDA}] "
-            f"vs NROY empirical distribution"
-        )
+        # title = (
+        #     f"Logspline (P-spline) marginals on HM bounds "
+        #     f"[n_interior={LOGSPLINE_N_INTERIOR}, lambda={LOGSPLINE_LAMBDA}] "
+        #     f"vs NROY empirical distribution"
+        # )
         out_name = "copula_marginals_vs_NROY_logspline.png"
     else:
         title = (
@@ -1026,11 +997,17 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
         )
         out_name = "copula_marginals_vs_NROY_kde.png"
 
-    fig.suptitle(title, y=1.005, fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.985])
+    if is_logspline_plot:
+        fig.text(0.006, 0.5, "Density", va="center", rotation="vertical",
+                 fontsize=12)
+        fig.tight_layout(rect=[0.025, 0, 1, 0.985])
+    else:
+        # fig.suptitle(title, y=1.005, fontsize=12)
+        fig.tight_layout(rect=[0, 0, 1, 0.985])
 
     out_path = os.path.join(out_dir, out_name)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plot_dpi = LOGSPLINE_PLOT_DPI if is_logspline_plot else 150
+    fig.savefig(out_path, dpi=plot_dpi, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved: {out_path}")
     return out_path
@@ -1269,7 +1246,7 @@ print("STEP 1 -- Loading history matching results")
 print("=" * 60)
 
 nroy_points_np = np.load(
-    f"{root}/NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy"
+    f"{root}/nroy_points_wave_3.npy"
 )
 nroy_params_dict = np.load(
     f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True
@@ -1520,20 +1497,7 @@ batched_cache = build_batched_fast_caches(emulators, output_names, gp_caches)
 print(f"  Batched cache: L={tuple(batched_cache['L'].shape)}, "
       f"alpha={tuple(batched_cache['alpha'].shape)}")
 
-# print("  Verifying batched path matches GPyTorch path on 5 NROY points...")
-# _rng_check = np.random.default_rng(0)
-# _check_idx = _rng_check.choice(nroy_subset.shape[0], size=5, replace=False)
-# _max_mu_rel_err, _max_var_rel_err = 0.0, 0.0
-# # Per-output worst error so we can see which GP disagrees if this fails.
-# _per_out_mu_err  = np.zeros(len(output_names))
-# _per_out_var_err = np.zeros(len(output_names))
-#
-# IMPORTANT: gpytorch's default is conjugate-gradient solves when
-# n_train > max_cholesky_size (default 800).  With n_train ~1500 that path is
-# *approximate*, so it disagrees with our exact-Cholesky manual path by ~1%.
-# For a fair numerical comparison we force gpytorch onto exact Cholesky too.
-# (This also means our new batched path is strictly more accurate than the
-# previous fast_pred_var-based inference — not a regression.)
+
 _n_train_here = batched_cache["L"].shape[-1]
 
 # Clear any cached prediction strategy on each GP so it rebuilds under the
@@ -1543,192 +1507,6 @@ for _name in output_names:
     _g = gp_caches[_name]["gp"]
     if hasattr(_g, "prediction_strategy"):
         _g.prediction_strategy = None
-
-# def _ctx_exact():
-#     # Fresh context manager each use — gpytorch.settings contexts are one-shot.
-#     return gpytorch.settings.max_cholesky_size(_n_train_here + 1000)
-#
-# for _tp_np in nroy_subset[_check_idx]:
-#     _tp = torch.tensor(_tp_np, dtype=torch.float32)
-#
-#     _mus_old  = torch.empty(len(output_names))
-#     _vars_old = torch.empty(len(output_names))
-#     for _i, _name in enumerate(output_names):
-#         _c = gp_caches[_name]
-#         with torch.no_grad(), _ctx_exact():
-#             _xt  = (_tp - _c["x_mean"]) / _c["x_std"]
-#             _out = _c["gp"](_xt.unsqueeze(0))
-#             _mus_old[_i]  = _out.mean.squeeze() * _c["y_std"] + _c["y_mean"]
-#             _vars_old[_i] = _out.variance.squeeze().clamp(min=1e-10) * _c["y_std"] ** 2
-#
-#     with torch.no_grad():
-#         _x_t = (_tp - batched_cache["x_mean"]) / batched_cache["x_std"]
-#         _k   = _matern32_cross(_x_t, batched_cache["X_train"],
-#                                batched_cache["lengthscale"],
-#                                batched_cache["outputscale"])
-#         _mu_lat  = batched_cache["mean_const"] + (_k * batched_cache["alpha"]).sum(dim=-1)
-#         _v       = torch.cholesky_solve(_k.unsqueeze(-1), batched_cache["L"]).squeeze(-1)
-#         _var_lat = (batched_cache["outputscale"] - (_k * _v).sum(dim=-1)).clamp(min=1e-10)
-#         _mus_new  = _mu_lat  * batched_cache["y_std"] + batched_cache["y_mean"]
-#         _vars_new = _var_lat * batched_cache["y_std"] ** 2
-#
-#     _mu_err_vec  = ((_mus_new  - _mus_old ).abs() / (_mus_old.abs()  + 1e-8)).cpu().numpy()
-#     _var_err_vec = ((_vars_new - _vars_old).abs() / (_vars_old.abs() + 1e-8)).cpu().numpy()
-#     _per_out_mu_err  = np.maximum(_per_out_mu_err,  _mu_err_vec)
-#     _per_out_var_err = np.maximum(_per_out_var_err, _var_err_vec)
-#     _max_mu_rel_err  = max(_max_mu_rel_err,  float(_mu_err_vec.max()))
-#     _max_var_rel_err = max(_max_var_rel_err, float(_var_err_vec.max()))
-#
-# print(f"  Max relative error across 5 points:  "
-#       f"mean={_max_mu_rel_err:.2e}  variance={_max_var_rel_err:.2e}")
-# if _max_mu_rel_err >= 1e-3 or _max_var_rel_err >= 1e-2:
-#     print("  Per-output error (sorted by mean error, showing worst 10):")
-#     _order = np.argsort(-_per_out_mu_err)[:10]
-#     for _i in _order:
-#         _gp = emulators[output_names[_i]].model
-#         print(f"    {output_names[_i]:<40} "
-#               f"mu_rel={_per_out_mu_err[_i]:.2e}  "
-#               f"var_rel={_per_out_var_err[_i]:.2e}  "
-#               f"mean={type(_gp.mean_module).__name__}  "
-#               f"kernel={type(_gp.covar_module).__name__}/"
-#               f"{type(getattr(_gp.covar_module,'base_kernel',_gp.covar_module)).__name__}")
-# # Tolerances reflect gpytorch's own float32 precision envelope on large kernels,
-# # not ours.  Cross-check (see commit notes): our manual float32 matches a float64
-# # reference to ~1e-6; gpytorch's float32 exact-Cholesky drifts by ~4e-4 in
-# # standardised space on the same input (LazyTensor intermediates).  So the
-# # residual in this assert is gpytorch-side drift — the batched path is at least
-# # as accurate as the gpytorch path it replaces.
-# assert _max_mu_rel_err  < 5e-3, f"Mean mismatch {_max_mu_rel_err:.2e} > 5e-3"
-# assert _max_var_rel_err < 1e-2, f"Variance mismatch {_max_var_rel_err:.2e} > 1e-2"
-# print("  Verification passed — batched path agrees with GPyTorch within float32 envelope.")
-#
-# # ---- Micro-benchmark old vs new potential path ----
-# import time as _time
-# _bench_prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
-# _bench_prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
-# _bench_obs_m = torch.tensor(
-#     [observation[n.replace("_", " ")][0] for n in output_names], dtype=torch.float32,
-# )
-# _bench_obs_v = torch.tensor(
-#     [observation[n.replace("_", " ")][1] for n in output_names], dtype=torch.float32,
-# )
-# _pf_old = make_fast_potential_fn(
-#     _bench_prior_lo, _bench_prior_hi, _bench_obs_m, _bench_obs_v,
-#     output_names, gp_caches,
-# )
-# _pf_new = make_fast_potential_fn_batched(
-#     _bench_prior_lo, _bench_prior_hi, _bench_obs_m, _bench_obs_v, batched_cache,
-# )
-# _z_bench = torch.zeros(ndim, dtype=torch.float32)
-#
-# # warmup (compile JIT caches etc.)
-# # Force exact Cholesky for the old path so its numerics match the new path —
-# # otherwise gpytorch silently uses CG (n_train > default max_cholesky_size=800)
-# # and values disagree by ~1% even though both are "correct" in their own way.
-# for _ in range(3):
-#     with torch.no_grad(), _ctx_exact():
-#         _pf_old({"theta": _z_bench}); _pf_new({"theta": _z_bench})
-#
-# _N_BENCH = 50
-# _t0 = _time.perf_counter()
-# for _ in range(_N_BENCH):
-#     with _ctx_exact():
-#         _zz = _z_bench.clone().requires_grad_(True)
-#         _p = _pf_old({"theta": _zz})
-#         _p.backward()
-# _t_old = (_time.perf_counter() - _t0) / _N_BENCH
-#
-# _t0 = _time.perf_counter()
-# for _ in range(_N_BENCH):
-#     _zz = _z_bench.clone().requires_grad_(True)
-#     _p = _pf_new({"theta": _zz})
-#     _p.backward()
-# _t_new = (_time.perf_counter() - _t0) / _N_BENCH
-#
-# with torch.no_grad(), _ctx_exact():
-#     _po = _pf_old({"theta": _z_bench}).item()
-# with torch.no_grad():
-#     _pn = _pf_new({"theta": _z_bench}).item()
-#
-# print(f"  Potential + grad per call:  old={_t_old*1e3:.2f} ms  "
-#       f"new={_t_new*1e3:.2f} ms  speedup={_t_old/_t_new:.1f}x")
-# print(f"  Potential value agreement (both exact-Chol):  "
-#       f"old={_po:.6f}  new={_pn:.6f}  |d|={abs(_po-_pn):.2e}")
-# # Tolerance is on absolute potential; values are O(1e2..1e4) so 0.5 is tight.
-# assert abs(_po - _pn) < 0.5, f"Potential mismatch {_po} vs {_pn}"
-#
-#
-# # ============================================================
-# # 3. KNN DENSITY ESTIMATION
-# # ============================================================
-# print("\n" + "=" * 60)
-# print("STEP 3 -- KNN density estimation")
-# print("=" * 60)
-#
-# # Standardise so that all dimensions contribute equally to distance
-# scaler = StandardScaler()
-# nroy_scaled = scaler.fit_transform(nroy_subset)
-#
-# knn = NearestNeighbors(n_neighbors=KNN_K, metric="euclidean", n_jobs=8)
-# knn.fit(nroy_scaled)
-#
-# # Density ~ 1 / (mean distance to k neighbours)
-# distances, _ = knn.kneighbors(nroy_scaled)
-# mean_dist = distances.mean(axis=1)
-# densities = 1.0 / (mean_dist + 1e-10)
-#
-# # Densest point = optimal MCMC starting position
-# densest_idx = np.argmax(densities)
-# best_start = nroy_subset[densest_idx]
-#
-# print(f"  k = {KNN_K}")
-# print(f"  Densest NROY index: {densest_idx}")
-# print(f"  Density at best:    {densities[densest_idx]:.4f}")
-# print(f"  Mean density:       {densities.mean():.4f}")
-#
-# top_10 = np.argsort(densities)[-10:][::-1]
-# print(f"  Top-10 densest idx: {top_10.tolist()}")
-#
-# # Sanity check: GP predictions at densest point
-# # NOTE: autoemulate uses output_from_samples=True, so predict_mean_and_variance
-# # returns a Monte Carlo estimate (noisy). Our fast-cache is the exact analytical
-# # GP prediction with affine y-inverse-transform — more accurate, not less.
-# # We verify the fast-cache against a second independent gp() call to confirm
-# # the x-standardisation and combined y-transform are correct.
-# theta_t = torch.tensor(best_start, dtype=torch.float32)
-#
-# print("\n  GP predictions at densest point (fast cache):")
-# print(f"  {'Output':<40} {'Pred':>10} {'Target':>10} "
-#       f"{'|d|/s':>7}")
-# print("  " + "-" * 75)
-# mus_check = [None] * len(output_names)
-# for i, name in enumerate(output_names):
-#     c = gp_caches[name]
-#     with torch.no_grad(), gpytorch.settings.fast_pred_var():
-#         xt = (theta_t - c["x_mean"]) / c["x_std"]
-#         output = c["gp"](xt.unsqueeze(0))
-#         mean_t = output.mean.squeeze()
-#         mus_check[i] = (mean_t * c["y_std"] + c["y_mean"]).item()
-#
-#
-# for i, name in enumerate(output_names):
-#     mu_fast = mus_check[i]
-#     obs_mean = observation[name.replace("_", " ")][0]
-#     obs_std  = observation[name.replace("_", " ")][1] ** 0.5
-#     sigma_away = abs(mu_fast - obs_mean) / obs_std
-#     flag = "" if sigma_away <= 1.0 else " *"
-#     print(f"  {name:<40} {mu_fast:10.3f} {obs_mean:10.3f} "
-#           f"{sigma_away:7.2f}{flag}")
-#
-# # Verify: two independent gp() calls at same point give identical results
-# # (confirms no stale caches or state-dependent prediction)
-# c0 = gp_caches[output_names[0]]
-# with torch.no_grad(), gpytorch.settings.fast_pred_var():
-#     xt = (theta_t - c0["x_mean"]) / c0["x_std"]
-#     mu_a = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
-#     mu_b = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
-# assert mu_a == mu_b, f"GP prediction not deterministic: {mu_a} vs {mu_b}"
-# print("\n  Determinism check passed (two gp() calls match exactly)")
 
 # ============================================================
 # 4. PYRO NUTS MCMC  (custom potential_fn — no model tracing)
@@ -2075,7 +1853,7 @@ config = {
     "emulator_dir":    EMULATOR_DIR,
     "date_suffix":     DATE_SUFFIX,
     "percent":         PERCENT,
-    "knn_k":           KNN_K,
+    # "knn_k":           KNN_K,
     "n_pred_check":    N_PRED_CHECK,
     "use_copula_prior":     bool(USE_COPULA_PRIOR and copula_prior_cache is not None),
     "marginal_type":        (copula_prior_cache.get("marginal_type")
@@ -2147,16 +1925,12 @@ if n_plot == 1:
 
 for j in range(n_plot):
     # Trace
-    if posterior_chains is not None:
-        for c in range(posterior_chains.shape[0]):
-            axes[j, 0].plot(
-                posterior_chains[c, :, j].cpu().numpy(),
-                alpha=0.5, linewidth=0.5,
-            )
-    else:
-        axes[j, 0].plot(posterior_np[:, j], alpha=0.7, linewidth=0.5)
-    axes[j, 0].set_ylabel(subset_vars[j], fontsize=7)
-    axes[j, 0].set_title(f"Trace: {subset_vars[j]}", fontsize=8)
+    for c in range(posterior_chains.shape[0]):
+        axes[j, 0].plot(
+            posterior_chains[c, :, j].cpu().numpy(),
+            alpha=0.5, linewidth=0.5,
+        )
+
 
     # Marginal posterior
     axes[j, 1].hist(

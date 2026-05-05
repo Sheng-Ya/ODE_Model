@@ -13,7 +13,7 @@ import time
 from tqdm import tqdm
 import tqdm_joblib
 
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, dump, load
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
@@ -584,7 +584,21 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=N
         print("too slow")
         return ([10000]*31, None, None, None)
 
-def run_basepoint(base_sample, old_Parameters):
+def persist_simulation_state(path, params, result, IC_final, storage_final, breath_coef, reason, extra=None):
+    payload = {
+        "params": params,
+        "result": result,
+        "IC_final": IC_final,
+        "storage_final": storage_final,
+        "breath_coef": breath_coef,
+        "reason": reason,
+    }
+    if extra is not None:
+        payload["extra"] = extra
+    dump(payload, path)
+    return path
+
+def run_basepoint(base_sample, old_Parameters, base_idx, base_state_dir):
     storage_copy = make_fresh_storage()
 
     try:
@@ -604,30 +618,49 @@ def run_basepoint(base_sample, old_Parameters):
             print("fail", dict(list(base_sample.items())[:10]))
             return None
 
+        base_state_path = os.path.join(base_state_dir, f"base_state_{base_idx:06d}.joblib")
+        persist_simulation_state(
+            base_state_path,
+            base_sample,
+            base_result,
+            IC_final,
+            storage_final,
+            breath_coef,
+            reason="basepoint",
+        )
+
         return {
             "result": base_result,
-            "IC_final": IC_final,
-            "storage_final": storage_final,
-            "breath_coef": breath_coef,
             "minimise_coef": minimise_coef,
+            "base_state_path": base_state_path,
         }
     except Exception as e:
         print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
 
-def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_04_final.npy'):
+def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_03_final.npy'):
     results_all = []
+    failure_records = []
 
-    if os.path.exists(save_path):
-        os.remove(save_path)
+    # if os.path.exists(save_path):
+    #     os.remove(save_path)
+
+    artifact_root = f"{os.path.splitext(save_path)[0]}_artifacts"
+    base_state_dir = os.path.join(artifact_root, "base_states")
+    failure_state_dir = os.path.join(artifact_root, "nonconverged_states")
+    failure_manifest_path = os.path.join(artifact_root, "nonconverged_manifest.joblib")
+    os.makedirs(base_state_dir, exist_ok=True)
+    os.makedirs(failure_state_dir, exist_ok=True)
 
     # Break into blocks of block_size (1 base + (block_size - 1) perturbations)
     block_size = len(param_samples[0]) + 1
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     # run base points first
-    base_results = Parallel(n_jobs=n_jobs)(delayed(run_basepoint)(params[0], Old_Parameters)
-        for params in param_blocks)
+    base_results = Parallel(n_jobs=n_jobs, pre_dispatch=n_jobs)(
+        delayed(run_basepoint)(params[0], Old_Parameters, block_idx, base_state_dir)
+        for block_idx, params in enumerate(param_blocks)
+    )
 
 
     # go through each base point and perturbation with the corresponding initial conditions
@@ -637,7 +670,7 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_
         if base is None: # base failed → whole block invalid
             results_all.extend(np.zeros((block_size, 31)))
             print("block_failed")
-            np.save(save_path, np.array(results_all))
+            # np.save(save_path, np.array(results_all))
             continue
 
         # # Otherwise, run full block in parallel
@@ -645,25 +678,42 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_
         #     results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
         #     base["storage_final"], Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
         t0 = time.time()
-        results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
-        base["storage_final"], Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
+        results_perturbations = Parallel(n_jobs=n_jobs, pre_dispatch=n_jobs)(
+            delayed(run_simulation)(
+                params,
+                base["base_state_path"],
+                Old_Parameters,
+                base["minimise_coef"],
+                failure_state_dir,
+                i,
+                sample_idx,
+            )
+            for sample_idx, params in enumerate(block)
+        )
         print(f"Block {i}/{len(param_blocks)}: {time.time() - t0:.1f}s")
 
-        results_block = [res[0] for res in results_perturbations]
+        results_block = [res["result"] for res in results_perturbations]
+        failure_records.extend(
+            res for res in results_perturbations if res["failure_path"] is not None
+        )
         results_all.extend(results_block)
+        dump(failure_records, failure_manifest_path)
 
         # Save chunk incrementally (appending)
         # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
         # np.save(f'Next_final_{i:03d}.npy', storage_final)  # individual chunks
 
         # Save after each block
-        np.save(save_path, np.array(results_all))
+        # np.save(save_path, np.array(results_all))
 
     return results_all
 
 
-def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef, minimise_coef):
-    storage_final = {key: value.copy() for key, value in storage_final.items()}
+def run_simulation(params, base_state_path, Old_Parameters, minimise_coef, failure_state_dir, block_idx, sample_idx):
+    base_state = load(base_state_path)
+    storage_final = {key: value.copy() for key, value in base_state["storage_final"].items()}
+    IC_final = base_state["IC_final"].copy()
+    breath_coef = base_state["breath_coef"]
     # Extract next params
     next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
 
@@ -673,34 +723,85 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
             result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
 
             if storage_final is None:
-                return ([0.0] * 31, None, None, None)
+                return {
+                    "result": [0.0] * 31,
+                    "failure_path": None,
+                }
 
             i_buffer = storage_final["i"].item() % BUFFER_LIMIT
             HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
 
             if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
+                return {
+                    "result": result,
+                    "failure_path": None,
+                }
         print(f"Not converged")
 
-        return result, IC_final, storage_final, breath_coef
+        failure_path = os.path.join(
+            failure_state_dir,
+            f"block_{block_idx:04d}_sample_{sample_idx:04d}.joblib",
+        )
+        persist_simulation_state(
+            failure_path,
+            params,
+            result,
+            IC_final,
+            storage_final,
+            breath_coef,
+            reason="not_converged_refit_breath",
+            extra={"block_idx": block_idx, "sample_idx": sample_idx},
+        )
+        return {
+            "result": result,
+            "failure_path": failure_path,
+        }
     else:
         for attempt in range(5):
             result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
 
             if storage_final is None:
-                return ([0.0] * 31, None, None, None)
+                return {
+                    "result": [0.0] * 31,
+                    "failure_path": None,
+                }
 
             i_buffer = storage_final["i"].item() % BUFFER_LIMIT
             HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
 
             if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
+                return {
+                    "result": result,
+                    "failure_path": None,
+                }
 
         latest_nonzero_index = i_buffer - 1
         latest_nonzero_value = storage_final["all_time"][latest_nonzero_index]
         print(f"Not converged: {max(HR) - min(HR)}, {latest_nonzero_value}")
 
-        return result, IC_final, storage_final, breath_coef
+        failure_path = os.path.join(
+            failure_state_dir,
+            f"block_{block_idx:04d}_sample_{sample_idx:04d}.joblib",
+        )
+        persist_simulation_state(
+            failure_path,
+            params,
+            result,
+            IC_final,
+            storage_final,
+            breath_coef,
+            reason="not_converged_reuse_breath",
+            extra={
+                "block_idx": block_idx,
+                "sample_idx": sample_idx,
+                "hr_range": max(HR) - min(HR),
+                "latest_nonzero_value": latest_nonzero_value,
+            },
+        )
+        return {
+            "result": result,
+            "failure_path": failure_path,
+        }
 
 
 # # code for running serially but for each base point separately
@@ -847,7 +948,7 @@ if __name__ == "__main__":
             "theta_min", "r", "l", "V_nominal", "V_scale"
         ],
 
-        'bounds': [
+                'bounds': [
             [0.037361187576 * lower, 0.037361187576 * upper],  # beta2 [MAP]
             [100.826812355449 * lower, 100.826812355449 * upper],  # C2 [MAP]
             [169.622481377162 * lower, 169.622481377162 * upper],  # K2 [MAP]
@@ -1129,12 +1230,29 @@ if __name__ == "__main__":
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_exercise_20_24_04.npy", X)
-    X = np.load("DGSM_500_X_exercise_20_24_04.npy")[273*375:,:]
+    X = np.load("DGSM_500_X_exercise_20_24_04.npy")[:273*375,:]
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task-id", type=int, required=True)
+    parser.add_argument("--n-jobs", type=int, required=True)
+    parser.add_argument("--basepoints-per-job", type=int, required=True)
+    args = parser.parse_args()
+
+    task_id = args.task_id
+    block_size = X.shape[1] + 1
+    basepoints_per_job = args.basepoints_per_job
+    rows_per_job = block_size * basepoints_per_job
+    start = task_id * rows_per_job
+    end = (task_id + 1) * rows_per_job
+    X = X[start:end]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, n_jobs=64)
-    np.save(f'DGSM_500_X_exercise_20_24_04.npy', Result)
+    # Result = parallel_simulations(param_samples, n_jobs=256)
+    result_path = f'Result_task_20_{task_id:02d}_exercise.npy'
+    Result = parallel_simulations(param_samples, n_jobs=args.n_jobs, save_path=result_path)
+    np.save(result_path, Result)
+    # np.save(f'DGSM_Result_rest_20_10_04.npy', Result)
