@@ -84,10 +84,10 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
-DATE_SUFFIX  = "12_4"                    # matches HM output file names
-PERCENT      = 20                        # param range +/-% used in HM
-root = "MCMC_HPC"
-EMULATOR_DIR = f"{root}/Emulator_wave_3"     # GP emulators from last refitted wave
+DATE_SUFFIX  = "12_4"                    # matches HM output file names # change
+PERCENT      = 20                        # param range +/-% used in HM # change
+root = "MCMC_HPC" # change
+EMULATOR_DIR = f"{root}/Emulator_wave_3"     # GP emulators from last refitted wave # change
 out_dir = f"{root}/MCMC_Rest_{PERCENT}_05_05_1500_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
@@ -1218,7 +1218,7 @@ RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
 )
 
 # ================================================================
-# CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis)
+# CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis) # change
 # ================================================================
 subset_vars_set = {
     'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv',
@@ -1246,10 +1246,10 @@ print("STEP 1 -- Loading history matching results")
 print("=" * 60)
 
 nroy_points_np = np.load(
-    f"{root}/nroy_points_wave_3.npy"
+    f"{root}/nroy_points_wave_3.npy" # change
 )
 nroy_params_dict = np.load(
-    f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True
+    f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True # change
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
