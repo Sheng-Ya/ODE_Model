@@ -261,6 +261,14 @@ class HistoryMatching(TorchDeviceMixin):
         # Calculate total variance
         Vs = pred_vars + discrepancy + self.obs_vars
 
+        adjusted_pred_means = pred_means.clone()
+
+        la_den = adjusted_pred_means[:, 14] - adjusted_pred_means[:, 13]
+        ra_den = adjusted_pred_means[:, 10] - adjusted_pred_means[:, 9]
+
+        adjusted_pred_means[:, 17] = (adjusted_pred_means[:, 17] - adjusted_pred_means[:, 13]) / la_den
+        adjusted_pred_means[:, 18] = (adjusted_pred_means[:, 18] - adjusted_pred_means[:, 9]) / ra_den
+
         # Calculate implausibility
         return torch.abs(self.obs_means - pred_means) / torch.sqrt(Vs)
 
@@ -334,6 +342,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
         calibration_params: list[str] | None = None,
         overlap_params: list[str] | None = None,
         exercise_only_params: list[str] | None = None,
+        rest_overlap_source: str = "nroy",
+        rest_overlap_path: str | None = None,
+        rest_posterior_mass: float = 0.95,
+        rest_posterior_region: str = "hpd",
+        rest_overlap_sampling: str = "empirical",
         device: DeviceLike | None = None,
         random_seed: int | None = None,
         log_level: str = "debug",
@@ -409,14 +422,18 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.calibration_params = calibration_params or list(
             simulator.parameters_range.keys()
         )
-        # added
-        self.overlap_params = overlap_params
-        self.exercise_only_params = exercise_only_params
+        self.overlap_params = overlap_params or []
+        self.exercise_only_params = exercise_only_params or []
+        self.rest_overlap_source = rest_overlap_source
+        self.rest_overlap_path = rest_overlap_path
+        self.rest_posterior_mass = rest_posterior_mass
+        self.rest_posterior_region = rest_posterior_region
+        self.rest_overlap_sampling = rest_overlap_sampling
+        self._rest_overlap_reference_cache = None
 
         self.parameter_idx = [
             self.simulator.get_parameter_idx(param) for param in self.calibration_params
         ]
-        # added
         self.overlap_idx = [
             self.simulator.get_parameter_idx(param) for param in self.overlap_params
         ]
@@ -485,6 +502,111 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # numerical safety
         return torch.clamp(x, low, high)
+
+    @staticmethod
+    def _log_det_jac_np(z, prior_lo, prior_hi):
+        width = np.clip(prior_hi - prior_lo, 1e-12, None)
+        log_width = np.log(width)
+        log_sig_pos = -np.logaddexp(0.0, -z)
+        log_sig_neg = -np.logaddexp(0.0, z)
+        return (log_sig_pos + log_sig_neg + log_width).sum(axis=-1)
+
+    def _load_rest_overlap_reference(self):
+        if self._rest_overlap_reference_cache is not None:
+            return self._rest_overlap_reference_cache
+
+        overlap_dim = len(self.overlap_idx)
+        if overlap_dim == 0:
+            empty = torch.empty((0, 0), dtype=torch.float32, device=self.device)
+            self._rest_overlap_reference_cache = {
+                "samples": empty,
+                "low": torch.empty(0, dtype=torch.float32, device=self.device),
+                "high": torch.empty(0, dtype=torch.float32, device=self.device),
+                "source": "none",
+                "n_reference": 0,
+            }
+            return self._rest_overlap_reference_cache
+
+        source = (self.rest_overlap_source or "nroy").lower()
+
+        if source == "nroy":
+            path = self.rest_overlap_path or "nroy_samples_rest.pt"
+            rest_samples = torch.load(path, map_location="cpu").float()
+            overlap_idx_t = torch.tensor(self.overlap_idx, dtype=torch.long)
+            overlap_samples = rest_samples[:, overlap_idx_t]
+
+            cache = {
+                "samples": overlap_samples.to(self.device),
+                "low": overlap_samples.min(dim=0).values.to(self.device),
+                "high": overlap_samples.max(dim=0).values.to(self.device),
+                "source": "nroy",
+                "n_reference": int(overlap_samples.shape[0]),
+            }
+            self._rest_overlap_reference_cache = cache
+            print(
+                f"Loaded {cache['n_reference']} overlap reference samples from rest NROY."
+            )
+            return cache
+
+        if source != "posterior":
+            raise ValueError(
+                f"Unknown rest_overlap_source='{self.rest_overlap_source}'. "
+                "Use 'nroy' or 'posterior'."
+            )
+
+        if self.rest_overlap_path is None:
+            raise ValueError(
+                "rest_overlap_path must point to a MCMC_Rest_* run directory "
+                "when rest_overlap_source='posterior'."
+            )
+
+        run_dir = self.rest_overlap_path
+        posterior = np.load(os.path.join(run_dir, "posterior_samples.npy"))
+        subset_vars = np.load(
+            os.path.join(run_dir, "subset_vars.npy"), allow_pickle=True
+        ).tolist()
+
+        overlap_col_idx = [subset_vars.index(name) for name in self.overlap_params]
+        overlap_np = posterior[:, overlap_col_idx].astype(np.float32, copy=False)
+
+        region = (self.rest_posterior_region or "hpd").lower()
+        mass = float(self.rest_posterior_mass)
+
+        if region == "hpd": # sample values from the posterior distribution, excluding the worst 5% log posterior
+            posterior_z = np.load(os.path.join(run_dir, "posterior_z.npy"))
+            log_post_z = np.load(os.path.join(run_dir, "log_posterior_trace.npy"))
+            prior_lo = np.load(os.path.join(run_dir, "prior_lower.npy"))
+            prior_hi = np.load(os.path.join(run_dir, "prior_upper.npy"))
+            log_post_theta = log_post_z - self._log_det_jac_np(
+                posterior_z, prior_lo, prior_hi
+            )
+            keep = max(1, int(np.ceil(mass * overlap_np.shape[0])))
+            idx = np.argsort(log_post_theta)[::-1][:keep]
+            overlap_np = overlap_np[idx]
+            low_np = overlap_np.min(axis=0) # sets lower range of each parameter after removing 5%
+            high_np = overlap_np.max(axis=0) # sets higher range of each parameter after removing 5%
+
+        else:
+            low_np = overlap_np.min(axis=0)
+            high_np = overlap_np.max(axis=0)
+
+
+        cache = {
+            "samples": torch.from_numpy(overlap_np).to(self.device),
+            "low": torch.from_numpy(low_np.astype(np.float32)).to(self.device),
+            "high": torch.from_numpy(high_np.astype(np.float32)).to(self.device),
+            "source": "posterior",
+            "n_reference": int(overlap_np.shape[0]),
+            "region": region,
+            "mass": mass,
+        }
+        self._rest_overlap_reference_cache = cache
+        print(
+            "Loaded "
+            f"{cache['n_reference']} overlap reference samples from rest posterior "
+            f"({region}, mass={mass:.2f})."
+        )
+        return cache
 
 
     def cloud_sample(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
@@ -612,60 +734,70 @@ class HistoryMatchingWorkflow(HistoryMatching):
         TensorLike
             A tensor of sampled (and potentially constant) parameters [n, in_dim].
         """
-        rest_nroy = torch.load("nroy_samples_rest.pt", map_location="cpu").to(self.device)
-        bounds = self.generate_param_bounds(rest_nroy, buffer_ratio=0.0)
-        assert bounds is not None
-
-        # --- Step 1: Cloud sample the OVERLAP parameters from rest NROY ---
-        # Work only with the overlap column indices within the rest NROY tensor
+        rest_reference = self._load_rest_overlap_reference()
         overlap_idx_t = torch.tensor(self.overlap_idx, device=self.device, dtype=torch.long)
+        overlap_reference_samples = rest_reference["samples"]
+        low_overlap = rest_reference["low"]
+        high_overlap = rest_reference["high"]
 
-        # Identify which overlap params are constant (min == max) in rest NROY
-        min_vals_all = torch.tensor([b[0] for b in bounds.values()], device=self.device)
-        max_vals_all = torch.tensor([b[1] for b in bounds.values()], device=self.device)
+        if overlap_reference_samples.shape[0] == 0 and len(self.overlap_idx) > 0:
+            raise ValueError("No overlap reference samples available for exercise initialisation.")
 
-        low_overlap = min_vals_all[overlap_idx_t]
-        high_overlap = max_vals_all[overlap_idx_t]
-        nroy_overlap_to_sample = rest_nroy[:, overlap_idx_t]  # [num_nroy, n_overlap]
+        overlap_mode = (self.rest_overlap_sampling or "empirical").lower()
+        if overlap_mode == "empirical":
+            num_reference = overlap_reference_samples.shape[0]
+            if num_reference >= n:
+                sampled_idx = torch.randperm(num_reference, device=self.device)[:n]
+            else:
+                sampled_idx = torch.randint(num_reference, (n,), device=self.device)
+            overlap_samples = overlap_reference_samples[sampled_idx]
+            print("==============Overlap empirical sampling done")
+        elif overlap_mode == "cloud":
+            stdev_overlap = (
+                overlap_reference_samples.max(dim=0).values
+                - overlap_reference_samples.min(dim=0).values
+            ) * scaling_factor
 
-        stdev_overlap = (
-                                nroy_overlap_to_sample.max(dim=0).values
-                                - nroy_overlap_to_sample.min(dim=0).values
-                        ) * scaling_factor
+            num_means = overlap_reference_samples.shape[0]
+            perm = torch.randperm(num_means, device=self.device)
+            min_samples_per_mean = n // num_means
+            remainder_to_sample = n % num_means
 
-        # Shuffle the order of means to sample from
-        num_means = nroy_overlap_to_sample.shape[0]
-        perm = torch.randperm(num_means, device=self.device)
+            n_jobs = 64
+            chunk_size = math.ceil(num_means / n_jobs)
+            batches = [
+                overlap_reference_samples[perm][i:i + chunk_size]
+                for i in range(0, num_means, chunk_size)
+            ]
+            n_overlap = len(self.overlap_idx)
 
-        # Determine how many samples to draw for each mean, handle remainder
-        min_samples_per_mean = n // num_means
-        remainder_to_sample = n % num_means
+            def sample_overlap_batch(batch, batch_idx):
+                outs = []
+                for j, mean in enumerate(batch):
+                    i = batch_idx * chunk_size + j
+                    ns = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
+                    x_sampled = self.truncated_normal_1d(
+                        mean, stdev_overlap, low_overlap, high_overlap, ns
+                    )
+                    outs.append(x_sampled)
 
-        # Determine number of parallel jobs
-        n_jobs = 64  # use all cores
+                return (
+                    torch.cat(outs, dim=0)
+                    if outs
+                    else torch.empty((0, n_overlap), device=self.device)
+                )
 
-        # Split permuted means into batches
-        chunk_size = math.ceil(num_means / n_jobs)
-        batches = [nroy_overlap_to_sample[perm][i:i + chunk_size] for i in range(0, num_means, chunk_size)]
-        n_overlap = len(self.overlap_idx)
-
-        def sample_overlap_batch(batch, batch_idx):
-            outs = []
-            for j, mean in enumerate(batch):
-                i = batch_idx * chunk_size + j
-                ns = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-
-                x_sampled = self.truncated_normal_1d(mean, stdev_overlap, low_overlap, high_overlap, ns)
-                block = x_sampled
-                outs.append(block)
-
-            return torch.cat(outs, dim=0) if outs else torch.empty((0, n_overlap), device=self.device)
-
-        results_overlap = Parallel(n_jobs=n_jobs)(
-            delayed(sample_overlap_batch)(batch, idx) for idx, batch in enumerate(batches)
-        )
-        overlap_samples = torch.cat(results_overlap, dim=0)  # [n, n_overlap]
-        print(f"==============Overlap cloud sampling done")
+            results_overlap = Parallel(n_jobs=n_jobs)(
+                delayed(sample_overlap_batch)(batch, idx)
+                for idx, batch in enumerate(batches)
+            )
+            overlap_samples = torch.cat(results_overlap, dim=0)
+            print("==============Overlap cloud sampling done")
+        else:
+            raise ValueError(
+                f"Unknown rest_overlap_sampling='{self.rest_overlap_sampling}'. "
+                "Use 'empirical' or 'cloud'."
+            )
 
         # --- Step 2: Uniform sample the EXERCISE-ONLY parameters ---
         exercise_only_idx_t = torch.tensor(self.exercise_only_idx, device=self.device, dtype=torch.long)
@@ -674,8 +806,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         print(f"==============Exercise-only uniform sampling done")
 
         # --- Step 3: Assemble full parameter tensor ---
-        param_dim = rest_nroy.shape[1]  # total number of parameters (in_dim)
-
         # Start with nominal/fixed values for ALL parameters
         # Use the midpoint of the simulator range for non-calibrated params
         all_param_names = list(self.simulator.parameters_range.keys())
@@ -965,6 +1095,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         #         )
 
         n_jobs = len(output_names)
+        use_raw_model = self.nroy_samples is None
 
         def predict_one_output(name, X):
             if use_raw_model:
@@ -986,6 +1117,26 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
+
+        # Filter non-physiological emulator predictions before NROY selection:
+        # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
+        phys_mask = (
+                (mean_tensor[:, 13] > test_x[:, 201])
+                & (mean_tensor[:, 9] > test_x[:, 203])
+        )
+        test_x = test_x[phys_mask]
+        mean_tensor = mean_tensor[phys_mask]
+        impl_scores = impl_scores[phys_mask]
+
+        mask = self._create_nroy_mask(impl_scores)
+
+        min_col_13 = mean_tensor[mask, 13].min()
+        min_col_17 = mean_tensor[mask, 17].min()
+        min_col_18 = mean_tensor[mask, 18].min()
+
+        print("min mean_tensor[:,13] where impl_score < 3:", min_col_13.item())
+        print("min mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
+        print("min mean_tensor[:,18] where impl_score < 3:", min_col_18.item())
 
         # print("Done")
 
