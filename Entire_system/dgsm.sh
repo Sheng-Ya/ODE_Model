@@ -1,9 +1,9 @@
 #!/bin/bash
 #PBS -N dgsm_exercise_20
-#PBS -l select=1:ncpus=8:mem=60gb
+#PBS -l select=1:ncpus=64:mem=80gb
 #PBS -l walltime=3:00:00
 #PBS -o O_Logs -e E_Logs
-#PBS -J 0-74
+#PBS -J 0-5
 
 cd $PBS_O_WORKDIR || exit 1
 
@@ -19,8 +19,8 @@ export NUMEXPR_NUM_THREADS=1
 
 # Array slicing settings
 TASK_ID=${PBS_ARRAY_INDEX}
-N_JOBS=8
-BASEPOINTS_PER_JOB=5
+N_JOBS=64
+BASEPOINTS_PER_JOB=25
 
 eval "$(~/miniforge3/bin/conda shell.bash hook)"
 conda activate py312 || exit 1

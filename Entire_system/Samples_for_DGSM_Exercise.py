@@ -1129,7 +1129,7 @@ if __name__ == "__main__":
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_exercise_20_24_04.npy", X)
-    X = np.load("DGSM_500_X_exercise_20_24_04.npy")[273*375:,:]
+    X = np.load("DGSM_500_X_exercise_20_24_04.npy")[273*150:273*375, :]
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
@@ -1137,4 +1137,4 @@ if __name__ == "__main__":
     # print(AA)
 
     Result = parallel_simulations(param_samples, n_jobs=64)
-    np.save(f'DGSM_500_X_exercise_20_24_04.npy', Result)
+    np.save(f'DGSM_500_Result_exercise_20_24_04_150_375.npy', Result)

@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import CubicSpline, interp1d
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
@@ -39,55 +40,84 @@ RESULT_OUTPUT_NAMES_FULL = [
 ]
 RESULT_COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
 STAGE_COLORS = [
-    "#8E72B2",
-    "#6F94BE",
-    "#4F97A3",
-    "#B96161",
+    "#BBA3D6",
+    "#9DB8D8",
+    "#7DB6C0",
+    "#D68484",
 ]
 PLOT_COLORS = {
-    "solid_red": "#C86F6F",
-    "solid_blue": "#4F76A2",
+    "solid_red": "#D68484",
+    "solid_blue": "#7DB6C0",
     "lavender": STAGE_COLORS[0],
     "blue": STAGE_COLORS[1],
     "teal": STAGE_COLORS[2],
     "rose": STAGE_COLORS[3],
-    "lavender_dark": "#705197",
-    "blue_dark": "#4F76A2",
-    "teal_dark": "#327984",
-    "rose_dark": "#984545",
-    "lavender_light": "#A78DC8",
-    "blue_light": "#8EABCB",
-    "teal_light": "#74AEB8",
-    "rose_light": "#CF8181",
+    "lavender_dark": "#8F78AB",
+    "blue_dark": "#789CC4",
+    "teal_dark": "#5D9FA8",
+    "rose_dark": "#B86A6A",
+    "lavender_light": "#C9B8DE",
+    "blue_light": "#B4CAE2",
+    "teal_light": "#9ACBD1",
+    "rose_light": "#E2A4A4",
     "ink": "#4A4E57",
 }
-SOLID_LINEWIDTH = 2.0
+SOLID_LINEWIDTH = 1.8
+TARGET_LINEWIDTH = 1.4
+ATRIAL_TARGET_TIME_START = 56.74
+DPDT_TIME_START = 56.75
+HEART_RATE_PLOT_SCALE = 60.0
+SUBPLOT_LEGEND_FONT_SIZE = 11
+JOURNAL_RC_PARAMS = {
+    "font.family": "DejaVu Sans",
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "axes.edgecolor": "#555555",
+    "axes.labelcolor": "#303030",
+    "axes.linewidth": 1.1,
+    "axes.labelsize": 13,
+    "xtick.color": "#303030",
+    "ytick.color": "#303030",
+    "xtick.labelsize": 11,
+    "ytick.labelsize": 11,
+    "legend.fontsize": SUBPLOT_LEGEND_FONT_SIZE,
+    "font.size": 12,
+    "savefig.dpi": 600,
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+}
 TARGET_LABELS = {
     "Heart_Rate": "HR",
-    "Systolic_Pressure": "LV SP",
-    "Diastolic_Pressure": "LV DP",
-    "EDV": "LV EDV",
-    "ESV": "LV ESV",
-    "Max_RV_Volume": "RV EDV",
-    "Min_RV_Volume": "RV ESV",
-    "Max_RV_Pressure": "RV SP",
-    "Min_RV_Pressure": "RV DP",
-    "Min_RA_Volume": "RA Vmin",
-    "Max_RA_Volume": "RA Vmax",
-    "Max_RA_Pressure_Atrial_contraction": "RA Pmax,A",
-    "Max_RA_Pressure_Tricuspid_Opening": "RA Pmax,V",
-    "Min_LA_Volume": "LA Vmin",
-    "Max_LA_Volume": "LA Vmax",
-    "Max_LA_Pressure_Atrial_contraction": "LA Pmax,A",
-    "Max_LA_Pressure_Mitral_Opening": "LA Pmax,V",
-    "LA_Volume_Before_Atrial_Contraction": "LA Vpre-A",
-    "RA_Volume_Before_Atrial_Contraction": "RA Vpre-A",
-    "LV_Pressure_Deriv": "LV dP/dt",
-    "RV_Pressure_Deriv": "RV dP/dt",
-    "Tidal_Volume": "Vtidal",
-    "Minute_Ventilation": "VdotE",
-    "PaO2": "PaO2",
-    "PaCO2": "PaCO2",
+    "Systolic_Pressure": r"$P_{\mathrm{sys,LV}}$",
+    "Diastolic_Pressure": r"$P_{\mathrm{dia,LV}}$",
+    "EDV": r"$V_{\mathrm{ED,LV}}$",
+    "ESV": r"$V_{\mathrm{ES,LV}}$",
+    "Max_RV_Volume": r"$V_{\mathrm{ED,RV}}$",
+    "Min_RV_Volume": r"$V_{\mathrm{ES,RV}}$",
+    "Max_RV_Pressure": r"$P_{\mathrm{sys,RV}}$",
+    "Min_RV_Pressure": r"$P_{\mathrm{dia,RV}}$",
+    "Min_RA_Volume": r"$V_{\min,\mathrm{RA}}$",
+    "Max_RA_Volume": r"$V_{\max,\mathrm{RA}}$",
+    "Max_RA_Pressure_Atrial_contraction": r"$P_{\max,A,\mathrm{RA}}$",
+    "Max_RA_Pressure_Tricuspid_Opening": r"$P_{\max,V,\mathrm{RA}}$",
+    "Min_LA_Volume": r"$V_{\min,\mathrm{LA}}$",
+    "Max_LA_Volume": r"$V_{\max,\mathrm{LA}}$",
+    "Max_LA_Pressure_Atrial_contraction": r"$P_{\max,A,\mathrm{LA}}$",
+    "Max_LA_Pressure_Mitral_Opening": r"$P_{\max,V,\mathrm{LA}}$",
+    "LA_Volume_Before_Atrial_Contraction": r"$V_{\mathrm{pre-A,LA}}$",
+    "RA_Volume_Before_Atrial_Contraction": r"$V_{\mathrm{pre-A,RA}}$",
+    "LV_Pressure_Deriv": r"$\max\,\mathrm{d}P_{\mathrm{LV}}/\mathrm{d}t$",
+    "RV_Pressure_Deriv": r"$\max\,\mathrm{d}P_{\mathrm{RV}}/\mathrm{d}t$",
+    "Tidal_Volume": "Inspired/Expired Volume",
+    "Minute_Ventilation": r"$\dot{V}_E$",
+    "PaO2": r"$P_{\mathrm{a}O_2}$",
+    "PaCO2": r"$P_{\mathrm{a}CO_2}$",
+}
+TARGET_MEAN_LABELS = {
+    "Heart_Rate": r"$\overline{\mathrm{HR}}$",
+    "PaO2": r"$\overline{P_{\mathrm{a}O_2}}$",
+    "PaCO2": r"$\overline{P_{\mathrm{a}CO_2}}$",
+    "Tidal_Volume": r"$V_T$",
 }
 
 min_time = 10 # Minimum time in seconds before checking
@@ -770,24 +800,151 @@ def _active_windows(values):
     return np.column_stack((start_idx[:n_pairs], end_idx[:n_pairs])) if n_pairs else np.empty((0, 2), dtype=int)
 
 
-def _horizontal_target(ax, value, label, color):
+def _horizontal_target(ax, value, label, color, linestyle=(0, (2, 2))):
     if np.isfinite(value):
-        ax.axhline(value, linestyle="--", linewidth=1.2, color=color, alpha=0.8, label=label)
+        ax.axhline(value, linestyle=linestyle, linewidth=TARGET_LINEWIDTH, color=color, alpha=0.9, label=label)
 
 
 def _vertical_target(ax, value, label, color):
     if np.isfinite(value):
-        ax.axvline(value, linestyle="--", linewidth=1.2, color=color, alpha=0.8, label=label)
+        ax.axvline(value, linestyle=(0, (2, 2)), linewidth=TARGET_LINEWIDTH, color=color, alpha=0.9, label=label)
 
 
-def _combined_legend(ax, *other_axes, loc="best", ncol=1):
+def _legend_above(ax, handles, labels):
+    if handles:
+        ax.legend(
+            handles,
+            labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.02),
+            ncol=len(handles),
+            frameon=False,
+            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
+            handlelength=1.8,
+            columnspacing=0.8,
+            handletextpad=0.4,
+            borderaxespad=0.0,
+        )
+
+
+def _combined_legend(ax, *other_axes):
     handles, labels = ax.get_legend_handles_labels()
     for other_ax in other_axes:
         more_handles, more_labels = other_ax.get_legend_handles_labels()
         handles.extend(more_handles)
         labels.extend(more_labels)
-    if handles:
-        ax.legend(handles, labels, loc=loc, fontsize=7, ncol=ncol)
+    _legend_above(ax, handles, labels)
+
+
+def _atrial_targets_legend(ax, pressure_ax):
+    volume_handles, volume_labels = ax.get_legend_handles_labels()
+    pressure_handles, pressure_labels = pressure_ax.get_legend_handles_labels()
+    if volume_handles:
+        volume_legend = ax.legend(
+            volume_handles,
+            volume_labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.12),
+            ncol=len(volume_handles),
+            frameon=False,
+            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
+            handlelength=1.8,
+            columnspacing=0.8,
+            handletextpad=0.4,
+            borderaxespad=0.0,
+        )
+        ax.add_artist(volume_legend)
+    if pressure_handles:
+        ax.legend(
+            pressure_handles,
+            pressure_labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.02),
+            ncol=len(pressure_handles),
+            frameon=False,
+            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
+            handlelength=1.8,
+            columnspacing=0.8,
+            handletextpad=0.4,
+            borderaxespad=0.0,
+        )
+
+
+def _ventricular_pv_legend(ax):
+    handles, labels = ax.get_legend_handles_labels()
+    top_handles, top_labels = handles[:4], labels[:4]
+    pressure_handles, pressure_labels = handles[4:8], labels[4:8]
+    if top_handles:
+        top_legend = ax.legend(
+            top_handles,
+            top_labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.12),
+            ncol=len(top_handles),
+            frameon=False,
+            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
+            handlelength=1.8,
+            columnspacing=0.8,
+            handletextpad=0.4,
+            borderaxespad=0.0,
+        )
+        ax.add_artist(top_legend)
+    if pressure_handles:
+        ax.legend(
+            pressure_handles,
+            pressure_labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.02),
+            ncol=len(pressure_handles),
+            frameon=False,
+            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
+            handlelength=1.8,
+            columnspacing=0.8,
+            handletextpad=0.4,
+            borderaxespad=0.0,
+        )
+
+
+def _style_journal_axis(ax, secondary_y=False):
+    ax.set_axisbelow(True)
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
+    ax.tick_params(axis="both", which="major", width=1.0, length=4, colors="#303030")
+    ax.spines["top"].set_visible(False)
+    ax.spines["bottom"].set_color("#555555")
+    ax.spines["bottom"].set_linewidth(1.1)
+    if secondary_y:
+        ax.spines["left"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["right"].set_visible(True)
+        ax.spines["right"].set_color("#555555")
+        ax.spines["right"].set_linewidth(1.1)
+        ax.tick_params(axis="x", bottom=False, labelbottom=False)
+    else:
+        ax.spines["left"].set_visible(True)
+        ax.spines["left"].set_color("#555555")
+        ax.spines["left"].set_linewidth(1.1)
+        ax.spines["right"].set_visible(False)
+    ax.grid(False)
+    ax.margins(y=0.08)
+
+
+def _add_panel_letters(axes):
+    for letter, ax in zip("ABCDEFGH", axes):
+        ax.text(
+            -0.16,
+            1.12,
+            letter,
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=18,
+            fontweight="bold",
+            color="#303030",
+            clip_on=False,
+            in_layout=False,
+            zorder=20,
+        )
 
 
 def _collect_results_plot_data(conditions, buffer_limit):
@@ -949,31 +1106,38 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     step = max(1, int(np.ceil(time.size / 8000)))
     plot_slice = slice(None, None, step)
     t_plot = time[plot_slice]
+    finite_time = time[np.isfinite(time)]
+    time_axis_start = float(finite_time[0])
+    time_axis_end = float(finite_time[-1])
 
     colors = PLOT_COLORS
 
-    fig, axes = plt.subplots(4, 2, figsize=(18, 20), constrained_layout=True)
+    plt.rcParams.update(JOURNAL_RC_PARAMS)
+    fig, axes = plt.subplots(4, 2, figsize=(11.0, 14.0), constrained_layout=True)
+    fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.09, hspace=0.14, wspace=0.04)
     axes = axes.ravel()
+    secondary_axes = []
+    full_time_axes = []
 
     ax = axes[0]
-    ax.plot(t_plot, traces["P_sa_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="Systemic Arterial\nPressure")
+    full_time_axes.append(ax)
+    ax.plot(t_plot, traces["P_sa_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{sa}}$")
     _horizontal_target(ax, targets["Systolic_Pressure"], TARGET_LABELS["Systolic_Pressure"], colors["rose_dark"])
     _horizontal_target(ax, targets["Diastolic_Pressure"], TARGET_LABELS["Diastolic_Pressure"], colors["rose_light"])
-    ax.set_title("Systemic Pressure and Heart Rate")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Pressure (mmHg)")
-    ax.grid(True, alpha=0.25)
+    ax.set_ylabel(r"$P_{\mathrm{sa}}$ (mmHg)")
     ax_hr = ax.twinx()
+    secondary_axes.append(ax_hr)
     ax_hr.plot(
         t_plot,
-        traces["HR_store"][plot_slice],
+        traces["HR_store"][plot_slice] * HEART_RATE_PLOT_SCALE,
         color=colors["solid_blue"],
         linewidth=SOLID_LINEWIDTH,
         label=TARGET_LABELS["Heart_Rate"],
     )
-    _horizontal_target(ax_hr, targets["Heart_Rate"], TARGET_LABELS["Heart_Rate"], colors["teal_dark"])
-    ax_hr.set_ylabel("Heart rate")
-    _combined_legend(ax, ax_hr, loc="best")
+    _horizontal_target(ax_hr, targets["Heart_Rate"] * HEART_RATE_PLOT_SCALE, TARGET_MEAN_LABELS["Heart_Rate"], colors["teal_dark"])
+    ax_hr.set_ylabel("HR (BPM)")
+    _combined_legend(ax, ax_hr)
 
     ax = axes[1]
     pv_slice = slice(None, None, max(1, int(np.ceil(time.size / 12000))))
@@ -985,101 +1149,93 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     _vertical_target(ax, targets["Min_RV_Volume"], TARGET_LABELS["Min_RV_Volume"], colors["blue_light"])
     _horizontal_target(ax, targets["Max_RV_Pressure"], TARGET_LABELS["Max_RV_Pressure"], colors["blue_dark"])
     _horizontal_target(ax, targets["Min_RV_Pressure"], TARGET_LABELS["Min_RV_Pressure"], colors["blue_light"])
-    ax.set_title("Ventricular PV Curves")
-    ax.set_xlabel("Volume (mL)")
-    ax.set_ylabel("Pressure (mmHg)")
-    ax.grid(True, alpha=0.25)
-    ax.legend(fontsize=7, ncol=2)
+    ax.set_xlabel(r"$V$ (mL)")
+    ax.set_ylabel(r"$P$ (mmHg)")
+    _ventricular_pv_legend(ax)
 
     ax = axes[2]
     ax.plot(traces["V_la_store"][pv_slice], traces["P_la_store"][pv_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="LA")
     ax.plot(traces["V_ra_store"][pv_slice], traces["P_ra_store"][pv_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label="RA")
-    _vertical_target(ax, targets["Min_LA_Volume"], TARGET_LABELS["Min_LA_Volume"], colors["lavender_light"])
-    _vertical_target(ax, targets["Max_LA_Volume"], TARGET_LABELS["Max_LA_Volume"], colors["lavender_dark"])
-    _vertical_target(ax, targets["LA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["LA_Volume_Before_Atrial_Contraction"], colors["ink"])
-    _vertical_target(ax, targets["Min_RA_Volume"], TARGET_LABELS["Min_RA_Volume"], colors["teal_light"])
-    _vertical_target(ax, targets["Max_RA_Volume"], TARGET_LABELS["Max_RA_Volume"], colors["teal_dark"])
-    _vertical_target(ax, targets["RA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["RA_Volume_Before_Atrial_Contraction"], colors["blue_dark"])
-    _horizontal_target(ax, targets["Max_LA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_LA_Pressure_Atrial_contraction"], colors["lavender_dark"])
-    _horizontal_target(ax, targets["Max_LA_Pressure_Mitral_Opening"], TARGET_LABELS["Max_LA_Pressure_Mitral_Opening"], colors["lavender_light"])
-    _horizontal_target(ax, targets["Max_RA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_RA_Pressure_Atrial_contraction"], colors["teal_dark"])
-    _horizontal_target(ax, targets["Max_RA_Pressure_Tricuspid_Opening"], TARGET_LABELS["Max_RA_Pressure_Tricuspid_Opening"], colors["teal_light"])
-    ax.set_title("Atrial PV Curves")
-    ax.set_xlabel("Volume (mL)")
-    ax.set_ylabel("Pressure (mmHg)")
-    ax.grid(True, alpha=0.25)
-    ax.legend(fontsize=7, ncol=2)
+    ax.set_xlabel(r"$V$ (mL)")
+    ax.set_ylabel(r"$P$ (mmHg)")
+    _legend_above(ax, *ax.get_legend_handles_labels())
 
     ax = axes[3]
-    ax.plot(t_plot, traces["V_ra_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="RA V")
-    _horizontal_target(ax, targets["Min_RA_Volume"], TARGET_LABELS["Min_RA_Volume"], colors["teal_light"])
-    _horizontal_target(ax, targets["Max_RA_Volume"], TARGET_LABELS["Max_RA_Volume"], colors["teal_dark"])
-    _horizontal_target(ax, targets["RA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["RA_Volume_Before_Atrial_Contraction"], colors["blue_dark"])
-    ax.set_title("Right Atrial Targets")
+    ax.plot(t_plot, traces["V_ra_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$V_{\mathrm{RA}}$")
+    _horizontal_target(ax, targets["Min_RA_Volume"], TARGET_LABELS["Min_RA_Volume"], colors["rose_dark"])
+    _horizontal_target(ax, targets["Max_RA_Volume"], TARGET_LABELS["Max_RA_Volume"], colors["lavender_dark"], linestyle=(0, (5, 2)))
+    _horizontal_target(ax, targets["RA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["RA_Volume_Before_Atrial_Contraction"], colors["rose_light"])
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Volume (mL)")
-    ax.grid(True, alpha=0.25)
+    ax.set_ylabel(r"$V_{\mathrm{RA}}$ (mL)")
     ax_p = ax.twinx()
-    ax_p.plot(t_plot, traces["P_ra_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label="RA P")
-    _horizontal_target(ax_p, targets["Max_RA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_RA_Pressure_Atrial_contraction"], colors["rose_dark"])
-    _horizontal_target(ax_p, targets["Max_RA_Pressure_Tricuspid_Opening"], TARGET_LABELS["Max_RA_Pressure_Tricuspid_Opening"], colors["rose_light"])
-    ax_p.set_ylabel("Pressure (mmHg)")
-    _combined_legend(ax, ax_p, loc="best")
+    secondary_axes.append(ax_p)
+    ax_p.plot(t_plot, traces["P_ra_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{RA}}$")
+    _horizontal_target(ax_p, targets["Max_RA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_RA_Pressure_Atrial_contraction"], colors["blue_dark"])
+    _horizontal_target(ax_p, targets["Max_RA_Pressure_Tricuspid_Opening"], TARGET_LABELS["Max_RA_Pressure_Tricuspid_Opening"], colors["teal_light"])
+    ax_p.set_ylabel(r"$P_{\mathrm{RA}}$ (mmHg)")
+    _atrial_targets_legend(ax, ax_p)
+    ax.set_xlim(ATRIAL_TARGET_TIME_START, time_axis_end)
 
     ax = axes[4]
-    ax.plot(t_plot, traces["V_la_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="LA V")
-    _horizontal_target(ax, targets["Min_LA_Volume"], TARGET_LABELS["Min_LA_Volume"], colors["lavender_light"])
-    _horizontal_target(ax, targets["Max_LA_Volume"], TARGET_LABELS["Max_LA_Volume"], colors["lavender_dark"])
-    _horizontal_target(ax, targets["LA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["LA_Volume_Before_Atrial_Contraction"], colors["ink"])
-    ax.set_title("Left Atrial Targets")
+    ax.plot(t_plot, traces["V_la_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$V_{\mathrm{LA}}$")
+    _horizontal_target(ax, targets["Min_LA_Volume"], TARGET_LABELS["Min_LA_Volume"], colors["rose_dark"])
+    _horizontal_target(ax, targets["Max_LA_Volume"], TARGET_LABELS["Max_LA_Volume"], colors["lavender_dark"], linestyle=(0, (5, 2)))
+    _horizontal_target(ax, targets["LA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["LA_Volume_Before_Atrial_Contraction"], colors["rose_light"])
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Volume (mL)")
-    ax.grid(True, alpha=0.25)
+    ax.set_ylabel(r"$V_{\mathrm{LA}}$ (mL)")
     ax_p = ax.twinx()
-    ax_p.plot(t_plot, traces["P_la_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label="LA P")
-    _horizontal_target(ax_p, targets["Max_LA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_LA_Pressure_Atrial_contraction"], colors["rose_dark"])
-    _horizontal_target(ax_p, targets["Max_LA_Pressure_Mitral_Opening"], TARGET_LABELS["Max_LA_Pressure_Mitral_Opening"], colors["rose_light"])
-    ax_p.set_ylabel("Pressure (mmHg)")
-    _combined_legend(ax, ax_p, loc="best")
+    secondary_axes.append(ax_p)
+    ax_p.plot(t_plot, traces["P_la_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{LA}}$")
+    _horizontal_target(ax_p, targets["Max_LA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_LA_Pressure_Atrial_contraction"], colors["blue_dark"])
+    _horizontal_target(ax_p, targets["Max_LA_Pressure_Mitral_Opening"], TARGET_LABELS["Max_LA_Pressure_Mitral_Opening"], colors["teal_light"])
+    ax_p.set_ylabel(r"$P_{\mathrm{LA}}$ (mmHg)")
+    _atrial_targets_legend(ax, ax_p)
+    ax.set_xlim(ATRIAL_TARGET_TIME_START, time_axis_end)
 
     ax = axes[5]
-    ax.plot(t_plot, traces["dP_lv_dt_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="LV dP/dt")
-    ax.plot(t_plot, traces["dP_rv_dt_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label="RV dP/dt")
+    ax.plot(t_plot, traces["dP_lv_dt_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$\mathrm{d}P_{\mathrm{LV}}/\mathrm{d}t$")
+    ax.plot(t_plot, traces["dP_rv_dt_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$\mathrm{d}P_{\mathrm{RV}}/\mathrm{d}t$")
     _horizontal_target(ax, targets["LV_Pressure_Deriv"], TARGET_LABELS["LV_Pressure_Deriv"], colors["rose_dark"])
     _horizontal_target(ax, targets["RV_Pressure_Deriv"], TARGET_LABELS["RV_Pressure_Deriv"], colors["blue_dark"])
-    ax.set_title("Ventricular Pressure Derivatives")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("dP/dt")
-    ax.grid(True, alpha=0.25)
-    ax.legend(fontsize=7)
+    ax.set_ylabel(r"$\mathrm{d}P/\mathrm{d}t$ (mmHg/s)")
+    _legend_above(ax, *ax.get_legend_handles_labels())
+    ax.set_xlim(DPDT_TIME_START, time_axis_end)
 
     ax = axes[6]
+    full_time_axes.append(ax)
     ax.plot(t_plot, traces["tidal_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["Tidal_Volume"])
-    _horizontal_target(ax, targets["Tidal_Volume"], TARGET_LABELS["Tidal_Volume"], colors["blue_dark"])
-    ax.set_title("Ventilation Targets")
+    _horizontal_target(ax, targets["Tidal_Volume"], TARGET_MEAN_LABELS["Tidal_Volume"], colors["rose_dark"])
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Tidal volume")
-    ax.grid(True, alpha=0.25)
+    ax.set_ylabel("Inspired/Expired Volume (L)")
     ax_mv = ax.twinx()
+    secondary_axes.append(ax_mv)
     ax_mv.plot(t_plot, minute_ventilation_series[plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["Minute_Ventilation"])
     _horizontal_target(ax_mv, targets["Minute_Ventilation"], TARGET_LABELS["Minute_Ventilation"], colors["teal_dark"])
-    ax_mv.set_ylabel("Minute ventilation")
-    _combined_legend(ax, ax_mv, loc="best")
+    ax_mv.set_ylabel(r"$\dot{V}_E$ (L/min)")
+    _combined_legend(ax, ax_mv)
 
     ax = axes[7]
+    full_time_axes.append(ax)
     ax.plot(t_plot, traces["Pa_O2_every_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["PaO2"])
     ax.plot(t_plot, traces["Pa_CO2_every_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["PaCO2"])
-    _horizontal_target(ax, targets["PaO2"], TARGET_LABELS["PaO2"], colors["rose_dark"])
-    _horizontal_target(ax, targets["PaCO2"], TARGET_LABELS["PaCO2"], colors["blue_dark"])
-    ax.set_title("Blood Gas Targets")
+    _horizontal_target(ax, targets["PaO2"], TARGET_MEAN_LABELS["PaO2"], colors["rose_dark"])
+    _horizontal_target(ax, targets["PaCO2"], TARGET_MEAN_LABELS["PaCO2"], colors["blue_dark"])
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Partial pressure (mmHg)")
-    ax.grid(True, alpha=0.25)
-    ax.legend(fontsize=7)
+    ax.set_ylabel(r"$P_{\mathrm{a}O_2}$ / $P_{\mathrm{a}CO_2}$ (mmHg)")
+    _legend_above(ax, *ax.get_legend_handles_labels())
 
-    fig.suptitle("Run_model_Paper Results Targets", fontsize=16)
-    fig.savefig("Run_model_Paper_results_targets.png", dpi=300, bbox_inches="tight")
-    plt.show()
+    for axis in full_time_axes:
+        axis.set_xlim(time_axis_start, time_axis_end)
+
+    for axis in axes:
+        _style_journal_axis(axis)
+    for axis in secondary_axes:
+        _style_journal_axis(axis, secondary_y=True)
+    _add_panel_letters(axes)
+
+    fig.savefig("Run_model_Paper_results_targets.png", dpi=600, bbox_inches="tight", pad_inches=0.35)
+    plt.close(fig)
 
 
 def _load_simulation_cache(cache_path=CACHE_PATH):

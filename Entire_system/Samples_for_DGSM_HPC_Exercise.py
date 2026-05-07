@@ -1,5 +1,6 @@
 import os
 import copy
+import gc
 import signal
 import numpy as np
 from SALib import ProblemSpec
@@ -14,9 +15,8 @@ from tqdm import tqdm
 import tqdm_joblib
 
 from joblib import Parallel, delayed, dump, load
+from joblib.externals.loky import get_reusable_executor
 from scipy.integrate import solve_ivp
-import matplotlib.pyplot as plt
-from scipy.signal import find_peaks
 from All_derivatives_njit import model_derivatives
 from fixed_params import Parameters as Old_Parameters
 
@@ -642,8 +642,10 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
     results_all = []
     failure_records = []
 
-    # if os.path.exists(save_path):
-    #     os.remove(save_path)
+    # Wipe any stale partial output from a previous (crashed) run of this task_id
+    # so the incremental saves below start clean.
+    if os.path.exists(save_path):
+        os.remove(save_path)
 
     artifact_root = f"{os.path.splitext(save_path)[0]}_artifacts"
     base_state_dir = os.path.join(artifact_root, "base_states")
@@ -657,10 +659,15 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
     param_blocks = [param_samples[i:i + block_size] for i in range(0, len(param_samples), block_size)]
 
     # run base points first
-    base_results = Parallel(n_jobs=n_jobs, pre_dispatch=n_jobs)(
+    base_results = Parallel(n_jobs=n_jobs, pre_dispatch=n_jobs, max_nbytes=None)(
         delayed(run_basepoint)(params[0], Old_Parameters, block_idx, base_state_dir)
         for block_idx, params in enumerate(param_blocks)
     )
+
+    # tear down the basepoint worker pool so its accumulated memory (numba caches,
+    # scipy state) is reclaimed before the much larger perturbation loop starts
+    get_reusable_executor().shutdown(wait=True)
+    gc.collect()
 
 
     # go through each base point and perturbation with the corresponding initial conditions
@@ -670,7 +677,10 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
         if base is None: # base failed → whole block invalid
             results_all.extend(np.zeros((block_size, 31)))
             print("block_failed")
-            # np.save(save_path, np.array(results_all))
+            tmp_path = save_path + ".tmp"
+            with open(tmp_path, "wb") as tmp_file:
+                np.save(tmp_file, np.array(results_all))
+            os.replace(tmp_path, save_path)
             continue
 
         # # Otherwise, run full block in parallel
@@ -678,7 +688,7 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
         #     results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
         #     base["storage_final"], Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
         t0 = time.time()
-        results_perturbations = Parallel(n_jobs=n_jobs, pre_dispatch=n_jobs)(
+        results_perturbations = Parallel(n_jobs=n_jobs, pre_dispatch=n_jobs, max_nbytes=None)(
             delayed(run_simulation)(
                 params,
                 base["base_state_path"],
@@ -698,6 +708,26 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_31_
         )
         results_all.extend(results_block)
         dump(failure_records, failure_manifest_path)
+
+        # Atomic incremental save: write to .tmp then rename, so an HPC kill or
+        # walltime cutoff mid-write can't leave a half-written .npy on disk.
+        # On crash, the most recent fully-written block survives at save_path.
+        tmp_path = save_path + ".tmp"
+        with open(tmp_path, "wb") as tmp_file:
+            np.save(tmp_file, np.array(results_all))
+        os.replace(tmp_path, save_path)
+
+        # Periodically recycle workers so leaked memory (numba caches, allocator
+        # fragmentation from repeated storage_final loads) does not compound. Doing
+        # this every block at large n_jobs is wasteful; every RECYCLE_EVERY blocks
+        # bounds peak memory while amortizing spawn + numba warm-up cost.
+        del results_perturbations, results_block
+        gc.collect()
+        # cache=False on @njit means each fresh worker pays full JIT warmup
+        # (~10-30 s for njit_compatible). Recycle less aggressively to amortize.
+        RECYCLE_EVERY = 10
+        if (i + 1) % RECYCLE_EVERY == 0:
+            get_reusable_executor().shutdown(wait=True)
 
         # Save chunk incrementally (appending)
         # np.save(f'IC_final_{i:03d}.npy', IC_final)  # individual chunks
@@ -1230,7 +1260,7 @@ if __name__ == "__main__":
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_exercise_20_24_04.npy", X)
-    X = np.load("DGSM_500_X_exercise_20_24_04.npy")[:273*375,:]
+    X = np.load("DGSM_500_X_exercise_20_24_04.npy")[:273*150,:]
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-id", type=int, required=True)
@@ -1254,5 +1284,4 @@ if __name__ == "__main__":
     # Result = parallel_simulations(param_samples, n_jobs=256)
     result_path = f'Result_task_20_{task_id:02d}_exercise.npy'
     Result = parallel_simulations(param_samples, n_jobs=args.n_jobs, save_path=result_path)
-    np.save(result_path, Result)
     # np.save(f'DGSM_Result_rest_20_10_04.npy', Result)
