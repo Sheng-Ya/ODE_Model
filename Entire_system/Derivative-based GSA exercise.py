@@ -12,7 +12,24 @@ import numpy as np
 
 
 X = np.load('DGSM_Exercise_Paper/DGSM_500_X_exercise_20_24_04.npy')
-Result = np.load('DGSM_Exercise_Paper/DGSM_500_Result_exercise_20_24_04.npy')
+Result1 = np.load('DGSM_Exercise_Paper/DGSM_500_Result_exercise_20_24_04.npy')
+Result2 = np.load('DGSM_Rest_Paper/DGSM_500_Result_rest_20_10_04.npy')
+COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
+Result1 = np.delete(Result1, COLS_TO_DROP, axis=1)
+Result2 = np.delete(Result2, COLS_TO_DROP, axis=1)
+Result1 = Result1[::273,21]
+Result2 = Result2[::273,21]
+
+import seaborn as sns
+plt.figure(figsize=(4,3))
+sns.kdeplot(Result1, bw_method="scott", fill=True, linewidth=1.2)
+sns.kdeplot(Result2, bw_method="scott", fill=True, linewidth=1.2)
+
+plt.xlabel("Value")
+plt.ylabel("Density")
+plt.tight_layout()
+plt.show()
+
 
 lower = 0.8
 upper = 1.2

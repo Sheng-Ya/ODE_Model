@@ -261,14 +261,6 @@ class HistoryMatching(TorchDeviceMixin):
         # Calculate total variance
         Vs = pred_vars + discrepancy + self.obs_vars
 
-        adjusted_pred_means = pred_means.clone()
-
-        la_den = adjusted_pred_means[:, 14] - adjusted_pred_means[:, 13]
-        ra_den = adjusted_pred_means[:, 10] - adjusted_pred_means[:, 9]
-
-        adjusted_pred_means[:, 17] = (adjusted_pred_means[:, 17] - adjusted_pred_means[:, 13]) / la_den
-        adjusted_pred_means[:, 18] = (adjusted_pred_means[:, 18] - adjusted_pred_means[:, 9]) / ra_den
-
         # Calculate implausibility
         return torch.abs(self.obs_means - pred_means) / torch.sqrt(Vs)
 
@@ -342,6 +334,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         calibration_params: list[str] | None = None,
         overlap_params: list[str] | None = None,
         exercise_only_params: list[str] | None = None,
+        atrial_ratio_bounds: tuple[float, float] | None = None,
+        atrial_ratio_min_probability: float = 0.0,
+        atrial_ratio_mc_samples: int = 128,
         rest_overlap_source: str = "nroy",
         rest_overlap_path: str | None = None,
         rest_posterior_mass: float = 0.95,
@@ -383,6 +378,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
             Optional subset of parameters to calibrate. These have to correspond to the
             parameters that the emulator was trained on. If None, calibrate all
             simulator parameters.
+        atrial_ratio_bounds: tuple[float, float] | None
+            Optional acceptable range for the derived atrial contraction ratio.
+        atrial_ratio_min_probability: float
+            Minimum predictive probability required for the ratio to lie in range.
+        atrial_ratio_mc_samples: int
+            Monte Carlo samples used to propagate emulator uncertainty to the ratio.
         device: DeviceLike | None
             The device to use. If None, the default torch device is returned.
         random_seed: int | None
@@ -440,6 +441,46 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.exercise_only_idx = [
             self.simulator.get_parameter_idx(param) for param in self.exercise_only_params
         ]
+        # Derived atrial ratio is enforced as an interval constraint, not a point target.
+        self.atrial_ratio_bounds = atrial_ratio_bounds
+        self.atrial_ratio_min_probability = atrial_ratio_min_probability
+        self.atrial_ratio_mc_samples = atrial_ratio_mc_samples
+
+    @staticmethod
+    def _safe_ratio_denominator(denominator: TensorLike, eps: float = 1e-8) -> TensorLike:
+        eps_tensor = torch.full_like(denominator, eps)
+        signed_eps = torch.where(denominator < 0, -eps_tensor, eps_tensor)
+        return torch.where(denominator.abs() < eps, signed_eps, denominator)
+
+    def _estimate_ratio_interval_probability(
+        self,
+        min_mean: TensorLike,
+        min_var: TensorLike,
+        max_mean: TensorLike,
+        max_var: TensorLike,
+        pre_mean: TensorLike,
+        pre_var: TensorLike,
+    ) -> TensorLike:
+        if self.atrial_ratio_bounds is None:
+            return torch.ones_like(min_mean)
+
+        lower, upper = self.atrial_ratio_bounds
+        n_mc = self.atrial_ratio_mc_samples
+
+        min_draws = min_mean[:, None] + min_var.clamp(min=0).sqrt()[:, None] * torch.randn(
+            min_mean.shape[0], n_mc, device=min_mean.device, dtype=min_mean.dtype
+        )
+        max_draws = max_mean[:, None] + max_var.clamp(min=0).sqrt()[:, None] * torch.randn(
+            max_mean.shape[0], n_mc, device=max_mean.device, dtype=max_mean.dtype
+        )
+        pre_draws = pre_mean[:, None] + pre_var.clamp(min=0).sqrt()[:, None] * torch.randn(
+            pre_mean.shape[0], n_mc, device=pre_mean.device, dtype=pre_mean.dtype
+        )
+
+        denom = self._safe_ratio_denominator(max_draws - min_draws)
+        ratio = (pre_draws - min_draws) / denom
+        in_band = (max_draws > min_draws) & (ratio >= lower) & (ratio <= upper)
+        return in_band.float().mean(dim=1)
 
     def _is_within_bounds(
         self, sample: TensorLike, bounds_dict: dict[str, tuple[float, float]]
@@ -1064,7 +1105,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if self.nroy_samples is None:
             test_x = self.cloud_sample_and_emulator(n, scaling_factor).to(self.device)
-            parent = "Emulator_exercise"
+            parent = "DGSM_Exercise_Paper/Emulator_exercise"
+            # parent = "Emulator_exercise"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
             parent = "Emulator_exercise_wave"
@@ -1084,45 +1126,70 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
-        # means = {}
-        # variances = {}
+        means = {}
+        variances = {}
+
+        for name in output_names:
+            target_emulator = models[name]
+            with torch.no_grad():
+                means[name], variances[name] = target_emulator.predict_mean_and_variance(
+                    test_x[:, self.parameter_idx]
+                )
+
+        # n_jobs = len(output_names)
+        # use_raw_model = self.nroy_samples is None
         #
-        # for name in output_names:
-        #     target_emulator = models[name]
-        #     with torch.no_grad():
-        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
-        #             test_x[:, self.parameter_idx]
-        #         )
-
-        n_jobs = len(output_names)
-        use_raw_model = self.nroy_samples is None
-
-        def predict_one_output(name, X):
-            if use_raw_model:
-                target_emulator = models[name].model
-            else:
-                target_emulator = models[name]
-
-            mean, var = target_emulator.predict_mean_and_variance(X)
-            return name, mean, var
-
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
-
-        means = {name: mean for name, mean, var in results}
-        variances = {name: var for name, mean, var in results}
+        # def predict_one_output(name, X):
+        #     if use_raw_model:
+        #         target_emulator = models[name].model
+        #     else:
+        #         target_emulator = models[name]
+        #
+        #     mean, var = target_emulator.predict_mean_and_variance(X)
+        #     return name, mean, var
+        #
+        # results = Parallel(n_jobs=n_jobs)(
+        #     delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
+        #
+        # means = {name: mean for name, mean, var in results}
+        # variances = {name: var for name, mean, var in results}
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
 
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
+        if self.atrial_ratio_bounds is not None:
+            la_ratio_probs = self._estimate_ratio_interval_probability(
+                mean_tensor[:, 13], var_tensor[:, 13],
+                mean_tensor[:, 14], var_tensor[:, 14],
+                mean_tensor[:, 17], var_tensor[:, 17],
+            )
+            ra_ratio_probs = self._estimate_ratio_interval_probability(
+                mean_tensor[:, 9], var_tensor[:, 9],
+                mean_tensor[:, 10], var_tensor[:, 10],
+                mean_tensor[:, 18], var_tensor[:, 18],
+            )
+            atrial_ratio_mask = (
+                (la_ratio_probs >= self.atrial_ratio_min_probability)
+                & (ra_ratio_probs >= self.atrial_ratio_min_probability)
+            )
+            # The ratio is enforced through the interval-probability filter below.
+            impl_scores[:, 17] = 0.0
+            impl_scores[:, 18] = 0.0
+        else:
+            atrial_ratio_mask = torch.ones(
+                mean_tensor.shape[0], dtype=torch.bool, device=mean_tensor.device
+            )
 
         # Filter non-physiological emulator predictions before NROY selection:
         # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
         phys_mask = (
                 (mean_tensor[:, 13] > test_x[:, 201])
                 & (mean_tensor[:, 9] > test_x[:, 203])
+                & (mean_tensor[:, 10] > mean_tensor[:, 9])
+                & (mean_tensor[:, 14] > mean_tensor[:, 13])
+                & atrial_ratio_mask
         )
         test_x = test_x[phys_mask]
         mean_tensor = mean_tensor[phys_mask]

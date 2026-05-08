@@ -29,6 +29,12 @@ REST_POSTERIOR_MASS = 0.95
 REST_POSTERIOR_REGION = "hpd"
 REST_OVERLAP_SAMPLING = "empirical"
 
+# Treat atrial contraction as a physiologic interval constraint rather than a
+# point target for columns 17/18.
+ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
+ATRIAL_RATIO_MIN_PROBABILITY = 0.05
+ATRIAL_RATIO_MC_SAMPLES = 128
+
 # ----------------------------
 # PROBLEM SPECIFICATION
 # ----------------------------
@@ -458,8 +464,8 @@ observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Dia
 "Max RA Volume": (77.3, 342.25), "Max RA Pressure Atrial contraction": (12, 16),
 "Max RA Pressure Tricuspid Opening": (11, 16), "Min LA Volume": (23.0, 94.09), "Max LA Volume": (66.3, 388.09),
 "Max LA Pressure Atrial contraction": (19, 49), "Max LA Pressure Mitral Opening": (19, 64),
-"LA Contraction Volume diff": (33.8, 81.0), "RA Contraction Volume diff": (40.3, 36.0),
-"LV Pressure Deriv": (1750, 272484), "RV Pressure Deriv": (713, 12100), "Tidal Volume": (2220, 409600),
+"LA Contraction Volume diff": (33.8, 77.4), "RA Contraction Volume diff": (40.3, 36.0),
+"LV Pressure Deriv": (1750, 272484), "RV Pressure Deriv": (713, 12100), "Tidal Volume": (2.22, 0.4096),
 "Minute Ventilation": (62.6, 320.41), "PaO2": (97.2, 36.0), "PaCO2": (38.4, 6.76)}
 
 # ----------------------------
@@ -497,13 +503,16 @@ if __name__ == "__main__":
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=3,
+        threshold=3.5,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
         calibration_params=subset_vars,
         overlap_params=subset_overlap,
         exercise_only_params=subset_exercise_only,
+        atrial_ratio_bounds=ATRIAL_RATIO_BOUNDS,
+        atrial_ratio_min_probability=ATRIAL_RATIO_MIN_PROBABILITY,
+        atrial_ratio_mc_samples=ATRIAL_RATIO_MC_SAMPLES,
         rest_overlap_source="posterior",
         rest_overlap_path=REST_POSTERIOR_RUN_DIR,
         rest_posterior_mass=REST_POSTERIOR_MASS,
@@ -511,10 +520,10 @@ if __name__ == "__main__":
         rest_overlap_sampling=REST_OVERLAP_SAMPLING,
     )
 
-    # --- PRE-WAVE: Train initial emulators from hybrid samples ---
-    hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
-
-    hmw.rest_overlap_sampling = "cloud"
+    # # --- PRE-WAVE: Train initial emulators from hybrid samples ---
+    # hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+    #
+    # hmw.rest_overlap_sampling = "cloud"
 
     size = 200000
     _ = hmw.run_waves(n_waves=3, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
