@@ -21,6 +21,14 @@ random_seed = 42
 set_random_seed(random_seed)
 pyro.set_rng_seed(random_seed)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REST_POSTERIOR_RUN_DIR = os.path.join(
+    BASE_DIR, "MCMC_HPC/MCMC_Rest_20_05_05_1500_logspline_copula_prior"
+)
+REST_POSTERIOR_MASS = 0.95
+REST_POSTERIOR_REGION = "hpd"
+REST_OVERLAP_SAMPLING = "empirical"
+
 # ----------------------------
 # PROBLEM SPECIFICATION
 # ----------------------------
@@ -392,22 +400,22 @@ sp = ProblemSpec({
     ]
 })
 
-# # Exercise: 65 parameters contribute at least 1% and up to 90% sensitivity for 21 targets
-subset_vars = {'a2', 'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_pv', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
+# Exercise
+subset_vars = {'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_pv', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
                'fall_time_ven', 'fes_o', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GT_v', 'GV_dead',
-               'GV_sv', 'Io_sh', 'Io_sp', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp',
-               'P0_lv', 'P0_rv', 'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_bpn', 'R_pa', 'R_po', 'R_pp',
-               'R_rs', 'R_sa', 'rise_time_ven', 'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest',
-               'Vu_ev0', 'Vu_jp', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max'}
+               'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
+               'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven',
+               'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+               'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max'}
 
-subset_overlap = {'a2','ahead1','C2','C_jp','C_O2_param1','C_sv','E_rs','Emax_lv0','Emax_rv0','fall_time_ven','fes_o',
-                  'fev_o','GT_s','GT_v','KE_la','KE_lv','KE_ra','KE_rv','kes','l','MO2_bp','P0_lv','P0_rv','PaCO2_n',
-                  'r','R_pa','R_pp','R_rs','R_sa','rise_time_ven','Rvc_n','T0','V0_dead','V_nominal','V_scale','Vu_ev0',
-                  'Vu_jp','Vu_lv','Vu_ra','Vu_rv','Vu_sv0'}
+subset_overlap = {'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
+                  'fall_time_ven', 'fes_o', 'fev_o', 'GT_s', 'GT_v', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'P0_la',
+                  'P0_lv', 'P0_rv', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven', 'Rvc_n', 'T0',
+                  'V0_dead', 'V_nominal', 'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0'}
 
 
-subset_exercise_only = {'C_pv','Cvb_O2_n','G_ap','GEmax_lv','GEmax_rv','GR_amp','GV_dead','GV_sv','Io_sh','Io_sp',
-                        'KcCO2','KcMRV','P_n_max','phi_max','R_amp0','R_bpn','R_po','tauMR','VA_rest','Wp_v','Yv_max'}
+subset_exercise_only = {'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead', 'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV',
+                        'P_n_max', 'phi_max', 'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max'}
 
 
 # MUST SORT SO ITS THE SAME ORDER
@@ -495,11 +503,18 @@ if __name__ == "__main__":
         # train_y=Result,
         calibration_params=subset_vars,
         overlap_params=subset_overlap,
-        exercise_only_params = subset_exercise_only
+        exercise_only_params=subset_exercise_only,
+        rest_overlap_source="posterior",
+        rest_overlap_path=REST_POSTERIOR_RUN_DIR,
+        rest_posterior_mass=REST_POSTERIOR_MASS,
+        rest_posterior_region=REST_POSTERIOR_REGION,
+        rest_overlap_sampling=REST_OVERLAP_SAMPLING,
     )
 
     # --- PRE-WAVE: Train initial emulators from hybrid samples ---
     hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+
+    hmw.rest_overlap_sampling = "cloud"
 
     size = 200000
     _ = hmw.run_waves(n_waves=3, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)

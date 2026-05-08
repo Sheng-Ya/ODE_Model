@@ -11,11 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-X = np.load('DGSM_Exercise_Paper/DGSM_500_X_exercise_20_21_04.npy')
-Result = np.load('DGSM_Exercise_Paper/DGSM_Result_exercise_20_21_04.npy')
+X = np.load('DGSM_Exercise_Paper/DGSM_500_X_exercise_20_24_04.npy')
+Result = np.load('DGSM_Exercise_Paper/DGSM_500_Result_exercise_20_24_04.npy')
 
-# Result = np.vstack([Result0, Result1, Result3, Result4])
-# np.save("DGSM_500_Result_rest_20_10_04.npy", Result)
 lower = 0.8
 upper = 1.2
 
@@ -58,14 +56,6 @@ std_thresh = std_mean + 3 * std_std
 # Keep blocks only if ALL output stds are below their respective thresholds
 mask_blocks_std = np.all(block_std <= std_thresh, axis=1)
 
-# # Filter base points where E_rs (col 14) and R_rs (col 15) are within +/-20% of nominal values
-# E_rs_nominal = 21.9
-# R_rs_nominal = 3.02
-# E_rs_base = X[base_idx, 14]
-# R_rs_base = X[base_idx, 15]
-# mask_blocks_E_rs = np.abs(E_rs_base - E_rs_nominal) / E_rs_nominal <= 0.40
-# mask_blocks_R_rs = np.abs(R_rs_base - R_rs_nominal) / R_rs_nominal <= 0.40
-#
 # Keep only blocks where all perturbed HR values are within 0.03 of the base HR (convergence check)
 HR_col = 0
 mask_blocks_conv = np.array([
@@ -73,11 +63,11 @@ mask_blocks_conv = np.array([
     for i in base_idx
 ])
 
-HR_col = 25
-mask_blocks_conv_tidal = np.array([
-    np.all(np.abs(Result[i + 1:i + block_size, HR_col] - Result[i, HR_col]) < 0.03)
-    for i in base_idx
-])
+# HR_col = 25
+# mask_blocks_conv_tidal = np.array([
+#     np.all(np.abs(Result[i + 1:i + block_size, HR_col] - Result[i, HR_col]) < 0.03)
+#     for i in base_idx
+# ])
 
 mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv & mask_blocks_std #& mask_blocks_conv_tidal#& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
 print(np.count_nonzero(mask_blocks))
@@ -179,278 +169,278 @@ sp = ProblemSpec({
         ],
 
         'bounds': [
-            [0.03222905099 * lower, 0.03222905099 * upper],  # beta2 [MAP]
-            [72.97384644 * lower, 72.97384644 * upper],  # C2 [MAP]
-            [161.8709412 * lower, 161.8709412 * upper],  # K2 [MAP]
-            [2.114250183 * lower, 2.114250183 * upper],  # a2 [MAP]
-            [0.05591 * lower, 0.05591 * upper],  # alpha2
-            [346000 * lower, 346000 * upper],  # KCCO2
-            [0.1698 * lower, 0.1698 * upper],  # GV_dead
-            [0.2332 * lower, 0.2332 * upper],  # KcCO2
-            [1 * lower, 1 * upper],  # KcMRV
-            [0.2025 * lower, 0.2025 * upper],  # KpCO2
-            [4.72e-09 * lower, 4.72e-09 * upper],  # KpO2
-            [0.1370924413 * lower, 0.1370924413 * upper],  # V0_dead [MAP]
-            [0.0673 * lower, 0.0673 * upper],  # VA_rest
-            [20.46212959 * 0.8, 20.46212959 * 1.2],  # E_rs [MAP]
-            [3.383113146 * 0.8, 3.383113146 * 1.2],  # R_rs [MAP]
-            [3.125411034 * lower, 3.125411034 * upper],  # C_jp [MAP]
-            [0.28 * lower, 0.28 * upper],  # C_sa
-            [0.00022 * lower, 0.00022 * upper],  # L_sa
-            [0.05399359763 * lower, 0.05399359763 * upper],  # R_sa [MAP]
-            [9.4 * lower, 9.4 * upper],  # C_amv
-            [10.71 * lower, 10.71 * upper],  # C_bv
-            [20 * lower, 20 * upper],  # C_ev
-            [3.57 * lower, 3.57 * upper],  # C_hv
-            [6.28 * lower, 6.28 * upper],  # C_rmv
-            [55.66192627 * lower, 55.66192627 * upper],  # C_sv [MAP]
-            [24.17 * lower, 24.17 * upper],  # kr_am
-            [10 * lower, 10 * upper],  # P_0
-            [0.0833 * lower, 0.0833 * upper],  # R_amv_n
-            [0.075 * lower, 0.075 * upper],  # R_bv_n
-            [0.04 * lower, 0.04 * upper],  # R_ev_n
-            [0.224 * lower, 0.224 * upper],  # R_hv_n
-            [0.125 * lower, 0.125 * upper],  # R_rmv_n
-            [0.038 * lower, 0.038 * upper],  # R_sv_n
-            [0.15 * lower, 0.15 * upper],  # K1_vc
-            [0.3855 * lower, 0.3855 * upper],  # D1
-            [50 * lower, 50 * upper],  # Vvc_min
-            [10000 * lower, 10000 * upper],  # Kr_vc
-            [0.02386650629 * lower, 0.02386650629 * upper],  # Rvc_n [MAP]
-            [0.76 * lower, 0.76 * upper],  # C_pa
-            [5.8 * lower, 5.8 * upper],  # C_pp
-            [25.37 * lower, 25.37 * upper],  # C_pv
-            [0.00018 * lower, 0.00018 * upper],  # L_pa
-            [0.02044834569 * lower, 0.02044834569 * upper],  # R_pa [MAP]
-            [0.08207768947 * lower, 0.08207768947 * upper],  # R_pp [MAP]
-            [0.0056 * lower, 0.0056 * upper],  # R_pv
-            [0.4053699076 * lower, 0.4053699076 * upper],  # Emax_la [MAP]
-            [0.4931329489 * lower, 0.4931329489 * upper],  # P0_la [MAP]
-            [0.4157464504 * lower, 0.4157464504 * upper],  # Emax_ra [MAP]
-            [0.3835878372 * lower, 0.3835878372 * upper],  # P0_ra [MAP]
-            [0.05612468719 * lower, 0.05612468719 * upper],  # KE_la [MAP]
-            [0.05498290807 * lower, 0.05498290807 * upper],  # KE_ra [MAP]
-            [1.599273324 * lower, 1.599273324 * upper],  # P0_lv [MAP]
-            [1.373883843 * lower, 1.373883843 * upper],  # P0_rv [MAP]
-            [0.04 * lower, 0.04 * upper],  # s
-            [21.9467907 * lower, 21.9467907 * upper],  # fab_o [MAP]
-            [15.4826498 * lower, 15.4826498 * upper],  # fes_o [MAP]
-            [2.157571554 * lower, 2.157571554 * upper],  # fes_inf [MAP]
-            [80 * lower, 80 * upper],  # fes_max
-            [3.641415596 * lower, 3.641415596 * upper],  # fev_o [MAP]
-            [5.535371304 * lower, 5.535371304 * upper],  # fev_inf [MAP]
-            [0.06547223032 * lower, 0.06547223032 * upper],  # kes [MAP]
-            [7.06 * lower, 7.06 * upper],  # kev
-            [0.658 * lower, 0.658 * upper],  # Io_sh
-            [0.65 * lower, 0.65 * upper],  # Io_sp
-            [0.4148634076 * lower, 0.4148634076 * upper],  # Io_sv [MAP]
-            [0.126 * lower, 0.126 * upper],  # Io_v
-            [0.114 * lower, 0.114 * upper],  # kcc_sh
-            [0.13 * lower, 0.13 * upper],  # kcc_sp
-            [0.101082772 * lower, 0.101082772 * upper],  # kcc_sv [MAP]
-            [0.0162 * lower, 0.0162 * upper],  # kcc_v
-            [9 * lower, 9 * upper],  # Ysh_max
-            [-0.0283 * upper, -0.0283 * lower],  # Ysh_min
-            [5.5 * lower, 5.5 * upper],  # Ysp_max
-            [-0.037 * upper, -0.037 * lower],  # Ysp_min
-            [64.9 * lower, 64.9 * upper],  # Ysv_max
-            [-0.437 * upper, -0.437 * lower],  # Ysv_min
-            [1.9 * lower, 1.9 * upper],  # Yv_max
-            [-0.0008 * upper, -0.0008 * lower],  # Yv_min
-            [-0.68 * upper, -0.68 * lower],  # theta_v
-            [-1.789494157 * upper, -1.789494157 * lower],  # Wb_sh [MAP]
-            [-1.1375 * upper, -1.1375 * lower],  # Wb_sp
-            [-1.000464439 * upper, -1.000464439 * lower],  # Wb_sv [MAP]
-            [1 * lower, 1 * upper],  # Wc_sh
-            [1.716 * lower, 1.716 * upper],  # Wc_sp
-            [1.716 * lower, 1.716 * upper],  # Wc_sv
-            [0.2 * lower, 0.2 * upper],  # Wc_v
-            [-0.3997 * upper, -0.3997 * lower],  # Wp_sp
-            [-0.3997 * upper, -0.3997 * lower],  # Wp_sv
-            [-0.103 * upper, -0.103 * lower],  # Wp_v
-            [0.4 * lower, 0.4 * upper],  # Wt_sh
-            [0.4 * lower, 0.4 * upper],  # Wt_sp
-            [0.4 * lower, 0.4 * upper],  # Wt_sv
-            [0.4 * lower, 0.4 * upper],  # Wt_v
-            [2.370944023 * lower, 2.370944023 * upper],  # Emax_lv0 [MAP]
-            [1.16930747 * lower, 1.16930747 * upper],  # Emax_rv0 [MAP]
-            [2.658550978 * lower, 2.658550978 * upper],  # fes_min [MAP]
-            [0.475 * lower, 0.475 * upper],  # GEmax_lv
-            [0.282 * lower, 0.282 * upper],  # GEmax_rv
-            [2.47 * lower, 2.47 * upper],  # GR_amp
-            [1.94 * lower, 1.94 * upper],  # GR_ep
-            [2.47 * lower, 2.47 * upper],  # GR_rmp
-            [0.695 * lower, 0.695 * upper],  # GR_sp
-            [-58.29 * upper, -58.29 * lower],  # GV_amv
-            [-74.21 * upper, -74.21 * lower],  # GV_ev
-            [-58.29 * upper, -58.29 * lower],  # GV_rmv
-            [-265.4 * upper, -265.4 * lower],  # GV_sv
-            [3.51 * lower, 3.51 * upper],  # R_amp0
-            [1.655 * lower, 1.655 * upper],  # R_ep0
-            [5.27 * lower, 5.27 * upper],  # R_rmp0
-            [2.49 * lower, 2.49 * upper],  # R_sp0
-            [1 * lower, 1 * upper],  # g_ccsh
-            [1.5 * lower, 1.5 * upper],  # g_ccsp
-            [6 * lower, 6 * upper],  # kisc_sh
-            [2 * lower, 2 * upper],  # kisc_sp
-            [2 * lower, 2 * upper],  # kisc_sv
-            [45 * lower, 45 * upper],  # PO2_sh
-            [30 * lower, 30 * upper],  # PO2_sp
-            [30 * lower, 30 * upper],  # PO2_sv
-            [3.6 * lower, 3.6 * upper],  # theta_shn
-            [13.32 * lower, 13.32 * upper],  # theta_spn
-            [11.36718178 * lower, 11.36718178 * upper],  # theta_svn [MAP]
-            [53 * lower, 53 * upper],  # x_sh
-            [6 * lower, 6 * upper],  # x_sp
-            [6 * lower, 6 * upper],  # x_sv
-            [42.11872864 * lower, 42.11872864 * upper],  # PaCO2_n [MAP]
-            [42.99484253 * lower, 42.99484253 * upper],  # f_ab_max [MAP]
-            [2.52 * lower, 2.52 * upper],  # f_ab_min
-            [9.596496582 * lower, 9.596496582 * upper],  # k_ab [MAP]
-            [94.99234009 * lower, 94.99234009 * 1.05],  # P_n [MAP]
-            [112 * 0.9, 112 * upper],  # P_n_max
-            [1.4 * lower, 1.4 * upper],  # f_acCO2_n
-            [12.3 * lower, 12.3 * upper],  # f_ac_max
-            [0.835 * lower, 0.835 * upper],  # f_ac_min
-            [29.27 * lower, 29.27 * upper],  # k_ac
-            [3 * lower, 3 * upper],  # K_H
-            [45 * lower, 45 * upper],  # PaO2_ac_n
-            [11.76 * lower, 11.76 * upper],  # G_ap
-            [-0.1113971844 * upper, -0.1113971844 * lower],  # GT_s [MAP]
-            [0.0733776018 * lower, 0.0733776018 * upper],  # GT_v [MAP]
-            [0.6158705354 * lower, 0.6158705354 * upper],  # T0 [MAP]
-            [20.9 * lower, 20.9 * upper],  # A
-            [92.8 * lower, 92.8 * upper],  # B
-            [10570 * lower, 10570 * upper],  # C
-            [-5.251 * upper, -5.251 * lower],  # D
-            [0.14 * lower, 0.14 * upper],  # Cvb_O2_n
-            [10 * lower, 10 * upper],  # gb_O2
-            [0.948317647 * lower, 0.948317647 * upper],  # MO2_bp [MAP]
-            [6.57 * lower, 6.57 * upper],  # R_bpn
-            [0.11 * lower, 0.11 * upper],  # Cvh_O2_n
-            [0.155 * lower, 0.155 * upper],  # Cvrm_O2_n
-            [35 * lower, 35 * upper],  # gh_O2
-            [30 * lower, 30 * upper],  # grm_O2
-            [11.11 * lower, 11.11 * upper],  # Kh_CO2
-            [142.8 * lower, 142.8 * upper],  # Krm_CO2
-            [0.4 * lower, 0.4 * upper],  # MO2_hpn
-            [0.86 * lower, 0.86 * upper],  # MO2_rmp
-            [19.71 * lower, 19.71 * upper],  # R_hpn
-            [12660 * lower, 12660 * upper],  # W_hn
-            [0.1522061974 * lower, 0.1522061974 * upper],  # Cvam_O2_n [MAP]
-            [30 * lower, 30 * upper],  # gam_O2
-            [40 * lower, 40 * upper],  # gM
-            [0.3927663863 * lower, 0.3927663863 * upper],  # Io_met [MAP]
-            [0.1622164398 * lower, 0.1622164398 * upper],  # kmet [MAP]
-            [0.516 * lower, 0.516 * upper],  # MO2_ampn
-            [20 * lower, 20 * upper],  # phi_max
-            [-1.87 * upper, -1.87 * lower],  # phi_min
-            [1000 * lower, 1000 * upper],  # Kp_ao
-            [5000 * lower, 5000 * upper],  # Kf_ao
-            [2 * lower, 2 * upper],  # Kb_ao
-            [7 * lower, 7 * upper],  # Kv_ao
-            [1.309 * lower, 1.309 * upper],  # theta_ao_max
-            [1200 * lower, 1200 * upper],  # Kp_mi
-            [200 * lower, 200 * upper],  # Kf_mi
-            [2 * lower, 2 * upper],  # Kb_mi
-            [3.232190371 * lower, 3.232190371 * upper],  # Kv_mi [MAP]
-            [1.309 * lower, 1.309 * upper],  # theta_mi_max
-            [2000 * lower, 2000 * upper],  # Kp_po
-            [2000 * lower, 2000 * upper],  # Kf_po
-            [2 * lower, 2 * upper],  # Kb_po
-            [5.827977657 * lower, 5.827977657 * upper],  # Kv_po [MAP]
-            [1.309 * lower, 1.309 * upper],  # theta_po_max
-            [2000 * lower, 2000 * upper],  # Kp_tr
-            [200 * lower, 200 * upper],  # Kf_tr
-            [2 * lower, 2 * upper],  # Kb_tr
-            [3.484293938 * lower, 3.484293938 * upper],  # Kv_tr [MAP]
-            [1.309 * lower, 1.309 * upper],  # theta_tr_max
-            [0.0000317 * lower, 0.0000317 * upper],  # alpha_O2
-            [350 * lower, 350 * upper],  # R_po
-            [400 * lower, 400 * upper],  # R_mi
-            [400 * lower, 400 * upper],  # R_tr
-            [350 * lower, 350 * upper],  # R_ao
-            [0.00147458876 * lower, 0.00147458876 * upper],  # C_O2_param1 [MAP]
-            [2.6 * lower, 2.6 * upper],  # C_O2_param2
-            [3.03e-5 * lower, 3.03e-5 * upper],  # C_O2_param3
-            [104 * lower, 104 * upper],  # PAMO2_nominal
-            [261.2475281 * lower, 261.2475281 * upper],  # Vu_bv [MAP]
-            [93.16 * lower, 93.16 * upper],  # Vu_hv
-            [520.1243286 * lower, 520.1243286 * upper],  # Vu_jp [MAP]
-            [123 * lower, 123 * upper],  # Vu_vc
-            [116.68 * lower, 116.68 * upper],  # Vu_pp
-            [114 * lower, 114 * upper],  # Vu_pv
-            [25.18439865 * lower, 25.18439865 * upper],  # Vu_la [MAP]
-            [18.5427227 * lower, 18.5427227 * upper],  # Vu_lv [MAP]
-            [35.5100708 * lower, 35.5100708 * upper],  # Vu_ra [MAP]
-            [42.27091217 * lower, 42.27091217 * upper],  # Vu_rv [MAP]
-            [8 * lower, 8 * upper],  # tau_Emax_lv
-            [8 * lower, 8 * upper],  # tau_Emax_rv
-            [2 * lower, 2 * upper],  # tau_Ramp
-            [2 * lower, 2 * upper],  # tau_Rep
-            [2 * lower, 2 * upper],  # tau_Rrmp
-            [2 * lower, 2 * upper],  # tau_Rsp
-            [20 * lower, 20 * upper],  # tau_Vamv
-            [20 * lower, 20 * upper],  # tau_Vev
-            [20 * lower, 20 * upper],  # tau_Vrmv
-            [20 * lower, 20 * upper],  # tau_Vsv
-            [249.5251617 * lower, 249.5251617 * upper],  # Vu_amv0 [MAP]
-            [539.7653809 * lower, 539.7653809 * upper],  # Vu_ev0 [MAP]
-            [190.95 * lower, 190.95 * upper],  # Vu_rmv0
-            [1277.881592 * lower, 1277.881592 * upper],  # Vu_sv0 [MAP]
-            [20 * lower, 20 * upper],  # tau_cc
-            [30 * lower, 30 * upper],  # tau_isc
-            [2.076 * lower, 2.076 * upper],  # tau_p
-            [0.8 * lower, 0.8 * upper],  # tau_z
-            [2 * lower, 2 * upper],  # tau_ac
-            [2 * lower, 2 * upper],  # tau_ap
-            [2 * lower, 2 * upper],  # tau_Ts
-            [1.5 * lower, 1.5 * upper],  # tau_Tv
-            [20 * lower, 20 * upper],  # tau_CO2
-            [10 * lower, 10 * upper],  # tau_O2
-            [5 * lower, 5 * upper],  # tau_w
-            [40 * lower, 40 * upper],  # tau_M
-            [10 * lower, 10 * upper],  # tau_met
-            [2 * lower, 2 * upper],  # DEmax_lv
-            [2 * lower, 2 * upper],  # DEmax_rv
-            [2 * lower, 2 * upper],  # DR_amp
-            [2 * lower, 2 * upper],  # DR_ep
-            [2 * lower, 2 * upper],  # DR_rmp
-            [2 * lower, 2 * upper],  # DR_sp
-            [5 * lower, 5 * upper],  # DV_amv
-            [5 * lower, 5 * upper],  # DV_ev
-            [5 * lower, 5 * upper],  # DV_rmv
-            [5 * lower, 5 * upper],  # DV_sv
-            [2 * lower, 2 * upper],  # DT_s
-            [0.2 * lower, 0.2 * upper],  # DT_v
-            [4 * lower, 4 * upper],  # Dmet
-            [0.3 * lower, 0.3 * upper],  # Ta
-            [0.01238193363 * lower, 0.01238193363 * upper],  # KE_lv [MAP]
-            [0.01171110664 * lower, 0.01171110664 * upper],  # KE_rv [MAP]
-            [0.1 * lower, 0.1 * upper],  # T1
-            [0.2 * lower, 0.2 * upper],  # T2
-            [3 * lower, 3 * upper],  # VL_CO2
-            [2.5 * lower, 2.5 * upper],  # VL_O2
-            [20 * lower, 20 * upper],  # KCSFCO2
-            [0.01 * lower, 0.01 * upper],  # VB
-            [50 * lower, 50 * upper],  # tauMR
-            [0.25 * lower, 0.25 * upper],  # VTCO2
-            [0.25 * lower, 0.25 * upper],  # VTO2
-            [50 * lower, 50 * upper],  # tau_MRV
-            [4.9 * lower, 4.9 * upper],  # scale_param1
-            [0.3 * lower, 0.3 * upper],  # scale_param3
-            [26.6 * lower, 26.6 * upper],  # scale_param4
-            [0.04 * lower, 0.04 * upper],  # scale_param6
-            [80 * lower, 80 * upper],  # Pa_O2_lower
-            [0.04482196271 * lower, 0.04482196271 * upper],  # rise_time_atr [MAP]
-            [0.3259368539 * 0.8, 0.3259368539 * 1.2],  # rise_time_ven [MAP]
-            [0.5003861189 * 0.85, 0.5003861189 * 1.15],  # fall_time_ven [MAP]
-            [0.8912405968 * 0.92, 0.8912405968 * 1.08],  # ahead1 [MAP]
-            [0.0873 * lower, 0.0873 * upper],  # theta_min
-            [1.194072247 * 0.85, 1.194072247 * 1.15],  # r [MAP]
-            [1.307331085 * 0.85, 1.307331085 * 1.15],  # l [MAP]
-            [139.8052521 * lower, 139.8052521 * upper],  # V_nominal [MAP]
-            [51.30523682 * lower, 51.30523682 * upper]   # V_scale [MAP]
+            [0.037361187576 * lower, 0.037361187576 * upper],  # beta2 [MAP]
+            [100.826812355449 * lower, 100.826812355449 * upper],  # C2 [MAP]
+            [169.622481377162 * lower, 169.622481377162 * upper],  # K2 [MAP]
+            [2.036038971916 * lower, 2.036038971916 * upper],  # a2 [MAP]
+            [0.05591 * lower, 0.05591 * upper],
+            [346000 * lower, 346000 * upper],
+            [0.1698 * lower, 0.1698 * upper],
+            [0.2332 * lower, 0.2332 * upper],
+            [1 * lower, 1 * upper],
+            [0.2025 * lower, 0.2025 * upper],
+            [0.00000000472 * lower, 0.00000000472 * upper],
+            [0.18282823609 * lower, 0.18282823609 * upper],  # V0_dead [MAP]
+            [0.0673 * lower, 0.0673 * upper],
+            [18.890244012046 * lower, 18.890244012046 * upper],  # E_rs [MAP]
+            [3.623644350909 * lower, 3.623644350909 * upper],  # R_rs [MAP]
+            [4.06728622462 * lower, 4.06728622462 * upper],  # C_jp [MAP]
+            [0.28 * lower, 0.28 * upper],
+            [0.00022 * lower, 0.00022 * upper],
+            [0.051871492229 * lower, 0.051871492229 * upper],  # R_sa [MAP]
+            [9.4 * lower, 9.4 * upper],
+            [10.71 * lower, 10.71 * upper],
+            [20 * lower, 20 * upper],
+            [3.57 * lower, 3.57 * upper],
+            [6.28 * lower, 6.28 * upper],
+            [52.987192868291 * lower, 52.987192868291 * upper],  # C_sv [MAP]
+            [24.17 * lower, 24.17 * upper],
+            [10 * lower, 10 * upper],
+            [0.0833 * lower, 0.0833 * upper],
+            [0.075 * lower, 0.075 * upper],
+            [0.04 * lower, 0.04 * upper],
+            [0.224 * lower, 0.224 * upper],
+            [0.125 * lower, 0.125 * upper],
+            [0.038 * lower, 0.038 * upper],
+            [0.15 * lower, 0.15 * upper],
+            [0.3855 * lower, 0.3855 * upper],
+            [50 * lower, 50 * upper],
+            [10000 * lower, 10000 * upper],
+            [0.021915411144 * lower, 0.021915411144 * upper],  # Rvc_n [MAP]
+            [0.76 * lower, 0.76 * upper],
+            [5.8 * lower, 5.8 * upper],
+            [25.37 * lower, 25.37 * upper],
+            [0.00018 * lower, 0.00018 * upper],
+            [0.019662904331 * lower, 0.019662904331 * upper],  # R_pa [MAP]
+            [0.077044385521 * lower, 0.077044385521 * upper],  # R_pp [MAP]
+            [0.0056 * lower, 0.0056 * upper],
+            [0.39505525601 * lower, 0.39505525601 * upper],  # Emax_la [MAP]
+            [0.456638725603 * lower, 0.456638725603 * upper],  # P0_la [MAP]
+            [0.385909354649 * lower, 0.385909354649 * upper],  # Emax_ra [MAP]
+            [0.384882977497 * lower, 0.384882977497 * upper],  # P0_ra [MAP]
+            [0.0572715743 * lower, 0.0572715743 * upper],  # KE_la [MAP]
+            [0.042427107208 * lower, 0.042427107208 * upper],  # KE_ra [MAP]
+            [1.715210068467 * lower, 1.715210068467 * upper],  # P0_lv [MAP]
+            [1.274033049278 * lower, 1.274033049278 * upper],  # P0_rv [MAP]
+            [0.04 * lower, 0.04 * upper],
+            [28.185081706614 * lower, 28.185081706614 * upper],  # fab_o [MAP]
+            [14.230002676934 * lower, 14.230002676934 * upper],  # fes_o [MAP]
+            [2.399607677626 * lower, 2.399607677626 * upper],  # fes_inf [MAP]
+            [80 * lower, 80 * upper],
+            [2.770487235522 * lower, 2.770487235522 * upper],  # fev_o [MAP]
+            [7.106351267331 * lower, 7.106351267331 * upper],  # fev_inf [MAP]
+            [0.080996308131 * lower, 0.080996308131 * upper],  # kes [MAP]
+            [7.06 * lower, 7.06 * upper],
+            [0.658 * lower, 0.658 * upper],
+            [0.65 * lower, 0.65 * upper],
+            [0.389235644269 * lower, 0.389235644269 * upper],  # Io_sv [MAP]
+            [0.126 * lower, 0.126 * upper],
+            [0.114 * lower, 0.114 * upper],
+            [0.13 * lower, 0.13 * upper],
+            [0.103576404777 * lower, 0.103576404777 * upper],  # kcc_sv [MAP]
+            [0.0162 * lower, 0.0162 * upper],
+            [9 * lower, 9 * upper],
+            [-0.0283 * upper, -0.0283 * lower],
+            [5.5 * lower, 5.5 * upper],
+            [-0.037 * upper, -0.037 * lower],
+            [64.9 * lower, 64.9 * upper],
+            [-0.437 * upper, -0.437 * lower],
+            [1.9 * lower, 1.9 * upper],
+            [-0.0008 * upper, -0.0008 * lower],
+            [-0.68 * upper, -0.68 * lower],
+            [-1.983796073714 * upper, -1.983796073714 * lower],  # Wb_sh [MAP]
+            [-1.1375 * upper, -1.1375 * lower],
+            [-0.963025739055 * upper, -0.963025739055 * lower],  # Wb_sv [MAP]
+            [1 * lower, 1 * upper],
+            [1.716 * lower, 1.716 * upper],
+            [1.716 * lower, 1.716 * upper],
+            [0.2 * lower, 0.2 * upper],
+            [-0.3997 * upper, -0.3997 * lower],
+            [-0.3997 * upper, -0.3997 * lower],
+            [-0.103 * upper, -0.103 * lower],
+            [0.4 * lower, 0.4 * upper],
+            [0.4 * lower, 0.4 * upper],
+            [0.4 * lower, 0.4 * upper],
+            [0.4 * lower, 0.4 * upper],
+            [2.06151705504 * lower, 2.06151705504 * upper],  # Emax_lv0 [MAP]
+            [1.203022176229 * lower, 1.203022176229 * upper],  # Emax_rv0 [MAP]
+            [2.312410099949 * lower, 2.312410099949 * upper],  # fes_min [MAP]
+            [0.475 * lower, 0.475 * upper],
+            [0.282 * lower, 0.282 * upper],
+            [2.47 * lower, 2.47 * upper],
+            [1.94 * lower, 1.94 * upper],
+            [2.47 * lower, 2.47 * upper],
+            [0.695 * lower, 0.695 * upper],
+            [-58.29 * upper, -58.29 * lower],
+            [-74.21 * upper, -74.21 * lower],
+            [-58.29 * upper, -58.29 * lower],
+            [-265.4 * upper, -265.4 * lower],
+            [3.51 * lower, 3.51 * upper],
+            [1.655 * lower, 1.655 * upper],
+            [5.27 * lower, 5.27 * upper],
+            [2.49 * lower, 2.49 * upper],
+            [1 * lower, 1 * upper],
+            [1.5 * lower, 1.5 * upper],
+            [6 * lower, 6 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [45 * lower, 45 * upper],
+            [30 * lower, 30 * upper],
+            [30 * lower, 30 * upper],
+            [3.6 * lower, 3.6 * upper],
+            [13.32 * lower, 13.32 * upper],
+            [12.309577661518 * lower, 12.309577661518 * upper],  # theta_svn [MAP]
+            [53 * lower, 53 * upper],
+            [6 * lower, 6 * upper],
+            [6 * lower, 6 * upper],
+            [36.145946392941 * lower, 36.145946392941 * upper],  # PaCO2_n [MAP]
+            [40.911147592035 * lower, 40.911147592035 * upper],  # f_ab_max [MAP]
+            [2.52 * lower, 2.52 * upper],
+            [10.345332082469 * lower, 10.345332082469 * upper],  # k_ab [MAP]
+            [96.593807343782 * lower, 96.593807343782 * 1.05],  # P_n [MAP]
+            [112 * 0.9, 112 * upper],
+            [1.4 * lower, 1.4 * upper],
+            [12.3 * lower, 12.3 * upper],
+            [0.835 * lower, 0.835 * upper],
+            [29.27 * lower, 29.27 * upper],
+            [3 * lower, 3 * upper],
+            [45 * lower, 45 * upper],
+            [11.76 * lower, 11.76 * upper],
+            [-0.115980682677 * upper, -0.115980682677 * lower],  # GT_s [MAP]
+            [0.093398458554 * lower, 0.093398458554 * upper],  # GT_v [MAP]
+            [0.662755467642 * lower, 0.662755467642 * upper],  # T0 [MAP]
+            [20.9 * lower, 20.9 * upper],
+            [92.8 * lower, 92.8 * upper],
+            [10570 * lower, 10570 * upper],
+            [-5.251 * upper, -5.251 * lower],
+            [0.14 * lower, 0.14 * upper],
+            [10 * lower, 10 * upper],
+            [0.806392872949 * lower, 0.806392872949 * upper],  # MO2_bp [MAP]
+            [6.57 * lower, 6.57 * upper],
+            [0.11 * lower, 0.11 * upper],
+            [0.155 * lower, 0.155 * upper],
+            [35 * lower, 35 * upper],
+            [30 * lower, 30 * upper],
+            [11.11 * lower, 11.11 * upper],
+            [142.8 * lower, 142.8 * upper],
+            [0.4 * lower, 0.4 * upper],
+            [0.86 * lower, 0.86 * upper],
+            [19.71 * lower, 19.71 * upper],
+            [12660 * lower, 12660 * upper],
+            [0.136618325734 * lower, 0.136618325734 * upper],  # Cvam_O2_n [MAP]
+            [30 * lower, 30 * upper],
+            [40 * lower, 40 * upper],
+            [0.365243647731 * lower, 0.365243647731 * upper],  # Io_met [MAP]
+            [0.156284159241 * lower, 0.156284159241 * upper],  # kmet [MAP]
+            [0.516 * lower, 0.516 * upper],
+            [20 * lower, 20 * upper],
+            [-1.87 * upper, -1.87 * lower],
+            [1000 * lower, 1000 * upper],
+            [5000 * lower, 5000 * upper],
+            [2 * lower, 2 * upper],
+            [7 * lower, 7 * upper],
+            [1.309 * lower, 1.309 * upper],
+            [1200 * lower, 1200 * upper],
+            [200 * lower, 200 * upper],
+            [2 * lower, 2 * upper],
+            [4.040850924835 * lower, 4.040850924835 * upper],  # Kv_mi [MAP]
+            [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper],
+            [2000 * lower, 2000 * upper],
+            [2 * lower, 2 * upper],
+            [6.032042802243 * lower, 6.032042802243 * upper],  # Kv_po [MAP]
+            [1.309 * lower, 1.309 * upper],
+            [2000 * lower, 2000 * upper],
+            [200 * lower, 200 * upper],
+            [2 * lower, 2 * upper],
+            [3.078695175846 * lower, 3.078695175846 * upper],  # Kv_tr [MAP]
+            [1.309 * lower, 1.309 * upper],
+            [0.0000317 * lower, 0.0000317 * upper],
+            [350 * lower, 350 * upper],
+            [400 * lower, 400 * upper],
+            [400 * lower, 400 * upper],
+            [350 * lower, 350 * upper],
+            [0.001465418486 * lower, 0.001465418486 * upper],  # C_O2_param1 [MAP]
+            [2.6 * lower, 2.6 * upper],
+            [0.0000303 * lower, 0.0000303 * upper],
+            [104 * lower, 104 * upper],
+            [319.120325857796 * lower, 319.120325857796 * upper],  # Vu_bv [MAP]
+            [93.16 * lower, 93.16 * upper],
+            [509.491591784982 * lower, 509.491591784982 * upper],  # Vu_jp [MAP]
+            [123 * lower, 123 * upper],
+            [116.68 * lower, 116.68 * upper],
+            [114 * lower, 114 * upper],
+            [27.289384390602 * lower, 27.289384390602 * upper],  # Vu_la [MAP]
+            [13.641276764031 * lower, 13.641276764031 * upper],  # Vu_lv [MAP]
+            [34.926071035468 * lower, 34.926071035468 * upper],  # Vu_ra [MAP]
+            [43.566591638824 * lower, 43.566591638824 * upper],  # Vu_rv [MAP]
+            [8 * lower, 8 * upper],
+            [8 * lower, 8 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [20 * lower, 20 * upper],
+            [20 * lower, 20 * upper],
+            [20 * lower, 20 * upper],
+            [20 * lower, 20 * upper],
+            [253.88464393659 * lower, 253.88464393659 * upper],  # Vu_amv0 [MAP]
+            [522.770609173199 * lower, 522.770609173199 * upper],  # Vu_ev0 [MAP]
+            [190.95 * lower, 190.95 * upper],
+            [1174.878701407525 * lower, 1174.878701407525 * upper],  # Vu_sv0 [MAP]
+            [20 * lower, 20 * upper],
+            [30 * lower, 30 * upper],
+            [2.076 * lower, 2.076 * upper],
+            [0.8 * lower, 0.8 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [1.5 * lower, 1.5 * upper],
+            [20 * lower, 20 * upper],
+            [10 * lower, 10 * upper],
+            [5 * lower, 5 * upper],
+            [40 * lower, 40 * upper],
+            [10 * lower, 10 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [2 * lower, 2 * upper],
+            [5 * lower, 5 * upper],
+            [5 * lower, 5 * upper],
+            [5 * lower, 5 * upper],
+            [5 * lower, 5 * upper],
+            [2 * lower, 2 * upper],
+            [0.2 * lower, 0.2 * upper],
+            [4 * lower, 4 * upper],
+            [0.3 * lower, 0.3 * upper],
+            [0.012328616147 * lower, 0.012328616147 * upper],  # KE_lv [MAP]
+            [0.012279442473 * lower, 0.012279442473 * upper],  # KE_rv [MAP]
+            [0.1 * lower, 0.1 * upper],
+            [0.2 * lower, 0.2 * upper],
+            [3 * lower, 3 * upper],
+            [2.5 * lower, 2.5 * upper],
+            [20 * lower, 20 * upper],
+            [0.01 * lower, 0.01 * upper],
+            [50 * lower, 50 * upper],
+            [0.25 * lower, 0.25 * upper],
+            [0.25 * lower, 0.25 * upper],
+            [50 * lower, 50 * upper],
+            [4.9 * lower, 4.9 * upper],
+            [0.3 * lower, 0.3 * upper],
+            [26.6 * lower, 26.6 * upper],
+            [0.04 * lower, 0.04 * upper],
+            [80 * lower, 80 * upper],
+            [0.039711933621 * lower, 0.039711933621 * upper],  # rise_time_atr [MAP]
+            [0.343165686803 * lower, 0.343165686803 * upper],  # rise_time_ven [MAP]
+            [0.498695070384 * 0.85, 0.498695070384 * 1.15],  # fall_time_ven [MAP]
+            [0.972301172882 * 0.92, 0.972301172882 * 1.08],  # ahead1 [MAP]
+            [0.0873 * lower, 0.0873 * upper],
+            [1.126938173047 * 0.85, 1.126938173047 * 1.15],  # r [MAP]
+            [1.315543200288 * 0.85, 1.315543200288 * 1.15],  # l [MAP]
+            [134.920729578221 * lower, 134.920729578221 * upper],  # V_nominal [MAP]
+            [44.395890818351 * lower, 44.395890818351 * upper],  # V_scale [MAP]
         ]
     })
 
@@ -467,82 +457,82 @@ output_names = [
 
 
 
-# dgsm_summary = OrderedDict()
-#
-# # min_frac = 0.003  # 0.3%
-# min_frac = 0.01
-# # min_frac = 0.0
-#
-# for col in range(Result.shape[1]):
-#
-#     Y = Result[:, col]
-#     output_label = output_names[col]
-#
-#     # Skip invalid outputs
-#     if not np.all(np.isfinite(Y)):
-#         print(f"Skipping {output_label} (non-finite values)")
-#         continue
-#
-#     # DGSM analysis
-#     Si = dgsm.analyze(sp, X, Y, print_to_console=False)
-#
-#     dgsm_vals = np.array(Si["dgsm"], dtype=float)
-#     names = np.array(Si["names"])
-#
-#     # Sort descending
-#     order = np.argsort(dgsm_vals)[::-1]
-#     dgsm_sorted = dgsm_vals[order]
-#     names_sorted = names[order]
-#
-#     total = dgsm_sorted.sum()
-#     if total <= 0 or not np.isfinite(total):
-#         print(f"Skipping {output_label} (non-positive/invalid DGSM total: {total})")
-#         continue
-#
-#     # --- NEW: keep only params contributing >= 0.3% of total ---
-#     thresh = min_frac * total
-#     keep = dgsm_sorted >= thresh
-#     dgsm_kept = dgsm_sorted[keep]
-#     names_kept = names_sorted[keep]
-#
-#     # Cumulative sensitivity over kept params, but target is 90% of ORIGINAL total
-#     cumu = np.cumsum(dgsm_kept)
-#
-#     target = 0.9 * total
-#     if cumu.size == 0:
-#         idx_90 = 0
-#         top_names_90 = np.array([])
-#         top_dgsm_90 = np.array([])
-#         reached = 0.0
-#     else:
-#         idx_90 = np.searchsorted(cumu, target) + 1
-#         # if you can't reach 90% without including <0.3% params, cap at all kept
-#         idx_90 = min(idx_90, len(cumu))
-#         top_names_90 = names_kept[:idx_90]
-#         top_dgsm_90 = dgsm_kept[:idx_90]
-#         reached = cumu[idx_90 - 1] / total
-#
-#     dgsm_summary[output_label] = {
-#         "n_params_90": idx_90,
-#         "param_names": top_names_90,
-#         "dgsm_values": top_dgsm_90,
-#         "min_frac": min_frac,
-#         "fraction_of_total_reached": reached,
-#         "n_params_passing_0p3pct": int(keep.sum()),
-#     }
-#
-#     # ---- Console output ----
-#     print("\n" + "=" * 80)
-#     print(f"Output: {output_label}")
-#     print(f"Min per-parameter contribution: {min_frac*100:.1f}% (DGSM >= {thresh:.4e})")
-#     print(f"Parameters selected (up to 90% total, with cutoff): {idx_90}")
-#     print(f"Fraction of total DGSM reached: {reached*100:.2f}%")
-#     if reached < 0.90:
-#         print("NOTE: Could not reach 90% without including parameters < 1.0% each.")
-#
-#     print("-" * 80)
-#     for name, val in zip(top_names_90, top_dgsm_90):
-#         print(f"{name:25s} : {val:.4e}  ({val/total*100:.3f}%)")
+dgsm_summary = OrderedDict()
+
+# min_frac = 0.003  # 0.3%
+min_frac = 0.01
+# min_frac = 0.0
+
+for col in range(Result.shape[1]):
+
+    Y = Result[:, col]
+    output_label = output_names[col]
+
+    # Skip invalid outputs
+    if not np.all(np.isfinite(Y)):
+        print(f"Skipping {output_label} (non-finite values)")
+        continue
+
+    # DGSM analysis
+    Si = dgsm.analyze(sp, X, Y, print_to_console=False)
+
+    dgsm_vals = np.array(Si["dgsm"], dtype=float)
+    names = np.array(Si["names"])
+
+    # Sort descending
+    order = np.argsort(dgsm_vals)[::-1]
+    dgsm_sorted = dgsm_vals[order]
+    names_sorted = names[order]
+
+    total = dgsm_sorted.sum()
+    if total <= 0 or not np.isfinite(total):
+        print(f"Skipping {output_label} (non-positive/invalid DGSM total: {total})")
+        continue
+
+    # --- NEW: keep only params contributing >= 0.3% of total ---
+    thresh = min_frac * total
+    keep = dgsm_sorted >= thresh
+    dgsm_kept = dgsm_sorted[keep]
+    names_kept = names_sorted[keep]
+
+    # Cumulative sensitivity over kept params, but target is 90% of ORIGINAL total
+    cumu = np.cumsum(dgsm_kept)
+
+    target = 0.9 * total
+    if cumu.size == 0:
+        idx_90 = 0
+        top_names_90 = np.array([])
+        top_dgsm_90 = np.array([])
+        reached = 0.0
+    else:
+        idx_90 = np.searchsorted(cumu, target) + 1
+        # if you can't reach 90% without including <0.3% params, cap at all kept
+        idx_90 = min(idx_90, len(cumu))
+        top_names_90 = names_kept[:idx_90]
+        top_dgsm_90 = dgsm_kept[:idx_90]
+        reached = cumu[idx_90 - 1] / total
+
+    dgsm_summary[output_label] = {
+        "n_params_90": idx_90,
+        "param_names": top_names_90,
+        "dgsm_values": top_dgsm_90,
+        "min_frac": min_frac,
+        "fraction_of_total_reached": reached,
+        "n_params_passing_0p3pct": int(keep.sum()),
+    }
+
+    # ---- Console output ----
+    print("\n" + "=" * 80)
+    print(f"Output: {output_label}")
+    print(f"Min per-parameter contribution: {min_frac*100:.1f}% (DGSM >= {thresh:.4e})")
+    print(f"Parameters selected (up to 90% total, with cutoff): {idx_90}")
+    print(f"Fraction of total DGSM reached: {reached*100:.2f}%")
+    if reached < 0.90:
+        print("NOTE: Could not reach 90% without including parameters < 1.0% each.")
+
+    print("-" * 80)
+    for name, val in zip(top_names_90, top_dgsm_90):
+        print(f"{name:25s} : {val:.4e}  ({val/total*100:.3f}%)")
 
 
 from collections import OrderedDict
