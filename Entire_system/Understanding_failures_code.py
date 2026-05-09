@@ -2,6 +2,7 @@ import os
 import copy
 import signal
 import queue
+import time
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
@@ -538,6 +539,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
 def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=None, breath_coef=None):
+    started_at = time.monotonic()
     try:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -545,17 +547,21 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=N
         result = simulate_cpu(params, storage, old_parameters, IC_initial, breath_coef)
         signal.alarm(0)  # Cancel timeout
         return result
+    except TimeoutError:
+        signal.alarm(0)  # Cancel timeout
+        elapsed = time.monotonic() - started_at
+        print(f"[SIGNAL TIMEOUT] elapsed={elapsed:.1f}s limit={timeout}s")
+        return ([SLOW_VALUE] * RESULT_SIZE, None, None, None)
     except Exception:
         signal.alarm(0)  # Cancel timeout
-        print("too slow")
-        return ([SLOW_VALUE] * RESULT_SIZE, None, None, None)
+        raise
 
 def run_basepoint(base_sample, old_Parameters):
     storage_copy = make_fresh_storage()
 
     try:
         # run all basepoints even if slow
-        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(
+        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
             base_sample, storage_copy, old_Parameters
         )
 
@@ -611,6 +617,7 @@ def run_basepoint_with_process_timeout(
     base_sample,
     old_parameters,
     timeout=SIMULATION_TIMEOUT_SECONDS,
+    sample_index=None,
 ):
     """
     Run one simulation in a disposable child process.
@@ -625,16 +632,18 @@ def run_basepoint_with_process_timeout(
         args=(result_queue, base_sample, old_parameters),
     )
 
+    started_at = time.monotonic()
     proc.start()
     proc.join(timeout)
 
     if proc.is_alive():
+        elapsed = time.monotonic() - started_at
         proc.terminate()
         proc.join(5)
         if proc.is_alive():
             proc.kill()
             proc.join()
-        print("too slow")
+        print(f"[PROCESS TIMEOUT] sample={sample_index} elapsed={elapsed:.1f}s limit={timeout}s")
         result_queue.close()
         result_queue.join_thread()
         return np.full(RESULT_SIZE, SLOW_VALUE, dtype=float)
@@ -672,6 +681,7 @@ def parallel_basepoints(base_param_samples, n_jobs, save_path="Basepoint_Result.
                 params,
                 Old_Parameters,
                 SIMULATION_TIMEOUT_SECONDS,
+                idx,
             ): idx
             for idx, params in enumerate(base_param_samples)
         }
@@ -695,8 +705,8 @@ def parallel_basepoints(base_param_samples, n_jobs, save_path="Basepoint_Result.
 
 if __name__ == "__main__":
 
-    lower = 0.5
-    upper = 1.5
+    lower = 0.1
+    upper = 1.9
 
     # change
     sp = ProblemSpec({
@@ -877,7 +887,7 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
     # base_name = "pct_90_bad_outside_50_no_C2_Ers_Rrs_T0_GTs_DVrmv_Ramvn_taup_falltimeventhetaaomaxWcshLsa_KpmiVulvWcsvkab"
-    base_name = "check_50"
+    base_name = "check"
     # change
     X = finite_diff.sample(sp, 500)
     X = X[::273]
