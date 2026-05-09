@@ -21,7 +21,7 @@ from All_derivatives_njit import model_derivatives
 from fixed_params import Parameters as Old_Parameters
 
 from Initial_Conditions_after_running_again import Initial_Conditions
-from All_Next_Conditions import Next_Conditions
+from All_Next_Conditions import make_fresh_storage
 
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 40000
@@ -140,27 +140,36 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
 def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=None, breath_coef=None):
     # local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
+    i = local_updates["i"].item()
+    latest_nonzero_index = (i - 1) % BUFFER_LIMIT
+    latest_nonzero_value = local_updates["all_time"][latest_nonzero_index]
 
     if IC_initial is None:
         IC_current = IC_overall.copy()
         t_span = [0, max_time]
+    elif latest_nonzero_value < 119:
+        IC_current = IC_initial.copy()
+        # rest (MUST CHANGE)
+        t_span = [max_time, max_time + 60]
+        # exercise
+        # t_span = [max_time, max_time + 180]
     else:
         IC_current = IC_initial.copy()
-        t_span = [max_time, max_time + 60]
+        t_span = [latest_nonzero_value, latest_nonzero_value + 60]
 
     # Cardio parameters
     (A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
      R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la,
-     Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, K1_vc, Rvc_n,
+     Emax_ra, P0_ra, KE_ra, C_sa, L_sa, R_sa, K1_vc, D1, Vvc_min, Kr_vc, Rvc_n,
      C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv, C_bv, C_hv, C_rmv, C_amv,
-     kr_am) = (
+     kr_am, P_0) = (
     Current_Parameters[k] if k in Current_Parameters else old_parameters[k] for k in
     ["A_im", "T_im", "Tc", "g_thor", "P_thormax_n", "P_thormin_n", "VT_n", "C_pa",
      "C_pp", "C_pv", "L_pa", "R_pa", "R_pp", "R_pv", "KE_lv", "KE_rv", "P0_lv", "P0_rv",
      "Emax_la", "P0_la", "KE_la", "Emax_ra", "P0_ra", "KE_ra", "C_sa", "L_sa",
-     "R_sa", "K1_vc", "Rvc_n", "C_jp",
+     "R_sa", "K1_vc", "D1", "Vvc_min", "Kr_vc", "Rvc_n", "C_jp",
      "R_ev_n", "R_sv_n", "R_bv_n", "R_hv_n", "R_rmv_n", "R_amv_n", "C_ev", "C_sv", "C_bv", "C_hv", "C_rmv", "C_amv",
-     "kr_am"])
+     "kr_am", "P_0"])
 
     # Cardio controller parameters
     (fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv, Io_v, kcc_sh, kcc_sp, kcc_sv,
@@ -234,8 +243,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     Input_Parameters = np.array([A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
     C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
-    L_sa, R_sa, K1_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
-    C_bv, C_hv, C_rmv, C_amv, kr_am, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
+    L_sa, R_sa, K1_vc, D1, Vvc_min, Kr_vc, Rvc_n, C_jp, R_ev_n, R_sv_n, R_bv_n, R_hv_n, R_rmv_n, R_amv_n, C_ev, C_sv,
+    C_bv, C_hv, C_rmv, C_amv, kr_am, P_0, fab_o, fes_o, fes_inf, fes_max, fev_o, fev_inf, kes, kev, Io_sh, Io_sp, Io_sv,
     Io_v, kcc_sh, kcc_sp, kcc_sv, kcc_v, Ysh_max, Ysh_min, Ysp_max, Ysp_min, Ysv_max, Ysv_min, Yv_max, Yv_min, theta_v,
     Wb_sh, Wb_sp, Wb_sv, Wc_sh, Wc_sp, Wc_sv, Wc_v, Wp_sh, Wp_sp, Wp_sv, Wp_v, Wt_sh, Wt_sp, Wt_sv, Wt_v, Emax_lv0,
     Emax_rv0, fes_min, GEmax_lv, GEmax_rv, GR_amp, GR_ep, GR_rmp, GR_sp, GV_amv, GV_ev, GV_rmv, GV_sv, R_amp0, R_ep0,
@@ -280,40 +289,35 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
-    P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
-    peaks, _ = find_peaks(P_sa, distance=int(1000))
-
-    last_10_peaks_P_sa = peaks[-11:-1]
-    last_10_max_P_sa = P_sa[last_10_peaks_P_sa]
-
     theta_ao = np.concatenate((local_updates["theta_ao_store"][i_buffer:], local_updates["theta_ao_store"][:i_buffer]))
     theta_po = np.concatenate((local_updates["theta_po_store"][i_buffer:], local_updates["theta_po_store"][:i_buffer]))
     theta_mi = np.concatenate((local_updates["theta_mi_store"][i_buffer:], local_updates["theta_mi_store"][:i_buffer]))
     theta_tr = np.concatenate((local_updates["theta_tr_store"][i_buffer:], local_updates["theta_tr_store"][:i_buffer]))
 
+    V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
     V_rv = np.concatenate((local_updates["V_rv_store"][i_buffer:], local_updates["V_rv_store"][:i_buffer]))
     V_ra = np.concatenate((local_updates["V_ra_store"][i_buffer:], local_updates["V_ra_store"][:i_buffer]))
     V_la = np.concatenate((local_updates["V_la_store"][i_buffer:], local_updates["V_la_store"][:i_buffer]))
 
     N = 50  # number of consecutive closed samples required
 
-    is_open = theta_ao > theta_min
+    is_open_ao = theta_ao > theta_min
     open_idx1 = []
     for k in range(N, len(theta_ao)):
-        if is_open[k] and not np.any(is_open[k - N:k]):
+        if is_open_ao[k] and not np.any(is_open_ao[k - N:k]):
             open_idx1.append(k)
-    open_idx1 = np.array(open_idx1)[-11:-1]
+    open_idx1 = np.array(open_idx1)
 
-    if open_idx1.size == 0:
+    is_closed_ao = theta_ao <= theta_min
+    close_idx1 = []
+    for k in range(N, len(theta_ao)):
+        if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
+            close_idx1.append(k)
+    close_idx1 = np.array(close_idx1)
+
+    if open_idx1.size == 0 or close_idx1.size == 0:
         print("ao fail")
         return [0.0] * 31, None, None, None
-
-    # is_closed_ao = theta_ao <= theta_min
-    # close_idx1 = []
-    # for k in range(N, len(theta_ao)):
-    #     if is_closed_ao[k] and not np.any(is_closed_ao[k - N:k]):
-    #         close_idx1.append(k)
-    # close_idx1 = np.array(close_idx1)[-11:-1]
 
     is_open_po = theta_po > theta_min
     open_idx2 = []
@@ -331,7 +335,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx2.size == 0 or close_idx2.size == 0:
         print("po fail")
-        return [0.0] * 31, None, None, None
+        return [0.0]*31, None, None, None
 
     is_open_mi = theta_mi > theta_min
     open_idx3 = []
@@ -349,7 +353,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx3.size == 0 or close_idx3.size == 0:
         print("mi fail")
-        return [0.0] * 31, None, None, None
+        return [0.0]*31, None, None, None
 
     is_open_tr = theta_tr > theta_min
     open_idx4 = []
@@ -367,7 +371,12 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx4.size == 0 or close_idx4.size == 0:
         print("tr fail")
-        return [0.0] * 31, None, None, None
+        return [0.0]*31, None, None, None
+
+    pairs_ao = np.array([
+        (o, close_idx1[(close_idx1 > o) & (close_idx1 < o_next)][-1])
+        for o, o_next in zip(open_idx1[:-1], open_idx1[1:])
+        if np.any((close_idx1 > o) & (close_idx1 < o_next))])
 
     pairs_po = np.array([
         (o, close_idx2[(close_idx2 > o) & (close_idx2 < o_next)][-1])
@@ -384,6 +393,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
         if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
+    pairs_ao = pairs_ao[-11:-1]
     pairs_po = pairs_po[-11:-1]
     pairs_mi = pairs_mi[-11:-1]
     pairs_tr = pairs_tr[-11:-1]
@@ -407,6 +417,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     start_idx = start_idx[:n_pairs]
     end_idx = end_idx[:n_pairs]
 
+    # systolic pressure
+    P_sa = np.concatenate((local_updates["P_sa_store"][i_buffer:], local_updates["P_sa_store"][:i_buffer]))
+    P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
+
     P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
     P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
@@ -423,17 +437,6 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     # period of V descent when tricuspid valve is open -> get second min la P
     P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
     P_ra_descent1_idx = np.array([c + np.argmin(P_ra[c:o_next]) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])])
-
-
-    V_lv = np.concatenate((local_updates["V_lv_store"][i_buffer:], local_updates["V_lv_store"][:i_buffer]))
-    peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
-    troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
-
-    last_10_troughs_V_lv = troughs[-11:-1]
-    last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
-
-    last_10_peaks_V_lv = peaks[-11:-1]
-    last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
 
     P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
@@ -461,9 +464,14 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     last_10_b4_RA_atrial_contract = V_ra[local_mins]
 
     tidal = np.concatenate((local_updates["tidal_store"][i_buffer:], local_updates["tidal_store"][:i_buffer]))
-    peaks, _ = find_peaks(tidal, distance=int(1000))
-    last_10_peaks_tidal = peaks[-1]
-    max_tidal = tidal[last_10_peaks_tidal]
+    finish_breath_time = np.concatenate((local_updates["finish_breath_time"][i_buffer:], local_updates["finish_breath_time"][:i_buffer]))
+    dtr = np.diff(finish_breath_time)
+
+    breath_starts = np.where(dtr > 0)[0] + 1
+    if breath_starts.size >= 2:
+        max_tidal = np.max(tidal[breath_starts[-2]:breath_starts[-1]])
+    else:
+        max_tidal = np.max(tidal[tidal > 0]) if np.any(tidal > 0) else 0.0
 
     VAflow = np.concatenate((local_updates["VAflow_store"][i_buffer:], local_updates["VAflow_store"][:i_buffer]))
     t1 = np.concatenate((local_updates["t1_store"][i_buffer:], local_updates["t1_store"][:i_buffer]))
@@ -504,12 +512,12 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
     dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
 
-    print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
+    # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
 
     IC_current = ODE_solution.y[:, -1]
 
-    return ([np.mean(past_10_flat_segments), np.mean(last_10_max_P_sa), np.mean(P_sa[open_idx1]),
-            np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
+    return ([np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
+            np.mean(V_lv[pairs_ao[:, 0]]), np.mean(V_lv[pairs_ao[:, 1]]), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
             np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
             np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
@@ -525,7 +533,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=150, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=None, breath_coef=None):
     try:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -538,10 +546,12 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=150, IC_initial=N
         print("too slow")
         return ([10000]*31, None, None, None)
 
-def run_basepoint(base_sample, storage_copy, old_Parameters):
+def run_basepoint(base_sample, old_Parameters):
+    storage_copy = make_fresh_storage()
+
     try:
         # run all basepoints even if slow
-        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(
+        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
             base_sample, storage_copy, old_Parameters
         )
 
@@ -553,6 +563,7 @@ def run_basepoint(base_sample, storage_copy, old_Parameters):
         ]
 
         if base_result[0] == 0:
+            print("fail", dict(list(base_sample.items())[:10]))
             return None
 
         return {
@@ -567,7 +578,7 @@ def run_basepoint(base_sample, storage_copy, old_Parameters):
         return None
 
 
-def parallel_basepoints(base_param_samples, storage, n_jobs, save_path="Basepoint_Result.npy"):
+def parallel_basepoints(base_param_samples, n_jobs, save_path="Basepoint_Result.npy"):
     """
     Run ONLY base samples (no finite-difference perturbations).
     Saves an (N_base, 31) array.
@@ -577,7 +588,7 @@ def parallel_basepoints(base_param_samples, storage, n_jobs, save_path="Basepoin
 
     # Run basepoints in parallel; each gets a fresh storage copy
     base_dicts = Parallel(n_jobs=n_jobs)(
-        delayed(run_basepoint)(params, copy.deepcopy(storage), Old_Parameters)
+        delayed(run_basepoint)(params, Old_Parameters)
         for params in base_param_samples
     )
 
@@ -606,7 +617,7 @@ if __name__ == "__main__":
         'names': [
             # gas
             "beta2", "C2", "K2", "a2",
-            "alpha2", "dc", "KCCO2", "GV_dead",
+            "alpha2", "KCCO2", "GV_dead",
             # resp control
             "KcCO2", "KcMRV", "KpCO2", "KpO2",
             "V0_dead", "VA_rest",
@@ -616,13 +627,14 @@ if __name__ == "__main__":
             "C_amv", "C_bv", "C_ev", "C_hv",
             "C_rmv", "C_sv", "kr_am", "P_0",
             "R_amv_n", "R_bv_n", "R_ev_n", "R_hv_n",
-            "R_rmv_n", "R_sv_n", "K1_vc",
+            "R_rmv_n", "R_sv_n", "K1_vc", "D1",
+            "Vvc_min", "Kr_vc",
             "Rvc_n", "C_pa", "C_pp",
             "C_pv", "L_pa", "R_pa", "R_pp",
             "R_pv", "Emax_la", "P0_la", "Emax_ra",
             "P0_ra", "KE_la", "KE_ra", "P0_lv",
-            "P0_rv", # "g_thor", "P_thormax_n", "P_thormin_n",
-            "VT_n", "s",
+            "P0_rv",
+            "s",
             # cardio control
             "fab_o", "fes_o", "fes_inf", "fes_max",
             "fev_o", "fev_inf", "kes", "kev",
@@ -644,7 +656,7 @@ if __name__ == "__main__":
             "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
             "theta_spn", "theta_svn", "x_sh", "x_sp",
             "x_sv", "PaCO2_n", "f_ab_max", "f_ab_min",
-            "k_ab", "P_n", "P_n_max","f_acCO2_n",
+            "k_ab", "P_n", "P_n_max", "f_acCO2_n",
             "f_ac_max", "f_ac_min", "k_ac", "K_H",
             "PaO2_ac_n", "G_ap", "GT_s", "GT_v",
             "T0", "A", "B", "C",
@@ -666,7 +678,7 @@ if __name__ == "__main__":
             "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
             "Vu_ra", "Vu_rv",
 
-            # "V_tot",
+            "V_tot",
             "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
             "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
             "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -692,23 +704,24 @@ if __name__ == "__main__":
         'bounds': [
             # gas
             [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
-            [0.05591 * lower, 0.05591 * upper], [0.015 * lower, 0.015 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
+            [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-            [21.9 * lower, 21.9 * upper], [3.02 * lower, 3.02 * upper],
+            [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
             # cardio
             [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
             [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
-            [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [3.93 * lower, 3.93 * upper],
+            [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [10 * lower, 10 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
-            [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper],
-            [0.0025 * lower, 0.0025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
+            [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
+            [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
+            [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
             [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
             [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
-            [1.5 * lower, 1.5 * upper], # [6.8 * lower, 6.8 * upper], [-2 * upper, -2 * lower], [-6 * upper, -6 * lower],
-            [0.73 * lower, 0.73 * upper], [0.04 * lower, 0.04 * upper],
+            [1.5 * lower, 1.5 * upper],
+            [0.04 * lower, 0.04 * upper],
             # cardio control
             [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
             [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper], [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper],
@@ -733,7 +746,7 @@ if __name__ == "__main__":
             [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
             [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
-            [0.58 * lower, 0.58 * upper],  [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
+            [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
             [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
             [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
             [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
@@ -749,10 +762,10 @@ if __name__ == "__main__":
             [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
-            [116.6775 * lower, 116.6775 * upper], [114 * lower, 114 * upper], [50 * lower, 50 * upper], [15.908 * lower, 15.908 * upper],
-            [90 * lower, 90 * upper], [38.703 * lower, 38.703 * upper],
+            [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
+            [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
 
-            # [5027.6 * 0.8, 5027.6 * 1.2],
+            [5027.15 * lower, 5027.15 * upper],
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -771,22 +784,22 @@ if __name__ == "__main__":
             # further added params
             [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-            [0.05 * lower, 0.05 * upper], [0.15 * lower, 0.15 * upper], [0.3 * lower, 0.3 * upper], [0.9 * 0.95, 0.9 * 1.05],
-            [0.0872665 * lower, 0.0872665 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
+            [0.045 * lower, 0.045 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
+            [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
     })
 
     param_keys = list(sp["names"])
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
-    base_name = "pct_90_bad_outside_50_all"
-
+    # base_name = "pct_90_bad_outside_50_no_C2_Ers_Rrs_T0_GTs_DVrmv_Ramvn_taup_falltimeventhetaaomaxWcshLsa_KpmiVulvWcsvkab"
+    base_name = "check"
     # change
-    # X = finite_diff.sample(sp, 500)
-    # np.save(f"{base_name}_X.npy", X[::272])
+    X = finite_diff.sample(sp, 500)
+    np.save(f"{base_name}_X.npy", X[::273])
     # scp "sw4924@bioeng397-pc.dept.ic.ac.uk:~/project/pct_50_bad_outside_20_no_xsp_C2*" "C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\"
 
-    X = np.load(f"{base_name}_X.npy")
+    # X = np.load(f"{base_name}_X.npy")
     # Result = np.load(f"{base_name}_Result.npy")
     Save_path = f"{base_name}_Result.npy"
     out_csv = f"{base_name}.csv"
@@ -798,14 +811,14 @@ if __name__ == "__main__":
     # AA = param_samples[97]
     # print(AA)
 
-    Result = parallel_basepoints(param_samples, Next_Conditions, n_jobs=256, save_path=Save_path)
+    Result = parallel_basepoints(param_samples, n_jobs=64, save_path=Save_path)
 
     #########################
     # Understand failure percentage
     N_BASE_EXPECTED = 500  # you want denominator = 500
 
     FAIL_VALUE = 0.0
-    SLOW_VALUE = 10000.0
+    SLOW_VALUE = 10.0
     VALUE_TOL = 0.0  # set small tol if needed (e.g., 1e-8)
 
     OUTSIDE_FRAC = 0.50  # +/-50% of nominal
@@ -926,14 +939,12 @@ if __name__ == "__main__":
                     linestyle="--",
                     linewidth=1.5,
                     alpha=0.9,
-                    label=f"Lower {int(OUTSIDE_FRAC * 100)}% bound"
                 )
                 plt.axhline(
                     hi,
                     linestyle="--",
                     linewidth=1.5,
                     alpha=0.9,
-                    label=f"Upper {int(OUTSIDE_FRAC * 100)}% bound"
                 )
 
                 # Optional: nominal line
@@ -942,7 +953,6 @@ if __name__ == "__main__":
                     linestyle=":",
                     linewidth=1.2,
                     alpha=0.9,
-                    label="Nominal"
                 )
 
                 # OK

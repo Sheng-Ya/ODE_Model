@@ -960,11 +960,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x[row_mask, :]
         y = y[row_mask, :]
 
-        within = (y >= (col_mean - 3 * col_std)) & (y <= (col_mean + 3 * col_std))
-        row_mask = within.all(dim=1)
-
-        x = x[row_mask]
-        y = y[row_mask]
         # phys_mask = (
         #     (y[:, 13] > x[:, 201])
         #     & (y[:, 9] > x[:, 203])
