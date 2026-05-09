@@ -526,7 +526,7 @@ if __name__ == "__main__":
     # hmw.rest_overlap_sampling = "cloud"
 
     size = 200000
-    _ = hmw.run_waves(n_waves=3, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=4, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

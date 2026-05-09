@@ -321,6 +321,18 @@ class HistoryMatchingWorkflow(HistoryMatching):
     - refit the emulator using the simulated data
     """
 
+    @staticmethod
+    def _exercise_output_names() -> list[str]:
+        return [
+            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
+            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+            "PaO2", "PaCO2"]
+
     def __init__(
         self,
         simulator: Simulator,
@@ -697,9 +709,15 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 ) * scaling_factor
         # covariance_matrix = torch.diag(stdev ** 2)
 
-        # Shuffle the order of means to sample from
-        num_means = nroy_params_to_sample.shape[0]
-        perm = torch.randperm(num_means, device=nroy_params_to_sample.device)
+        # Shuffle the order of means to sample from. When there are more
+        # means than requested samples, only visit the means that can actually
+        # receive at least one draw.
+        num_available_means = nroy_params_to_sample.shape[0]
+        num_means = min(num_available_means, n)
+        perm = torch.randperm(
+            num_available_means, device=nroy_params_to_sample.device
+        )[:num_means]
+        means_to_sample = nroy_params_to_sample[perm]
 
         # Determine how many samples to draw for each mean, handle remainder
         min_samples_per_mean = n // num_means
@@ -710,7 +728,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Split permuted means into batches
         chunk_size = math.ceil(num_means / n_jobs)
-        batches = [nroy_params_to_sample[perm][i:i + chunk_size] for i in range(0, num_means, chunk_size)]
+        batches = [
+            means_to_sample[i:i + chunk_size]
+            for i in range(0, num_means, chunk_size)
+        ]
 
         # precompute once outside the loop:
         low_all = torch.tensor([b[0] for b in bounds.values()], device=self.device)
@@ -755,6 +776,32 @@ class HistoryMatchingWorkflow(HistoryMatching):
         return torch.cat(results, dim=0)
 
 
+        # def sample_batch_serial(batch, batch_idx):
+        #     outs = []
+        #     for j, mean in enumerate(batch):
+        #         i = batch_idx * chunk_size + j
+        #         n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
+        #
+        #         x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
+        #
+        #         full = torch.empty((n_samples, param_dim), device=self.device, dtype=x_nonconst.dtype)
+        #         if const_idx_t is not None:
+        #             full[:, const_idx_t] = const_vals_t.to(x_nonconst.dtype)
+        #         full[:, sample_idx_t] = x_nonconst
+        #
+        #         outs.append(full)
+        #
+        #     # print(f"==============Batch {batch_idx + 1} done")
+        #     return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device=self.device)
+        #
+        # results = [
+        #     sample_batch_serial(batch, idx)
+        #     for idx, batch in enumerate(batches)
+        # ]
+        print(f"==============Batch done")
+        return torch.cat(results, dim=0)
+
+
     def cloud_sample_and_emulator(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
         """
         Generate `n` additional parameter samples using cloud sampling.
@@ -792,7 +839,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             else:
                 sampled_idx = torch.randint(num_reference, (n,), device=self.device)
             overlap_samples = overlap_reference_samples[sampled_idx]
-            print("==============Overlap empirical sampling done")
+            # print("==============Overlap empirical sampling done")
         elif overlap_mode == "cloud":
             stdev_overlap = (
                 overlap_reference_samples.max(dim=0).values
@@ -844,7 +891,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         exercise_only_idx_t = torch.tensor(self.exercise_only_idx, device=self.device, dtype=torch.long)
         uniform_all = self.simulator.sample_inputs(n).to(self.device)  # [n, in_dim]
         exercise_only_samples = uniform_all[:, exercise_only_idx_t]  # [n, n_exercise_only]
-        print(f"==============Exercise-only uniform sampling done")
+        # print(f"==============Exercise-only uniform sampling done")
 
         # --- Step 3: Assemble full parameter tensor ---
         # Start with nominal/fixed values for ALL parameters
@@ -863,7 +910,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Insert exercise-only columns
         full_samples[:, exercise_only_idx_t] = exercise_only_samples
 
-        print(f"==============Full assembly done, shape: {full_samples.shape}")
+        # print(f"==============Full assembly done, shape: {full_samples.shape}")
         # --- Adhoc diagnostic plot: parameter ranges in full_samples ---
         # self._plot_parameter_ranges(full_samples, all_param_names)
 
@@ -986,15 +1033,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         print(f"PRE-WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
 
         # Train and save one emulator per output
-        output_names_full = [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
+        output_names_full = self._exercise_output_names()
 
         for j, target_name in enumerate(output_names_full):
             print(f"\n  [{j + 1}/{len(output_names_full)}] Training emulator for {target_name}")
@@ -1079,20 +1118,100 @@ class HistoryMatchingWorkflow(HistoryMatching):
         return valid_samples
 
 
+    def generate_phys_seed_samples(
+        self, n: int, scaling_factor: float = 0.1
+    ) -> tuple[TensorLike, TensorLike]:
+        """
+        Generate wave-0 seed samples using only the physiological emulator mask.
+
+        This is cheaper than full history matching because it evaluates only the
+        emulator outputs needed for the physiological checks and returns dummy
+        zero implausibility scores for the retained samples.
+        """
+        test_x = self.cloud_sample_and_emulator(n, scaling_factor).to(self.device)
+        # parent = "DGSM_Exercise_Paper/Emulator_exercise"
+        parent = "Emulator_exercise"
+        output_names = self._exercise_output_names()
+        phys_output_idx = [9, 10, 13, 14]
+        if self.atrial_ratio_bounds is not None:
+            phys_output_idx.extend([17, 18])
+
+        means = {}
+        variances = {}
+        batch_params = test_x[:, self.parameter_idx]
+        with torch.no_grad():
+            for idx in phys_output_idx:
+                name = output_names[idx]
+                path1 = os.path.join(
+                    parent, name, f"GaussianProcessMatern32_{name}_best.joblib"
+                )
+                target_emulator = joblib.load(path1)
+                mean, variance = target_emulator.predict_mean_and_variance(batch_params)
+                means[idx] = mean.reshape(-1)
+                variances[idx] = variance.reshape(-1)
+
+        if self.atrial_ratio_bounds is not None:
+            la_ratio_probs = self._estimate_ratio_interval_probability(
+                means[13], variances[13],
+                means[14], variances[14],
+                means[17], variances[17],
+            )
+            ra_ratio_probs = self._estimate_ratio_interval_probability(
+                means[9], variances[9],
+                means[10], variances[10],
+                means[18], variances[18],
+            )
+            atrial_ratio_mask = (
+                (la_ratio_probs >= self.atrial_ratio_min_probability)
+                & (ra_ratio_probs >= self.atrial_ratio_min_probability)
+            )
+        else:
+            atrial_ratio_mask = torch.ones(
+                test_x.shape[0], dtype=torch.bool, device=self.device
+            )
+
+        phys_mask = (
+            (means[13] > test_x[:, 201])
+            & (means[9] > test_x[:, 203])
+            & (means[10] > means[9])
+            & (means[14] > means[13])
+            & atrial_ratio_mask
+        )
+        phys_x = test_x[phys_mask]
+
+        if phys_x.shape[0] < 2:
+            raise Warning(
+                "Wave 0 physiological seeding produced fewer than two samples; "
+                "cannot cloud sample from the narrowed space."
+            )
+
+        impl_scores = torch.zeros(
+            (phys_x.shape[0], len(output_names)),
+            dtype=phys_x.dtype,
+            device=phys_x.device,
+        )
+        print(
+            f"WAVE 0: Physiological seed kept {phys_x.shape[0]} "
+            f"of {test_x.shape[0]} candidates."
+        )
+        return phys_x, impl_scores
+
+
     def generate_samples(
         self, n: int, scaling_factor: float = 0.1
     ) -> tuple[TensorLike, TensorLike]:
         """
         Generate parameter samples and evaluate implausibility.
 
-        Draw `n` samples either from the simulator min/max parameter bounds or
-        using cloud sampling centered at NROY samples. Evaluate sample
-        implausability using emulator predictions.
+        Draw candidate samples either from the simulator min/max parameter
+        bounds or using cloud sampling centered at NROY samples. Evaluate
+        candidate implausability using emulator predictions until `n`
+        physiological predictions have been retained.
 
         Parameters
         ----------
         n: int
-            The number of parameter samples to generate.
+            The number of physiological parameter samples to return.
         scaling_factor: float
             The standard deviation of the Gaussian used in cloud sampling is
             set to: `parameter range * scaling_factor`.
@@ -1105,8 +1224,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if self.nroy_samples is None:
             test_x = self.cloud_sample_and_emulator(n, scaling_factor).to(self.device)
-            parent = "DGSM_Exercise_Paper/Emulator_exercise"
-            # parent = "Emulator_exercise"
+            # parent = "DGSM_Exercise_Paper/Emulator_exercise"
+            parent = "Emulator_exercise"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
             parent = "Emulator_exercise_wave"
@@ -1126,33 +1245,33 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
-        means = {}
-        variances = {}
+        # means = {}
+        # variances = {}
+        #
+        # for name in output_names:
+        #     target_emulator = models[name]
+        #     with torch.no_grad():
+        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
+        #             test_x[:, self.parameter_idx]
+        #         )
 
-        for name in output_names:
-            target_emulator = models[name]
-            with torch.no_grad():
-                means[name], variances[name] = target_emulator.predict_mean_and_variance(
-                    test_x[:, self.parameter_idx]
-                )
+        n_jobs = len(output_names)
+        use_raw_model = self.nroy_samples is None
 
-        # n_jobs = len(output_names)
-        # use_raw_model = self.nroy_samples is None
-        #
-        # def predict_one_output(name, X):
-        #     if use_raw_model:
-        #         target_emulator = models[name].model
-        #     else:
-        #         target_emulator = models[name]
-        #
-        #     mean, var = target_emulator.predict_mean_and_variance(X)
-        #     return name, mean, var
-        #
-        # results = Parallel(n_jobs=n_jobs)(
-        #     delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
-        #
-        # means = {name: mean for name, mean, var in results}
-        # variances = {name: var for name, mean, var in results}
+        def predict_one_output(name, X):
+            if use_raw_model:
+                target_emulator = models[name].model
+            else:
+                target_emulator = models[name]
+
+            mean, var = target_emulator.predict_mean_and_variance(X)
+            return name, mean, var
+
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
+
+        means = {name: mean for name, mean, var in results}
+        variances = {name: var for name, mean, var in results}
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
@@ -1350,6 +1469,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         scaling_factor: float = 0.1,
         refit_emulator: bool = True,
         refit_on_all_data: bool = True,
+        phys_seed_only: bool = False,
     ) -> tuple[TensorLike, TensorLike]:
         """
         Run a wave of the history matching workflow.
@@ -1376,6 +1496,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_on_all_data: bool
             Whether to refit the emulator on all available data or just the data
             available from the most recent simulation run. Defaults to True.
+        phys_seed_only: bool
+            If True, build the wave's proposal from the physiological mask only
+            and skip full implausibility scoring. Used for exercise wave 0.
 
         Returns
         -------
@@ -1390,73 +1513,82 @@ class HistoryMatchingWorkflow(HistoryMatching):
         )
         logger.debug(msg)
 
-        test_parameters_list, impl_scores_list, nroy_parameters_list = (
-            [],
-            [],
-            [torch.empty((0, self.simulator.in_dim), device=self.device)],
-        )
-
-        retries = 0
-        while torch.cat(nroy_parameters_list, 0).shape[0] < n_simulations:
-            if retries == max_retries:
-                msg = (
-                    f"Could not generate n_simulations ({n_simulations}) samples "
-                    f"that are NROY after {max_retries} retries. "
-                    f"Only {torch.cat(nroy_parameters_list, 0).shape[0]} "
-                    "samples generated."
-                )
-                raise Warning(msg)
-                break
-
-            if retries > 10:
-                scaling_factor = 0.2
-
-            # Generate `n_test_samples` with implausability scores, identify NROY
-            test_parameters, impl_scores = self.generate_samples(
+        if phys_seed_only:
+            test_parameters, impl_scores = self.generate_phys_seed_samples(
                 n_test_samples, scaling_factor
             )
+            test_parameters_list = [test_parameters]
+            impl_scores_list = [impl_scores]
 
-            # print("done getting the impl_score")
-            # test parameters is a concatenation of every parameter set from before
-            nroy_parameters = self.get_nroy(impl_scores, test_parameters)
-
-            # print("done getting the nroy from self.get_nroy")
-
-            # Store results (test_parameters_list will have as many entries as 200000 * no. of retries)
-            nroy_parameters_list.append(nroy_parameters)
-            test_parameters_list.append(test_parameters)
-            impl_scores_list.append(impl_scores)
-
-            msg = (
-                f"Generated {nroy_parameters.shape[0]} NROY samples on try "
-                f"{retries + 1}, have {torch.cat(nroy_parameters_list, 0).shape[0]} "
-                f"total NROY samples so far."
+            # Use the physiological set as the narrowed proposal, then draw
+            # simulation points from that space by cloud sampling.
+            self.nroy_samples = test_parameters
+            nroy_simulation_samples = self.cloud_sample(n_simulations, scaling_factor)
+        else:
+            test_parameters_list, impl_scores_list, nroy_parameters_list = (
+                [],
+                [],
+                [torch.empty((0, self.simulator.in_dim), device=self.device)],
             )
-            logger.debug(msg)
 
-            retries += 1
+            retries = 0
+            while torch.cat(nroy_parameters_list, 0).shape[0] < n_simulations:
+                if retries == max_retries:
+                    msg = (
+                        f"Could not generate n_simulations ({n_simulations}) samples "
+                        f"that are NROY after {max_retries} retries. "
+                        f"Only {torch.cat(nroy_parameters_list, 0).shape[0]} "
+                        "samples generated."
+                    )
+                    raise Warning(msg)
+                    break
 
-        # # Next time that call run(), will sample using these NROY points
-        # self.nroy_samples = torch.cat(nroy_parameters_list, 0)
+                # Generate `n_test_samples` with implausability scores, identify NROY
+                test_parameters, impl_scores = self.generate_samples(
+                    n_test_samples, scaling_factor
+                )
 
-        # Randomly pick at most `n_simulations` parameters from NROY to simulate
-        # nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
-        # pick `n_simulations` parameters from NROY with lowest implausibility
-        nroy_params = torch.cat(nroy_parameters_list, dim=0)
+                # print("done getting the impl_score")
+                # test parameters is a concatenation of every parameter set from before
+                nroy_parameters = self.get_nroy(impl_scores, test_parameters)
 
-        implaus_tensor = torch.cat(impl_scores_list, 0)
-        nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
+                # print("done getting the nroy from self.get_nroy")
 
-        # Rank by worst-output implausibility per sample
-        max_impl_per_sample, _ = nroy_impl.max(dim=1)
-        best_idx = torch.argsort(max_impl_per_sample)
-        nroy_params_sorted = nroy_params[best_idx]
+                # Store results (test_parameters_list will have as many entries as 200000 * no. of retries)
+                nroy_parameters_list.append(nroy_parameters)
+                test_parameters_list.append(test_parameters)
+                impl_scores_list.append(impl_scores)
 
-        # Take the best n_simulations to run through the simulator
-        nroy_simulation_samples = nroy_params_sorted[:n_simulations]
+                msg = (
+                    f"Generated {nroy_parameters.shape[0]} NROY samples on try "
+                    f"{retries + 1}, have {torch.cat(nroy_parameters_list, 0).shape[0]} "
+                    f"total NROY samples so far."
+                )
+                logger.debug(msg)
 
-        # Also update nroy_samples so cloud sampling next wave uses best seeds
-        self.nroy_samples = nroy_params_sorted
+                retries += 1
+
+            # # Next time that call run(), will sample using these NROY points
+            # self.nroy_samples = torch.cat(nroy_parameters_list, 0)
+
+            # Randomly pick at most `n_simulations` parameters from NROY to simulate
+            # nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+            # pick `n_simulations` parameters from NROY with lowest implausibility
+            nroy_params = torch.cat(nroy_parameters_list, dim=0)
+
+            implaus_tensor = torch.cat(impl_scores_list, 0)
+            nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
+
+            # Rank by worst-output implausibility per sample
+            max_impl_per_sample, _ = nroy_impl.max(dim=1)
+            best_idx = torch.argsort(max_impl_per_sample)
+            nroy_params_sorted = nroy_params[best_idx]
+
+            # Take the best n_simulations to run through the simulator
+            nroy_simulation_samples = nroy_params_sorted[:n_simulations]
+
+            # Also update nroy_samples so cloud sampling next wave uses best seeds
+            self.nroy_samples = nroy_params_sorted
 
         # np.save("check.npy", nroy_simulation_samples)
         # save on CPU so it's portable across machines/devices
@@ -1469,15 +1601,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x, y = self.simulate(nroy_simulation_samples)
         print(f"WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
 
-        output_names_full = [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
+        output_names_full = self._exercise_output_names()
 
         for j, target_name in enumerate(output_names_full):
             # print("\n" + "=" * 100)
@@ -1570,13 +1694,21 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         self.wave_results = []
         for i in range(start_i, n_waves):
+            if i == 0:
+                self.atrial_ratio_bounds = None
             if i == 1:
-                self.threshold = 3
+                self.threshold = 3.5
+                self.atrial_ratio_bounds = (0.20, 0.30)
             if i == 2:
-                self.threshold = 3
+                self.threshold = 3.0
+                self.atrial_ratio_bounds = (0.20, 0.30)
+            if i == 3:
+                self.threshold = 3.0
+                self.atrial_ratio_bounds = (0.20, 0.30)
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
+            phys_seed_only = i == 0
             test_x, impl_scores = self.run(
                 n_simulations=n_simulations,
                 n_test_samples=n_test_samples,
@@ -1584,9 +1716,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 scaling_factor=scaling_factor,
                 refit_emulator=refit_emulator,
                 refit_on_all_data=refit_on_all_data,
+                phys_seed_only=phys_seed_only,
             )
 
-            if len(test_x) < n_simulations or len(impl_scores) < n_simulations:
+            if (
+                not phys_seed_only
+                and (len(test_x) < n_simulations or len(impl_scores) < n_simulations)
+            ):
                 msg = (
                     f"Not enough parameters or impl scores generated in wave {i + 1}"
                     f"/{n_waves}. Stopping history matching workflow. Results are "
@@ -1596,6 +1732,16 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 break
 
             self.wave_results.append((test_x, impl_scores))
+            if phys_seed_only:
+                logger.info(
+                    "Wave %d/%d used physiological seeding; skipping NROY "
+                    "fraction stop check.",
+                    i + 1,
+                    n_waves,
+                )
+                torch.save(int(i), "last_wave.pt")
+                continue
+
             self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_exercise.png")
 
             # Get NROY points from impl scores and check fraction

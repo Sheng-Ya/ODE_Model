@@ -12,23 +12,24 @@ import numpy as np
 
 
 X = np.load('DGSM_Exercise_Paper/DGSM_500_X_exercise_20_24_04.npy')
-Result1 = np.load('DGSM_Exercise_Paper/DGSM_500_Result_exercise_20_24_04.npy')
-Result2 = np.load('DGSM_Rest_Paper/DGSM_500_Result_rest_20_10_04.npy')
-COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
-Result1 = np.delete(Result1, COLS_TO_DROP, axis=1)
-Result2 = np.delete(Result2, COLS_TO_DROP, axis=1)
-Result1 = Result1[::273,21]
-Result2 = Result2[::273,21]
+Result = np.load('DGSM_Exercise_Paper/DGSM_500_Result_exercise_20_24_04.npy')
 
-import seaborn as sns
-plt.figure(figsize=(4,3))
-sns.kdeplot(Result1, bw_method="scott", fill=True, linewidth=1.2)
-sns.kdeplot(Result2, bw_method="scott", fill=True, linewidth=1.2)
-
-plt.xlabel("Value")
-plt.ylabel("Density")
-plt.tight_layout()
-plt.show()
+# Result2 = np.load('DGSM_Rest_Paper/DGSM_500_Result_rest_20_10_04.npy')
+# COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
+# Result1 = np.delete(Result1, COLS_TO_DROP, axis=1)
+# Result2 = np.delete(Result2, COLS_TO_DROP, axis=1)
+# Result1 = Result1[::273,21]
+# Result2 = Result2[::273,21]
+#
+# import seaborn as sns
+# plt.figure(figsize=(4,3))
+# sns.kdeplot(Result1, bw_method="scott", fill=True, linewidth=1.2)
+# sns.kdeplot(Result2, bw_method="scott", fill=True, linewidth=1.2)
+#
+# plt.xlabel("Value")
+# plt.ylabel("Density")
+# plt.tight_layout()
+# plt.show()
 
 
 lower = 0.8
@@ -80,13 +81,37 @@ mask_blocks_conv = np.array([
     for i in base_idx
 ])
 
+# # Keep only complete DGSM blocks where all chamber volumes are physiological. Didn't change much, only difference in 3 parameters
+# vu_la_col = 201
+# vu_lv_col = 202
+# vu_ra_col = 203
+# vu_rv_col = 204
+# phys_mask_blocks = np.array([
+#     np.all(
+#         (Result[i:i + block_size, 4] > X[i:i + block_size, vu_lv_col])
+#         & (Result[i:i + block_size, 3] > Result[i:i + block_size, 4])
+#         & (Result[i:i + block_size, 6] > X[i:i + block_size, vu_rv_col])
+#         & (Result[i:i + block_size, 5] > Result[i:i + block_size, 6])
+#         & (Result[i:i + block_size, 9] > X[i:i + block_size, vu_ra_col])
+#         & (Result[i:i + block_size, 10] > Result[i:i + block_size, 9])
+#         & (Result[i:i + block_size, 15] > X[i:i + block_size, vu_la_col])
+#         & (Result[i:i + block_size, 16] > Result[i:i + block_size, 15])
+#     )
+#     for i in base_idx
+# ])
+
+# # Expand mask to all rows in a block
+# mask_full = np.repeat(phys_mask_blocks, block_size)
+# X = X[mask_full]
+# Result = Result[mask_full]
+
 # HR_col = 25
 # mask_blocks_conv_tidal = np.array([
 #     np.all(np.abs(Result[i + 1:i + block_size, HR_col] - Result[i, HR_col]) < 0.03)
 #     for i in base_idx
 # ])
 
-mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv & mask_blocks_std #& mask_blocks_conv_tidal#& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
+mask_blocks = mask_blocks & mask_blocks_nan & mask_blocks_conv & mask_blocks_std # & phys_mask_blocks #& mask_blocks_conv_tidal#& mask_blocks_std # & mask_blocks_E_rs & mask_blocks_R_rs # & mask_blocks_std
 print(np.count_nonzero(mask_blocks))
 # Expand mask to all rows in a block
 mask_full = np.repeat(mask_blocks, block_size)
