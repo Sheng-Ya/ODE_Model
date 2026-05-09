@@ -1,6 +1,9 @@
 import os
 import copy
 import signal
+import queue
+import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 from SALib import ProblemSpec
 from SALib.sample import finite_diff
@@ -11,9 +14,6 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
 from tqdm import tqdm
-import tqdm_joblib
-
-from joblib import Parallel, delayed
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
@@ -25,6 +25,10 @@ from All_Next_Conditions import make_fresh_storage
 
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 40000
+RESULT_SIZE = 31
+FAIL_VALUE = 0.0
+SLOW_VALUE = 10000.0
+SIMULATION_TIMEOUT_SECONDS = 200
 
 max_time = 60 # Maximum time limit to avoid infinite loops
 
@@ -544,14 +548,14 @@ def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=N
     except Exception:
         signal.alarm(0)  # Cancel timeout
         print("too slow")
-        return ([10000]*31, None, None, None)
+        return ([SLOW_VALUE] * RESULT_SIZE, None, None, None)
 
 def run_basepoint(base_sample, old_Parameters):
     storage_copy = make_fresh_storage()
 
     try:
         # run all basepoints even if slow
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
+        base_result, IC_final, storage_final, breath_coef = safe_simulate_cpu(
             base_sample, storage_copy, old_Parameters
         )
 
@@ -578,6 +582,77 @@ def run_basepoint(base_sample, old_Parameters):
         return None
 
 
+def _resolve_n_jobs(n_jobs):
+    cpu_count = os.cpu_count() or 1
+    if n_jobs is None:
+        return 1
+    if n_jobs < 0:
+        return max(1, cpu_count + 1 + n_jobs)
+    return max(1, n_jobs)
+
+
+def _normalise_result(result, fill_value=FAIL_VALUE):
+    arr = np.asarray(result, dtype=float)
+    if arr.shape != (RESULT_SIZE,):
+        print(f"[BAD RESULT SHAPE] expected ({RESULT_SIZE},), got {arr.shape}")
+        return np.full(RESULT_SIZE, fill_value, dtype=float)
+    return arr
+
+
+def _run_basepoint_child(result_queue, base_sample, old_parameters):
+    base_dict = run_basepoint(base_sample, old_parameters)
+    if base_dict is None:
+        result_queue.put(None)
+    else:
+        result_queue.put(_normalise_result(base_dict["result"]).tolist())
+
+
+def run_basepoint_with_process_timeout(
+    base_sample,
+    old_parameters,
+    timeout=SIMULATION_TIMEOUT_SECONDS,
+):
+    """
+    Run one simulation in a disposable child process.
+
+    This gives a hard timeout even when the ODE/Numba/native code does not
+    return to Python soon enough for signal.alarm to be handled.
+    """
+    ctx = mp.get_context("fork")
+    result_queue = ctx.Queue(maxsize=1)
+    proc = ctx.Process(
+        target=_run_basepoint_child,
+        args=(result_queue, base_sample, old_parameters),
+    )
+
+    proc.start()
+    proc.join(timeout)
+
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(5)
+        if proc.is_alive():
+            proc.kill()
+            proc.join()
+        print("too slow")
+        result_queue.close()
+        result_queue.join_thread()
+        return np.full(RESULT_SIZE, SLOW_VALUE, dtype=float)
+
+    try:
+        result = result_queue.get_nowait()
+    except queue.Empty:
+        print(f"[BASEPOINT EXITED WITHOUT RESULT] exitcode={proc.exitcode}")
+        result = None
+    finally:
+        result_queue.close()
+        result_queue.join_thread()
+
+    if result is None:
+        return np.full(RESULT_SIZE, FAIL_VALUE, dtype=float)
+    return _normalise_result(result)
+
+
 def parallel_basepoints(base_param_samples, n_jobs, save_path="Basepoint_Result.npy"):
     """
     Run ONLY base samples (no finite-difference perturbations).
@@ -586,31 +661,42 @@ def parallel_basepoints(base_param_samples, n_jobs, save_path="Basepoint_Result.
     if os.path.exists(save_path):
         os.remove(save_path)
 
-    # Run basepoints in parallel; each gets a fresh storage copy
-    base_dicts = Parallel(n_jobs=n_jobs)(
-        delayed(run_basepoint)(params, Old_Parameters)
-        for params in base_param_samples
-    )
+    n_base = len(base_param_samples)
+    n_workers = min(_resolve_n_jobs(n_jobs), n_base)
+    results = np.full((n_base, RESULT_SIZE), np.nan, dtype=float)
+
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        future_to_idx = {
+            executor.submit(
+                run_basepoint_with_process_timeout,
+                params,
+                Old_Parameters,
+                SIMULATION_TIMEOUT_SECONDS,
+            ): idx
+            for idx, params in enumerate(base_param_samples)
+        }
+
+        with tqdm(desc="Simulations completed", total=n_base) as progress:
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                try:
+                    results[idx] = _normalise_result(future.result())
+                except Exception as exc:
+                    print(f"[BASEPOINT EXCEPTION] idx={idx}: {exc}")
+                    results[idx] = np.full(RESULT_SIZE, FAIL_VALUE, dtype=float)
+
+                np.save(save_path, results)
+                progress.update(1)
 
     print("done")
-
-    # Convert to array; failed runs -> zeros
-    results = []
-    for bd in base_dicts:
-        if bd is None:
-            results.append([0.0] * 31)
-        else:
-            results.append(bd["result"])
-
-    results = np.asarray(results, dtype=float)
     np.save(save_path, results)
     return results
 
 
 if __name__ == "__main__":
 
-    lower = 0.1
-    upper = 1.9
+    lower = 0.5
+    upper = 1.5
 
     # change
     sp = ProblemSpec({
@@ -678,7 +764,6 @@ if __name__ == "__main__":
             "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
             "Vu_ra", "Vu_rv",
 
-            "V_tot",
             "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
             "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
             "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -765,7 +850,6 @@ if __name__ == "__main__":
             [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
             [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
 
-            [5027.15 * lower, 5027.15 * upper],
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -793,10 +877,11 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
     # base_name = "pct_90_bad_outside_50_no_C2_Ers_Rrs_T0_GTs_DVrmv_Ramvn_taup_falltimeventhetaaomaxWcshLsa_KpmiVulvWcsvkab"
-    base_name = "check"
+    base_name = "check_50"
     # change
     X = finite_diff.sample(sp, 500)
-    np.save(f"{base_name}_X.npy", X[::273])
+    X = X[::273]
+    np.save(f"{base_name}_X.npy", X)
     # scp "sw4924@bioeng397-pc.dept.ic.ac.uk:~/project/pct_50_bad_outside_20_no_xsp_C2*" "C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\"
 
     # X = np.load(f"{base_name}_X.npy")
@@ -811,14 +896,13 @@ if __name__ == "__main__":
     # AA = param_samples[97]
     # print(AA)
 
-    Result = parallel_basepoints(param_samples, n_jobs=64, save_path=Save_path)
+    Result = parallel_basepoints(param_samples, n_jobs=-1, save_path=Save_path)
 
     #########################
     # Understand failure percentage
     N_BASE_EXPECTED = 500  # you want denominator = 500
 
-    FAIL_VALUE = 0.0
-    SLOW_VALUE = 10.0
+    # Keep these aligned with the sentinel values returned by the simulation wrappers.
     VALUE_TOL = 0.0  # set small tol if needed (e.g., 1e-8)
 
     OUTSIDE_FRAC = 0.50  # +/-50% of nominal
