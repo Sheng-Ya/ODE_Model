@@ -321,7 +321,7 @@ Parameters = {
     "lambda2": 0.689,
     "n": 0.5,
     "P_ao": 0.0,
-    "delta_P": 0.01,
+    "delta_P": 0.1,
     "AT": (1.5/60),
     "dc": 0.015,
     # "lambda1": 0.86,
