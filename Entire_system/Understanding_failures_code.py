@@ -25,7 +25,7 @@ from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import make_fresh_storage
 
 target_values = np.arange(0, 10000, 10)
-BUFFER_LIMIT = 40000
+BUFFER_LIMIT = 60000
 RESULT_SIZE = 31
 FAIL_VALUE = 0.0
 SLOW_VALUE = 10000.0
@@ -109,7 +109,7 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
     tolerance = 0.0001
 
-    VAflow_vals = np.linspace(0.01, 1, 200)
+    VAflow_vals = np.linspace(0.01, 1.6, 200)
     VAflow_repeated = np.repeat(VAflow_vals, 3)
 
     VD = GV_dead * VAflow_repeated + V0_dead
@@ -398,10 +398,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
         if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
-    pairs_ao = pairs_ao[-11:-1]
-    pairs_po = pairs_po[-11:-1]
-    pairs_mi = pairs_mi[-11:-1]
-    pairs_tr = pairs_tr[-11:-1]
+    pairs_ao = pairs_ao[-10:]
+    pairs_po = pairs_po[-10:]
+    pairs_mi = pairs_mi[-10:]
+    pairs_tr = pairs_tr[-10:]
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
@@ -428,7 +428,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when mitral valve is open -> get second min la P
     P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
@@ -437,7 +437,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when tricuspid valve is open -> get second min la P
     P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
@@ -464,7 +464,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # Find transitions: where phi_atr goes from 0 to >0
     starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
-    local_mins = starts[-11:-1]
+    local_mins = starts[-10:]
     last_10_b4_LA_atrial_contract = V_la[local_mins]
     last_10_b4_RA_atrial_contract = V_ra[local_mins]
 
@@ -503,8 +503,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     start_idx = start_idx[:n_pairs]
     end_idx = end_idx[:n_pairs]
 
-    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
-    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
+    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     mean_min_Total_Volume = np.mean(Total_Volume[Total_Vol_min_idx])
     mean_max_Total_Volume = np.mean(Total_Volume[Total_Vol_max_idx])
@@ -512,10 +512,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
 
     dP_lv_dt_store = np.concatenate((local_updates["dP_lv_dt_store"][i_buffer:], local_updates["dP_lv_dt_store"][:i_buffer]))
-    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
-    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
 
@@ -798,14 +798,14 @@ if __name__ == "__main__":
 
         'bounds': [
             # gas
-            [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
+            [0.03255 * lower, 0.03255 * upper], [87 * 0.5, 87 * 1.5], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
             [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
             [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
             # cardio
-            [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
+            [3.72 * lower, 3.72 * upper], [0.28 * 0.5, 0.28 * 1.5], [0.00022 * lower, 0.00022 * upper], [0.06 * 0.5, 0.06 * 1.5],
             [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
             [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [10 * lower, 10 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
@@ -840,8 +840,8 @@ if __name__ == "__main__":
             [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
             [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
-            [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
-            [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
+            [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * 0.5, 0.09 * 1.5],
+            [0.58 * 0.5, 0.58 * 1.5], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
             [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
             [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
             [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
@@ -849,10 +849,10 @@ if __name__ == "__main__":
             [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper], [0.18 * lower, 0.18 * upper],
             [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
             # added params
-            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-            [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
+            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * 0.5, 1.309 * 1.5],
+            [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * 0.5, 1.309 * 1.5],
+            [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * 0.5, 1.309 * 1.5],
+            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * 0.5, 1.309 * 1.5],
             [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
             [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
@@ -863,7 +863,7 @@ if __name__ == "__main__":
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
-            [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper],
+            [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * 0.5, 1361.6 * 1.5], [20 * lower, 20 * upper],
             [30 * lower, 30 * upper], [2.076 * lower, 2.076 * upper], [0.8 * lower, 0.8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [1.5 * lower, 1.5 * upper], [20 * lower, 20 * upper],
             [10 * lower, 10 * upper], [5 * lower, 5 * upper], [40 * lower, 40 * upper], [10 * lower, 10 * upper],
@@ -879,7 +879,7 @@ if __name__ == "__main__":
             [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
             [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
             [0.045 * lower, 0.045 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
-            [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
+            [0.0873 * 0.5, 0.0873 * 1.5], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
     })
 
     param_keys = list(sp["names"])
