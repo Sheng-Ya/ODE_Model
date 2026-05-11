@@ -190,7 +190,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * max(0, MRV) - (KpCO2 + KcCO2) * PaCO2_n)
-    VAflow = min(max(VAflow, 0.04), 1.0)
+    VAflow = min(max(VAflow, 0.04), 1.6)
     VD = GV_dead * VAflow + V0_dead
 
     if time_since_last_breath > (t1 + t2) or t == 0:
@@ -871,6 +871,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Y_v = (Yv_min + Yv_max * math.exp((I - Io_v) / kcc_v)) / (1 + math.exp((I - Io_v) / kcc_v))
     first_term = (fev_o + fev_inf * math.exp((f_ab - fab_o) / kev)) / (1 + math.exp((f_ab - fab_o) / kev))
     f_v = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
+    f_v = max(f_v, 0)
+
 
     # Fetch delayed values
     f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
@@ -896,7 +898,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     sigma_Tv = GT_v * f_v_delay0_2
     d_Tv_change_dt = (- Tv_change + sigma_Tv) / tau_Tv
 
-    T = Ts_change + Tv_change + T0
+    T = max(Ts_change + Tv_change + T0, 0.25)  # prevent max HR > 240 bpm
     HR_every = 1 / T
 
     if t == 0:
