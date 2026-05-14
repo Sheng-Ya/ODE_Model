@@ -192,7 +192,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     G3 = KpO2 * ((PAMO2_nominal - PamO2) ** scale_param1) if PamO2 < PAMO2_nominal else 0
     VAflow = VA_rest * (KpCO2 * PamCO2 + KcCO2 * PmbCO2 + G3 + KcMRV * max(0, MRV) - (KpCO2 + KcCO2) * PaCO2_n)
-    VAflow = min(max(VAflow, 0.04), 1.0)
+    VAflow = min(max(VAflow, 0.04), 1.6)
     VD = GV_dead * VAflow + V0_dead
 
     if time_since_last_breath > (t1 + t2) or t == 0:
@@ -402,6 +402,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Compute area ratio with smooth transition
     AR_ao = ((1 - math.cos(theta_ao)) ** 2) / ((1 - math.cos(theta_ao_max)) ** 2)
+    # AR_ao = ((1 - math.cos(theta_ao - theta_min)) ** 2) / ((1 - math.cos(theta_ao_max - theta_min)) ** 2)
 
     # Flow with smooth transition
     Q_lv = valve_signal * (math.sqrt(np.maximum(P_lv - P_sa, 0)) * AR_ao * R_ao)
@@ -556,6 +557,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Compute area ratio with smooth transition
     AR_mi = ((1 - math.cos(theta_mi)) ** 2) / ((1 - math.cos(theta_mi_max)) ** 2)
+    # AR_mi = ((1 - math.cos(theta_mi - theta_min)) ** 2) / ((1 - math.cos(theta_mi_max - theta_min)) ** 2)
 
     # Flow with smooth transition
     Qi_lv = valve_signal * (math.sqrt(np.maximum(P_la - P_lv, 0)) * AR_mi * R_mi)
@@ -595,7 +597,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # Compute area ratio with smooth transition
     AR_po = ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
-
+    # AR_po = ((1 - math.cos(theta_po - theta_min)) ** 2) / ((1 - math.cos(theta_po_max - theta_min)) ** 2)
     # Flow with smooth transition
     Q_rv = valve_signal * (math.sqrt(np.maximum(P_rv - P_pa, 0)) * AR_po * R_po)
 
@@ -658,6 +660,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     # # Compute area ratio with smooth transition
     AR_tr = ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
+    # AR_tr = ((1 - math.cos(theta_tr - theta_min)) ** 2) / ((1 - math.cos(theta_tr_max - theta_min)) ** 2)
 
     # Flow with smooth transition
     Qi_rv = valve_signal * (math.sqrt(np.maximum(P_ra - P_rv, 0)) * AR_tr * R_tr)
@@ -872,6 +875,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
 
     Q_ep = (P_sp - P_ev) / R_ep
 
+    # Q_sp = max(Q_sp, 0)
+    # Q_ep = max(Q_ep, 0)
+    # Q_sv = max(Q_sv, 0)
+    # Q_hv = max(Q_hv, 0)
+    # Q_rmv = max(Q_rmv, 0)
+    # Q_amv = max(Q_amv, 0)
+
     P_e = 0
 
     if P_vc < P_e:
@@ -982,9 +992,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    # if 60 < t:
-    #     MRCO2 = 1.2 / 60 - MRBCO2
-    #     MRO2 = 1.2 / 60 - MRBO2
+    if 60 < t:
+        MRCO2 = 1.2 / 60 - MRBCO2
+        MRO2 = 1.2 / 60 - MRBO2
 
     # if 200 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
@@ -1131,6 +1141,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     Y_v = (Yv_min + Yv_max * math.exp((I - Io_v) / kcc_v)) / (1 + math.exp((I - Io_v) / kcc_v))
     first_term = (fev_o + fev_inf * math.exp((f_ab - fab_o) / kev)) / (1 + math.exp((f_ab - fab_o) / kev))
     f_v = first_term - Wt_v * Nt + Wc_v * f_ac + Wp_v * f_ap - theta_v + Y_v # changed
+    f_v = max(f_v, 0)
 
     # Fetch delayed values
     f_sp_delay2_Ramp = get_delayed_value(t, DR_amp, all_time, last_index, BUFFER_LIMIT, f_sp_history, f_sp)
@@ -1156,8 +1167,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     sigma_Tv = GT_v * f_v_delay0_2
     d_Tv_change_dt = (- Tv_change + sigma_Tv) / tau_Tv
 
-    T = Ts_change + Tv_change + T0
-    HR_every = 1 / T
+    T = max(Ts_change + Tv_change + T0, 0.25) # prevent max HR > 240 bpm
+    HR_every = min(1 / T, 1 / 0.25)
 
     if t == 0:
         HR = HR_every

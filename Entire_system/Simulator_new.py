@@ -381,9 +381,13 @@ class Simulator(ABC, ValidationMixin):
                     unit_scale=True,
                 )
         ):
-            outputs = Parallel(n_jobs=64, backend="loky")(
+            outputs = Parallel(n_jobs=-1, backend="loky")(
                 delayed(_run_one)(i) for i in range(len(x))
             )
+            # n_jobs = 64
+            # outputs = Parallel(n_jobs=n_jobs, backend="loky", pre_dispatch=n_jobs)(
+            #     delayed(_run_one)(i) for i in range(len(x))
+            # )
 
         # Filter out failed results
         results, valid_idx = [], []
