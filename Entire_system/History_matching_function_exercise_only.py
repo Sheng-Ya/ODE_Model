@@ -1223,15 +1223,50 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # self.nroy_samples = nroy_params_sorted
 
         # np.save("check.npy", nroy_simulation_samples)
-        # save on CPU so it's portable across machines/devices
-        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples_exercise.pt")
-        self._last_wave_train_points = nroy_simulation_samples.detach().cpu()
         # A = np.load("check.npy")[64:66]
         # print(A[:,-4:])
         # A = torch.from_numpy(A)
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
+        #
+        # # Keep only simulations whose outputs are within 3 observation standard
+        # # deviations of the observation means. `obs_vars` stores variances.
+        # obs_means = self.obs_means.to(device=y.device, dtype=y.dtype)
+        # obs_stds = torch.sqrt(torch.clamp(self.obs_vars.to(device=y.device, dtype=y.dtype), min=0.0))
+        # obs_3sd_mask = (
+        #     (y >= obs_means - self.threshold * obs_stds)
+        #     & (y <= obs_means + self.threshold * obs_stds)
+        # ).all(dim=1)
+        #
+        # if not bool(obs_3sd_mask.all()):
+        #     rejected_x = x[~obs_3sd_mask]
+        #     x = x[obs_3sd_mask]
+        #     y = y[obs_3sd_mask]
+        #     self.train_x = x
+        #     self.train_y = y
+        #
+        #     # Remove each rejected simulated parameter set from the NROY cloud too,
+        #     # so it cannot seed samples for the next emulator wave.
+        #     keep_nroy_mask = torch.ones(
+        #         self.nroy_samples.shape[0], dtype=torch.bool, device=self.device
+        #     )
+        #     for rejected in rejected_x:
+        #         matches = torch.where(
+        #             keep_nroy_mask & torch.all(self.nroy_samples == rejected, dim=1)
+        #         )[0]
+        #         if matches.numel() > 0:
+        #             keep_nroy_mask[matches[0]] = False
+        #     self.nroy_samples = self.nroy_samples[keep_nroy_mask]
+        #     print(
+        #         f"Removed {rejected_x.shape[0]} simulated sample(s) outside "
+        #         f"the observation +/- {self.threshold} std band from training and NROY samples."
+        #     )
+
+        # Save on CPU so it's portable across machines/devices. This happens after
+        # filtering so resume/cloud sampling uses the updated NROY set.
+        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples_exercise.pt")
+        self._last_wave_train_points = x.detach().cpu()
 
         output_names_full = EMULATOR_OUTPUT_NAMES
         wave_number = self._wave_number()
@@ -1414,10 +1449,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # if i == 0: # 110599
             #     self.threshold = 3.5 # change
             if i == 1:  # 154081
-                self.threshold = 3.0
-            if i == 2: # 154081
-                self.threshold = 3.0
-            if i == 3:  # 154081
+                self.threshold = 3.5
+            if i > 1: # 154081
                 self.threshold = 3.0
 
             # if i == 1: # 110599

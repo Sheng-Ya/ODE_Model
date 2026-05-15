@@ -25,7 +25,7 @@ from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import make_fresh_storage
 
 target_values = np.arange(0, 10000, 10)
-BUFFER_LIMIT = 60000
+BUFFER_LIMIT = 80000
 RESULT_SIZE = 31
 FAIL_VALUE = 0.0
 SLOW_VALUE = 10000.0
@@ -633,8 +633,14 @@ def run_basepoint_with_process_timeout(
     )
 
     started_at = time.monotonic()
+    deadline = started_at + timeout
     proc.start()
-    proc.join(timeout)
+
+    while proc.is_alive():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        proc.join(remaining)
 
     if proc.is_alive():
         elapsed = time.monotonic() - started_at
@@ -803,9 +809,9 @@ if __name__ == "__main__":
             # resp control
             [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
             [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-            [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
+            [21.9 * 0.5, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.5],
             # cardio
-            [3.72 * lower, 3.72 * upper], [0.28 * 0.5, 0.28 * 1.5], [0.00022 * lower, 0.00022 * upper], [0.06 * 0.5, 0.06 * 1.5],
+            [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
             [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
             [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [10 * lower, 10 * upper],
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
@@ -840,7 +846,7 @@ if __name__ == "__main__":
             [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
             [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
-            [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * 0.5, 0.09 * 1.5],
+            [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
             [0.58 * 0.5, 0.58 * 1.5], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
             [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
             [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
@@ -887,9 +893,10 @@ if __name__ == "__main__":
     # DGSM uses finite differences sampling since it is a derivative based method
     # change
     # base_name = "pct_90_bad_outside_50_no_C2_Ers_Rrs_T0_GTs_DVrmv_Ramvn_taup_falltimeventhetaaomaxWcshLsa_KpmiVulvWcsvkab"
-    base_name = "check"
+    base_name = "check_all_90"
     # change
-    X = finite_diff.sample(sp, 500)
+    # X = finite_diff.sample(sp, 500)
+    X = np.load("DGSM_500_X_rest_90_14_04.npy")
     X = X[::273]
     np.save(f"{base_name}_X.npy", X)
     # scp "sw4924@bioeng397-pc.dept.ic.ac.uk:~/project/pct_50_bad_outside_20_no_xsp_C2*" "C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\"
@@ -899,6 +906,7 @@ if __name__ == "__main__":
     Save_path = f"{base_name}_Result.npy"
     out_csv = f"{base_name}.csv"
     OUT_PDF = f"{base_name}.pdf"
+    OUT_PDF_DATA = f"{base_name}_pdf_dataset.csv"
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
@@ -1014,9 +1022,40 @@ if __name__ == "__main__":
         print(f"Too slow (all outputs = {SLOW_VALUE}): {slow_mask.sum()} / {n_base}")
         print(f"OK: {ok_mask.sum()} / {n_base}")
 
-        with PdfPages(OUT_PDF) as pdf:
-            x_idx = np.arange(n_base)
+        x_idx = np.arange(n_base)
+        status = np.full(n_base, "OK", dtype=object)
+        status[fail_mask] = "Failure"
+        status[slow_mask] = "Too slow"
 
+        plot_rows = []
+        for j, name in enumerate(param_keys):
+            vals = X_base[:, j]
+            nom = nominal[j]
+            a = (1 - OUTSIDE_FRAC) * nom
+            b = (1 + OUTSIDE_FRAC) * nom
+            lo, hi = (a, b) if a <= b else (b, a)
+
+            plot_rows.append(pd.DataFrame({
+                "basepoint_index": x_idx,
+                "parameter_index": j,
+                "parameter": name,
+                "parameter_value": vals,
+                "status": status,
+                "is_ok": ok_mask,
+                "is_failure": fail_mask,
+                "is_too_slow": slow_mask,
+                "nominal_used": nom,
+                "lower_threshold": lo,
+                "upper_threshold": hi,
+                "outside_threshold": (vals < lo) | (vals > hi),
+                "outside_fraction": OUTSIDE_FRAC,
+            }))
+
+        plot_data = pd.concat(plot_rows, ignore_index=True)
+        plot_data.to_csv(OUT_PDF_DATA, index=False, float_format="%.17g")
+        print(f"Saved PDF dataset: {OUT_PDF_DATA}")
+
+        with PdfPages(OUT_PDF) as pdf:
             for j, name in enumerate(param_keys):
                 vals = X_base[:, j]
                 nom = nominal[j]

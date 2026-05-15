@@ -10,11 +10,11 @@ import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
-percentage = 20
+percentage = 90 # change
 
-X = np.load('DGSM_500_X_rest_20_10_04.npy')
-Result = np.load('DGSM_500_Result_rest_20_10_04.npy')
-
+X = np.load('DGSM_500_X_rest_90_14_04.npy') # change
+Result = np.load('DGSM_500_Result_rest_90_14_04.npy')[::273,:] # change
+num_zero_rows = np.sum(~Result.any(axis=1))
 # X = np.load('DGSM_500_X_rest_50_14_04.npy')
 # Result = np.load('DGSM_500_Result_rest_50_14_04.npy')
 

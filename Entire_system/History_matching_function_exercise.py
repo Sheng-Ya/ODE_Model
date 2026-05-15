@@ -1032,6 +1032,45 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x, y = self.simulate(samples)
         print(f"PRE-WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
 
+        self.train_x = x
+        self.train_y = y
+
+        # if n_simulations == 4096 and not refit_on_all_data:
+        #     x_batches = []
+        #     y_batches = []
+        #     n_positive = 0
+        #     batch = 1
+        #
+        #     while n_positive < n_simulations:
+        #         # After cols_to_drop in simulate(), columns 9 and 13 are min RA/LA volume.
+        #         positive_volume_mask = (y[:, 9] > 0) & (y[:, 13] > 0)
+        #         if positive_volume_mask.any():
+        #             x_batches.append(x[positive_volume_mask])
+        #             y_batches.append(y[positive_volume_mask])
+        #             n_positive += int(positive_volume_mask.sum().item())
+        #
+        #         print(
+        #             "PRE-WAVE: Retained "
+        #             f"{min(n_positive, n_simulations)}/{n_simulations} samples "
+        #             "with min RA and LA volume > 0"
+        #         )
+        #
+        #         if n_positive >= n_simulations:
+        #             break
+        #
+        #         batch += 1
+        #         samples = self.cloud_sample_and_emulator(n_simulations, scaling_factor=0.1)
+        #         x, y = self.simulate(samples)
+        #         print(
+        #             f"PRE-WAVE: Simulator batch {batch} returned "
+        #             f"{x.shape[0]} valid samples out of {n_simulations}"
+        #         )
+        #
+        #     x = torch.cat(x_batches, dim=0)[:n_simulations]
+        #     y = torch.cat(y_batches, dim=0)[:n_simulations]
+        #     self.train_x = x
+        #     self.train_y = y
+
         # Train and save one emulator per output
         output_names_full = self._exercise_output_names()
 
@@ -1053,8 +1092,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             joblib.dump(self.emulator, path1)
             print(f"  Saved to {path1}")
 
-        # torch.save(x, "X_train.pt")
-        # torch.save(y, "Y_train.pt")
+        torch.save(x, "X_train.pt")
+        torch.save(y, "Y_train.pt")
 
         print("=" * 60)
         print("PRE-WAVE: All emulators trained and saved to Emulator_exercise/")
@@ -1391,12 +1430,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x[row_mask, :]
         y = y[row_mask, :]
 
-        within = (y >= (col_mean - 3 * col_std)) & (y <= (col_mean + 3 * col_std))
-        row_mask = within.all(dim=1)
-
-        x = x[row_mask]
-        y = y[row_mask]
-
         # self.train_y = torch.cat([self.train_y, y], dim=0)
         # self.train_x = torch.cat([self.train_x, x], dim=0)
         self.train_y = y
@@ -1569,26 +1602,27 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 retries += 1
 
             # # Next time that call run(), will sample using these NROY points
-            # self.nroy_samples = torch.cat(nroy_parameters_list, 0)
+            self.nroy_samples = torch.cat(nroy_parameters_list, 0)
 
             # Randomly pick at most `n_simulations` parameters from NROY to simulate
-            # nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
-            # pick `n_simulations` parameters from NROY with lowest implausibility
-            nroy_params = torch.cat(nroy_parameters_list, dim=0)
+            nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
 
-            implaus_tensor = torch.cat(impl_scores_list, 0)
-            nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
-
-            # Rank by worst-output implausibility per sample
-            max_impl_per_sample, _ = nroy_impl.max(dim=1)
-            best_idx = torch.argsort(max_impl_per_sample)
-            nroy_params_sorted = nroy_params[best_idx]
-
-            # Take the best n_simulations to run through the simulator
-            nroy_simulation_samples = nroy_params_sorted[:n_simulations]
-
-            # Also update nroy_samples so cloud sampling next wave uses best seeds
-            self.nroy_samples = nroy_params_sorted
+            # # pick `n_simulations` parameters from NROY with lowest implausibility
+            # nroy_params = torch.cat(nroy_parameters_list, dim=0)
+            #
+            # implaus_tensor = torch.cat(impl_scores_list, 0)
+            # nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
+            #
+            # # Rank by worst-output implausibility per sample
+            # max_impl_per_sample, _ = nroy_impl.max(dim=1)
+            # best_idx = torch.argsort(max_impl_per_sample)
+            # nroy_params_sorted = nroy_params[best_idx]
+            #
+            # # Take the best n_simulations to run through the simulator
+            # nroy_simulation_samples = nroy_params_sorted[:n_simulations]
+            #
+            # # Also update nroy_samples so cloud sampling next wave uses best seeds
+            # self.nroy_samples = nroy_params_sorted
 
         # np.save("check.npy", nroy_simulation_samples)
         # save on CPU so it's portable across machines/devices
@@ -1742,7 +1776,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 torch.save(int(i), "last_wave.pt")
                 continue
 
-            self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_exercise.png")
+            # self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_exercise.png")
 
             # Get NROY points from impl scores and check fraction
             nroy_x = self.get_nroy(impl_scores, test_x)

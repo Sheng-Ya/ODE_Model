@@ -113,7 +113,7 @@ def compute_map(run_dir, top_k=10):
 # ---------------------------------------------------------------------
 
 def _resolve_emulator_dir(run_dir, cfg):
-    emu_cfg = cfg.get("emulator_dir", "Emulator_wave_3") # change
+    emu_cfg = cfg.get("emulator_dir", "Emulator_wave_3")
     if os.path.isabs(emu_cfg) and os.path.isdir(emu_cfg):
         return emu_cfg
     candidates = [
@@ -666,14 +666,14 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join("MCMC_HPC", "MCMC_Rest_20_05_05_1500_logspline_copula_prior"),
+        default=os.path.join(r"MCMC_Old_Attempts\MCMC_HPC_Low_RA", "MCMC_Rest_20_05_05_1500_logspline_copula_prior"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
     p.add_argument("--n-starts", type=int, default=5, help="How many of the top draws to use as optimisation starts.")
     p.add_argument("--maxiter", type=int, default=200, help="Maximum L-BFGS iterations per start.")
     p.add_argument("--gtol", type=float, default=1e-5, help="Projected-gradient tolerance for L-BFGS-B.")
-    p.add_argument("--emulator-dir", default=None, help="Override EMULATOR_DIR from config.json.")
+    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\MCMC_Old_Attempts\MCMC_HPC_Low_RA\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
     p.add_argument("--no-save", action="store_true", help="Print only; do not save outputs.")
     args = p.parse_args()
 

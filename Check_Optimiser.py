@@ -352,8 +352,8 @@ VAflow = 0.0673   # <-- your preferred constant value
 # ------------------------------
 # NEW: combinations of E_rs and R_rs
 # ------------------------------
-E_rs_values = np.linspace(21.9*0.8, 21.9*1.2, 50)   # example range
-R_rs_values = np.linspace(3.02*0.8, 3.02*1.2, 50)   # example range
+E_rs_values = np.linspace(21.9*0.5, 21.9*1.2, 50)   # example range
+R_rs_values = np.linspace(3.02*0.8, 3.02*1.5, 50)   # example range
 
 # create Cartesian product of E_rs × R_rs
 E_grid, R_grid = np.meshgrid(E_rs_values, R_rs_values)
@@ -459,7 +459,7 @@ plt.show()
 bounds = [(0.6, 3), (0.6, 6)]  # [t1, t2]
 tolerance = 0.001
 
-VAflow_vals = np.linspace(0.03, 1.6, 200)
+VAflow_vals = np.linspace(0.01, 1.2, 200)
 # VAflow_repeated = np.linspace(0.03, 1.6, 200)
 # VAflow_repeated = np.repeat(VAflow_vals, 1)
 GV_dead = 0.1698

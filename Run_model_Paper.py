@@ -7,12 +7,20 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import CubicSpline, interp1d
 from scipy.optimize import minimize
-from Resp_Control_Breath_Optimiser import objective
 from scipy.signal import find_peaks, savgol_filter
 # from line_profiler import LineProfiler
-from All_derivatives import model_derivatives
 from Entire_system.fixed_params import Parameters
 from check import Parameters as new_params
+
+try:
+    from Resp_Control_Breath_Optimiser import objective
+except ModuleNotFoundError:
+    objective = None
+
+try:
+    from All_derivatives import model_derivatives
+except ModuleNotFoundError:
+    model_derivatives = None
 
 from Initial_Conditions_after_running_again import Initial_Conditions
 from Next_Conditions_all_derivatives import Next_Conditions
@@ -21,9 +29,16 @@ from Next_Conditions_all_derivatives import Next_Conditions
 target_values = np.arange(0, 10000, 10)
 
 time_saved = 0.005
-BUFFER_LIMIT = 40000
+BUFFER_LIMIT = 80000
 CACHE_PATH = Path("Run_model_Paper_simulation_cache.pkl")
-CACHE_VERSION = 1
+CACHE_VERSION = 2
+ACTIVATION_ATRIAL_PV_OUTPUT = "Run_model_Paper_activation_atrial_pv.png"
+GAS_EXCHANGE_OUTPUT = "Run_model_Paper_gas_exchange.png"
+ACTIVATION_HISTORY_POINTS = 4000
+ATRIAL_PV_HISTORY_POINTS = 10000
+GAS_EXCHANGE_WINDOW_SECONDS = 10.0
+RESULTS_OVERVIEW_WINDOW_SECONDS = 10.0
+RESULTS_ATRIAL_DETAIL_WINDOW_SECONDS = 3.5
 
 RESULT_OUTPUT_NAMES_FULL = [
     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -62,10 +77,17 @@ PLOT_COLORS = {
     "rose_light": "#E2A4A4",
     "ink": "#4A4E57",
 }
+GAS_EXCHANGE_COLORS = [
+    "#B84E4E", "#E8A5A5",   # Pd_1  (red:    O2 dark, CO2 light)
+    "#C97A2C", "#F0BD7F",   # Pd_2  (amber)
+    "#4F8F5A", "#A5CFA8",   # Pd_3  (green)
+    "#3F6CAB", "#A0BEE0",   # Pd_4  (blue)
+    "#6B4A92", "#C5AED8",   # Pd_5  (purple)
+    "#5A4A3E", "#B59880",   # PA    (brown)
+]
 SOLID_LINEWIDTH = 1.8
 TARGET_LINEWIDTH = 1.4
-ATRIAL_TARGET_TIME_START = 56.74
-DPDT_TIME_START = 56.75
+FOCUS_LINEWIDTH = 2.0
 HEART_RATE_PLOT_SCALE = 60.0
 SUBPLOT_LEGEND_FONT_SIZE = 11
 JOURNAL_RC_PARAMS = {
@@ -121,7 +143,7 @@ TARGET_MEAN_LABELS = {
 }
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 60 # Maximum time limit to avoid infinite loops
+max_time = 200 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -186,6 +208,10 @@ required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "P
                      "PCSFCO2", "MRTO2", "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV"]
 IC_gas = np.array([Initial_Conditions[key] for key in required_gas_keys], dtype=float)
 num_gas = len(required_gas_keys)
+GAS_EXCHANGE_SKIPPED_LABELS = {
+    "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PCSFCO2", "MRTO2",
+    "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV",
+}
 
 # cardiovascular system
 required_cardio_keys = [ "VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
@@ -266,7 +292,7 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
     tolerance = 0.0001
 
-    VAflow_vals = np.linspace(0.01, 1, 200)
+    VAflow_vals = np.linspace(0.01, 1.6, 200)
     VAflow_repeated = np.repeat(VAflow_vals, 3)
 
     VD = GV_dead * VAflow_repeated + V0_dead
@@ -302,6 +328,9 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
 
 def simulate():
+    if objective is None or model_derivatives is None:
+        raise ModuleNotFoundError("numba is required to rerun the ODE simulation; cached plotting can still be used.")
+
     # Initial setup
     IC_current = IC_overall.copy()
 
@@ -947,6 +976,231 @@ def _add_panel_letters(axes):
         )
 
 
+def _history_end_index(conditions):
+    time_history = np.asarray(conditions["time_history"], dtype=float)
+    valid_idx = np.flatnonzero(np.isfinite(time_history) & (time_history < 1e5))
+    if valid_idx.size == 0:
+        raise ValueError("No valid time_history values were available for plotting.")
+    latest_idx = valid_idx[int(np.argmax(time_history[valid_idx]))]
+    return int(latest_idx + 1)
+
+
+def _history_window(conditions, keys, end_index, n_points):
+    start_index = max(0, end_index - n_points)
+    arrays = [np.asarray(conditions[key], dtype=float)[start_index:end_index] for key in keys]
+    valid = np.ones(arrays[0].shape, dtype=bool)
+    for values in arrays:
+        valid &= np.isfinite(values) & (values < 1e5)
+    if not np.any(valid):
+        raise ValueError(f"No valid values were available in the requested history window: {keys}")
+    return [values[valid] for values in arrays]
+
+
+def _history_time_window(conditions, keys, seconds):
+    end_index = _history_end_index(conditions)
+    arrays = [np.asarray(conditions[key], dtype=float)[:end_index] for key in keys]
+    time = arrays[0]
+    valid = np.ones(time.shape, dtype=bool)
+    for values in arrays:
+        valid &= np.isfinite(values) & (values < 1e5)
+    if not np.any(valid):
+        raise ValueError(f"No valid values were available in the requested history window: {keys}")
+    end_time = float(np.nanmax(time[valid]))
+    valid &= time >= end_time - seconds
+    if not np.any(valid):
+        raise ValueError(f"No valid values were available in the last {seconds:g} seconds: {keys}")
+    return [values[valid] for values in arrays]
+
+
+def _activation_timing(values, time):
+    windows = _active_windows(values)
+    for start_idx, end_idx in windows[::-1]:
+        if end_idx - start_idx < 3:
+            continue
+        peak_idx = start_idx + int(np.argmax(values[start_idx:end_idx]))
+        if start_idx < peak_idx < end_idx - 1:
+            return time[start_idx], time[peak_idx], time[end_idx - 1]
+    return None
+
+
+def _gas_exchange_legend_label(label):
+    gas_labels = {
+        "O2": "O_2",
+        "CO2": "CO_2",
+    }
+    if label.startswith("Pd_"):
+        _, compartment, gas = label.split("_", 2)
+        return rf"$P_{{d,{compartment},{gas_labels.get(gas, gas)}}}$"
+    if label.startswith("PA_"):
+        gas = label.split("_", 1)[1]
+        return rf"$P_{{A,{gas_labels.get(gas, gas)}}}$"
+    return label
+
+
+def _gas_exchange_plot_keys():
+    return [label for label in required_gas_keys if label not in GAS_EXCHANGE_SKIPPED_LABELS]
+
+
+def _extract_gas_exchange_solution_data(solution):
+    if solution is None or not hasattr(solution, "t") or not hasattr(solution, "y"):
+        return None
+
+    time = np.asarray(solution.t, dtype=float)
+    state_variables = np.asarray(solution.y, dtype=float)
+    gas_offset = len(required_cardio_keys) + len(required_cardio_control_keys)
+    values = {}
+    for label in _gas_exchange_plot_keys():
+        gas_index = required_gas_keys.index(label)
+        state_index = gas_offset + gas_index
+        if state_index < state_variables.shape[0]:
+            values[label] = np.asarray(state_variables[state_index], dtype=float).copy()
+
+    if not values:
+        return None
+    return {"time": time.copy(), "values": values}
+
+
+def _plot_gas_exchange_values(ax, time, values_by_key, colors, window_seconds):
+    time = np.asarray(time, dtype=float)
+    valid_time = np.isfinite(time)
+    if not np.any(valid_time):
+        raise ValueError("No valid gas exchange time values were available for plotting.")
+
+    end_time = float(np.nanmax(time[valid_time]))
+    plot_mask = valid_time & (time >= end_time - window_seconds)
+    plotted_index = 0
+    for label in _gas_exchange_plot_keys():
+        if label not in values_by_key:
+            continue
+        values = np.asarray(values_by_key[label], dtype=float)
+        ax.plot(
+            time[plot_mask],
+            values[plot_mask],
+            color=colors[plotted_index % len(colors)],
+            linestyle="-",
+            linewidth=SOLID_LINEWIDTH,
+            label=_gas_exchange_legend_label(label),
+        )
+        plotted_index += 1
+
+    if plotted_index == 0:
+        raise ValueError("No gas exchange pressure values were available for plotting.")
+
+
+def plot_activation_atrial_pv_section(
+    conditions,
+    activation_points=ACTIVATION_HISTORY_POINTS,
+    pv_points=ATRIAL_PV_HISTORY_POINTS,
+    output_path=ACTIVATION_ATRIAL_PV_OUTPUT,
+):
+    end_index = _history_end_index(conditions)
+    time_activation, phi, phi_atr = _history_window(
+        conditions,
+        ["time_history", "phi", "phi_atr"],
+        end_index,
+        activation_points,
+    )
+    _, vt_ra, p_ra, vt_la, p_la = _history_window(
+        conditions,
+        ["time_history", "VT_ra", "P_ra", "VT_la", "P_la"],
+        end_index,
+        pv_points,
+    )
+
+    ventricle_color = PLOT_COLORS["teal"]
+    atrial_color = PLOT_COLORS["rose"]
+
+    plt.rcParams.update(JOURNAL_RC_PARAMS)
+    fig, axes = plt.subplots(2, 1, figsize=(6.2, 7.0), constrained_layout=True)
+    fig.set_constrained_layout_pads(w_pad=0.03, h_pad=0.05, hspace=0.08)
+
+    ax = axes[0]
+    ax.plot(time_activation, phi, color=ventricle_color, linewidth=FOCUS_LINEWIDTH, label="Ventricle Activation")
+    ax.plot(time_activation, phi_atr, color=atrial_color, linewidth=FOCUS_LINEWIDTH, label="Atrial Activation")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Activation")
+    ax.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="#D5D5D5")
+
+    ax = axes[1]
+    ax.plot(vt_ra, p_ra, color=ventricle_color, linewidth=FOCUS_LINEWIDTH, label="RA")
+    ax.plot(vt_la, p_la, color=atrial_color, linewidth=FOCUS_LINEWIDTH, label="LA")
+    ax.set_xlabel("Volume (mL)")
+    ax.set_ylabel("Atrial Pressure (mmHg)")
+    ax.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="#D5D5D5")
+
+    for axis in axes:
+        _style_journal_axis(axis)
+
+    axes[0].set_ylim(0, 1.05)
+    axes[0].set_yticks(np.arange(0, 1.01, 0.25))
+
+    fig.align_ylabels(axes)
+    fig.savefig(output_path, dpi=600, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+    print(f"Saved activation and atrial PV figure to {output_path}")
+
+
+def plot_gas_exchange_section(
+    conditions,
+    solution=None,
+    cached_gas_exchange=None,
+    window_seconds=GAS_EXCHANGE_WINDOW_SECONDS,
+    output_path=GAS_EXCHANGE_OUTPUT,
+):
+    colors = GAS_EXCHANGE_COLORS
+    plt.rcParams.update(JOURNAL_RC_PARAMS)
+    fig, ax = plt.subplots(figsize=(11.0, 5.4), constrained_layout=True)
+    fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.06)
+
+    solution_gas_exchange = _extract_gas_exchange_solution_data(solution)
+    if solution_gas_exchange is not None:
+        _plot_gas_exchange_values(
+            ax,
+            solution_gas_exchange["time"],
+            solution_gas_exchange["values"],
+            colors,
+            window_seconds,
+        )
+    elif cached_gas_exchange is not None:
+        _plot_gas_exchange_values(
+            ax,
+            cached_gas_exchange["time"],
+            cached_gas_exchange["values"],
+            colors,
+            window_seconds,
+        )
+    else:
+        plot_keys = [label for label in _gas_exchange_plot_keys() if label in conditions]
+        if not plot_keys:
+            raise ValueError("No cached gas exchange variables were available for plotting.")
+        arrays = _history_time_window(conditions, ["time_history", *plot_keys], window_seconds)
+        time, values_by_key = arrays[0], arrays[1:]
+        for i, (label, values) in enumerate(zip(plot_keys, values_by_key)):
+            ax.plot(
+                time,
+                values,
+                color=colors[i % len(colors)],
+                linestyle="-",
+                linewidth=SOLID_LINEWIDTH,
+                label=_gas_exchange_legend_label(label),
+            )
+
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("State Variables")
+    ax.set_title("Evolution of Gas Exchange State Variables")
+    ax.legend(
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+        frameon=True,
+        facecolor="white",
+        edgecolor="#D5D5D5",
+    )
+    _style_journal_axis(ax)
+    fig.savefig(output_path, dpi=600, bbox_inches="tight", pad_inches=0.12)
+    plt.close(fig)
+    print(f"Saved gas exchange figure to {output_path}")
+
+
 def _collect_results_plot_data(conditions, buffer_limit):
     i_buffer = conditions["i"].item() % buffer_limit
     sorted_times = _sorted_buffer(conditions["all_time"], i_buffer)
@@ -1109,6 +1363,8 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     finite_time = time[np.isfinite(time)]
     time_axis_start = float(finite_time[0])
     time_axis_end = float(finite_time[-1])
+    overview_time_axis_start = max(time_axis_start, time_axis_end - RESULTS_OVERVIEW_WINDOW_SECONDS)
+    atrial_detail_time_axis_start = max(time_axis_start, time_axis_end - RESULTS_ATRIAL_DETAIL_WINDOW_SECONDS)
 
     colors = PLOT_COLORS
 
@@ -1117,10 +1373,11 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.09, hspace=0.14, wspace=0.04)
     axes = axes.ravel()
     secondary_axes = []
-    full_time_axes = []
+    overview_time_window_axes = []
+    atrial_detail_time_window_axes = []
 
     ax = axes[0]
-    full_time_axes.append(ax)
+    overview_time_window_axes.append(ax)
     ax.plot(t_plot, traces["P_sa_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{sa}}$")
     _horizontal_target(ax, targets["Systolic_Pressure"], TARGET_LABELS["Systolic_Pressure"], colors["rose_dark"])
     _horizontal_target(ax, targets["Diastolic_Pressure"], TARGET_LABELS["Diastolic_Pressure"], colors["rose_light"])
@@ -1174,7 +1431,7 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     _horizontal_target(ax_p, targets["Max_RA_Pressure_Tricuspid_Opening"], TARGET_LABELS["Max_RA_Pressure_Tricuspid_Opening"], colors["teal_light"])
     ax_p.set_ylabel(r"$P_{\mathrm{RA}}$ (mmHg)")
     _atrial_targets_legend(ax, ax_p)
-    ax.set_xlim(ATRIAL_TARGET_TIME_START, time_axis_end)
+    atrial_detail_time_window_axes.append(ax)
 
     ax = axes[4]
     ax.plot(t_plot, traces["V_la_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$V_{\mathrm{LA}}$")
@@ -1190,7 +1447,7 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     _horizontal_target(ax_p, targets["Max_LA_Pressure_Mitral_Opening"], TARGET_LABELS["Max_LA_Pressure_Mitral_Opening"], colors["teal_light"])
     ax_p.set_ylabel(r"$P_{\mathrm{LA}}$ (mmHg)")
     _atrial_targets_legend(ax, ax_p)
-    ax.set_xlim(ATRIAL_TARGET_TIME_START, time_axis_end)
+    atrial_detail_time_window_axes.append(ax)
 
     ax = axes[5]
     ax.plot(t_plot, traces["dP_lv_dt_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$\mathrm{d}P_{\mathrm{LV}}/\mathrm{d}t$")
@@ -1200,10 +1457,10 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     ax.set_xlabel("Time (s)")
     ax.set_ylabel(r"$\mathrm{d}P/\mathrm{d}t$ (mmHg/s)")
     _legend_above(ax, *ax.get_legend_handles_labels())
-    ax.set_xlim(DPDT_TIME_START, time_axis_end)
+    atrial_detail_time_window_axes.append(ax)
 
     ax = axes[6]
-    full_time_axes.append(ax)
+    overview_time_window_axes.append(ax)
     ax.plot(t_plot, traces["tidal_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["Tidal_Volume"])
     _horizontal_target(ax, targets["Tidal_Volume"], TARGET_MEAN_LABELS["Tidal_Volume"], colors["rose_dark"])
     ax.set_xlabel("Time (s)")
@@ -1216,7 +1473,7 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     _combined_legend(ax, ax_mv)
 
     ax = axes[7]
-    full_time_axes.append(ax)
+    overview_time_window_axes.append(ax)
     ax.plot(t_plot, traces["Pa_O2_every_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["PaO2"])
     ax.plot(t_plot, traces["Pa_CO2_every_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["PaCO2"])
     _horizontal_target(ax, targets["PaO2"], TARGET_MEAN_LABELS["PaO2"], colors["rose_dark"])
@@ -1225,8 +1482,10 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
     ax.set_ylabel(r"$P_{\mathrm{a}O_2}$ / $P_{\mathrm{a}CO_2}$ (mmHg)")
     _legend_above(ax, *ax.get_legend_handles_labels())
 
-    for axis in full_time_axes:
-        axis.set_xlim(time_axis_start, time_axis_end)
+    for axis in overview_time_window_axes:
+        axis.set_xlim(overview_time_axis_start, time_axis_end)
+    for axis in atrial_detail_time_window_axes:
+        axis.set_xlim(atrial_detail_time_axis_start, time_axis_end)
 
     for axis in axes:
         _style_journal_axis(axis)
@@ -1256,6 +1515,7 @@ def _save_simulation_cache(conditions, solution, cache_path=CACHE_PATH):
         "conditions": conditions,
         "solution_status": solution.status,
         "solution_message": solution.message,
+        "gas_exchange": _extract_gas_exchange_solution_data(solution),
     }
     with cache_path.open("wb") as f:
         pickle.dump(cache, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1278,6 +1538,8 @@ def _use_cached_results():
 if __name__ == "__main__":
 
     cache = _load_simulation_cache() if _use_cached_results() else None
+    solution = None
+    cached_gas_exchange = None
     if cache is None:
         simulation_result = simulate()
         solution = simulation_result if hasattr(simulation_result, "status") else simulation_result[0]
@@ -1289,6 +1551,7 @@ if __name__ == "__main__":
         _save_simulation_cache(conditions, solution)
     else:
         conditions = cache["conditions"]
+        cached_gas_exchange = cache.get("gas_exchange")
         print("ODE Status:", cache.get("solution_status", "cached"))
         print("ODE Message:", cache.get("solution_message", "loaded from cache"))
 
@@ -1297,3 +1560,28 @@ if __name__ == "__main__":
         print(history_end[0] - 1)
 
     plot_results_section(conditions)
+    plot_activation_atrial_pv_section(conditions)
+    plot_gas_exchange_section(conditions, solution, cached_gas_exchange)
+
+    if solution is not None and hasattr(solution, "t") and hasattr(solution, "y"):
+        time = solution.t
+        state_variables = solution.y
+        colors = GAS_EXCHANGE_COLORS
+
+        # # Plot all state variables
+        # plt.figure(figsize=(14, 10))
+        #
+        # for i, label in enumerate(required_gas_keys):
+        #     if label in ["Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PCSFCO2", "MRTO2", "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV"]:  # Skip "VT_sv"
+        #         continue
+        #     color = colors[i % len(colors)]
+        #     plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
+        #              color=color, linestyle='-', markersize=4)
+        #
+        # plt.xlabel("Time")
+        # plt.ylabel("State Variables")
+        # plt.title("Evolution of State Variables Over Time")
+        # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
+        # plt.grid()
+        # plt.tight_layout()
+        # plt.show()

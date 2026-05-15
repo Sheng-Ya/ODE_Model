@@ -85,10 +85,10 @@ torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
 DATE_SUFFIX  = "12_4"                    # matches HM output file names # change
-PERCENT      = 20                        # param range +/-% used in HM # change
-root = "HM_No_Filter" # change
-EMULATOR_DIR = f"{root}/Emulator_exercise_wave_no_filter"     # GP emulators from last refitted wave # change
-out_dir = f"{root}/MCMC_Rest_{PERCENT}_05_05_1500_logspline_copula_prior"
+PERCENT      = 90                        # param range +/-% used in HM # change
+# root = "HM_third_improved_first_emulator" # change
+EMULATOR_DIR = f"HM_fifth_90_Exercise_Only/Emulator_exercise_only_5"     # GP emulators from last refitted wave # change
+out_dir = f"MCMC_fifth_90_Exercise_Only"
 os.makedirs(out_dir, exist_ok=True)
 
 
@@ -1204,13 +1204,32 @@ RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
 # ================================================================
 # CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis) # change
 # ================================================================
-subset_vars_set = {'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_pv', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
-               'fall_time_ven', 'fes_o', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GT_v', 'GV_dead',
-               'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
-               'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven',
-               'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la',
-               'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max'}
+# exercise and rest overlap with dgsm including everything
+# subset_vars_set = {'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_pv', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
+#                'fall_time_ven', 'fes_o', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GT_v', 'GV_dead',
+#                'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
+#                'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven',
+#                'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+#                'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max'}
 
+# # both exercise and rest params
+# subset_vars_set = {'a2', 'ahead1', 'alpha2', 'beta2', 'C2', 'C_amv', 'C_bv', 'C_ev', 'C_jp', 'C_O2_param1', 'C_pa', 'C_pp',
+#     'C_pv', 'C_sa', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max',
+#     'f_acCO2_n', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_inf', 'fev_o', 'G_ap', 'g_ccsh',
+#     'GEmax_lv', 'GEmax_rv', 'gM', 'GR_amp', 'GT_s', 'GT_v', 'GV_amv', 'GV_dead', 'GV_ev', 'GV_sv', 'Io_met', 'Io_sh',
+#     'Io_sp', 'Io_sv', 'K1_vc', 'K2', 'k_ab', 'k_ac', 'KcCO2', 'kcc_sv', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv',
+#     'kes', 'kev', 'kmet', 'Kp_mi', 'Kp_po', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_ampn', 'MO2_bp', 'P0_la', 'P0_lv',
+#     'P0_ra', 'P0_rv', 'P_n', 'P_n_max', 'PaCO2_n', 'PaO2_ac_n', 'phi_max', 'r', 'R_amp0', 'R_bpn', 'R_mi', 'R_pa',
+#     'R_po', 'R_pp', 'R_rs', 'R_sa', 'R_tr', 'rise_time_atr', 'rise_time_ven', 'Rvc_n', 'T0', 'tauMR', 'theta_spn',
+#     'theta_svn', 'theta_v', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv',
+#     'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv', 'Wc_v', 'Wp_v', 'Ysh_max', 'Ysv_max', 'Yv_max'}
+
+# only exercise
+subset_vars_set = {'alpha2', 'C_amv', 'C_bv', 'C_ev', 'C_pa', 'C_pp', 'C_pv', 'C_sa', 'Cvb_O2_n', 'f_acCO2_n', 'G_ap',
+               'g_ccsh', 'GEmax_lv', 'GEmax_rv', 'gM', 'GR_amp', 'GV_amv', 'GV_dead', 'GV_ev', 'GV_sv', 'Io_sh',
+               'Io_sp', 'K1_vc', 'k_ac', 'KcCO2', 'KcMRV', 'kev', 'Kp_mi', 'Kp_po', 'MO2_ampn', 'P_n_max', 'PaO2_ac_n',
+               'phi_max', 'R_amp0', 'R_bpn', 'R_mi', 'R_po', 'R_tr', 'tauMR', 'theta_spn', 'theta_v', 'VA_rest', 'Wc_v',
+               'Wp_v', 'Ysh_max', 'Ysv_max', 'Yv_max'}
 
 
 
@@ -1224,10 +1243,11 @@ print("STEP 1 -- Loading history matching results")
 print("=" * 60)
 
 nroy_points_np = np.load(
-    f"{root}/NROY_Points_exercise_50.npy" # change
+    # f"HM_sixth_exercise_and_rest_union/NROY_Points_exercise_{PERCENT}.npy" # change
+    f"HM_fifth_90_Exercise_Only/NROY_Points_exercise_{PERCENT}.npy"
 )
 nroy_params_dict = np.load(
-    f"{root}/NROY_Params_exercise_50.npy", allow_pickle=True # change
+    f"HM_fifth_90_Exercise_Only/NROY_Params_exercise_{PERCENT}.npy", allow_pickle=True # change
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
