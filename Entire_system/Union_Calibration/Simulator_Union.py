@@ -259,78 +259,6 @@ class Simulator(ABC, ValidationMixin):
             self.logger.warning("Simulation failed with error %s. Returning None", e)
         return None
 
-    # def forward_batch(
-    #     self, x: TensorLike, allow_failures: bool = True
-    # ) -> tuple[TensorLike, TensorLike]:
-    #     """
-    #     Run multiple simulations.
-    #
-    #     If allow_failures is False, failed simulations will raise an error.
-    #     Otherwise, failed simulations are skipped, and only successful results
-    #     are returned along with their corresponding input parameters.
-    #
-    #     Parameters
-    #     ----------
-    #     x: TensorLike
-    #         Tensor of input parameters to make predictions for.
-    #     allow_failures: bool
-    #         Whether to allow failures during simulation.
-    #         Default is True. When true, failed simulations will return None instead
-    #         of raising an error. When False, error is raised.
-    #
-    #     Returns
-    #     -------
-    #     tuple[TensorLike, TensorLike]
-    #         Tuple of (simulation_results, valid_input_parameters).
-    #         Only successful simulations are included.
-    #     """
-    #     self.logger.info("Running batch simulation for %d samples", len(x))
-    #
-    #     results = []
-    #     successful = 0
-    #     valid_idx = []
-    #
-    #     # Process each sample with progress tracking
-    #     for i in tqdm(
-    #         range(len(x)),
-    #         desc="Running simulations",
-    #         disable=not self.progress_bar,
-    #         total=len(x),
-    #         unit="sample",
-    #         unit_scale=True,
-    #     ):
-    #         logger.debug("Running simulation for sample %d/%d", i + 1, len(x))
-    #         result = self.forward(x[i : i + 1], allow_failures=allow_failures)
-    #         if result is not None:
-    #             results.append(result)
-    #             valid_idx.append(i)
-    #             successful += 1
-    #             logger.debug("Simulation %d/%d successful", i + 1, len(x))
-    #         else:
-    #             logger.warning(
-    #                 "Simulation %d/%d failed. Result is None"
-    #                 "and is not appended to the results",
-    #                 i + 1,
-    #                 len(x),
-    #             )
-    #
-    #     # Report results
-    #     self.logger.info(
-    #         "Successfully completed %d/%d simulations (%.1f%%)",
-    #         successful,
-    #         len(x),
-    #         (successful / len(x) * 100 if len(x) > 0 else 0.0),
-    #     )
-    #
-    #     # handle no simulation results
-    #     if results == []:
-    #         return torch.empty((0, self.out_dim)), torch.empty((0, self.in_dim))
-    #
-    #     # stack results into a 2D array on first dim using torch
-    #     self.results_tensor = torch.cat(results, dim=0)
-    #
-    #     return self.results_tensor, x[valid_idx]
-
     def forward_batch(self, x: "TensorLike", allow_failures: bool = True) -> tuple["TensorLike", "TensorLike"]:
         """
         Run multiple simulations in parallel.
@@ -430,20 +358,3 @@ class Simulator(ABC, ValidationMixin):
         if name not in self._param_names:
             raise ValueError(f"Parameter {name} not found.")
         return self._param_names.index(name)
-
-    # def get_outputs_as_dict(self) -> dict[str, TensorLike]:
-    #     """
-    #     Return simulation results as a dictionary with output names as keys.
-    #
-    #     Returns
-    #     -------
-    #     dict[str, TensorLike]
-    #         Dictionary where keys are output names and values are tensors
-    #         of shape (n_samples,) for each output dimension.
-    #     """
-    #     # Create dictionary mapping output names to their corresponding columns
-    #     output_dict = {}
-    #     for i, output_name in enumerate(self.output_names):
-    #         output_dict[output_name] = self.results_tensor[:, i]
-    #
-    #     return output_dict

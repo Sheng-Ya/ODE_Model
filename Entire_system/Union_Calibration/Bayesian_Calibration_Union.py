@@ -31,7 +31,7 @@ ATRIAL_RATIO_MC_SAMPLES = 128
 # PROBLEM SPECIFICATION
 # ----------------------------
 # change
-percent = 90
+percent = 50
 lower = 1 - percent/100
 upper = 1 + percent/100
 #
@@ -129,7 +129,7 @@ sp = ProblemSpec({
         # resp control
         [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
         [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-        [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
+        [21.9 * 0.5, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.5],
         # cardio
         [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
         [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
@@ -295,15 +295,29 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
 
 # # Exercise (second is variance, not standard deviation)
-observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Diastolic Pressure": (76.4, 82.81),
-"EDV": (145.5, 681.21), "ESV": (45.5, 75.69), "Max RV Volume": (139.4, 681.21), "Min RV Volume": (40.3, 112.36),
-"Max RV Pressure": (29.5, 56.25), "Min RV Pressure": (9.9, 31.36), "Min RA Volume": (27.9, 25.0),
-"Max RA Volume": (77.3, 342.25), "Max RA Pressure Atrial contraction": (12, 16),
-"Max RA Pressure Tricuspid Opening": (11, 16), "Min LA Volume": (23.0, 94.09), "Max LA Volume": (66.3, 388.09),
-"Max LA Pressure Atrial contraction": (19, 49), "Max LA Pressure Mitral Opening": (19, 64),
-"LA Contraction Volume diff": (33.8, 77.4), "RA Contraction Volume diff": (40.3, 36.0),
-"LV Pressure Deriv": (1750, 272484), "RV Pressure Deriv": (713, 12100), "Tidal Volume": (2.22, 0.4096),
-"Minute Ventilation": (62.6, 320.41), "PaO2": (97.2, 36.0), "PaCO2": (38.4, 6.76)}
+observation = {
+# Rest
+"Rest Heart Rate": (1.23, 0.05), "Rest Systolic Pressure": (123, 324), "Rest Diastolic Pressure": (76.7, 65.61),
+"Rest EDV": (152.1, 767.29), "Rest ESV": (62.3, 243.36), "Rest Max RV Volume": (151.9, 1004.89),
+"Rest Min RV Volume": (64.4, 299.29), "Rest Max RV Pressure": (22.5, 56.25), "Rest Min RV Pressure": (4.0, 9.0),
+"Rest Min RA Volume": (45.7, 125.44), "Rest Max RA Volume": (92.4, 380.25), "Rest Max RA Pressure Atrial contraction": (8.0, 9.0),
+"Rest Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Rest Min LA Volume": (30.6, 84.64), "Rest Max LA Volume": (68.3, 306.25),
+"Rest Max LA Pressure Atrial contraction": (13.0, 9.0), "Rest Max LA Pressure Mitral Opening": (12.0, 9.0), "Rest Pre-LA Contraction Volume": (40.0, 67.24),
+"Rest Pre-RA Contraction Volume": (57.4, 96.04), "Rest LV Pressure Deriv": (1461.0, 146689.0), "Rest RV Pressure Deriv": (271.0, 3025.0),
+"Rest Tidal Volume": (0.850, 0.16), "Rest Minute Ventilation": (11.4, 15.21), "Rest PaO2": (102.3, 125.44),
+"Rest PaCO2": (35.5, 24.01),
+
+# Exercise
+"Exercise Heart Rate": (2.58, 0.12), "Exercise Systolic Pressure": (165, 529), "Exercise Diastolic Pressure": (76.4, 82.81),
+"Exercise EDV": (145.5, 681.21), "Exercise ESV": (45.5, 75.69), "Exercise Max RV Volume": (139.4, 681.21),
+"Exercise Min RV Volume": (40.3, 112.36), "Exercise Max RV Pressure": (29.5, 56.25), "Exercise Min RV Pressure": (9.9, 31.36),
+"Exercise Min RA Volume": (27.9, 25.0), "Exercise Max RA Volume": (77.3, 342.25), "Exercise Max RA Pressure Atrial contraction": (12, 16),
+"Exercise Max RA Pressure Tricuspid Opening": (11, 16), "Exercise Min LA Volume": (23.0, 94.09), "Exercise Max LA Volume": (66.3, 388.09),
+"Exercise Max LA Pressure Atrial contraction": (19, 49), "Exercise Max LA Pressure Mitral Opening": (19, 64), "Exercise Pre-LA Contraction Volume": (33.8, 77.4),
+"Exercise Pre-RA Contraction Volume": (40.3, 36.0), "Exercise LV Pressure Deriv": (1750, 272484), "Exercise RV Pressure Deriv": (713, 12100),
+"Exercise Tidal Volume": (2.22, 0.4096), "Exercise Minute Ventilation": (62.6, 320.41), "Exercise PaO2": (97.2, 36.0),
+"Exercise PaCO2": (38.4, 6.76)
+}
 
 # ----------------------------
 # BAYESIAN CALIBRATION
@@ -326,7 +340,7 @@ if __name__ == "__main__":
     )
 
     # # --- PRE-WAVE: Train initial emulators from hybrid samples ---
-    # hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+    hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
 
     size = 200000
     _ = hmw.run_waves(n_waves=5, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)

@@ -61,14 +61,22 @@ from Simulator_Union import Simulator
 logger = logging.getLogger("autoemulate")
 
 EMULATOR_OUTPUT_NAMES = [
-    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-    "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-    "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-    "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-    "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-    "PaO2", "PaCO2",
+    "Rest_Heart_Rate", "Rest_Systolic_Pressure", "Rest_Diastolic_Pressure", "Rest_EDV", "Rest_ESV",
+            "Rest_Max_RV_Volume", "Rest_Min_RV_Volume", "Rest_Max_RV_Pressure", "Rest_Min_RV_Pressure",
+            "Rest_Min_RA_Volume", "Rest_Max_RA_Volume", "Rest_Max_RA_Pressure_Atrial_contraction",
+            "Rest_Max_RA_Pressure_Tricuspid_Opening", "Rest_Min_LA_Volume", "Rest_Max_LA_Volume",
+            "Rest_Max_LA_Pressure_Atrial_contraction", "Rest_Max_LA_Pressure_Mitral_Opening",
+            "Rest_Pre_LA_Contraction_Volume", "Rest_Pre_RA_Contraction_Volume", "Rest_LV_Pressure_Deriv",
+            "Rest_RV_Pressure_Deriv", "Rest_Tidal_Volume", "Rest_Minute_Ventilation", "Rest_PaO2", "Rest_PaCO2",
+
+            "Exercise_Heart_Rate", "Exercise_Systolic_Pressure", "Exercise_Diastolic_Pressure", "Exercise_EDV",
+            "Exercise_ESV", "Exercise_Max_RV_Volume", "Exercise_Min_RV_Volume", "Exercise_Max_RV_Pressure",
+            "Exercise_Min_RV_Pressure", "Exercise_Min_RA_Volume", "Exercise_Max_RA_Volume",
+            "Exercise_Max_RA_Pressure_Atrial_contraction", "Exercise_Max_RA_Pressure_Tricuspid_Opening",
+            "Exercise_Min_LA_Volume", "Exercise_Max_LA_Volume", "Exercise_Max_LA_Pressure_Atrial_contraction",
+            "Exercise_Max_LA_Pressure_Mitral_Opening", "Exercise_Pre_LA_Contraction_Volume",
+            "Exercise_Pre_RA_Contraction_Volume", "Exercise_LV_Pressure_Deriv", "Exercise_RV_Pressure_Deriv",
+            "Exercise_Tidal_Volume", "Exercise_Minute_Ventilation", "Exercise_PaO2", "Exercise_PaCO2",
 ]
 
 
@@ -87,18 +95,6 @@ class HistoryMatching(TorchDeviceMixin):
     Queried parameters above a given implausibility threshold are ruled out (RO)
     whereas all other parameters are marked as not ruled out yet (NROY).
     """
-
-    @staticmethod
-    def _exercise_output_names() -> list[str]:
-        return [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
 
     def __init__(
         self,
@@ -746,7 +742,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.train_y = y
 
         # Train and save one emulator per output
-        output_names_full = self._exercise_output_names()
+        output_names_full = EMULATOR_OUTPUT_NAMES
 
         for j, target_name in enumerate(output_names_full):
             print(f"\n  [{j + 1}/{len(output_names_full)}] Training emulator for {target_name}")
@@ -868,18 +864,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             parent = "Emulator_exercise_only_wave"
             # parent = "Emulator_wave_V_tot"
 
-        output_names = [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
-
         models = {}
-        for name in output_names:
+        for name in EMULATOR_OUTPUT_NAMES:
             folder = name
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
@@ -887,7 +873,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         means = {}
         variances = {}
 
-        for name in output_names:
+        for name in EMULATOR_OUTPUT_NAMES:
             target_emulator = models[name]
 
             with torch.no_grad():
@@ -911,8 +897,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # means = {name: mean for name, mean, var in results}
         # variances = {name: var for name, mean, var in results}
 
-        mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
-        var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
+        mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in EMULATOR_OUTPUT_NAMES], dim=1)
+        var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in EMULATOR_OUTPUT_NAMES], dim=1)
 
         get_reusable_executor().shutdown(wait=True)
 
@@ -933,11 +919,31 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 (la_ratio_probs >= self.atrial_ratio_min_probability)
                 & (ra_ratio_probs >= self.atrial_ratio_min_probability)
             )
+
+            la_ratio_probs_exercise = self._estimate_ratio_interval_probability(
+                mean_tensor[:, 38], var_tensor[:, 38],
+                mean_tensor[:, 39], var_tensor[:, 39],
+                mean_tensor[:, 42], var_tensor[:, 42],
+            )
+            ra_ratio_probs_exercise = self._estimate_ratio_interval_probability(
+                mean_tensor[:, 34], var_tensor[:, 34],
+                mean_tensor[:, 35], var_tensor[:, 35],
+                mean_tensor[:, 43], var_tensor[:, 43],
+            )
+            atrial_ratio_mask_exercise = (
+                (la_ratio_probs_exercise >= self.atrial_ratio_min_probability)
+                & (ra_ratio_probs_exercise >= self.atrial_ratio_min_probability)
+            )
             # The ratio is now enforced through the interval-probability filter below.
             impl_scores[:, 17] = 0.0
             impl_scores[:, 18] = 0.0
+            impl_scores[:, 42] = 0.0
+            impl_scores[:, 43] = 0.0
         else:
             atrial_ratio_mask = torch.ones(
+                mean_tensor.shape[0], dtype=torch.bool, device=mean_tensor.device
+            )
+            atrial_ratio_mask_exercise = torch.ones(
                 mean_tensor.shape[0], dtype=torch.bool, device=mean_tensor.device
             )
 
@@ -948,7 +954,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
             & (mean_tensor[:, 9] > test_x[:, 203])
             & (mean_tensor[:, 10] > mean_tensor[:, 9])
             & (mean_tensor[:, 14] > mean_tensor[:, 13])
+            & (mean_tensor[:, 38] > test_x[:, 201])
+            & (mean_tensor[:, 34] > test_x[:, 203])
+            & (mean_tensor[:, 35] > mean_tensor[:, 34])
+            & (mean_tensor[:, 39] > mean_tensor[:, 38])
             & atrial_ratio_mask
+            & atrial_ratio_mask_exercise
         )
         # test_x = test_x[phys_mask]
         # mean_tensor = mean_tensor[phys_mask]
@@ -1014,7 +1025,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x.to(self.device)
 
         # Drop output columns
-        cols_to_drop = torch.tensor([11, 14, 17, 20, 27, 30], device=self.device)
+        cols_to_drop = torch.tensor([11, 14, 17, 20, 27, 30, 42, 45, 48, 51, 58, 61], device=self.device)
         keep_mask = torch.ones(y.shape[1], dtype=torch.bool, device=self.device)
         keep_mask[cols_to_drop] = False
         y = y[:, keep_mask]
