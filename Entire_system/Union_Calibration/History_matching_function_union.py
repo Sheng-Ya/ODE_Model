@@ -1,11 +1,15 @@
 import logging
+import multiprocessing
 import warnings
 import numpy as np
 from scipy.stats import gaussian_kde
 import os
 import joblib
+from joblib.externals.loky import get_reusable_executor
 from autoemulate.core.model_selection import evaluate, r2_metric
 from autoemulate.core.model_selection import bootstrap
+from joblib.externals.loky import get_reusable_executor
+import gc
 import torch
 # from tqdm import tqdm
 # import tqdm_joblib
@@ -52,9 +56,20 @@ from autoemulate.core.types import DeviceLike, DistributionLike, TensorLike
 from autoemulate.data.utils import set_random_seed
 from autoemulate.emulators import TransformedEmulator, get_emulator_class
 # from autoemulate.simulations.base import Simulator
-from Simulator_new import Simulator
+from Simulator_Union import Simulator
 
 logger = logging.getLogger("autoemulate")
+
+EMULATOR_OUTPUT_NAMES = [
+    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+    "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
+    "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+    "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+    "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+    "PaO2", "PaCO2",
+]
 
 
 class HistoryMatching(TorchDeviceMixin):
@@ -72,6 +87,18 @@ class HistoryMatching(TorchDeviceMixin):
     Queried parameters above a given implausibility threshold are ruled out (RO)
     whereas all other parameters are marked as not ruled out yet (NROY).
     """
+
+    @staticmethod
+    def _exercise_output_names() -> list[str]:
+        return [
+            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
+            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
+            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
+            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
+            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
+            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
+            "PaO2", "PaCO2"]
 
     def __init__(
         self,
@@ -265,6 +292,13 @@ class HistoryMatching(TorchDeviceMixin):
         return torch.abs(self.obs_means - pred_means) / torch.sqrt(Vs)
 
     @staticmethod
+    def _safe_ratio_denominator(denominator: TensorLike, eps: float = 1e-8) -> TensorLike:
+        # Prevent divide-by-zero when max and min are very close.
+        eps_tensor = torch.full_like(denominator, eps)
+        signed_eps = torch.where(denominator < 0, -eps_tensor, eps_tensor)
+        return torch.where(denominator.abs() < eps, signed_eps, denominator)
+
+    @staticmethod
     def generate_param_bounds(
         nroy_x: TensorLike,
         buffer_ratio: float = 0.05,
@@ -321,18 +355,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
     - refit the emulator using the simulated data
     """
 
-    @staticmethod
-    def _exercise_output_names() -> list[str]:
-        return [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
-
     def __init__(
         self,
         simulator: Simulator,
@@ -344,16 +366,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         train_x: TensorLike | None = None,
         train_y: TensorLike | None = None,
         calibration_params: list[str] | None = None,
-        overlap_params: list[str] | None = None,
-        exercise_only_params: list[str] | None = None,
         atrial_ratio_bounds: tuple[float, float] | None = None,
         atrial_ratio_min_probability: float = 0.0,
         atrial_ratio_mc_samples: int = 128,
-        rest_overlap_source: str = "nroy",
-        rest_overlap_path: str | None = None,
-        rest_posterior_mass: float = 0.95,
-        rest_posterior_region: str = "hpd",
-        rest_overlap_sampling: str = "empirical",
         device: DeviceLike | None = None,
         random_seed: int | None = None,
         log_level: str = "debug",
@@ -430,28 +445,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # If use `run_waves()`, results are stored here
         self.wave_results = []
+        self._current_wave_idx: int | None = None
+        self._save_wave_artifacts = True
+        self._wave_artifacts_dir = "."
+        self._last_wave_train_points: TensorLike | None = None
 
         # Save names and indices of parameters to calibrate
         self.calibration_params = calibration_params or list(
             simulator.parameters_range.keys()
         )
-        self.overlap_params = overlap_params or []
-        self.exercise_only_params = exercise_only_params or []
-        self.rest_overlap_source = rest_overlap_source
-        self.rest_overlap_path = rest_overlap_path
-        self.rest_posterior_mass = rest_posterior_mass
-        self.rest_posterior_region = rest_posterior_region
-        self.rest_overlap_sampling = rest_overlap_sampling
-        self._rest_overlap_reference_cache = None
-
         self.parameter_idx = [
             self.simulator.get_parameter_idx(param) for param in self.calibration_params
-        ]
-        self.overlap_idx = [
-            self.simulator.get_parameter_idx(param) for param in self.overlap_params
-        ]
-        self.exercise_only_idx = [
-            self.simulator.get_parameter_idx(param) for param in self.exercise_only_params
         ]
         # Derived atrial ratio is enforced as an interval constraint, not a point target.
         self.atrial_ratio_bounds = atrial_ratio_bounds
@@ -459,10 +463,54 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.atrial_ratio_mc_samples = atrial_ratio_mc_samples
 
     @staticmethod
-    def _safe_ratio_denominator(denominator: TensorLike, eps: float = 1e-8) -> TensorLike:
-        eps_tensor = torch.full_like(denominator, eps)
-        signed_eps = torch.where(denominator < 0, -eps_tensor, eps_tensor)
-        return torch.where(denominator.abs() < eps, signed_eps, denominator)
+    def _to_numpy(array: TensorLike | np.ndarray) -> np.ndarray:
+        if torch.is_tensor(array):
+            return array.detach().cpu().numpy()
+        return np.asarray(array)
+
+    def _wave_number(self) -> int | None:
+        if self._current_wave_idx is None:
+            return None
+        return self._current_wave_idx + 1
+
+    def _save_wave_numpy_artifacts(
+        self,
+        test_x: TensorLike,
+        impl_scores: TensorLike,
+    ) -> None:
+        if not self._save_wave_artifacts:
+            return
+
+        wave_number = self._wave_number()
+        if wave_number is None:
+            return
+
+        os.makedirs(self._wave_artifacts_dir, exist_ok=True)
+        nroy_mask = self._create_nroy_mask(impl_scores)
+        nroy_points = test_x[nroy_mask]
+
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"test_params_wave_{wave_number}.npy"),
+            self._to_numpy(test_x),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"impl_scores_wave_{wave_number}.npy"),
+            self._to_numpy(impl_scores),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"nroy_mask_wave_{wave_number}.npy"),
+            self._to_numpy(nroy_mask),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"nroy_points_wave_{wave_number}.npy"),
+            self._to_numpy(nroy_points),
+        )
+
+        if self._last_wave_train_points is not None:
+            np.save(
+                os.path.join(self._wave_artifacts_dir, f"train_points_wave_{wave_number}.npy"),
+                self._to_numpy(self._last_wave_train_points),
+            )
 
     def _estimate_ratio_interval_probability(
         self,
@@ -479,6 +527,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         lower, upper = self.atrial_ratio_bounds
         n_mc = self.atrial_ratio_mc_samples
 
+        # Sample from emulator marginals and estimate P(lower <= ratio <= upper).
         min_draws = min_mean[:, None] + min_var.clamp(min=0).sqrt()[:, None] * torch.randn(
             min_mean.shape[0], n_mc, device=min_mean.device, dtype=min_mean.dtype
         )
@@ -524,142 +573,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
             device=sample.device,
         )
         return bool(torch.all((sample >= lowers) & (sample <= uppers)).item())
-
-    def _phi(self, x):
-        return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
-
-    def _phi_inv(self, u):
-        return math.sqrt(2.0) * torch.erfinv(2.0 * u - 1.0)
-
-    def truncated_normal_1d(self, mean, std, low, high, n_samples):
-        """
-        mean/std/low/high: [d]
-        returns: [n_samples, d] all within [low, high]
-        """
-        eps = 1e-7
-        std = torch.clamp(std, min=1e-12)
-
-        a = (low - mean) / std
-        b = (high - mean) / std
-
-        pa = torch.clamp(self._phi(a), eps, 1 - eps)
-        pb = torch.clamp(self._phi(b), eps, 1 - eps)
-
-        # sample uniformly between CDF(low) and CDF(high)
-        u = torch.rand((n_samples, mean.numel()), device=mean.device, dtype=mean.dtype)
-        u = pa + u * (pb - pa)
-        u = torch.clamp(u, eps, 1 - eps)
-
-        z = self._phi_inv(u)
-        x = mean + std * z
-
-        # numerical safety
-        return torch.clamp(x, low, high)
-
-    @staticmethod
-    def _log_det_jac_np(z, prior_lo, prior_hi):
-        width = np.clip(prior_hi - prior_lo, 1e-12, None)
-        log_width = np.log(width)
-        log_sig_pos = -np.logaddexp(0.0, -z)
-        log_sig_neg = -np.logaddexp(0.0, z)
-        return (log_sig_pos + log_sig_neg + log_width).sum(axis=-1)
-
-    def _load_rest_overlap_reference(self):
-        if self._rest_overlap_reference_cache is not None:
-            return self._rest_overlap_reference_cache
-
-        overlap_dim = len(self.overlap_idx)
-        if overlap_dim == 0:
-            empty = torch.empty((0, 0), dtype=torch.float32, device=self.device)
-            self._rest_overlap_reference_cache = {
-                "samples": empty,
-                "low": torch.empty(0, dtype=torch.float32, device=self.device),
-                "high": torch.empty(0, dtype=torch.float32, device=self.device),
-                "source": "none",
-                "n_reference": 0,
-            }
-            return self._rest_overlap_reference_cache
-
-        source = (self.rest_overlap_source or "nroy").lower()
-
-        if source == "nroy":
-            path = self.rest_overlap_path or "nroy_samples_rest.pt"
-            rest_samples = torch.load(path, map_location="cpu").float()
-            overlap_idx_t = torch.tensor(self.overlap_idx, dtype=torch.long)
-            overlap_samples = rest_samples[:, overlap_idx_t]
-
-            cache = {
-                "samples": overlap_samples.to(self.device),
-                "low": overlap_samples.min(dim=0).values.to(self.device),
-                "high": overlap_samples.max(dim=0).values.to(self.device),
-                "source": "nroy",
-                "n_reference": int(overlap_samples.shape[0]),
-            }
-            self._rest_overlap_reference_cache = cache
-            print(
-                f"Loaded {cache['n_reference']} overlap reference samples from rest NROY."
-            )
-            return cache
-
-        if source != "posterior":
-            raise ValueError(
-                f"Unknown rest_overlap_source='{self.rest_overlap_source}'. "
-                "Use 'nroy' or 'posterior'."
-            )
-
-        if self.rest_overlap_path is None:
-            raise ValueError(
-                "rest_overlap_path must point to a MCMC_Rest_* run directory "
-                "when rest_overlap_source='posterior'."
-            )
-
-        run_dir = self.rest_overlap_path
-        posterior = np.load(os.path.join(run_dir, "posterior_samples.npy"))
-        subset_vars = np.load(
-            os.path.join(run_dir, "subset_vars.npy"), allow_pickle=True
-        ).tolist()
-
-        overlap_col_idx = [subset_vars.index(name) for name in self.overlap_params]
-        overlap_np = posterior[:, overlap_col_idx].astype(np.float32, copy=False)
-
-        region = (self.rest_posterior_region or "hpd").lower()
-        mass = float(self.rest_posterior_mass)
-
-        if region == "hpd": # sample values from the posterior distribution, excluding the worst 5% log posterior
-            posterior_z = np.load(os.path.join(run_dir, "posterior_z.npy"))
-            log_post_z = np.load(os.path.join(run_dir, "log_posterior_trace.npy"))
-            prior_lo = np.load(os.path.join(run_dir, "prior_lower.npy"))
-            prior_hi = np.load(os.path.join(run_dir, "prior_upper.npy"))
-            log_post_theta = log_post_z - self._log_det_jac_np(
-                posterior_z, prior_lo, prior_hi
-            )
-            keep = max(1, int(np.ceil(mass * overlap_np.shape[0])))
-            idx = np.argsort(log_post_theta)[::-1][:keep]
-            overlap_np = overlap_np[idx]
-            low_np = overlap_np.min(axis=0) # sets lower range of each parameter after removing 5%
-            high_np = overlap_np.max(axis=0) # sets higher range of each parameter after removing 5%
-
-        else:
-            low_np = overlap_np.min(axis=0)
-            high_np = overlap_np.max(axis=0)
-
-
-        cache = {
-            "samples": torch.from_numpy(overlap_np).to(self.device),
-            "low": torch.from_numpy(low_np.astype(np.float32)).to(self.device),
-            "high": torch.from_numpy(high_np.astype(np.float32)).to(self.device),
-            "source": "posterior",
-            "n_reference": int(overlap_np.shape[0]),
-            "region": region,
-            "mass": mass,
-        }
-        self._rest_overlap_reference_cache = cache
-        print(
-            "Loaded "
-            f"{cache['n_reference']} overlap reference samples from rest posterior "
-            f"({region}, mass={mass:.2f})."
-        )
-        return cache
 
 
     def cloud_sample(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
@@ -709,29 +622,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 ) * scaling_factor
         # covariance_matrix = torch.diag(stdev ** 2)
 
-        # Shuffle the order of means to sample from. When there are more
-        # means than requested samples, only visit the means that can actually
-        # receive at least one draw.
-        num_available_means = nroy_params_to_sample.shape[0]
-        num_means = min(num_available_means, n)
-        perm = torch.randperm(
-            num_available_means, device=nroy_params_to_sample.device
-        )[:num_means]
-        means_to_sample = nroy_params_to_sample[perm]
+        # Shuffle the order of means to sample from
+        num_means = nroy_params_to_sample.shape[0]
+        perm = torch.randperm(num_means, device=nroy_params_to_sample.device)
 
         # Determine how many samples to draw for each mean, handle remainder
         min_samples_per_mean = n // num_means
         remainder_to_sample = n % num_means
 
         # Determine number of parallel jobs
-        n_jobs = 64  # use all cores
+        n_jobs = 64 # multiprocessing.cpu_count()  # use all cores
 
         # Split permuted means into batches
         chunk_size = math.ceil(num_means / n_jobs)
-        batches = [
-            means_to_sample[i:i + chunk_size]
-            for i in range(0, num_means, chunk_size)
-        ]
+        batches = [nroy_params_to_sample[perm][i:i + chunk_size] for i in range(0, num_means, chunk_size)]
 
         # precompute once outside the loop:
         low_all = torch.tensor([b[0] for b in bounds.values()], device=self.device)
@@ -751,15 +655,47 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         param_dim = len(bounds)
 
+        def _phi(x):
+            return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+        def _phi_inv(u):
+            return math.sqrt(2.0) * torch.erfinv(2.0 * u - 1.0)
+
+        def truncated_normal_1d(mean, std, low, high, n_samples):
+            """
+            mean/std/low/high: [d]
+            returns: [n_samples, d] all within [low, high]
+            """
+            eps = 1e-7
+            std = torch.clamp(std, min=1e-12)
+
+            a = (low - mean) / std
+            b = (high - mean) / std
+
+            pa = torch.clamp(_phi(a), eps, 1 - eps)
+            pb = torch.clamp(_phi(b), eps, 1 - eps)
+
+            # sample uniformly between CDF(low) and CDF(high)
+            u = torch.rand((n_samples, mean.numel()), device=mean.device, dtype=mean.dtype)
+            u = pa + u * (pb - pa)
+            u = torch.clamp(u, eps, 1 - eps)
+
+            z = _phi_inv(u)
+            x = mean + std * z
+
+            # numerical safety
+            return torch.clamp(x, low, high)
+
+
         def sample_batch(batch, batch_idx):
             outs = []
             for j, mean in enumerate(batch):
                 i = batch_idx * chunk_size + j
                 n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
 
-                x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
+                x_nonconst = truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
 
-                full = torch.empty((n_samples, param_dim), device=self.device, dtype=x_nonconst.dtype)
+                full = torch.empty((n_samples, param_dim), device="cpu", dtype=x_nonconst.dtype)
                 if const_idx_t is not None:
                     full[:, const_idx_t] = const_vals_t.to(x_nonconst.dtype)
                 full[:, sample_idx_t] = x_nonconst
@@ -767,249 +703,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 outs.append(full)
 
             # print(f"==============Batch {batch_idx + 1} done")
-            return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device=self.device)
+            return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device="cpu")
 
         results = Parallel(n_jobs=n_jobs)(
             delayed(sample_batch)(batch, idx) for idx, batch in enumerate(batches)
         )
+        get_reusable_executor().shutdown(wait=True)
         print(f"==============Batch done")
         return torch.cat(results, dim=0)
-
-
-        # def sample_batch_serial(batch, batch_idx):
-        #     outs = []
-        #     for j, mean in enumerate(batch):
-        #         i = batch_idx * chunk_size + j
-        #         n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-        #
-        #         x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
-        #
-        #         full = torch.empty((n_samples, param_dim), device=self.device, dtype=x_nonconst.dtype)
-        #         if const_idx_t is not None:
-        #             full[:, const_idx_t] = const_vals_t.to(x_nonconst.dtype)
-        #         full[:, sample_idx_t] = x_nonconst
-        #
-        #         outs.append(full)
-        #
-        #     # print(f"==============Batch {batch_idx + 1} done")
-        #     return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device=self.device)
-        #
-        # results = [
-        #     sample_batch_serial(batch, idx)
-        #     for idx, batch in enumerate(batches)
-        # ]
-        print(f"==============Batch done")
-        return torch.cat(results, dim=0)
-
-
-    def cloud_sample_and_emulator(self, n: int, scaling_factor: float = 0.1) -> TensorLike:
-        """
-        Generate `n` additional parameter samples using cloud sampling.
-
-        Handles fixed parameters (min == max) by not sampling those. The constant
-        values are inserted at the correct indices in the sampled tensor.
-
-        Parameters
-        ----------
-        n: int
-            The number of samples to generate.
-        scaling_factor: float
-            The standard deviation of the Gaussian to sample from in cloud sampling is
-            set to: `parameter range * scaling_factor`.
-
-        Returns
-        -------
-        TensorLike
-            A tensor of sampled (and potentially constant) parameters [n, in_dim].
-        """
-        rest_reference = self._load_rest_overlap_reference()
-        overlap_idx_t = torch.tensor(self.overlap_idx, device=self.device, dtype=torch.long)
-        overlap_reference_samples = rest_reference["samples"]
-        low_overlap = rest_reference["low"]
-        high_overlap = rest_reference["high"]
-
-        if overlap_reference_samples.shape[0] == 0 and len(self.overlap_idx) > 0:
-            raise ValueError("No overlap reference samples available for exercise initialisation.")
-
-        overlap_mode = (self.rest_overlap_sampling or "empirical").lower()
-        if overlap_mode == "empirical":
-            num_reference = overlap_reference_samples.shape[0]
-            if num_reference >= n:
-                sampled_idx = torch.randperm(num_reference, device=self.device)[:n]
-            else:
-                sampled_idx = torch.randint(num_reference, (n,), device=self.device)
-            overlap_samples = overlap_reference_samples[sampled_idx]
-            # print("==============Overlap empirical sampling done")
-        elif overlap_mode == "cloud":
-            stdev_overlap = (
-                overlap_reference_samples.max(dim=0).values
-                - overlap_reference_samples.min(dim=0).values
-            ) * scaling_factor
-
-            num_means = overlap_reference_samples.shape[0]
-            perm = torch.randperm(num_means, device=self.device)
-            min_samples_per_mean = n // num_means
-            remainder_to_sample = n % num_means
-
-            n_jobs = 64
-            chunk_size = math.ceil(num_means / n_jobs)
-            batches = [
-                overlap_reference_samples[perm][i:i + chunk_size]
-                for i in range(0, num_means, chunk_size)
-            ]
-            n_overlap = len(self.overlap_idx)
-
-            def sample_overlap_batch(batch, batch_idx):
-                outs = []
-                for j, mean in enumerate(batch):
-                    i = batch_idx * chunk_size + j
-                    ns = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-                    x_sampled = self.truncated_normal_1d(
-                        mean, stdev_overlap, low_overlap, high_overlap, ns
-                    )
-                    outs.append(x_sampled)
-
-                return (
-                    torch.cat(outs, dim=0)
-                    if outs
-                    else torch.empty((0, n_overlap), device=self.device)
-                )
-
-            results_overlap = Parallel(n_jobs=n_jobs)(
-                delayed(sample_overlap_batch)(batch, idx)
-                for idx, batch in enumerate(batches)
-            )
-            overlap_samples = torch.cat(results_overlap, dim=0)
-            print("==============Overlap cloud sampling done")
-        else:
-            raise ValueError(
-                f"Unknown rest_overlap_sampling='{self.rest_overlap_sampling}'. "
-                "Use 'empirical' or 'cloud'."
-            )
-
-        # --- Step 2: Uniform sample the EXERCISE-ONLY parameters ---
-        exercise_only_idx_t = torch.tensor(self.exercise_only_idx, device=self.device, dtype=torch.long)
-        uniform_all = self.simulator.sample_inputs(n).to(self.device)  # [n, in_dim]
-        exercise_only_samples = uniform_all[:, exercise_only_idx_t]  # [n, n_exercise_only]
-        # print(f"==============Exercise-only uniform sampling done")
-
-        # --- Step 3: Assemble full parameter tensor ---
-        # Start with nominal/fixed values for ALL parameters
-        # Use the midpoint of the simulator range for non-calibrated params
-        all_param_names = list(self.simulator.parameters_range.keys())
-        nominal = torch.tensor(
-            [0.5 * (self.simulator.parameters_range[p][0] + self.simulator.parameters_range[p][1])
-             for p in all_param_names],
-            device=self.device, dtype=overlap_samples.dtype
-        )
-        full_samples = nominal.unsqueeze(0).expand(n, -1).clone()  # [n, in_dim]
-
-        # Insert overlap columns
-        full_samples[:, overlap_idx_t] = overlap_samples
-
-        # Insert exercise-only columns
-        full_samples[:, exercise_only_idx_t] = exercise_only_samples
-
-        # print(f"==============Full assembly done, shape: {full_samples.shape}")
-        # --- Adhoc diagnostic plot: parameter ranges in full_samples ---
-        # self._plot_parameter_ranges(full_samples, all_param_names)
-
-        return full_samples
-
-    def _plot_parameter_ranges(self, full_samples: TensorLike, all_param_names: list[str]) -> None:
-        """
-        Adhoc diagnostic plot showing the [min, max] range of each parameter
-        across the sampled tensor, colour-coded by parameter type.
-
-        Blue   = overlap (cloud-sampled from rest NROY)
-        Orange = exercise-only (uniform prior)
-        Grey   = fixed / nominal (not calibrated)
-
-        Each parameter's range is normalised to [0, 1] relative to the simulator's
-        prior bounds so that all parameters are visually comparable on the same axis.
-        A bar spanning the full width means the samples cover the entire prior;
-        a narrow bar means the parameter is tightly constrained.
-        """
-        samples_np = full_samples.detach().cpu().numpy()
-        sample_mins = samples_np.min(axis=0)
-        sample_maxs = samples_np.max(axis=0)
-
-        # Get simulator prior bounds for normalisation
-        prior_lo = np.array([self.simulator.parameters_range[p][0] for p in all_param_names])
-        prior_hi = np.array([self.simulator.parameters_range[p][1] for p in all_param_names])
-        prior_range = prior_hi - prior_lo
-        prior_range[prior_range == 0] = 1.0  # avoid div-by-zero for truly fixed params
-
-        # Normalise sample min/max into [0, 1] relative to prior
-        norm_mins = (sample_mins - prior_lo) / prior_range
-        norm_maxs = (sample_maxs - prior_lo) / prior_range
-
-        # Build colour array
-        overlap_set = set(self.overlap_idx)
-        exercise_only_set = set(self.exercise_only_idx)
-        n_params = len(all_param_names)
-
-        colors = []
-        for i in range(n_params):
-            if i in overlap_set:
-                colors.append("#1f77b4")  # blue
-            elif i in exercise_only_set:
-                colors.append("#ff7f0e")  # orange
-            else:
-                colors.append("#999999")  # grey
-
-        # Split into pages of 40 params each for readability
-        params_per_page = 40
-        n_pages = math.ceil(n_params / params_per_page)
-
-        for page in range(n_pages):
-            start = page * params_per_page
-            end = min(start + params_per_page, n_params)
-            idx_slice = list(range(start, end))
-            n_show = len(idx_slice)
-
-            fig, ax = plt.subplots(figsize=(14, max(6, n_show * 0.35)))
-
-            y_positions = np.arange(n_show)
-            for k, i in enumerate(idx_slice):
-                bar_left = norm_mins[i]
-                bar_width = norm_maxs[i] - norm_mins[i]
-                ax.barh(
-                    y_positions[k],
-                    width=bar_width,
-                    left=bar_left,
-                    height=0.7,
-                    color=colors[i],
-                    edgecolor="black",
-                    linewidth=0.3,
-                    alpha=0.8,
-                )
-
-            ax.set_yticks(y_positions)
-            ax.set_yticklabels([all_param_names[i] for i in idx_slice], fontsize=8)
-            ax.invert_yaxis()
-            ax.set_xlim(-0.05, 1.05)
-            ax.set_xlabel("Fraction of prior range covered")
-            ax.set_title(
-                f"Sampled parameter ranges (params {start}\u2013{end - 1})\n"
-                "Blue=overlap (rest NROY)  |  Orange=exercise-only (uniform)  |  Grey=fixed",
-                fontsize=10,
-            )
-            ax.axvline(0, color="black", linewidth=0.5, linestyle=":")
-            ax.axvline(1, color="black", linewidth=0.5, linestyle=":")
-            ax.grid(True, axis="x", linestyle="--", alpha=0.3)
-
-            fig.tight_layout()
-            fname = f"param_ranges_page_{page}.png"
-            fig.savefig(fname, dpi=150, bbox_inches="tight")
-            plt.close(fig)
-            print(f"  Saved diagnostic plot: {fname}")
 
 
     def pre_wave_train_emulators(self, n_simulations: int = 4096, refit_on_all_data: bool = False) -> None:
         """
         Pre-wave step: generate hybrid samples, run them through the simulator,
-        train one emulator per output, and save them to Emulator_exercise/.
+        train one emulator per output, and save them to Emulator_exercise_only/.
 
         This must be called BEFORE run_waves(). It populates train_x / train_y
         and creates the initial emulators that wave 0 will load.
@@ -1025,51 +732,18 @@ class HistoryMatchingWorkflow(HistoryMatching):
         print("PRE-WAVE: Generating hybrid samples for initial emulator training")
         print("=" * 60)
 
-        # Generate hybrid samples (overlap cloud-sampled, exercise-only uniform)
-        samples = self.cloud_sample_and_emulator(n_simulations, scaling_factor=0.1)
+        samples = self.simulator.sample_inputs(n_simulations).to(self.device)
 
-        # Run through the simulator
-        x, y = self.simulate(samples)
-        print(f"PRE-WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
+        x, y = [], []
+        for chunk in samples.split(2048):
+            x_chunk, y_chunk = self.simulate(chunk)
+            x.append(x_chunk)
+            y.append(y_chunk)
 
+        x = torch.cat(x, dim=0)
+        y = torch.cat(y, dim=0)
         self.train_x = x
         self.train_y = y
-
-        # if n_simulations == 4096 and not refit_on_all_data:
-        #     x_batches = []
-        #     y_batches = []
-        #     n_positive = 0
-        #     batch = 1
-        #
-        #     while n_positive < n_simulations:
-        #         # After cols_to_drop in simulate(), columns 9 and 13 are min RA/LA volume.
-        #         positive_volume_mask = (y[:, 9] > 0) & (y[:, 13] > 0)
-        #         if positive_volume_mask.any():
-        #             x_batches.append(x[positive_volume_mask])
-        #             y_batches.append(y[positive_volume_mask])
-        #             n_positive += int(positive_volume_mask.sum().item())
-        #
-        #         print(
-        #             "PRE-WAVE: Retained "
-        #             f"{min(n_positive, n_simulations)}/{n_simulations} samples "
-        #             "with min RA and LA volume > 0"
-        #         )
-        #
-        #         if n_positive >= n_simulations:
-        #             break
-        #
-        #         batch += 1
-        #         samples = self.cloud_sample_and_emulator(n_simulations, scaling_factor=0.1)
-        #         x, y = self.simulate(samples)
-        #         print(
-        #             f"PRE-WAVE: Simulator batch {batch} returned "
-        #             f"{x.shape[0]} valid samples out of {n_simulations}"
-        #         )
-        #
-        #     x = torch.cat(x_batches, dim=0)[:n_simulations]
-        #     y = torch.cat(y_batches, dim=0)[:n_simulations]
-        #     self.train_x = x
-        #     self.train_y = y
 
         # Train and save one emulator per output
         output_names_full = self._exercise_output_names()
@@ -1086,7 +760,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
 
-            parent = os.path.join("Emulator_exercise", target_name)
+            parent = os.path.join("Emulator_exercise_only", target_name)
             os.makedirs(parent, exist_ok=True)
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(self.emulator, path1)
@@ -1096,9 +770,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         torch.save(y, "Y_train.pt")
 
         print("=" * 60)
-        print("PRE-WAVE: All emulators trained and saved to Emulator_exercise/")
+        print("PRE-WAVE: All emulators trained and saved to Emulator_exercise_only/")
         print("=" * 60)
-
 
     def _sample_within_bounds(
         self,
@@ -1157,100 +830,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
         return valid_samples
 
 
-    def generate_phys_seed_samples(
-        self, n: int, scaling_factor: float = 0.1
-    ) -> tuple[TensorLike, TensorLike]:
-        """
-        Generate wave-0 seed samples using only the physiological emulator mask.
-
-        This is cheaper than full history matching because it evaluates only the
-        emulator outputs needed for the physiological checks and returns dummy
-        zero implausibility scores for the retained samples.
-        """
-        test_x = self.cloud_sample_and_emulator(n, scaling_factor).to(self.device)
-        # parent = "DGSM_Exercise_Paper/Emulator_exercise"
-        parent = "Emulator_exercise"
-        output_names = self._exercise_output_names()
-        phys_output_idx = [9, 10, 13, 14]
-        if self.atrial_ratio_bounds is not None:
-            phys_output_idx.extend([17, 18])
-
-        means = {}
-        variances = {}
-        batch_params = test_x[:, self.parameter_idx]
-        with torch.no_grad():
-            for idx in phys_output_idx:
-                name = output_names[idx]
-                path1 = os.path.join(
-                    parent, name, f"GaussianProcessMatern32_{name}_best.joblib"
-                )
-                target_emulator = joblib.load(path1)
-                mean, variance = target_emulator.predict_mean_and_variance(batch_params)
-                means[idx] = mean.reshape(-1)
-                variances[idx] = variance.reshape(-1)
-
-        if self.atrial_ratio_bounds is not None:
-            la_ratio_probs = self._estimate_ratio_interval_probability(
-                means[13], variances[13],
-                means[14], variances[14],
-                means[17], variances[17],
-            )
-            ra_ratio_probs = self._estimate_ratio_interval_probability(
-                means[9], variances[9],
-                means[10], variances[10],
-                means[18], variances[18],
-            )
-            atrial_ratio_mask = (
-                (la_ratio_probs >= self.atrial_ratio_min_probability)
-                & (ra_ratio_probs >= self.atrial_ratio_min_probability)
-            )
-        else:
-            atrial_ratio_mask = torch.ones(
-                test_x.shape[0], dtype=torch.bool, device=self.device
-            )
-
-        phys_mask = (
-            (means[13] > test_x[:, 201])
-            & (means[9] > test_x[:, 203])
-            & (means[10] > means[9])
-            & (means[14] > means[13])
-            & atrial_ratio_mask
-        )
-        phys_x = test_x[phys_mask]
-
-        if phys_x.shape[0] < 2:
-            raise Warning(
-                "Wave 0 physiological seeding produced fewer than two samples; "
-                "cannot cloud sample from the narrowed space."
-            )
-
-        impl_scores = torch.zeros(
-            (phys_x.shape[0], len(output_names)),
-            dtype=phys_x.dtype,
-            device=phys_x.device,
-        )
-        print(
-            f"WAVE 0: Physiological seed kept {phys_x.shape[0]} "
-            f"of {test_x.shape[0]} candidates."
-        )
-        return phys_x, impl_scores
-
-
     def generate_samples(
         self, n: int, scaling_factor: float = 0.1
     ) -> tuple[TensorLike, TensorLike]:
         """
         Generate parameter samples and evaluate implausibility.
 
-        Draw candidate samples either from the simulator min/max parameter
-        bounds or using cloud sampling centered at NROY samples. Evaluate
-        candidate implausability using emulator predictions until `n`
-        physiological predictions have been retained.
+        Draw `n` samples either from the simulator min/max parameter bounds or
+        using cloud sampling centered at NROY samples. Evaluate sample
+        implausability using emulator predictions.
 
         Parameters
         ----------
         n: int
-            The number of physiological parameter samples to return.
+            The number of parameter samples to generate.
         scaling_factor: float
             The standard deviation of the Gaussian used in cloud sampling is
             set to: `parameter range * scaling_factor`.
@@ -1260,14 +853,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
         tuple[TensorLike, TensorLike]
             A tensor of tested input parameters and their implausability scores.
         """
+        use_raw_model = self.nroy_samples is None
         # Generate `n` parameter samples (use simulator if have no NROY samples)
-        if self.nroy_samples is None:
-            test_x = self.cloud_sample_and_emulator(n, scaling_factor).to(self.device)
-            # parent = "DGSM_Exercise_Paper/Emulator_exercise"
-            parent = "Emulator_exercise"
+        if use_raw_model:
+            test_x = self.simulator.sample_inputs(n).to(self.device)
+            # +/-20 %
+            parent = "Emulator_exercise_only"
+            # parent = "DGSM_Exercise_Paper/HM_fifth_90_Exercise_Only/Emulator_exercise_only"
+            # parent = "Emulator_initial_V_tot"
+            # # +/-50%
+            # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
-            parent = "Emulator_exercise_wave"
+            parent = "Emulator_exercise_only_wave"
+            # parent = "Emulator_wave_V_tot"
 
         output_names = [
             "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -1278,44 +877,46 @@ class HistoryMatchingWorkflow(HistoryMatching):
             "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
             "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
             "PaO2", "PaCO2"]
+
         models = {}
         for name in output_names:
             folder = name
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
-        # means = {}
-        # variances = {}
+        means = {}
+        variances = {}
+
+        for name in output_names:
+            target_emulator = models[name]
+
+            with torch.no_grad():
+                means[name], variances[name] = target_emulator.predict_mean_and_variance(
+                    test_x[:, self.parameter_idx]
+                )
+           # means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
+
+
         #
-        # for name in output_names:
+        # n_jobs = len(output_names)
+        # def predict_one_output(name, X):
         #     target_emulator = models[name]
-        #     with torch.no_grad():
-        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
-        #             test_x[:, self.parameter_idx]
-        #         )
-
-        n_jobs = len(output_names)
-        use_raw_model = self.nroy_samples is None
-
-        def predict_one_output(name, X):
-            if use_raw_model:
-                target_emulator = models[name].model
-            else:
-                target_emulator = models[name]
-
-            mean, var = target_emulator.predict_mean_and_variance(X)
-            return name, mean, var
-
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
-
-        means = {name: mean for name, mean, var in results}
-        variances = {name: var for name, mean, var in results}
+        #
+        #     mean, var = target_emulator.predict_mean_and_variance(X)
+        #     return name, mean, var
+        #
+        # results = Parallel(n_jobs=n_jobs)(
+        #     delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
+        #
+        # means = {name: mean for name, mean, var in results}
+        # variances = {name: var for name, mean, var in results}
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
 
-        assert var_tensor is not None
+        get_reusable_executor().shutdown(wait=True)
+
+        # assert adjusted_var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
         if self.atrial_ratio_bounds is not None:
             la_ratio_probs = self._estimate_ratio_interval_probability(
@@ -1332,7 +933,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 (la_ratio_probs >= self.atrial_ratio_min_probability)
                 & (ra_ratio_probs >= self.atrial_ratio_min_probability)
             )
-            # The ratio is enforced through the interval-probability filter below.
+            # The ratio is now enforced through the interval-probability filter below.
             impl_scores[:, 17] = 0.0
             impl_scores[:, 18] = 0.0
         else:
@@ -1343,11 +944,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Filter non-physiological emulator predictions before NROY selection:
         # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
         phys_mask = (
-                (mean_tensor[:, 13] > test_x[:, 201])
-                & (mean_tensor[:, 9] > test_x[:, 203])
-                & (mean_tensor[:, 10] > mean_tensor[:, 9])
-                & (mean_tensor[:, 14] > mean_tensor[:, 13])
-                & atrial_ratio_mask
+            (mean_tensor[:, 13] > test_x[:, 201])
+            & (mean_tensor[:, 9] > test_x[:, 203])
+            & (mean_tensor[:, 10] > mean_tensor[:, 9])
+            & (mean_tensor[:, 14] > mean_tensor[:, 13])
+            & atrial_ratio_mask
         )
         # test_x = test_x[phys_mask]
         # mean_tensor = mean_tensor[phys_mask]
@@ -1362,10 +963,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         min_col_18 = mean_tensor[mask, 18].min()
 
         print("min mean_tensor[:,13] where impl_score < 3:", min_col_13.item())
-        print("min mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
-        print("min mean_tensor[:,18] where impl_score < 3:", min_col_18.item())
-
-        # print("Done")
+        print("min adjusted mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
+        print("min adjusted mean_tensor[:,18] where impl_score < 3:", min_col_18.item())
 
         return test_x, impl_scores
 
@@ -1409,6 +1008,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         """
         # if simulation fails, returned y and x have fewer rows than input x
         y, x = self.simulator.forward_batch(x)
+        get_reusable_executor().shutdown(wait=True)
 
         y = y.to(self.device)
         x = x.to(self.device)
@@ -1432,8 +1032,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x = x[row_mask, :]
         y = y[row_mask, :]
 
-        # self.train_y = torch.cat([self.train_y, y], dim=0)
-        # self.train_x = torch.cat([self.train_x, x], dim=0)
         self.train_y = y
         self.train_x = x
 
@@ -1504,7 +1102,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         scaling_factor: float = 0.1,
         refit_emulator: bool = True,
         refit_on_all_data: bool = True,
-        phys_seed_only: bool = False,
     ) -> tuple[TensorLike, TensorLike]:
         """
         Run a wave of the history matching workflow.
@@ -1531,9 +1128,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_on_all_data: bool
             Whether to refit the emulator on all available data or just the data
             available from the most recent simulation run. Defaults to True.
-        phys_seed_only: bool
-            If True, build the wave's proposal from the physiological mask only
-            and skip full implausibility scoring. Used for exercise wave 0.
 
         Returns
         -------
@@ -1547,125 +1141,226 @@ class HistoryMatchingWorkflow(HistoryMatching):
             f"{n_test_samples} test samples"
         )
         logger.debug(msg)
+        self._last_wave_train_points = None
 
-        if phys_seed_only:
-            test_parameters, impl_scores = self.generate_phys_seed_samples(
+        test_parameters_list, impl_scores_list, nroy_parameters_list = (
+            [],
+            [],
+            [torch.empty((0, self.simulator.in_dim), device=self.device)],
+        )
+
+        retries = 0
+        nroy_total = 0
+        while nroy_total < n_simulations:
+            if retries == max_retries:
+                msg = (
+                    f"Could not generate n_simulations ({n_simulations}) samples "
+                    f"that are NROY after {max_retries} retries. "
+                    f"Only {torch.cat(nroy_parameters_list, 0).shape[0]} "
+                    "samples generated."
+                )
+                raise Warning(msg)
+                break
+
+            if retries > 10:
+                scaling_factor = 0.05
+
+            # Generate `n_test_samples` with implausability scores, identify NROY
+            test_parameters, impl_scores = self.generate_samples(
                 n_test_samples, scaling_factor
             )
-            test_parameters_list = [test_parameters]
-            impl_scores_list = [impl_scores]
 
-            # Use the physiological set as the narrowed proposal, then draw
-            # simulation points from that space by cloud sampling.
-            self.nroy_samples = test_parameters
-            nroy_simulation_samples = self.cloud_sample(n_simulations, scaling_factor)
-        else:
-            test_parameters_list, impl_scores_list, nroy_parameters_list = (
-                [],
-                [],
-                [torch.empty((0, self.simulator.in_dim), device=self.device)],
+            # print("done getting the impl_score")
+            # test parameters is a concatenation of every parameter set from before
+            nroy_parameters = self.get_nroy(impl_scores, test_parameters)
+
+            # print("done getting the nroy from self.get_nroy")
+
+            # Store results (test_parameters_list will have as many entries as 200000 * no. of retries)
+            nroy_parameters_list.append(nroy_parameters)
+            test_parameters_list.append(test_parameters)
+            impl_scores_list.append(impl_scores)
+            nroy_total += nroy_parameters.shape[0]
+
+            msg = (
+                f"Generated {nroy_parameters.shape[0]} NROY samples on try "
+                f"{retries + 1}, have {torch.cat(nroy_parameters_list, 0).shape[0]} "
+                f"total NROY samples so far."
             )
+            logger.debug(msg)
 
-            retries = 0
-            while torch.cat(nroy_parameters_list, 0).shape[0] < n_simulations:
-                if retries == max_retries:
-                    msg = (
-                        f"Could not generate n_simulations ({n_simulations}) samples "
-                        f"that are NROY after {max_retries} retries. "
-                        f"Only {torch.cat(nroy_parameters_list, 0).shape[0]} "
-                        "samples generated."
-                    )
-                    raise Warning(msg)
-                    break
+            retries += 1
 
-                # Generate `n_test_samples` with implausability scores, identify NROY
-                test_parameters, impl_scores = self.generate_samples(
-                    n_test_samples, scaling_factor
-                )
+        # # Next time that call run(), will sample using these NROY points
+        self.nroy_samples = torch.cat(nroy_parameters_list, 0)
 
-                # print("done getting the impl_score")
-                # test parameters is a concatenation of every parameter set from before
-                nroy_parameters = self.get_nroy(impl_scores, test_parameters)
-
-                # print("done getting the nroy from self.get_nroy")
-
-                # Store results (test_parameters_list will have as many entries as 200000 * no. of retries)
-                nroy_parameters_list.append(nroy_parameters)
-                test_parameters_list.append(test_parameters)
-                impl_scores_list.append(impl_scores)
-
-                msg = (
-                    f"Generated {nroy_parameters.shape[0]} NROY samples on try "
-                    f"{retries + 1}, have {torch.cat(nroy_parameters_list, 0).shape[0]} "
-                    f"total NROY samples so far."
-                )
-                logger.debug(msg)
-
-                retries += 1
-
-            # # Next time that call run(), will sample using these NROY points
-            self.nroy_samples = torch.cat(nroy_parameters_list, 0)
-
-            # Randomly pick at most `n_simulations` parameters from NROY to simulate
-            nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
-
-            # # pick `n_simulations` parameters from NROY with lowest implausibility
-            # nroy_params = torch.cat(nroy_parameters_list, dim=0)
-            #
-            # implaus_tensor = torch.cat(impl_scores_list, 0)
-            # nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
-            #
-            # # Rank by worst-output implausibility per sample
-            # max_impl_per_sample, _ = nroy_impl.max(dim=1)
-            # best_idx = torch.argsort(max_impl_per_sample)
-            # nroy_params_sorted = nroy_params[best_idx]
-            #
-            # # Take the best n_simulations to run through the simulator
-            # nroy_simulation_samples = nroy_params_sorted[:n_simulations]
-            #
-            # # Also update nroy_samples so cloud sampling next wave uses best seeds
-            # self.nroy_samples = nroy_params_sorted
+        # Randomly pick at most `n_simulations` parameters from NROY to simulate
+        nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+        # nroy_params = torch.cat(nroy_parameters_list, dim=0)
+        #
+        # implaus_tensor = torch.cat(impl_scores_list, 0)
+        # nroy_impl = self.get_nroy(implaus_tensor, implaus_tensor)
+        #
+        # # Rank by worst-output implausibility per sample
+        # max_impl_per_sample, _ = nroy_impl.max(dim=1)
+        # best_idx = torch.argsort(max_impl_per_sample)
+        # nroy_params_sorted = nroy_params[best_idx]
+        #
+        # # Take the best n_simulations to run through the simulator
+        # nroy_simulation_samples = nroy_params_sorted[:n_simulations]
+        #
+        # # Also update nroy_samples so cloud sampling next wave uses best seeds
+        # self.nroy_samples = nroy_params_sorted
 
         # np.save("check.npy", nroy_simulation_samples)
-        # save on CPU so it's portable across machines/devices
-        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples.pt")
         # A = np.load("check.npy")[64:66]
         # print(A[:,-4:])
         # A = torch.from_numpy(A)
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
-        print(f"WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
+        #
+        # # Keep only simulations whose outputs are within 3 observation standard
+        # # deviations of the observation means. `obs_vars` stores variances.
+        # obs_means = self.obs_means.to(device=y.device, dtype=y.dtype)
+        # obs_stds = torch.sqrt(torch.clamp(self.obs_vars.to(device=y.device, dtype=y.dtype), min=0.0))
+        # obs_3sd_mask = (
+        #     (y >= obs_means - self.threshold * obs_stds)
+        #     & (y <= obs_means + self.threshold * obs_stds)
+        # ).all(dim=1)
+        #
+        # if not bool(obs_3sd_mask.all()):
+        #     rejected_x = x[~obs_3sd_mask]
+        #     x = x[obs_3sd_mask]
+        #     y = y[obs_3sd_mask]
+        #     self.train_x = x
+        #     self.train_y = y
+        #
+        #     # Remove each rejected simulated parameter set from the NROY cloud too,
+        #     # so it cannot seed samples for the next emulator wave.
+        #     keep_nroy_mask = torch.ones(
+        #         self.nroy_samples.shape[0], dtype=torch.bool, device=self.device
+        #     )
+        #     for rejected in rejected_x:
+        #         matches = torch.where(
+        #             keep_nroy_mask & torch.all(self.nroy_samples == rejected, dim=1)
+        #         )[0]
+        #         if matches.numel() > 0:
+        #             keep_nroy_mask[matches[0]] = False
+        #     self.nroy_samples = self.nroy_samples[keep_nroy_mask]
+        #     print(
+        #         f"Removed {rejected_x.shape[0]} simulated sample(s) outside "
+        #         f"the observation +/- {self.threshold} std band from training and NROY samples."
+        #     )
 
-        output_names_full = self._exercise_output_names()
+        # Save on CPU so it's portable across machines/devices. This happens after
+        # filtering so resume/cloud sampling uses the updated NROY set.
+        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples_exercise.pt")
+        self._last_wave_train_points = x.detach().cpu()
 
-        for j, target_name in enumerate(output_names_full):
-            # print("\n" + "=" * 100)
-            # print(f"[{j + 1}/{len(output_names_full)}] Target = {target_name}")
-            # print("=" * 100)
+        output_names_full = EMULATOR_OUTPUT_NAMES
+        wave_number = self._wave_number()
+        snapshot_root = (
+            os.path.join(self._wave_artifacts_dir, f"Emulator_wave_{wave_number}")
+            if self._save_wave_artifacts and wave_number is not None
+            else None
+        )
 
-            # Optionally refit the emulator using the most recent simulations or all data
-            if refit_emulator:
-                # data_msg = "all data" if refit_on_all_data else "most recent data"
-                # msg = f"Refitting emulator on {data_msg}."
-                # logger.info(msg)
-                if refit_on_all_data:
-                    X_fit = self.train_x
-                    Y_fit = self.train_y[:, j:j+1]
-                    self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
-                else:
-                    X_fit = x
-                    Y_fit = y[:, j:j+1]
-                    self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+        def fit_one_output(j, target_name, X_fit, Y_fit, parameter_idx, result, device):
+            x_fit = X_fit[:, parameter_idx]
+            y_fit = Y_fit[:, j:j + 1]
 
-            parent = os.path.join("Emulator_exercise_wave", target_name)
+            n = x_fit.shape[0]
+            g = torch.Generator(device=x_fit.device)
+            g.manual_seed(42)
+            perm = torch.randperm(n, generator=g, device=x_fit.device)
+
+            n_test = max(1, int(round(0.2 * n)))
+            x_train, y_train = x_fit[perm[n_test:]], y_fit[perm[n_test:]]
+            x_test, y_test = x_fit[perm[:n_test]], y_fit[perm[:n_test]]
+
+            emulator = TransformedEmulator(
+                x_train.float(), y_train.float(),
+                model=get_emulator_class(result.model_name),
+                x_transforms=result.x_transforms,
+                y_transforms=result.y_transforms,
+                device=device,
+                **result.params,
+            )
+            emulator.fit(x_train, y_train)
+
+            (r2_mean, r2_std), (rmse_mean, rmse_std) = bootstrap(
+                emulator,
+                x_test.float(),
+                y_test.float(),
+                n_bootstraps=100,  # or None for single split behaviour (if supported)
+                device=device,
+            )
+
+            print(f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
+
+            # save
+            parent = os.path.join("Emulator_exercise_only_wave", target_name)
+            # parent = os.path.join("Emulator_wave_V_tot", target_name)
             os.makedirs(parent, exist_ok=True)
+            #######################################
+            with torch.no_grad():
+                y_test_emulator_mean, y_test_emulator_variance = emulator.predict_mean_and_variance(
+                    x_test.float()
+                )
 
-            path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
-            joblib.dump(self.emulator, path1)
+            numpy_artifacts = {
+                "x_train.npy": x_train,
+                "y_train.npy": y_train,
+                "x_test.npy": x_test,
+                "y_test.npy": y_test,
+                "y_test_emulator_mean.npy": y_test_emulator_mean,
+                "y_test_emulator_variance.npy": y_test_emulator_variance,
+            }
+            for filename, array in numpy_artifacts.items():
+                np.save(os.path.join(parent, filename), array.detach().cpu().numpy())
+            #############################################
+            model_filename = f"GaussianProcessMatern32_{target_name}_best.joblib"
+            joblib.dump(emulator, os.path.join(parent, model_filename))
+            if snapshot_root is not None:
+                snapshot_parent = os.path.join(snapshot_root, target_name)
+                os.makedirs(snapshot_parent, exist_ok=True)
+                ############
+                for filename, array in numpy_artifacts.items():
+                    np.save(os.path.join(snapshot_parent, filename), array.detach().cpu().numpy())
+                ############
+                joblib.dump(emulator, os.path.join(snapshot_parent, model_filename))
 
-        # torch.save(x, f"X_train_wave_{(len(self.wave_results) - 1)}_exercise_.pt")
-        # torch.save(y, f"Y_train_wave_{(len(self.wave_results) - 1)}_exercise_.pt")
+            return target_name, emulator
+
+        results = Parallel(n_jobs=len(output_names_full))(
+            delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
+            for j, target_name in enumerate(output_names_full)
+        )
+        get_reusable_executor().shutdown(wait=True)
+        # for j, target_name in enumerate(output_names_full):
+        #     # Optionally refit the emulator using the most recent simulations or all data
+        #     if refit_emulator:
+        #         # data_msg = "all data" if refit_on_all_data else "most recent data"
+        #         # msg = f"Refitting emulator on {data_msg}."
+        #         # logger.info(msg)
+        #         if refit_on_all_data:
+        #             X_fit = self.train_x
+        #             Y_fit = self.train_y[:, j:j+1]
+        #             self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+        #         else:
+        #             X_fit = x
+        #             Y_fit = y[:, j:j+1]
+        #             self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+        #
+        #     parent = os.path.join("Emulator_wave", target_name)
+        #     os.makedirs(parent, exist_ok=True)
+        #
+        #     path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
+        #     joblib.dump(self.emulator, path1)
+
+        # torch.save(x, f"X_train_wave_{(len(self.wave_results) - 1)}_rest_.pt")
+        # torch.save(y, f"Y_train_wave_{(len(self.wave_results) - 1)}_rest_.pt")
 
         # Return test parameters and impl scores for this run/wave
         return torch.cat(test_parameters_list, 0), torch.cat(impl_scores_list, 0)
@@ -1681,6 +1376,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_emulator_on_last_wave: bool = True,
         refit_on_all_data: bool = True,
         resume_wave: bool = False,
+        save_wave_artifacts: bool = True,
+        wave_artifacts_dir: str = ".",
     ) -> list[tuple[TensorLike, TensorLike]]:
         """
         Run multiple waves of the history matching workflow.
@@ -1714,6 +1411,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_on_all_data: bool
             Whether to refit the emulator on all available data after each wave
             or just the data from the most recent simulation run. Defaults to True.
+        save_wave_artifacts: bool
+            Whether to save per-wave emulator snapshots and `.npy` artifacts.
+        wave_artifacts_dir: str
+            Directory where per-wave artifacts are written.
 
         Returns
         -------
@@ -1721,7 +1422,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             A tensor of tested input parameters and their implausibility scores.
         """
         if resume_wave == True:
-            self.nroy_samples = torch.load("nroy_samples.pt", map_location="cpu").to(self.device)
+            self.nroy_samples = torch.load("nroy_samples_exercise.pt", map_location="cpu").to(self.device)
             last_wave = int(torch.load("last_wave.pt", map_location="cpu"))
             start_i = last_wave + 1
             print(start_i)
@@ -1729,22 +1430,34 @@ class HistoryMatchingWorkflow(HistoryMatching):
             start_i = 0
 
         self.wave_results = []
+        self._save_wave_artifacts = save_wave_artifacts
+        self._wave_artifacts_dir = wave_artifacts_dir
+        if self._save_wave_artifacts:
+            os.makedirs(self._wave_artifacts_dir, exist_ok=True)
         for i in range(start_i, n_waves):
-            if i == 0:
-                self.atrial_ratio_bounds = None
-            if i == 1:
+            # 0th wave had 155173
+            # if i == 0: # 110599
+            #     self.threshold = 3.5 # change
+            if i == 1:  # 154081
                 self.threshold = 3.5
-                self.atrial_ratio_bounds = (0.20, 0.30)
-            if i == 2:
+            if i > 1: # 154081
                 self.threshold = 3.0
-                self.atrial_ratio_bounds = (0.20, 0.30)
-            if i == 3:
-                self.threshold = 3.0
-                self.atrial_ratio_bounds = (0.20, 0.30)
+
+            # if i == 1: # 110599
+            #     self.threshold = 1.5
+            # if i == 2: # 110599
+            #     self.threshold = 1.25
+            # if i == 3: # 110599
+            #     self.threshold = 1.125
+            # if i == 4: # 154081
+            #     self.threshold = 1.0
+            # if i == 5: # 49467
+            #     self.threshold = 1.0
+            #     n_simulations = 5000
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
+            self._current_wave_idx = i
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
-            phys_seed_only = i == 0
             test_x, impl_scores = self.run(
                 n_simulations=n_simulations,
                 n_test_samples=n_test_samples,
@@ -1752,13 +1465,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 scaling_factor=scaling_factor,
                 refit_emulator=refit_emulator,
                 refit_on_all_data=refit_on_all_data,
-                phys_seed_only=phys_seed_only,
             )
 
-            if (
-                not phys_seed_only
-                and (len(test_x) < n_simulations or len(impl_scores) < n_simulations)
-            ):
+            if len(test_x) < n_simulations or len(impl_scores) < n_simulations:
                 msg = (
                     f"Not enough parameters or impl scores generated in wave {i + 1}"
                     f"/{n_waves}. Stopping history matching workflow. Results are "
@@ -1768,19 +1477,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 break
 
             self.wave_results.append((test_x, impl_scores))
-            if phys_seed_only:
-                logger.info(
-                    "Wave %d/%d used physiological seeding; skipping NROY "
-                    "fraction stop check.",
-                    i + 1,
-                    n_waves,
-                )
-                torch.save(int(i), "last_wave.pt")
-                continue
-
-            # self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_exercise.png")
+            # self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_rest.png")
 
             # Get NROY points from impl scores and check fraction
+            self._save_wave_numpy_artifacts(test_x, impl_scores)
             nroy_x = self.get_nroy(impl_scores, test_x)
             nroy_frac = nroy_x.shape[0] / test_x.shape[0]
             logger.info(
@@ -1803,6 +1503,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 )
                 break
 
+        self._current_wave_idx = None
         return self.wave_results
 
     def plot_run(
