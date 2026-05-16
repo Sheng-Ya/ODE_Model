@@ -292,12 +292,26 @@ class Simulator(ABC, ValidationMixin):
                     i + 1, len(x),
                 )
                 return None
-            elif torch.is_tensor(result) and torch.all(result == 0):
+            if not torch.is_tensor(result):
+                self.logger.warning(
+                    "Simulation %d/%d produced a non-tensor result; dropping",
+                    i + 1, len(x),
+                )
+                return None
+            if result.ndim == 1:
+                result = result.unsqueeze(0)
+            if torch.all(result == 0):
                 self.logger.warning("Simulation %d/%d produced all-zero output; dropping", i + 1, len(x))
                 return None
-            else:
-                self.logger.debug("Simulation %d/%d successful", i + 1, len(x))
-                return (i, result)
+            if result.shape[-1] != self.out_dim:
+                self.logger.warning(
+                    "Simulation %d/%d produced %d outputs; expected %d. Result not appended",
+                    i + 1, len(x), result.shape[-1], self.out_dim,
+                )
+                return None
+
+            self.logger.debug("Simulation %d/%d successful", i + 1, len(x))
+            return (i, result)
 
         # Parallel execution with tqdm progress bar
         with tqdm_joblib(

@@ -115,6 +115,9 @@ sp = ProblemSpec({
 target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 80000
 max_time = 60 # Maximum time limit to avoid infinite loops
+RAW_OUTPUT_DIM = 31
+CONVERGENCE_TOLERANCE = 0.03
+MAX_CONVERGENCE_ATTEMPTS = 5
 
 # gas exchange
 required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2",
@@ -159,6 +162,41 @@ class Cardiopulmonary(Simulator):
         storage_local = make_fresh_storage()
         return self.rest_and_exercise_simulation(param_sample, storage_local, Old_Parameters)
 
+    @staticmethod
+    def _zero_result():
+        return torch.zeros((1, RAW_OUTPUT_DIM), dtype=torch.float32)
+
+    @staticmethod
+    def _ordered_store(storage, key):
+        i_buffer = storage["i"].item() % BUFFER_LIMIT
+        return np.concatenate((storage[key][i_buffer:], storage[key][:i_buffer]))
+
+    @staticmethod
+    def _last_distinct_values(values, n=10):
+        values = values[np.isfinite(values)]
+        distinct = []
+        previous = None
+        for value in values[::-1]:
+            if previous is None or value != previous:
+                distinct.append(float(value))
+                previous = value
+                if len(distinct) == n:
+                    break
+        return np.asarray(distinct, dtype=float)
+
+    def _has_converged(self, storage):
+        hr_segments = self._last_distinct_values(self._ordered_store(storage, "HR_store"))
+        return hr_segments.size >= 2 and np.ptp(hr_segments) < CONVERGENCE_TOLERANCE
+
+    @staticmethod
+    def _is_failed_result(result):
+        return (
+            not torch.is_tensor(result)
+            or result.numel() == 0
+            or not torch.isfinite(result).all()
+            or torch.all(result == 0)
+        )
+
     def combined_system(self, t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2):
 
         i = Initial_Conditions_dict["i"].item()
@@ -201,7 +239,16 @@ class Cardiopulmonary(Simulator):
 
         return derivatives_all
 
-    def simulate_cpu(self, Current_Parameters, local_updates, old_parameters, IC_initial=None, state=None, attempt=None):
+    def simulate_cpu(
+        self,
+        Current_Parameters,
+        local_updates,
+        old_parameters,
+        IC_initial=None,
+        state=None,
+        attempt=None,
+        breath_coef=None,
+    ):
         i = local_updates["i"].item()
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
         latest_nonzero_value = local_updates["all_time"][latest_nonzero_index]
@@ -314,9 +361,13 @@ class Cardiopulmonary(Simulator):
               "Pa_O2_lower", "rise_time_atr", "rise_time_ven",
               "fall_time_ven", "ahead1", "theta_min", "delta_P", "r", "l", "V_nominal", "V_scale"])
 
-        # determine the correct breathing profile
-        cs_t1, cs_t2, knots_1, knots_2 = (self.minimise_breathing(1.5, 1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax,
-                                                             Pmax_dot, E_rs, R_rs, P_ao))
+        # Breathing profile depends on this parameter set, not on the current
+        # 60 s convergence segment, so reuse it across rest/exercise extensions.
+        if breath_coef is None:
+            breath_coef = self.minimise_breathing(
+                1.5, 1.85, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao
+            )
+        cs_t1, cs_t2, knots_1, knots_2 = breath_coef
 
         Input_Parameters = np.array([A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa,
         C_pp, C_pv, L_pa, R_pa, R_pp, R_pv, KE_lv, KE_rv, P0_lv, P0_rv, Emax_la, P0_la, KE_la, Emax_ra, P0_ra, KE_ra, C_sa,
@@ -363,7 +414,7 @@ class Cardiopulmonary(Simulator):
             # Integration failed or early termination
             print("fail")
             print(r, l, V_nominal, V_scale)
-            return torch.tensor([0.0]*31, dtype=torch.float32).unsqueeze(0)
+            return self._zero_result(), None, None, None
 
         i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
@@ -399,7 +450,7 @@ class Cardiopulmonary(Simulator):
 
         if open_idx1.size == 0 or close_idx1.size == 0:
             print("ao fail")
-            return [0.0] * 31, None, None, None
+            return self._zero_result(), None, None, None
 
         is_open_po = theta_po > theta_min
         open_idx2 = []
@@ -591,7 +642,7 @@ class Cardiopulmonary(Simulator):
         # RA_Contraction_Volume_diff = np.mean(last_10_b4_RA_atrial_contract) - np.mean(V_ra[pairs_tr[:, 1]])
 
 
-        return torch.tensor([np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
+        result = torch.tensor([np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
             np.mean(V_lv[pairs_ao[:, 0]]), np.mean(V_lv[pairs_ao[:, 1]]), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
             np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
@@ -601,6 +652,7 @@ class Cardiopulmonary(Simulator):
             np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
             np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal, Minute_Ventilation,
             cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change], dtype=torch.float32).unsqueeze(0)
+        return result, ODE_solution.y[:, -1].copy(), local_updates, breath_coef
 
     def minimise_breathing(self, t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao):
         dt = 0.001  # must edit in Resp_Control_Breath_Optimiser too
@@ -641,47 +693,56 @@ class Cardiopulmonary(Simulator):
 
         return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
-    def safe_simulate_cpu(self, params, storage, old_parameters, IC_final, state, attempt):
+    def safe_simulate_cpu(self, params, storage, old_parameters, IC_final, state, attempt, breath_coef=None, timeout=200):
         try:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, self.timeout_handler)
-            signal.alarm(200)
-            result = self.simulate_cpu(params, storage, old_parameters, IC_final, state, attempt)
-            signal.alarm(0)  # Cancel timeout
+            use_alarm = hasattr(signal, "SIGALRM") and hasattr(signal, "alarm")
+            if use_alarm:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, self.timeout_handler)
+                signal.alarm(timeout)
+            result = self.simulate_cpu(params, storage, old_parameters, IC_final, state, attempt, breath_coef)
+            if use_alarm:
+                signal.alarm(0)  # Cancel timeout
             return result
-        except Exception:
-            signal.alarm(0)  # Cancel timeout
-            print("too slow")
-            return torch.tensor([0.0] * 31, dtype=torch.float32).unsqueeze(0)
+        except Exception as exc:
+            if hasattr(signal, "alarm"):
+                signal.alarm(0)  # Cancel timeout
+            print(f"simulation failed: {exc}")
+            return self._zero_result(), None, None, None
 
     def rest_and_exercise_simulation(self, params, storage, old_parameters):
         storage_final = {key: value.copy() for key, value in storage.items()}
+        IC_final = None
+        breath_coef = None
+        result_rest = self._zero_result()
+        result_exercise = self._zero_result()
 
-        for attempt in range(5):
-            result_rest, IC_final, storage_final, breath_coef = self.safe_simulate_cpu(params, storage_final, old_parameters, IC_final, state="Rest", attempt=attempt)
+        for attempt in range(MAX_CONVERGENCE_ATTEMPTS):
+            result_rest, IC_final, storage_final, breath_coef = self.safe_simulate_cpu(
+                params, storage_final, old_parameters, IC_final, state="Rest", attempt=attempt, breath_coef=breath_coef
+            )
 
-            if storage_final is None:
-                return ([0.0] * 31, None, None, None)
+            if storage_final is None or IC_final is None or self._is_failed_result(result_rest):
+                return torch.cat([self._zero_result(), self._zero_result()], dim=1)
 
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
+            if self._has_converged(storage_final):
+                break
+        else:
+            print("rest did not meet convergence tolerance before max attempts")
 
-            if (max(HR) - min(HR)) < 0.03:
-                continue
+        for attempt in range(MAX_CONVERGENCE_ATTEMPTS):
+            result_exercise, IC_final, storage_final, breath_coef = self.safe_simulate_cpu(
+                params, storage_final, old_parameters, IC_final, state="Exercise", attempt=attempt, breath_coef=breath_coef
+            )
 
-        for attempt in range(5):
-            result_exercise, IC_final, storage_final, breath_coef = self.safe_simulate_cpu(params, storage_final, old_parameters, IC_final, state="Exercise", attempt=attempt)
+            if storage_final is None or IC_final is None or self._is_failed_result(result_exercise):
+                return torch.cat([self._zero_result(), self._zero_result()], dim=1)
 
-            if storage_final is None:
-                return ([0.0] * 31, None, None, None)
+            if self._has_converged(storage_final):
+                return torch.cat([result_rest, result_exercise], dim=1)
 
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
-
-            if (max(HR) - min(HR)) < 0.03:
-                return torch.cat([result_rest, result_exercise], dim=1).squeeze(0)
-
-        return torch.cat([result_rest, result_exercise], dim=1).squeeze(0)
+        print("exercise did not meet convergence tolerance before max attempts")
+        return torch.cat([result_rest, result_exercise], dim=1)
 
 
 

@@ -8,7 +8,7 @@ from multiprocessing import resource_tracker
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-from History_matching_function_union import HistoryMatchingWorkflow
+from History_matching_function_union import HistoryMatchingWorkflow, RAW_SIMULATION_OUTPUT_NAMES
 from AutoEmulate_Simulator_Union import Cardiopulmonary
 
 # ----------------------------
@@ -273,14 +273,7 @@ param_ranges: dict[str, tuple[float, float]] = {
     for name, b in zip(sp["names"], sp["bounds"])
 }
 
-output_names = [
-    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV",
-    "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
-    "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume", "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
-    "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation", "PaO2",
-    "PaCO2"]
+output_names = RAW_SIMULATION_OUTPUT_NAMES
 
 # ----------------------------
 # LOAD SIMULATOR
@@ -356,9 +349,9 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_exercise_{percent}.npy", nroy_points)
-    np.save(f"NROY_Params_exercise_{percent}.npy", params_post_hm)
-    np.save(f"NROY_Implaus_exercise_{percent}.npy", impl_scores)
-    np.save(f"test_param_exercise_{percent}.npy", test_parameters)
+    np.save(f"NROY_Points_union_{percent}.npy", hmw._to_numpy(nroy_points))
+    np.save(f"NROY_Params_union_{percent}.npy", params_post_hm)
+    np.save(f"NROY_Implaus_union_{percent}.npy", hmw._to_numpy(impl_scores))
+    np.save(f"test_param_union_{percent}.npy", hmw._to_numpy(test_parameters))
 
     print(len(hmw.wave_results)-1)
