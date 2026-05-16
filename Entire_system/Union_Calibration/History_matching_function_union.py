@@ -64,6 +64,7 @@ INITIAL_EMULATOR_DIR = "Emulator_union_initial"
 WAVE_EMULATOR_DIR = "Emulator_union_wave"
 NROY_SAMPLES_PATH = "nroy_samples_union.pt"
 LAST_WAVE_PATH = "last_wave_union.pt"
+EMULATOR_TRAIN_N_JOBS = 64
 
 RAW_OUTPUT_NAMES_PER_STATE = [
     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -759,8 +760,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
         x, y = [], []
         for chunk in samples.split(2048):
             x_chunk, y_chunk = self.simulate(chunk)
-            x.append(x_chunk)
-            y.append(y_chunk)
+            if x_chunk.shape[0] > 0:
+                x.append(x_chunk)
+                y.append(y_chunk)
+
+        if not x:
+            raise RuntimeError("Pre-wave simulation produced no valid rest/exercise training rows.")
 
         x = torch.cat(x, dim=0)
         y = torch.cat(y, dim=0)
@@ -770,23 +775,63 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Train and save one emulator per output
         output_names_full = EMULATOR_OUTPUT_NAMES
 
-        for j, target_name in enumerate(output_names_full):
-            print(f"\n  [{j + 1}/{len(output_names_full)}] Training emulator for {target_name}")
-
+        def fit_one_initial_output(j, target_name, X_fit_all, Y_fit_all, parameter_idx, result, device):
             if refit_on_all_data:
-                X_fit = self.train_x
-                Y_fit = self.train_y[:, j:j + 1]
+                X_fit = X_fit_all
+                Y_fit = Y_fit_all[:, j:j + 1]
             else:
-                X_fit = x
-                Y_fit = y[:, j:j + 1]
+                X_fit = X_fit_all
+                Y_fit = Y_fit_all[:, j:j + 1]
 
-            self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
+            x_fit = X_fit[:, parameter_idx]
+            n = x_fit.shape[0]
+            g = torch.Generator(device=x_fit.device)
+            g.manual_seed(42)
+            perm = torch.randperm(n, generator=g, device=x_fit.device)
+
+            n_test = max(1, int(round(0.2 * n)))
+            x_train, y_train = x_fit[perm[n_test:]], Y_fit[perm[n_test:]]
+            x_test, y_test = x_fit[perm[:n_test]], Y_fit[perm[:n_test]]
+
+            emulator = TransformedEmulator(
+                x_train.float(),
+                y_train.float(),
+                model=get_emulator_class(result.model_name),
+                x_transforms=result.x_transforms,
+                y_transforms=result.y_transforms,
+                device=device,
+                **result.params,
+            )
+            emulator.fit(x_train, y_train)
+
+            (r2_mean, r2_std), (rmse_mean, rmse_std) = bootstrap(
+                emulator,
+                x_test.float(),
+                y_test.float(),
+                n_bootstraps=100,
+                device=device,
+            )
+
+            print(
+                f"[{j + 1}/{len(output_names_full)}] {target_name} "
+                f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | "
+                f"RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})"
+            )
 
             parent = os.path.join(INITIAL_EMULATOR_DIR, target_name)
             os.makedirs(parent, exist_ok=True)
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
-            joblib.dump(self.emulator, path1)
+            joblib.dump(emulator, path1)
             print(f"  Saved to {path1}")
+            return target_name
+
+        Parallel(n_jobs=EMULATOR_TRAIN_N_JOBS)(
+            delayed(fit_one_initial_output)(
+                j, target_name, self.train_x, self.train_y, self.parameter_idx, self.result, self.device
+            )
+            for j, target_name in enumerate(output_names_full)
+        )
+        get_reusable_executor().shutdown(wait=True)
 
         torch.save(x, "X_train.pt")
         torch.save(y, "Y_train.pt")
@@ -1391,7 +1436,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             return target_name, emulator
 
-        results = Parallel(n_jobs=len(output_names_full))(
+        results = Parallel(n_jobs=EMULATOR_TRAIN_N_JOBS)(
             delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
             for j, target_name in enumerate(output_names_full)
         )

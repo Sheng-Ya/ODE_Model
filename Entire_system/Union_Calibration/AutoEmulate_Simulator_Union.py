@@ -197,7 +197,10 @@ class Cardiopulmonary(Simulator):
             or torch.all(result == 0)
         )
 
-    def combined_system(self, t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2):
+    def combined_system(
+        self, t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control,
+        num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2, exercise_start_time
+    ):
 
         i = Initial_Conditions_dict["i"].item()
         actual_index = i % BUFFER_LIMIT
@@ -226,7 +229,8 @@ class Cardiopulmonary(Simulator):
 
         # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
         derivatives_all = model_derivatives(t, resp_contr_state, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT,
-                                            all_time, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2)
+                                            all_time, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2,
+                                            exercise_start_time)
         all_time[(i - num_removed) % BUFFER_LIMIT] = t
         Initial_Conditions_dict["i"][0] = i - num_removed + 1
         Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
@@ -248,6 +252,7 @@ class Cardiopulmonary(Simulator):
         state=None,
         attempt=None,
         breath_coef=None,
+        exercise_start_time=None,
     ):
         i = local_updates["i"].item()
         latest_nonzero_index = (i - 1) % BUFFER_LIMIT
@@ -256,12 +261,20 @@ class Cardiopulmonary(Simulator):
         if IC_initial is None:
             IC_current = IC_overall.copy()
             t_span = [0, max_time]
+            exercise_start_time = np.inf
         elif state == "Exercise" and attempt == 0:
             IC_current = IC_initial.copy()
             t_span = [latest_nonzero_value, latest_nonzero_value + 180]
+            if exercise_start_time is None:
+                exercise_start_time = latest_nonzero_value
         else:
             IC_current = IC_initial.copy()
             t_span = [latest_nonzero_value, latest_nonzero_value + 60]
+            if state == "Exercise":
+                if exercise_start_time is None:
+                    exercise_start_time = latest_nonzero_value
+            else:
+                exercise_start_time = np.inf
 
         Current_Parameters = Current_Parameters[0]
 
@@ -407,7 +420,7 @@ class Cardiopulmonary(Simulator):
             atol=1e-6,
             args=(
             local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2,
-            knots_1, knots_2)
+            knots_1, knots_2, exercise_start_time)
         )
 
         if ODE_solution.status == -1:
@@ -693,14 +706,19 @@ class Cardiopulmonary(Simulator):
 
         return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
-    def safe_simulate_cpu(self, params, storage, old_parameters, IC_final, state, attempt, breath_coef=None, timeout=200):
+    def safe_simulate_cpu(
+        self, params, storage, old_parameters, IC_final, state, attempt, breath_coef=None,
+        exercise_start_time=None, timeout=200
+    ):
         try:
             use_alarm = hasattr(signal, "SIGALRM") and hasattr(signal, "alarm")
             if use_alarm:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, self.timeout_handler)
                 signal.alarm(timeout)
-            result = self.simulate_cpu(params, storage, old_parameters, IC_final, state, attempt, breath_coef)
+            result = self.simulate_cpu(
+                params, storage, old_parameters, IC_final, state, attempt, breath_coef, exercise_start_time
+            )
             if use_alarm:
                 signal.alarm(0)  # Cancel timeout
             return result
@@ -730,9 +748,13 @@ class Cardiopulmonary(Simulator):
         else:
             print("rest did not meet convergence tolerance before max attempts")
 
+        latest_nonzero_index = (storage_final["i"].item() - 1) % BUFFER_LIMIT
+        exercise_start_time = storage_final["all_time"][latest_nonzero_index]
+
         for attempt in range(MAX_CONVERGENCE_ATTEMPTS):
             result_exercise, IC_final, storage_final, breath_coef = self.safe_simulate_cpu(
-                params, storage_final, old_parameters, IC_final, state="Exercise", attempt=attempt, breath_coef=breath_coef
+                params, storage_final, old_parameters, IC_final, state="Exercise", attempt=attempt,
+                breath_coef=breath_coef, exercise_start_time=exercise_start_time
             )
 
             if storage_final is None or IC_final is None or self._is_failed_result(result_exercise):

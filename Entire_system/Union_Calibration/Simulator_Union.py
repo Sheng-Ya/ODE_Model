@@ -323,7 +323,7 @@ class Simulator(ABC, ValidationMixin):
                     unit_scale=True,
                 )
         ):
-            outputs = Parallel(n_jobs=-1, backend="loky")(
+            outputs = Parallel(n_jobs=64, backend="loky")(
                 delayed(_run_one)(i) for i in range(len(x))
             )
             # n_jobs = 64
