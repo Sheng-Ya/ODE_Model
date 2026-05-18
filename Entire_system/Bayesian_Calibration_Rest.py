@@ -142,7 +142,7 @@ sp = ProblemSpec({
         [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
         [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
         [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
-        [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
+        [0.025 * lower, 0.025 * upper], [5.85 * lower, 5.85 * upper], [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
         [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
         [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
@@ -189,7 +189,7 @@ sp = ProblemSpec({
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-        [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
+        [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -242,7 +242,7 @@ output_names = [
     "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
     "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
     "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume", "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
+    "Max_LA_Pressure_Mitral_Opening", "Pre_LA_Contraction_Volume", "Pre_RA_Contraction_Volume", "LV_Pressure_Deriv",
     "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation", "PaO2",
     "PaCO2"]
 
@@ -266,7 +266,7 @@ observation = {"Heart Rate": (1.23, 0.05), "Systolic Pressure": (123, 324), "Dia
 "Max RA Pressure Atrial contraction": (8.0, 9.0), "Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Min LA Volume": (30.6, 84.64),
 "Max LA Volume": (68.3, 306.25),
 "Max LA Pressure Atrial contraction": (13.0, 9.0),
-"Max LA Pressure Mitral Opening": (12.0, 9.0), "LA Contraction Volume diff": (40.0, 67.24), "RA Contraction Volume diff": (57.4, 96.04),
+"Max LA Pressure Mitral Opening": (12.0, 9.0), "Pre-LA Contraction Volume": (40.0, 67.24), "Pre-RA Contraction Volume": (57.4, 96.04),
 "LV Pressure Deriv": (1461.0, 146689.0), "RV Pressure Deriv": (271.0, 3025.0), "Tidal Volume": (0.850, 0.16),
 "Minute Ventilation": (11.4, 15.21), "PaO2": (102.3, 125.44), "PaCO2": (35.5, 24.01)}
 
@@ -441,6 +441,9 @@ if __name__ == "__main__":
     # # plt.show()
     # plt.close()
 
+    # --- PRE-WAVE: Train initial emulators before wave 0 loads them ---
+    hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+
     size = 200000
     _ = hmw.run_waves(n_waves=4, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=False, max_retries=15, resume_wave=False)
 
@@ -455,10 +458,10 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_rest_{percent}_12_4.npy", nroy_points)
-    np.save(f"NROY_Params_rest_{percent}_12_4.npy", params_post_hm)
-    np.save(f"NROY_Implaus_rest_{percent}_12_4.npy", impl_scores)
-    np.save(f"test_param_rest_{percent}_12_4.npy", test_parameters)
+    np.save(f"NROY_Points_rest_{percent}_18_05.npy", nroy_points)
+    np.save(f"NROY_Params_rest_{percent}_18_05.npy", params_post_hm)
+    np.save(f"NROY_Implaus_rest_{percent}_18_05.npy", impl_scores)
+    np.save(f"test_param_rest_{percent}_18_05.npy", test_parameters)
 
 
     # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results))}_{percent}_rest.png")

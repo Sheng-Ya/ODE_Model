@@ -58,6 +58,9 @@ from Simulator_new import Simulator
 
 logger = logging.getLogger("autoemulate")
 
+INITIAL_EMULATOR_DIR = "Emulator_rest_initial"
+WAVE_EMULATOR_DIR = "Emulator_wave_1wave"
+
 EMULATOR_OUTPUT_NAMES = [
     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
     "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
@@ -68,6 +71,8 @@ EMULATOR_OUTPUT_NAMES = [
     "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
     "PaO2", "PaCO2",
 ]
+
+EMULATOR_TRAIN_N_JOBS = min(64, len(EMULATOR_OUTPUT_NAMES))
 
 
 class HistoryMatching(TorchDeviceMixin):
@@ -699,6 +704,110 @@ class HistoryMatchingWorkflow(HistoryMatching):
         return torch.cat(results, dim=0)
 
 
+    def pre_wave_train_emulators(self, n_simulations: int = 4096, refit_on_all_data: bool = False) -> None:
+        """
+        Pre-wave step: generate initial rest samples, run them through the simulator,
+        train one emulator per output, and save them to Emulator_rest_initial/.
+
+        This must be called BEFORE run_waves(). It populates train_x / train_y
+        and creates the initial emulators that wave 0 will load.
+
+        Parameters
+        ----------
+        n_simulations: int
+            Number of samples to generate, simulate, and train emulators on.
+        refit_on_all_data: bool
+            Kept for API consistency with the exercise/union workflows; this
+            initial step fits on the generated pre-wave batch.
+        """
+        print("=" * 60)
+        print("PRE-WAVE: Generating rest samples for initial emulator training")
+        print("=" * 60)
+
+        samples = self.simulator.sample_inputs(n_simulations).to(self.device)
+
+        x_batches = []
+        y_batches = []
+        for chunk in samples.split(2048):
+            x_chunk, y_chunk = self.simulate(chunk)
+            if x_chunk.shape[0] > 0:
+                x_batches.append(x_chunk)
+                y_batches.append(y_chunk)
+
+        if not x_batches:
+            raise RuntimeError("Pre-wave simulation produced no valid rest training rows.")
+
+        x = torch.cat(x_batches, dim=0)
+        y = torch.cat(y_batches, dim=0)
+        print(f"PRE-WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
+
+        self.train_x = x
+        self.train_y = y
+
+        output_names_full = EMULATOR_OUTPUT_NAMES
+
+        def fit_one_initial_output(j, target_name, X_fit_all, Y_fit_all, parameter_idx, result, device):
+            X_fit = X_fit_all
+            Y_fit = Y_fit_all[:, j:j + 1]
+
+            x_fit = X_fit[:, parameter_idx]
+            n = x_fit.shape[0]
+            g = torch.Generator(device=x_fit.device)
+            g.manual_seed(42)
+            perm = torch.randperm(n, generator=g, device=x_fit.device)
+
+            n_test = max(1, int(round(0.2 * n)))
+            x_train, y_train = x_fit[perm[n_test:]], Y_fit[perm[n_test:]]
+            x_test, y_test = x_fit[perm[:n_test]], Y_fit[perm[:n_test]]
+
+            emulator = TransformedEmulator(
+                x_train.float(),
+                y_train.float(),
+                model=get_emulator_class(result.model_name),
+                x_transforms=result.x_transforms,
+                y_transforms=result.y_transforms,
+                device=device,
+                **result.params,
+            )
+            emulator.fit(x_train, y_train)
+
+            (r2_mean, r2_std), (rmse_mean, rmse_std) = bootstrap(
+                emulator,
+                x_test.float(),
+                y_test.float(),
+                n_bootstraps=100,
+                device=device,
+            )
+
+            print(
+                f"[{j + 1}/{len(output_names_full)}] {target_name} "
+                f"R2 test: {r2_mean:.4f} (+/-{r2_std:.4f}) | "
+                f"RMSE test: {rmse_mean:.4f} (+/-{rmse_std:.4f})"
+            )
+
+            parent = os.path.join(INITIAL_EMULATOR_DIR, target_name)
+            os.makedirs(parent, exist_ok=True)
+            path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
+            joblib.dump(emulator, path1)
+            print(f"  Saved to {path1}")
+            return target_name
+
+        Parallel(n_jobs=EMULATOR_TRAIN_N_JOBS)(
+            delayed(fit_one_initial_output)(
+                j, target_name, self.train_x, self.train_y, self.parameter_idx, self.result, self.device
+            )
+            for j, target_name in enumerate(output_names_full)
+        )
+        get_reusable_executor().shutdown(wait=True)
+
+        torch.save(x, "X_train.pt")
+        torch.save(y, "Y_train.pt")
+
+        print("=" * 60)
+        print(f"PRE-WAVE: All emulators trained and saved to {INITIAL_EMULATOR_DIR}/")
+        print("=" * 60)
+
+
     def _sample_within_bounds(
         self,
         dist: DistributionLike,
@@ -783,64 +892,36 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Generate `n` parameter samples (use simulator if have no NROY samples)
         if use_raw_model:
             test_x = self.simulator.sample_inputs(n).to(self.device)
-            # +/-20 %
-            parent = "Emulator_Paper_same_1000"
-            # parent = "Emulator_initial_V_tot"
-            # # +/-50%
-            # parent = "Emulator_Paper_same_1000"
+            parent = INITIAL_EMULATOR_DIR
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
-            parent = "Emulator_wave_1wave"
-            # parent = "Emulator_wave_V_tot"
+            parent = WAVE_EMULATOR_DIR
 
-        output_names = [
-            "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-            "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure", "Min_RA_Volume",
-            "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-            "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
-            "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-            "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-            "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
-            "PaO2", "PaCO2"]
         models = {}
-        for name in output_names:
+        for name in EMULATOR_OUTPUT_NAMES:
             folder = name
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
+            if not os.path.exists(path1):
+                raise FileNotFoundError(
+                    f"Missing emulator {path1}. Call pre_wave_train_emulators() before the first "
+                    "wave, or ensure the previous wave saved emulators."
+                )
             models[name] = joblib.load(path1)
 
-        # means = {}
-        # variances = {}
-        #
-        # for name in output_names:
-        #     if self.nroy_samples is None:
-        #         target_emulator = models[name].model
-        #     else:
-        #         target_emulator = models[name]
-        #
-        #     with torch.no_grad():
-        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
-        #             test_x[:, self.parameter_idx]
-        #         )
-        #    # means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
-
-        n_jobs = len(output_names)
+        n_jobs = EMULATOR_TRAIN_N_JOBS
         def predict_one_output(name, X):
-            if use_raw_model:
-                target_emulator = models[name].model
-            else:
-                target_emulator = models[name]
-
+            target_emulator = models[name]
             mean, var = target_emulator.predict_mean_and_variance(X)
             return name, mean, var
 
         results = Parallel(n_jobs=n_jobs)(
-            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
+            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in EMULATOR_OUTPUT_NAMES)
 
         means = {name: mean for name, mean, var in results}
         variances = {name: var for name, mean, var in results}
 
-        mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
-        var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
+        mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in EMULATOR_OUTPUT_NAMES], dim=1)
+        var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in EMULATOR_OUTPUT_NAMES], dim=1)
 
         get_reusable_executor().shutdown(wait=True)
 
@@ -1204,7 +1285,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             print(f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
 
             # save
-            parent = os.path.join("Emulator_wave_1wave", target_name)
+            parent = os.path.join(WAVE_EMULATOR_DIR, target_name)
             # parent = os.path.join("Emulator_wave_V_tot", target_name)
             os.makedirs(parent, exist_ok=True)
             model_filename = f"GaussianProcessMatern32_{target_name}_best.joblib"
@@ -1216,7 +1297,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             return target_name, emulator
 
-        results = Parallel(n_jobs=len(output_names_full))(
+        results = Parallel(n_jobs=EMULATOR_TRAIN_N_JOBS)(
             delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
             for j, target_name in enumerate(output_names_full)
         )
