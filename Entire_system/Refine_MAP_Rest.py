@@ -62,6 +62,21 @@ def _log_det_jac_np(z, prior_lo, prior_hi):
     return (log_sig_pos + log_sig_neg + log_width).sum(axis=-1)
 
 
+def _sigmoid_np(z):
+    z = np.asarray(z, dtype=np.float64)
+    out = np.empty_like(z, dtype=np.float64)
+    pos = z >= 0.0
+    out[pos] = 1.0 / (1.0 + np.exp(-z[pos]))
+    ez = np.exp(z[~pos])
+    out[~pos] = ez / (1.0 + ez)
+    return out
+
+
+def _logit_np(p):
+    p = np.asarray(p, dtype=np.float64)
+    return np.log(p) - np.log1p(-p)
+
+
 def compute_map(run_dir, top_k=10):
     posterior = np.load(os.path.join(run_dir, "posterior_samples.npy"))
     posterior_z = np.load(os.path.join(run_dir, "posterior_z.npy"))
@@ -105,6 +120,7 @@ def compute_map(run_dir, top_k=10):
         "n_samples": n_samples,
         "prior_lower": prior_lo,
         "prior_upper": prior_hi,
+        "posterior_z": posterior_z,
     }
 
 
@@ -455,14 +471,62 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
     return log_post_theta_from_z
 
 
+def _make_z_bounds(ndim, posterior_z=None, z_trust_quantile=0.001,
+                   min_bound_fraction=1e-4):
+    bounds = None
+
+    if min_bound_fraction is not None and min_bound_fraction > 0.0:
+        eps = float(min_bound_fraction)
+        if not 0.0 < eps < 0.5:
+            raise ValueError("--min-bound-fraction must be in (0, 0.5).")
+        lo = np.full(ndim, _logit_np(eps), dtype=np.float64)
+        hi = np.full_like(lo, _logit_np(1.0 - eps))
+        bounds = (lo, hi)
+
+    if posterior_z is not None and z_trust_quantile is not None and z_trust_quantile > 0.0:
+        q = float(z_trust_quantile)
+        if not 0.0 < q < 0.5:
+            raise ValueError("--z-trust-quantile must be in (0, 0.5), or 0 to disable.")
+        z_lo = np.nanquantile(posterior_z, q, axis=0).astype(np.float64)
+        z_hi = np.nanquantile(posterior_z, 1.0 - q, axis=0).astype(np.float64)
+        if bounds is None:
+            bounds = (z_lo, z_hi)
+        else:
+            lo, hi = bounds
+            if lo.size == 1:
+                lo = np.full_like(z_lo, lo.item())
+                hi = np.full_like(z_hi, hi.item())
+            bounds = (np.maximum(lo, z_lo), np.minimum(hi, z_hi))
+
+    if bounds is None:
+        return None
+
+    lo, hi = bounds
+    bad = lo >= hi
+    if np.any(bad):
+        eps_lo = _logit_np(float(min_bound_fraction or 1e-8))
+        eps_hi = _logit_np(1.0 - float(min_bound_fraction or 1e-8))
+        lo[bad] = eps_lo
+        hi[bad] = eps_hi
+    return list(zip(lo.tolist(), hi.tolist()))
+
+
 def refine_map_multistart(top_k, objective_fn, prior_lo, prior_hi,
-                          n_starts=10, maxiter=200, gtol=1e-5):
+                          n_starts=10, maxiter=200, gtol=1e-5,
+                          posterior_z=None, z_trust_quantile=0.001,
+                          min_bound_fraction=1e-4):
     from scipy.optimize import minimize
     import torch
 
     n_starts = min(n_starts, len(top_k))
     starts = top_k[:n_starts]
     results = []
+    z_bounds = _make_z_bounds(
+        ndim=len(prior_lo),
+        posterior_z=posterior_z,
+        z_trust_quantile=z_trust_quantile,
+        min_bound_fraction=min_bound_fraction,
+    )
 
     def fun_and_grad(z_np):
         z_t = torch.tensor(z_np, dtype=torch.float32, requires_grad=True)
@@ -475,15 +539,24 @@ def refine_map_multistart(top_k, objective_fn, prior_lo, prior_hi,
     for s in starts:
         z0 = np.asarray(s["sample_z"], dtype=np.float64)
         x0 = z0.copy()
+        if z_bounds is not None:
+            z_lo = np.asarray([b[0] for b in z_bounds], dtype=np.float64)
+            z_hi = np.asarray([b[1] for b in z_bounds], dtype=np.float64)
+            x0 = np.clip(x0, z_lo, z_hi)
         opt = minimize(
             fun=lambda z: fun_and_grad(z)[0],
             x0=x0,
             jac=lambda z: fun_and_grad(z)[1],
             method="L-BFGS-B",
+            bounds=z_bounds,
             options={"maxiter": int(maxiter), "gtol": float(gtol), "maxls": 50},
         )
         z_star = opt.x.astype(np.float64)
-        theta_star = prior_lo + (prior_hi - prior_lo) / (1.0 + np.exp(-z_star))
+        theta_star = prior_lo + (prior_hi - prior_lo) * _sigmoid_np(z_star)
+        edge_fraction = np.minimum(
+            (theta_star - prior_lo) / (prior_hi - prior_lo),
+            (prior_hi - theta_star) / (prior_hi - prior_lo),
+        )
         logp_star = -float(opt.fun)
         results.append({
             "start_rank": int(s["rank"]),
@@ -496,6 +569,9 @@ def refine_map_multistart(top_k, objective_fn, prior_lo, prior_hi,
             "final_log_post_theta": logp_star,
             "z": z_star,
             "theta": theta_star,
+            "min_edge_fraction": float(np.min(edge_fraction)),
+            "n_edge_fraction_lt_1e-3": int(np.sum(edge_fraction < 1e-3)),
+            "n_edge_fraction_lt_1e-2": int(np.sum(edge_fraction < 1e-2)),
             "improvement": logp_star - float(s["log_post_theta"]),
         })
 
@@ -666,14 +742,32 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join(r"MCMC_Old_Attempts\MCMC_HPC_Low_RA", "MCMC_Rest_20_05_05_1500_logspline_copula_prior"), # change
+        default=os.path.join(r"DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa", "MCMC_Rest_20_18_05_1500_logspline_copula_prior"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
     p.add_argument("--n-starts", type=int, default=5, help="How many of the top draws to use as optimisation starts.")
     p.add_argument("--maxiter", type=int, default=200, help="Maximum L-BFGS iterations per start.")
     p.add_argument("--gtol", type=float, default=1e-5, help="Projected-gradient tolerance for L-BFGS-B.")
-    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\MCMC_Old_Attempts\MCMC_HPC_Low_RA\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
+    p.add_argument(
+        "--z-trust-quantile",
+        type=float,
+        default=0.001,
+        help=(
+            "Constrain refinement to per-parameter posterior_z quantiles "
+            "[q, 1-q]. Use 0 to disable this trust region."
+        ),
+    )
+    p.add_argument(
+        "--min-bound-fraction",
+        type=float,
+        default=1e-4,
+        help=(
+            "Keep refined parameters this fractional distance inside the "
+            "prior box. Use 0 to allow exact prior boundaries."
+        ),
+    )
+    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
     p.add_argument("--no-save", action="store_true", help="Print only; do not save outputs.")
     args = p.parse_args()
 
@@ -726,6 +820,9 @@ def main():
         n_starts=args.n_starts,
         maxiter=args.maxiter,
         gtol=args.gtol,
+        posterior_z=map_info["posterior_z"],
+        z_trust_quantile=args.z_trust_quantile,
+        min_bound_fraction=args.min_bound_fraction,
     )
 
     print()
@@ -741,6 +838,9 @@ def main():
     print(f"  iterations         = {refined_best['nit']}")
     print(f"  log p(theta|y)     = {refined_best['final_log_post_theta']:.6f}")
     print(f"  improvement        = {refined_best['improvement']:.6f}")
+    print(f"  min edge fraction  = {refined_best['min_edge_fraction']:.6g}")
+    print(f"  edge count <1e-3   = {refined_best['n_edge_fraction_lt_1e-3']}")
+    print(f"  edge count <1e-2   = {refined_best['n_edge_fraction_lt_1e-2']}")
     print(f"  message            = {refined_best['message']}")
 
     print()
@@ -751,7 +851,8 @@ def main():
             f"success={str(row['success']):<5}  "
             f"logp={row['final_log_post_theta']:.6f}  "
             f"delta={row['improvement']:+.6f}  "
-            f"nit={row['nit']:>3d}"
+            f"nit={row['nit']:>3d}  "
+            f"min_edge={row['min_edge_fraction']:.3g}"
         )
 
     sampled_mu, sampled_sd = _predict_at(sampled_map["sample"], gp_caches, output_names)
@@ -902,7 +1003,7 @@ def main():
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
             [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
             [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
-            [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
+            [0.025 * lower, 0.025 * upper], [5.85 * lower, 5.85 * upper], [5.8 * lower, 5.8 * upper],
             [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
             [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
@@ -948,8 +1049,8 @@ def main():
             [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
-            [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [30 * lower, 30 * upper], [15.908 * lower, 15.908 * upper],
-            [30 * lower, 30 * upper], [38.703 * lower, 38.703 * upper],
+            [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
+            [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
 
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
