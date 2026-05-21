@@ -3,12 +3,12 @@ Single-panel comparison of emulator predictive variance across history matching 
 
 The plot shows grouped horizontal box plots of
 `log10(emulator predictive variance / observation variance)` for each target.
-Each stage (Pre-HM, Wave 1, ..., Wave N) is drawn in a different colour, using
-the cached results in `emulator_prediction_cache_3` by default.
+Each stage (Initial, Wave 1, ..., Wave N) is drawn in a different colour, using
+cached results under the artifact directory by default.
 
 Example:
     python Plot_Emulator_Variance_ThreePanel.py ^
-        --artifacts-dir . ^
+        --artifacts-dir DGSM_Rest_Paper/HM_Rest_low_RA_high_C_pa ^
         --eval-wave 4 ^
         --after-wave 3 ^
         --out emulator_variance_grouped_boxplot.png
@@ -150,7 +150,9 @@ STAGE_COLORS = [
 
 MODEL_NAME = "GaussianProcessMatern32"
 FLAG_THRESHOLD = 0.1
-RAW_EMULATOR_DIR = "Emulator_Paper_same_1000"
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_ARTIFACTS_DIR = SCRIPT_DIR / "DGSM_Rest_Paper" / "HM_Rest_low_RA_high_C_pa"
+INITIAL_EMULATOR_DIR_NAME = "Emulator_rest_initial"
 
 def unwrap_emulator(obj):
     if hasattr(obj, "predict_mean_and_variance"):
@@ -179,6 +181,7 @@ def build_stage_cache_path(
 def predict_variance_matrix(
     emulator_dir: Path,
     x_subset: torch.Tensor,
+    batch_size: int,
 ) -> np.ndarray:
 
     variances = []
@@ -186,9 +189,15 @@ def predict_variance_matrix(
         emu_path = emulator_dir / name / f"{MODEL_NAME}_{name}_best.joblib"
 
         emulator = unwrap_emulator(joblib.load(emu_path))
+        target_variances = []
         with torch.no_grad():
-            _, var_pred = emulator.predict_mean_and_variance(x_subset)
-        variances.append(var_pred.detach().cpu().numpy().reshape(-1).astype(np.float32))
+            for start in range(0, x_subset.shape[0], batch_size):
+                batch = x_subset[start:start + batch_size]
+                _, var_pred = emulator.predict_mean_and_variance(batch)
+                target_variances.append(
+                    var_pred.detach().cpu().numpy().reshape(-1).astype(np.float32)
+                )
+        variances.append(np.concatenate(target_variances))
 
     return np.stack(variances, axis=0)
 
@@ -211,6 +220,29 @@ def load_cached_variance_matrix(cache_path: Path, expected_n_eval: int) -> np.nd
             f"({len(output_names)}, {expected_n_eval})."
         )
     return var_matrix
+
+
+def load_eval_points(artifacts_dir: Path, eval_wave: int) -> np.ndarray:
+    test_path = artifacts_dir / f"test_params_wave_{eval_wave}.npy"
+    mask_path = artifacts_dir / f"nroy_mask_wave_{eval_wave}.npy"
+
+    missing = [path for path in (test_path, mask_path) if not path.exists()]
+    if missing:
+        missing_text = "\n".join(f"  - {path}" for path in missing)
+        raise FileNotFoundError(
+            f"Expected wave {eval_wave} evaluation files in the artifact directory:\n"
+            f"{missing_text}"
+        )
+
+    test_params = np.load(test_path)
+    nroy_mask = np.load(mask_path).astype(bool)
+    if test_params.shape[0] != nroy_mask.shape[0]:
+        raise ValueError(
+            f"{test_path} has {test_params.shape[0]} rows but "
+            f"{mask_path} has {nroy_mask.shape[0]} entries."
+        )
+
+    return test_params[nroy_mask]
 
 
 def save_variance_matrix_cache(
@@ -269,6 +301,7 @@ def evaluate_emulator_directory(
     x_subset: torch.Tensor,
     n_eval: int,
     cache_path: Path,
+    batch_size: int,
 ) -> dict:
 
     if cache_path.exists():
@@ -276,7 +309,7 @@ def evaluate_emulator_directory(
         var_matrix = load_cached_variance_matrix(cache_path, n_eval)
     else:
         print(f"[{stage_key}] cache miss, evaluating emulator predictions")
-        var_matrix = predict_variance_matrix(emulator_dir, x_subset)
+        var_matrix = predict_variance_matrix(emulator_dir, x_subset, batch_size)
         save_variance_matrix_cache(cache_path, stage_label, emulator_dir, var_matrix)
 
     return summarise_variance_matrix(var_matrix)
@@ -369,23 +402,25 @@ def build_stage_series(
     x_subset: torch.Tensor,
     n_eval: int,
     after_wave: int,
-    raw_emulator_dir: Path,
+    initial_emulator_dir: Path,
     cache_dir: Path,
     eval_wave: int,
+    batch_size: int,
 ) -> list[tuple[str, dict]]:
     stages = [(
-        "Pre-HM",
+        "Initial",
         evaluate_emulator_directory(
-            stage_key="pre_hm",
-            stage_label="Pre-HM",
-            emulator_dir=raw_emulator_dir,
+            stage_key="rest_initial",
+            stage_label="Initial",
+            emulator_dir=initial_emulator_dir,
             x_subset=x_subset,
             n_eval=n_eval,
             cache_path=build_stage_cache_path(
                 cache_dir=cache_dir,
-                stage_key="pre_hm",
+                stage_key="rest_initial",
                 eval_wave=eval_wave,
             ),
+            batch_size=batch_size,
         ),
     )]
     for wave in range(1, after_wave + 1):
@@ -404,6 +439,7 @@ def build_stage_series(
                         stage_key=f"wave_{wave}",
                         eval_wave=eval_wave,
                     ),
+                    batch_size=batch_size,
                 ),
             )
         )
@@ -444,8 +480,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--artifacts-dir",
-        default="HM_Rest_4",
-        help="Directory containing test_params_wave_k.npy, nroy_mask_wave_k.npy, and Emulator_wave_k snapshots.",
+        default=DEFAULT_ARTIFACTS_DIR,
+        type=Path,
+        help=(
+            "Directory containing test_params_wave_k.npy, nroy_mask_wave_k.npy, "
+            "Emulator_rest_initial, and Emulator_wave_k snapshots."
+        ),
     )
     parser.add_argument(
         "--eval-wave",
@@ -457,36 +497,43 @@ def main() -> None:
         "--after-wave",
         type=int,
         default=3,
-        help="Include stages Pre-HM, Wave 1, ..., Wave N in the grouped box plot.",
+        help="Include stages Initial, Wave 1, ..., Wave N in the grouped box plot.",
     )
     parser.add_argument(
         "--cache-dir",
-        default="emulator_prediction_cache_3",
-        help="Directory for saved emulator-variance cache files. Default: emulator_prediction_cache_3",
+        default=None,
+        type=Path,
+        help=(
+            "Directory for saved emulator-variance cache files. "
+            "Default: <artifacts-dir>/emulator_prediction_cache_3"
+        ),
     )
     parser.add_argument(
         "--out",
         default="emulator_variance_grouped_boxplot.png",
         help="Output PNG path.",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=2048,
+        help="Number of fourth-wave points to evaluate per emulator prediction batch.",
+    )
     args = parser.parse_args()
 
-    artifacts_dir = Path(args.artifacts_dir)
-    raw_emulator_dir = Path(RAW_EMULATOR_DIR)
+    if args.batch_size <= 0:
+        raise ValueError("--batch-size must be positive.")
+
+    artifacts_dir = args.artifacts_dir
+    initial_emulator_dir = artifacts_dir / INITIAL_EMULATOR_DIR_NAME
     out_path = Path(args.out)
     cache_dir = (
-        Path(args.cache_dir)
+        args.cache_dir
         if args.cache_dir
-        else artifacts_dir / "emulator_prediction_cache"
+        else artifacts_dir / "emulator_prediction_cache_3"
     )
 
-    test_path = artifacts_dir / f"test_params_wave_{args.eval_wave}.npy"
-    mask_path = artifacts_dir / f"nroy_mask_wave_{args.eval_wave}.npy"
-
-    test_params = np.load(test_path)
-    nroy_mask = np.load(mask_path).astype(bool)
-
-    eval_points = test_params[nroy_mask]
+    eval_points = load_eval_points(artifacts_dir, args.eval_wave)
 
     x_subset = torch.from_numpy(eval_points[:, parameter_idx]).float()
     stage_results = build_stage_series(
@@ -494,9 +541,10 @@ def main() -> None:
         x_subset=x_subset,
         n_eval=eval_points.shape[0],
         after_wave=args.after_wave,
-        raw_emulator_dir=raw_emulator_dir,
+        initial_emulator_dir=initial_emulator_dir,
         cache_dir=cache_dir,
         eval_wave=args.eval_wave,
+        batch_size=args.batch_size,
     )
 
     pre_hm_lookup = {row["target"]: row for row in stage_results[0][1]["rows"]}

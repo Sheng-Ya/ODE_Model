@@ -420,6 +420,7 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
         total_var = (obs_vars_t + vars_).clamp(min=1e-10)
         z_norm = (obs_means_t - mus) / torch.sqrt(total_var)
         ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
+        target_z_obs = (mus - obs_means_t) / torch.sqrt(obs_vars_t.clamp(min=1e-10))
 
         if residual_corr is not None and output_indices is not None:
             gaussian_mask = torch.ones_like(mus, dtype=torch.bool)
@@ -457,6 +458,16 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
                 + (obs_means_t[ra_pre_idx] - ra_r_mean) ** 2 / ra_total_var
                 + torch.log(ra_total_var)
             )
+            target_z_obs = target_z_obs.clone()
+            target_z_obs[la_pre_idx] = (
+                la_r_mean - obs_means_t[la_pre_idx]
+            ) / torch.sqrt(obs_vars_t[la_pre_idx].clamp(min=1e-10))
+            target_z_obs[ra_pre_idx] = (
+                ra_r_mean - obs_means_t[ra_pre_idx]
+            ) / torch.sqrt(obs_vars_t[ra_pre_idx].clamp(min=1e-10))
+
+        target_excess = torch.relu(torch.abs(target_z_obs) - 0.98)
+        ll = ll - 25.0 * (target_excess ** 2).sum()
 
         if copula is None:
             lp = torch.tensor(0.0, dtype=torch.float32)
@@ -742,7 +753,7 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join(r"DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa", "MCMC_Rest_20_18_05_1500_logspline_copula_prior"), # change
+        default=os.path.join(r"DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa_new_rv_min_pa_gas", "MCMC_Rest_20_18_05_1500_logspline_copula_prior"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
@@ -767,7 +778,7 @@ def main():
             "prior box. Use 0 to allow exact prior boundaries."
         ),
     )
-    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
+    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa_new_rv_min_pa_gas\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
     p.add_argument("--no-save", action="store_true", help="Print only; do not save outputs.")
     args = p.parse_args()
 

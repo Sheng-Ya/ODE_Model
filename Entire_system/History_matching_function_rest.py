@@ -479,6 +479,15 @@ class HistoryMatchingWorkflow(HistoryMatching):
         os.makedirs(self._wave_artifacts_dir, exist_ok=True)
         nroy_mask = self._create_nroy_mask(impl_scores)
         nroy_points = test_x[nroy_mask]
+        bounds = self.generate_param_bounds(
+            nroy_points,
+            buffer_ratio=0.0,
+            param_names=list(self.simulator.parameters_range.keys()),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"param_range_wave_{wave_number}.npy"),
+            self._to_numpy(bounds),
+        )
 
         np.save(
             os.path.join(self._wave_artifacts_dir, f"test_params_wave_{wave_number}.npy"),
@@ -744,6 +753,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.train_x = x
         self.train_y = y
 
+        torch.save(x, "X_train.pt")
+        torch.save(y, "Y_train.pt")
+
         output_names_full = EMULATOR_OUTPUT_NAMES
 
         def fit_one_initial_output(j, target_name, X_fit_all, Y_fit_all, parameter_idx, result, device):
@@ -799,9 +811,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
             for j, target_name in enumerate(output_names_full)
         )
         get_reusable_executor().shutdown(wait=True)
-
-        torch.save(x, "X_train.pt")
-        torch.save(y, "Y_train.pt")
 
         print("=" * 60)
         print(f"PRE-WAVE: All emulators trained and saved to {INITIAL_EMULATOR_DIR}/")
@@ -1408,6 +1417,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             #     self.threshold = 3.0
             # if i == 3:  # 154081
             #     self.threshold = 3.0
+            if i > 0:
+                self.threshold = 3.0
 
             # if i == 1: # 110599
             #     self.threshold = 1.5

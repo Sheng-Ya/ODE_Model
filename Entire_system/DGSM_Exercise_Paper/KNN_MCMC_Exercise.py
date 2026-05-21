@@ -1,5 +1,5 @@
 """
-KNN_MCMC_Rest.py — Post-history-matching calibration pipeline
+KNN_MCMC_Exercise.py - Post-history-matching calibration pipeline
 
 Pipeline:
   1. Load NROY results from history matching (3-sigma threshold)
@@ -17,22 +17,25 @@ Why NUTS over emcee / random-walk MH:
     handling the very different scales across the 69 parameters.
   - ~100-200x more sample-efficient than emcee for this dimensionality.
 
-Expects in working directory:
-  NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY parameter vectors
-  NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY bounds dict
-  {EMULATOR_DIR}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
+Expects in HM run directory:
+  NROY_Points_exercise_{PERCENT}.npy  -- NROY parameter vectors
+  NROY_Params_exercise_{PERCENT}.npy  -- NROY bounds dict
+  Emulator_exercise_only_wave/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
 
 Usage:
-  python KNN_MCMC_Rest.py
-  python KNN_MCMC_Rest.py --chain-id 0 --n-chains 4
-  python KNN_MCMC_Rest.py --aggregate-only --n-chains 4
+  python3 KNN_MCMC_Exercise.py
+  python3 KNN_MCMC_Exercise.py --hm-run-dir /path/to/HM_try/run_YYYYmmdd_HHMMSS
+  python3 KNN_MCMC_Exercise.py --sequential
+  python3 KNN_MCMC_Exercise.py --chain-id 0 --n-chains 4
+  python3 KNN_MCMC_Exercise.py --aggregate-only --n-chains 4
 """
 
 import math
-# import os
+import os
 import sys
 import json
 import argparse
+import subprocess
 import warnings
 import joblib
 import numpy as np
@@ -51,7 +54,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-import os
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(multiprocessing.cpu_count()))   # set before sklearn/joblib uses loky
 
 warnings.filterwarnings("ignore")
@@ -65,14 +67,51 @@ warnings.filterwarnings("ignore")
 # --aggregate-only   : skip chain running; load all chain_z_{c}.npy from
 #                      out_dir and run diagnostics + plots only.
 # --n-chains N       : expected number of chains to run/aggregate.
-# (no args)          : backward-compatible sequential N_CHAINS run.
+# (no args)          : run N_CHAINS chain workers concurrently, then aggregate.
+# --sequential       : run all chains sequentially in this process.
 _parser = argparse.ArgumentParser()
 _parser.add_argument("--chain-id", type=int, default=-1)
 _parser.add_argument("--aggregate-only", action="store_true")
 _parser.add_argument("--n-chains", type=int, default=None)
+_parser.add_argument("--sequential", action="store_true")
+_parser.add_argument(
+    "--hm-run-dir",
+    default=None,
+    help="History-matching run directory produced by Bayesian_Calibration_Exercise_Only.py.",
+)
+_parser.add_argument(
+    "--threads-per-chain",
+    type=int,
+    default=None,
+    help="CPU threads assigned to each parallel chain worker; default is cpu_count // n_chains.",
+)
 _args, _ = _parser.parse_known_args()
 CHAIN_ID       = _args.chain_id
 AGGREGATE_ONLY = _args.aggregate_only
+
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
+HM_RUNS_ROOT = os.path.join(PROJECT_DIR, "HM_try")
+
+
+def _resolve_project_path(path):
+    """Resolve relative paths from Entire_system, matching the HM script."""
+    if os.path.isabs(path):
+        return os.path.abspath(path)
+    return os.path.abspath(os.path.join(PROJECT_DIR, path))
+
+
+def _resolve_hm_run_dir():
+    requested_run_dir = _args.hm_run_dir or os.environ.get("HM_RUN_DIR")
+    if requested_run_dir:
+        return _resolve_project_path(requested_run_dir)
+
+    run_name = os.environ.get("HM_RUN_NAME")
+    if run_name:
+        return os.path.abspath(os.path.join(HM_RUNS_ROOT, run_name))
+
+    return os.path.abspath(os.path.join(HM_RUNS_ROOT, "run_20260520_183843"))
 
 
 
@@ -85,10 +124,16 @@ torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
 DATE_SUFFIX  = "12_4"                    # matches HM output file names # change
-PERCENT      = 90                        # param range +/-% used in HM # change
-# root = "HM_third_improved_first_emulator" # change
-EMULATOR_DIR = f"HM_fifth_90_Exercise_Only/Emulator_exercise_only_5"     # GP emulators from last refitted wave # change
-out_dir = f"MCMC_fifth_90_Exercise_Only"
+PERCENT      = 50                        # param range +/-% used in HM # change
+root = _resolve_hm_run_dir()
+if not os.path.isdir(root):
+    raise FileNotFoundError(
+        f"HM run directory does not exist: {root}\n"
+        "Set HM_RUN_DIR, HM_RUN_NAME, or pass --hm-run-dir to KNN_MCMC_Exercise.py."
+    )
+os.environ["HM_RUN_DIR"] = root
+EMULATOR_DIR = os.path.join(root, "Emulator_exercise_only_wave")     # GP emulators from last refitted wave # change
+out_dir = f"MCMC_start_50_Exercise_Only"
 os.makedirs(out_dir, exist_ok=True)
 
 
@@ -133,6 +178,134 @@ if AGGREGATE_ONLY and CHAIN_ID >= 0:
     raise ValueError("--aggregate-only and --chain-id are mutually exclusive")
 if CHAIN_ID < -1 or CHAIN_ID >= N_CHAINS:
     raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
+if _args.threads_per_chain is not None and _args.threads_per_chain < 1:
+    raise ValueError(
+        f"--threads-per-chain must be >= 1, got {_args.threads_per_chain}"
+    )
+
+
+def _parallel_worker_env(n_chains, threads_per_chain):
+    """Environment for concurrent chain subprocesses on Linux/HPC nodes."""
+    env = os.environ.copy()
+    if threads_per_chain is None:
+        threads_per_chain = max(1, (os.cpu_count() or n_chains) // max(n_chains, 1))
+        override = False
+    else:
+        override = True
+
+    thread_vars = (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "TORCH_NUM_THREADS",
+        "LOKY_MAX_CPU_COUNT",
+    )
+    for name in thread_vars:
+        if override:
+            env[name] = str(threads_per_chain)
+        else:
+            env.setdefault(name, str(threads_per_chain))
+    return env, threads_per_chain
+
+
+def _run_parallel_chains_and_aggregate():
+    """Default no-arg driver: run one subprocess per chain, then aggregate."""
+    script_path = os.path.abspath(__file__)
+    run_cwd = os.getcwd()
+    env, threads_per_chain = _parallel_worker_env(
+        N_CHAINS, _args.threads_per_chain
+    )
+
+    print(
+        f"Launching {N_CHAINS} chain workers concurrently "
+        f"({threads_per_chain} CPU thread(s) per worker by default).",
+        flush=True,
+    )
+    print(f"Worker logs will be written to {os.path.abspath(out_dir)}", flush=True)
+
+    workers = []
+    try:
+        for c in range(N_CHAINS):
+            log_path = os.path.abspath(os.path.join(out_dir, f"chain_{c}.log"))
+            log_file = open(log_path, "w", buffering=1)
+            cmd = [
+                sys.executable,
+                script_path,
+                "--chain-id", str(c),
+                "--n-chains", str(N_CHAINS),
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=run_cwd,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            workers.append((c, proc, log_path, log_file))
+            print(f"  chain {c}: pid={proc.pid}, log={log_path}", flush=True)
+
+        failed = []
+        for c, proc, log_path, log_file in workers:
+            return_code = proc.wait()
+            log_file.close()
+            if return_code != 0:
+                failed.append((c, return_code, log_path))
+            else:
+                print(f"  chain {c}: complete", flush=True)
+    except KeyboardInterrupt:
+        print("\nInterrupted; terminating chain workers...", flush=True)
+        for _, proc, _, log_file in workers:
+            if proc.poll() is None:
+                proc.terminate()
+            log_file.close()
+        raise
+
+    if failed:
+        print("\nOne or more chain workers failed:", flush=True)
+        for c, return_code, log_path in failed:
+            print(
+                f"  chain {c}: exit code {return_code}; see {log_path}",
+                flush=True,
+            )
+        sys.exit(1)
+
+    aggregate_log = os.path.abspath(os.path.join(out_dir, "aggregate.log"))
+    print(f"\nAll chains complete; aggregating results into {out_dir}/", flush=True)
+    print(f"Aggregate log: {aggregate_log}", flush=True)
+    with open(aggregate_log, "w", buffering=1) as log_file:
+        aggregate_return_code = subprocess.call(
+            [
+                sys.executable,
+                script_path,
+                "--aggregate-only",
+                "--n-chains", str(N_CHAINS),
+            ],
+            cwd=run_cwd,
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+    if aggregate_return_code != 0:
+        print(
+            f"Aggregation failed with exit code {aggregate_return_code}; "
+            f"see {aggregate_log}",
+            flush=True,
+        )
+        sys.exit(aggregate_return_code)
+
+    print("Parallel MCMC run complete.", flush=True)
+    sys.exit(0)
+
+
+if (
+    N_CHAINS > 1
+    and CHAIN_ID < 0
+    and not AGGREGATE_ONLY
+    and not _args.sequential
+):
+    _run_parallel_chains_and_aggregate()
 
 CHAIN_WORKER = CHAIN_ID >= 0
 WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
@@ -1224,13 +1397,23 @@ RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
 #     'theta_svn', 'theta_v', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv',
 #     'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv', 'Wc_v', 'Wp_v', 'Ysh_max', 'Ysv_max', 'Yv_max'}
 
-# only exercise
-subset_vars_set = {'alpha2', 'C_amv', 'C_bv', 'C_ev', 'C_pa', 'C_pp', 'C_pv', 'C_sa', 'Cvb_O2_n', 'f_acCO2_n', 'G_ap',
-               'g_ccsh', 'GEmax_lv', 'GEmax_rv', 'gM', 'GR_amp', 'GV_amv', 'GV_dead', 'GV_ev', 'GV_sv', 'Io_sh',
-               'Io_sp', 'K1_vc', 'k_ac', 'KcCO2', 'KcMRV', 'kev', 'Kp_mi', 'Kp_po', 'MO2_ampn', 'P_n_max', 'PaO2_ac_n',
-               'phi_max', 'R_amp0', 'R_bpn', 'R_mi', 'R_po', 'R_tr', 'tauMR', 'theta_spn', 'theta_v', 'VA_rest', 'Wc_v',
-               'Wp_v', 'Ysh_max', 'Ysv_max', 'Yv_max'}
+# # only exercise
+# subset_vars_set = {'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_pv', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
+#                'fall_time_ven', 'fes_o', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GT_v', 'GV_dead',
+#                'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
+#                'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven',
+#                'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+#                'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max',
+#                # added
+#                "C_pa", 'alpha2', 'C_ev', 'GV_ev'}
 
+subset_vars_set = {'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead', 'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV',
+                        'P_n_max', 'phi_max', 'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max',
+                        'alpha2', 'C_amv', 'C_bv', 'C_ev', 'C_pa', 'C_pp', 'C_sa',
+                        'Cvb_O2_n', 'f_acCO2_n', 'g_ccsh', 'gM', 'GV_amv', 'GV_ev',
+                        'Io_sp', 'K1_vc', 'k_ac', 'kev', 'Kp_mi', 'Kp_po', 'MO2_ampn',
+                        'PaO2_ac_n', 'R_bpn', 'R_mi', 'R_tr', 'theta_spn', 'theta_v',
+                        'Wc_v', 'Ysh_max', 'Ysv_max'}
 
 
 
@@ -1244,10 +1427,10 @@ print("=" * 60)
 
 nroy_points_np = np.load(
     # f"HM_sixth_exercise_and_rest_union/NROY_Points_exercise_{PERCENT}.npy" # change
-    f"HM_fifth_90_Exercise_Only/NROY_Points_exercise_{PERCENT}.npy"
+    os.path.join(root, f"NROY_Points_exercise_{PERCENT}.npy")
 )
 nroy_params_dict = np.load(
-    f"HM_fifth_90_Exercise_Only/NROY_Params_exercise_{PERCENT}.npy", allow_pickle=True # change
+    os.path.join(root, f"NROY_Params_exercise_{PERCENT}.npy"), allow_pickle=True # change
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
@@ -1568,13 +1751,14 @@ assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
 # ---------- Multi-chain NUTS (sequential / array-task / aggregate) ----------
 # Three execution modes (see CLI block at top):
-#   1. Default            : run all N_CHAINS sequentially in this process.
+#   1. --sequential       : run all N_CHAINS sequentially in this process.
 #   2. --chain-id c       : run only chain c, save per-chain output, exit.
 #                           Used by HPC array-job (one task = one chain).
 #   3. --aggregate-only   : skip chains entirely; load chain_z_{c}.npy from
 #                           out_dir for c in 0..N_CHAINS-1.
 # Posterior samples, split-R-hat and ESS are identical regardless of mode;
-# array-job mode collapses wall time from N_CHAINS x to 1 x per chain.
+# the default no-arg driver runs chain workers concurrently and then launches
+# aggregate-only mode once all workers finish.
 print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
 print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
 print(f"  target_accept_prob = {TARGET_ACCEPT}")

@@ -371,7 +371,10 @@ class Simulator(ABC, ValidationMixin):
                 self.logger.debug("Simulation %d/%d successful", i + 1, len(x))
                 return (i, result)
 
-        # Parallel execution with tqdm progress bar
+        batch_size = 256
+        outputs = []
+
+        # Parallel execution with tqdm progress bar, dispatched in bounded batches.
         with tqdm_joblib(
                 tqdm(
                     total=len(x),
@@ -381,9 +384,19 @@ class Simulator(ABC, ValidationMixin):
                     unit_scale=True,
                 )
         ):
-            outputs = Parallel(n_jobs=-1, backend="loky")(
-                delayed(_run_one)(i) for i in range(len(x))
-            )
+            for batch_start in range(0, len(x), batch_size):
+                batch_end = min(batch_start + batch_size, len(x))
+                self.logger.debug(
+                    "Running simulation batch %d-%d/%d",
+                    batch_start + 1,
+                    batch_end,
+                    len(x),
+                )
+                outputs.extend(
+                    Parallel(n_jobs=64, backend="loky")(
+                        delayed(_run_one)(i) for i in range(batch_start, batch_end)
+                    )
+                )
             # n_jobs = 64
             # outputs = Parallel(n_jobs=n_jobs, backend="loky", pre_dispatch=n_jobs)(
             #     delayed(_run_one)(i) for i in range(len(x))

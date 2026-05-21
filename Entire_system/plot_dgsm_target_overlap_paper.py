@@ -9,14 +9,14 @@ import matplotlib.colors as mcolors
 import numpy as np
 
 
-DEFAULT_FILE_A = Path(
-    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\DGSM_20.txt"
-)
 DEFAULT_FILE_B = Path(
+    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_90\DGSM_90_Rest.txt"
+)
+DEFAULT_FILE_A = Path(
     r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\DGSM_50_tidal.txt"
 )
 DEFAULT_OUTPUT_PREFIX = Path(
-    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\dgsm_target_overlap_20_vs_50"
+    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_90\dgsm_target_overlap_50_vs_90"
 )
 
 OUTPUT_HEADER = re.compile(r"^Output:\s*(.+)$")

@@ -1,31 +1,31 @@
 """
-KNN_MCMC_Rest.py — Post-history-matching calibration pipeline
+MCMC_Union.py — Post-history-matching calibration pipeline for rest + exercise
 
 Pipeline:
-  1. Load NROY results from history matching (3-sigma threshold)
-  2. KNN density estimation -> find densest region as MCMC start
-  3. Pyro NUTS MCMC -> posterior distribution targeting 1 sigma of rest targets
+  1. Load NROY results from union history matching
+  2. Fit an NROY-informed prior over the calibrated parameter subset
+  3. Pyro NUTS MCMC -> posterior distribution targeting rest and exercise data
 
 Why NUTS over emcee / random-walk MH:
-  - 69 calibration parameters: gradient-based NUTS scales as O(d^{1/4}),
+  - high-dimensional calibration: gradient-based NUTS scales as O(d^{1/4}),
     whereas emcee's stretch move degrades rapidly past ~30 dims.
   - The GP emulators (autoemulate TransformedEmulator with GPyTorch)
     support with_grad=True, so the full chain
         theta -> x_transform -> GP kernel -> predictive mean/var -> log_prob
     is differentiable through torch autograd.
   - NUTS automatically adapts step size and mass matrix during warmup,
-    handling the very different scales across the 69 parameters.
+    handling the very different scales across the calibrated parameters.
   - ~100-200x more sample-efficient than emcee for this dimensionality.
 
 Expects in working directory:
-  NROY_Points_rest.npy  -- NROY parameter vectors
-  NROY_Params_rest.npy  -- NROY bounds dict
+  NROY_Points_union_{PERCENT}.npy  -- NROY parameter vectors
+  NROY_Params_union_{PERCENT}.npy  -- NROY bounds dict
   {EMULATOR_DIR}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
 
 Usage:
-  python KNN_MCMC_Rest.py
-  python KNN_MCMC_Rest.py --chain-id 0 --n-chains 4
-  python KNN_MCMC_Rest.py --aggregate-only --n-chains 4
+  python MCMC_Union.py
+  python MCMC_Union.py --chain-id 0 --n-chains 4
+  python MCMC_Union.py --aggregate-only --n-chains 4
 """
 
 import math
@@ -85,9 +85,11 @@ torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
 PERCENT      = 50                        # param range +/-% used in HM # change
-root = "MCMC_HPC_Union" # change
-EMULATOR_DIR = f"{root}/Wave_5_Union"     # GP emulators from last refitted wave # change
-out_dir = f"{root}/MCMC_Rest_{PERCENT}_16_05_3000_logspline_copula_prior"
+root = "." # change
+EMULATOR_DIR = f"Emulator_wave_5"     # GP emulators from last refitted wave # change
+if not os.path.isdir(EMULATOR_DIR) and os.path.isdir("Emulator_wave_5"):
+    EMULATOR_DIR = "Wave_5"
+out_dir = f"MCMC_Union_{PERCENT}_16_05_3000_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
 
@@ -139,18 +141,19 @@ WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
 # Atrial contraction is enforced via the active-emptying fraction
 #   r = (V_pre_contraction - V_min) / (V_max - V_min)
 # treated as a derived Gaussian target. The corresponding observation entries
-# (LA/RA Contraction Volume diff) hold the ratio mean and variance, NOT the
-# raw mL difference, so the per-output Gaussian must skip these indices and
-# the ratio is scored separately under the same Gaussian likelihood family.
+# (Pre-LA/Pre-RA Contraction Volume) hold the ratio mean and variance, NOT the
+# raw pre-contraction mL volume, so the per-output Gaussian must skip these
+# indices and the ratio is scored separately under the same Gaussian likelihood
+# family.
 REST_LA_MIN_IDX, REST_LA_MAX_IDX, REST_LA_PRE_IDX = 13, 14, 17
 REST_RA_MIN_IDX, REST_RA_MAX_IDX, REST_RA_PRE_IDX = 9, 10, 18
 REST_ATRIAL_GAUSSIAN_SKIP = (REST_LA_PRE_IDX, REST_RA_PRE_IDX)
-# added
 EXERCISE_LA_MIN_IDX, EXERCISE_LA_MAX_IDX, EXERCISE_LA_PRE_IDX = 38, 39, 42
 EXERCISE_RA_MIN_IDX, EXERCISE_RA_MAX_IDX, EXERCISE_RA_PRE_IDX = 34, 35, 43
 
 ATRIAL_GAUSSIAN_SKIP = (REST_LA_PRE_IDX, REST_RA_PRE_IDX, EXERCISE_LA_PRE_IDX, EXERCISE_RA_PRE_IDX)
 ATRIAL_COV_JITTER = 1e-10
+ATRIAL_RATIO_TARGET = (0.25, 0.0002777)
 
 # Display-only atrial pre-contraction volume targets used in the final
 # posterior-predictive box plot. The likelihood remains defined on the
@@ -244,11 +247,11 @@ def extract_fast_caches(emulators, output_names):
 # ================================================================
 # BATCHED / MANUAL MATERN-3/2 PATH  (no gpytorch at inference time)
 # ================================================================
-# Stacks all 25 GPs into a single set of (n_out, ...) tensors that share
+# Stacks all GPs into a single set of (n_out, ...) tensors that share
 # X_train, precomputes the Cholesky of each training kernel + its alpha,
 # and runs a hand-written Matern-3/2 kernel.  Removes GPyTorch's per-call
 # MultivariateNormal / LazyTensor / fast_pred_var overhead (which dominates
-# at batch size 1) and also removes the 25-output Python loop — replaced by
+# at batch size 1) and also removes the per-output Python loop — replaced by
 # batched matmul / triangular solve.
 #
 # Math recap (for one output, written without batch dim):
@@ -308,7 +311,7 @@ def _matern32_cross_fast(x_t, X_train_scaled, X_train_scaled_norm2,
 def build_batched_fast_caches(emulators, output_names, gp_caches):
     """Extract hyperparameters, stack across outputs, precompute L and alpha.
 
-    Requires all 25 GPs to share the same X_train and the same x-transform.
+    Requires all GPs to share the same X_train and the same x-transform.
     That is the autoemulate default when they are trained together; we
     assert it here so a silent mismatch can't poison the posterior.
     """
@@ -1016,11 +1019,22 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
     print(f"  Saved: {out_path}")
     return out_path
 
+
+def _first_existing_path(candidates, label):
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    joined = "\n    ".join(candidates)
+    raise FileNotFoundError(
+        f"Could not find {label}. Tried:\n    {joined}"
+    )
+
+
 def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
                                    bc, copula=None):
     """Batched, manual Matern-3/2 potential.  No gpytorch calls at inference.
 
-    Replaces the 25-output Python loop with two batched tensor ops:
+    Replaces the per-output Python loop with two batched tensor ops:
       k_star (n_out, n) — one call to _matern32_cross
       variance          — one batched triangular solve via cholesky_solve
     Gradient flows through all of these, so Pyro NUTS autograd works unchanged.
@@ -1178,80 +1192,86 @@ def batched_predict_mean(theta_batch, bc):
 
 
 # ================================================================
-# OUTPUT NAMES (same order as emulators / simulator outputs)
+# OUTPUT NAMES (same order as union emulators / simulator outputs)
 # ================================================================
-output_names = [
+OUTPUT_NAMES_PER_STATE = [
     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV",
     "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
     "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume",
     "Max_RA_Pressure_Atrial_contraction",
     "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
     "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff",
-    "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
+    "Max_LA_Pressure_Mitral_Opening", "Pre_LA_Contraction_Volume",
+    "Pre_RA_Contraction_Volume", "LV_Pressure_Deriv",
     "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
     "PaO2", "PaCO2",
 ]
+output_names = (
+    [f"Rest_{name}" for name in OUTPUT_NAMES_PER_STATE]
+    + [f"Exercise_{name}" for name in OUTPUT_NAMES_PER_STATE]
+)
 
 # ================================================================
-# REST TARGETS: {name_with_spaces: (population_mean, population_variance)}
+# UNION TARGETS: {output_name: (population_mean, population_variance)}
 # ================================================================
 observation = {
 # Rest
-"Rest Heart Rate": (1.23, 0.05), "Rest Systolic Pressure": (123, 324), "Rest Diastolic Pressure": (76.7, 65.61),
-"Rest EDV": (152.1, 767.29), "Rest ESV": (62.3, 243.36), "Rest Max RV Volume": (151.9, 1004.89),
-"Rest Min RV Volume": (64.4, 299.29), "Rest Max RV Pressure": (22.5, 56.25), "Rest Min RV Pressure": (4.0, 9.0),
-"Rest Min RA Volume": (45.7, 125.44), "Rest Max RA Volume": (92.4, 380.25), "Rest Max RA Pressure Atrial contraction": (8.0, 9.0),
-"Rest Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Rest Min LA Volume": (30.6, 84.64), "Rest Max LA Volume": (68.3, 306.25),
-"Rest Max LA Pressure Atrial contraction": (13.0, 9.0), "Rest Max LA Pressure Mitral Opening": (12.0, 9.0), "Rest Pre-LA Contraction Volume": (40.0, 67.24),
-"Rest Pre-RA Contraction Volume": (57.4, 96.04), "Rest LV Pressure Deriv": (1461.0, 146689.0), "Rest RV Pressure Deriv": (271.0, 3025.0),
-"Rest Tidal Volume": (0.850, 0.16), "Rest Minute Ventilation": (11.4, 15.21), "Rest PaO2": (102.3, 125.44),
-"Rest PaCO2": (35.5, 24.01),
+"Rest_Heart_Rate": (1.23, 0.05), "Rest_Systolic_Pressure": (123, 324), "Rest_Diastolic_Pressure": (76.7, 65.61),
+"Rest_EDV": (152.1, 767.29), "Rest_ESV": (62.3, 243.36), "Rest_Max_RV_Volume": (151.9, 1004.89),
+"Rest_Min_RV_Volume": (64.4, 299.29), "Rest_Max_RV_Pressure": (22.5, 56.25), "Rest_Min_RV_Pressure": (4.0, 9.0),
+"Rest_Min_RA_Volume": (45.7, 125.44), "Rest_Max_RA_Volume": (92.4, 380.25), "Rest_Max_RA_Pressure_Atrial_contraction": (8.0, 9.0),
+"Rest_Max_RA_Pressure_Tricuspid_Opening": (5.0, 9.0), "Rest_Min_LA_Volume": (30.6, 84.64), "Rest_Max_LA_Volume": (68.3, 306.25),
+"Rest_Max_LA_Pressure_Atrial_contraction": (13.0, 9.0), "Rest_Max_LA_Pressure_Mitral_Opening": (12.0, 9.0),
+"Rest_Pre_LA_Contraction_Volume": ATRIAL_RATIO_TARGET, "Rest_Pre_RA_Contraction_Volume": ATRIAL_RATIO_TARGET,
+"Rest_LV_Pressure_Deriv": (1461.0, 146689.0), "Rest_RV_Pressure_Deriv": (271.0, 3025.0),
+"Rest_Tidal_Volume": (0.850, 0.16), "Rest_Minute_Ventilation": (11.4, 15.21), "Rest_PaO2": (102.3, 125.44),
+"Rest_PaCO2": (35.5, 24.01),
 
 # Exercise
-"Exercise Heart Rate": (2.58, 0.12), "Exercise Systolic Pressure": (165, 529), "Exercise Diastolic Pressure": (76.4, 82.81),
-"Exercise EDV": (145.5, 681.21), "Exercise ESV": (45.5, 75.69), "Exercise Max RV Volume": (139.4, 681.21),
-"Exercise Min RV Volume": (40.3, 112.36), "Exercise Max RV Pressure": (29.5, 56.25), "Exercise Min RV Pressure": (9.9, 31.36),
-"Exercise Min RA Volume": (27.9, 25.0), "Exercise Max RA Volume": (77.3, 342.25), "Exercise Max RA Pressure Atrial contraction": (12, 16),
-"Exercise Max RA Pressure Tricuspid Opening": (11, 16), "Exercise Min LA Volume": (23.0, 94.09), "Exercise Max LA Volume": (66.3, 388.09),
-"Exercise Max LA Pressure Atrial contraction": (19, 49), "Exercise Max LA Pressure Mitral Opening": (19, 64), "Exercise Pre-LA Contraction Volume": (33.8, 77.4),
-"Exercise Pre-RA Contraction Volume": (40.3, 36.0), "Exercise LV Pressure Deriv": (1750, 272484), "Exercise RV Pressure Deriv": (713, 12100),
-"Exercise Tidal Volume": (2.22, 0.4096), "Exercise Minute Ventilation": (62.6, 320.41), "Exercise PaO2": (97.2, 36.0),
-"Exercise PaCO2": (38.4, 6.76)
+"Exercise_Heart_Rate": (2.58, 0.12), "Exercise_Systolic_Pressure": (165, 529), "Exercise_Diastolic_Pressure": (76.4, 82.81),
+"Exercise_EDV": (145.5, 681.21), "Exercise_ESV": (45.5, 75.69), "Exercise_Max_RV_Volume": (139.4, 681.21),
+"Exercise_Min_RV_Volume": (40.3, 112.36), "Exercise_Max_RV_Pressure": (29.5, 56.25), "Exercise_Min_RV_Pressure": (9.9, 31.36),
+"Exercise_Min_RA_Volume": (27.9, 25.0), "Exercise_Max_RA_Volume": (77.3, 342.25), "Exercise_Max_RA_Pressure_Atrial_contraction": (12, 16),
+"Exercise_Max_RA_Pressure_Tricuspid_Opening": (11, 16), "Exercise_Min_LA_Volume": (23.0, 94.09), "Exercise_Max_LA_Volume": (66.3, 388.09),
+"Exercise_Max_LA_Pressure_Atrial_contraction": (19, 49), "Exercise_Max_LA_Pressure_Mitral_Opening": (19, 64),
+"Exercise_Pre_LA_Contraction_Volume": ATRIAL_RATIO_TARGET, "Exercise_Pre_RA_Contraction_Volume": ATRIAL_RATIO_TARGET,
+"Exercise_LV_Pressure_Deriv": (1750, 272484), "Exercise_RV_Pressure_Deriv": (713, 12100),
+"Exercise_Tidal_Volume": (2.22, 0.4096), "Exercise_Minute_Ventilation": (62.6, 320.41), "Exercise_PaO2": (97.2, 36.0),
+"Exercise_PaCO2": (38.4, 6.76)
 }
 
 REST_LA_PRE_DISPLAY_MEAN, REST_LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Rest Min LA Volume"][0],
-    observation["Rest Min LA Volume"][1],
-    observation["Rest Max LA Volume"][0],
-    observation["Rest Max LA Volume"][1],
-    observation["Rest Pre-LA Contraction Volume"][0],
-    observation["Rest Pre-LA Contraction Volume"][1],
+    observation["Rest_Min_LA_Volume"][0],
+    observation["Rest_Min_LA_Volume"][1],
+    observation["Rest_Max_LA_Volume"][0],
+    observation["Rest_Max_LA_Volume"][1],
+    observation["Rest_Pre_LA_Contraction_Volume"][0],
+    observation["Rest_Pre_LA_Contraction_Volume"][1],
 )
 REST_RA_PRE_DISPLAY_MEAN, REST_RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Rest Min RA Volume"][0],
-    observation["Rest Min RA Volume"][1],
-    observation["Rest Max RA Volume"][0],
-    observation["Rest Max RA Volume"][1],
-    observation["Rest Pre-RA Contraction Volume"][0],
-    observation["Rest Pre-RA Contraction Volume"][1],
+    observation["Rest_Min_RA_Volume"][0],
+    observation["Rest_Min_RA_Volume"][1],
+    observation["Rest_Max_RA_Volume"][0],
+    observation["Rest_Max_RA_Volume"][1],
+    observation["Rest_Pre_RA_Contraction_Volume"][0],
+    observation["Rest_Pre_RA_Contraction_Volume"][1],
 )
 
 EXERCISE_LA_PRE_DISPLAY_MEAN, EXERCISE_LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Exercise Min LA Volume"][0],
-    observation["Exercise Min LA Volume"][1],
-    observation["Exercise Max LA Volume"][0],
-    observation["Exercise Max LA Volume"][1],
-    observation["Exercise Pre-LA Contraction Volume"][0],
-    observation["Exercise Pre-LA Contraction Volume"][1],
+    observation["Exercise_Min_LA_Volume"][0],
+    observation["Exercise_Min_LA_Volume"][1],
+    observation["Exercise_Max_LA_Volume"][0],
+    observation["Exercise_Max_LA_Volume"][1],
+    observation["Exercise_Pre_LA_Contraction_Volume"][0],
+    observation["Exercise_Pre_LA_Contraction_Volume"][1],
 )
 EXERCISE_RA_PRE_DISPLAY_MEAN, EXERCISE_RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Exercise Min RA Volume"][0],
-    observation["Exercise Min RA Volume"][1],
-    observation["Exercise Max RA Volume"][0],
-    observation["Exercise Max RA Volume"][1],
-    observation["Exercise Pre-RA Contraction Volume"][0],
-    observation["Exercise Pre-RA Contraction Volume"][1],
+    observation["Exercise_Min_RA_Volume"][0],
+    observation["Exercise_Min_RA_Volume"][1],
+    observation["Exercise_Max_RA_Volume"][0],
+    observation["Exercise_Max_RA_Volume"][1],
+    observation["Exercise_Pre_RA_Contraction_Volume"][0],
+    observation["Exercise_Pre_RA_Contraction_Volume"][1],
 )
 
 # ================================================================
@@ -1293,10 +1313,27 @@ print("STEP 1 -- Loading history matching results")
 print("=" * 60)
 
 nroy_points_np = np.load(
-    f"{root}/NROY_Points_rest_union_50.npy" # change
+    _first_existing_path(
+        [
+            f"NROY_Points_rest_union_{PERCENT}.npy",
+            f"NROY_Points_union_{PERCENT}.npy",
+            f"NROY_Points_rest_union_{PERCENT}.npy",
+            f"NROY_Points_union_{PERCENT}.npy",
+        ],
+        "union NROY points",
+    )
 )
 nroy_params_dict = np.load(
-    f"{root}/NROY_Params_rest_union_50.npy", allow_pickle=True # change
+    _first_existing_path(
+        [
+            f"NROY_Params_rest_union_{PERCENT}.npy",
+            f"NROY_Params_union_{PERCENT}.npy",
+            f"NROY_Params_rest_union_{PERCENT}.npy",
+            f"NROY_Params_union_{PERCENT}.npy",
+        ],
+        "union NROY parameter bounds",
+    ),
+    allow_pickle=True # change
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
@@ -1342,7 +1379,7 @@ print(f"  Full parameter vector: {len(all_param_names)}")
 # matrix R modelling the dependency in rank-Gaussianised space. Motivation
 # (replaces the previous full-cov GMM + BIC approach):
 #   1. A full-cov GMM has d + d(d+1)/2 ~= 1891 free params per component at
-#      d=69, so BIC's p*log(N) penalty dominates the log-likelihood gain and
+#      d is large, so BIC's p*log(N) penalty dominates the log-likelihood gain and
 #      collapses K to 1, reproducing a plain MVN that cannot represent the
 #      visible skew in axes like T0, GT_v, P_n, ahead1.
 #   2. Diagnostic hexbins (see NROY_joint_multimodality_check.py) showed
@@ -1564,11 +1601,11 @@ print("=" * 60)
 
 # Observation tensors
 obs_means_t = torch.tensor(
-    [observation[n.replace("_", " ")][0] for n in output_names],
+    [observation[n][0] for n in output_names],
     dtype=torch.float32,
 )
 obs_vars_t = torch.tensor(
-    [observation[n.replace("_", " ")][1] for n in output_names],
+    [observation[n][1] for n in output_names],
     dtype=torch.float32,
 )
 obs_stds_t = obs_vars_t.sqrt()
@@ -1777,7 +1814,7 @@ check_idx = np.random.choice(
 n_check = len(check_idx)
 
 # Single batched forward through the manual-Matern-3/2 cache: replaces
-# n_check * 25 = 37,500 individual gpytorch calls with one tensor op.
+# n_check * n_outputs individual gpytorch calls with one tensor op.
 with torch.no_grad():
     theta_batch = torch.tensor(posterior_np[check_idx], dtype=torch.float32)
     pred_matrix = batched_predict_mean(theta_batch, batched_cache).cpu().numpy()
@@ -2027,12 +2064,6 @@ plot_tgt_means_np[REST_RA_PRE_IDX] = REST_RA_PRE_DISPLAY_MEAN
 plot_tgt_stds_np[REST_LA_PRE_IDX] = REST_LA_PRE_DISPLAY_STD
 plot_tgt_stds_np[REST_RA_PRE_IDX] = REST_RA_PRE_DISPLAY_STD
 
-normalised = (plot_matrix - plot_tgt_means_np) / plot_tgt_stds_np
-
-short_names = [n.replace("_", "\n") for n in output_names]
-short_names[REST_LA_PRE_IDX] = "REST LA\nPre-A\nVolume"
-short_names[REST_RA_PRE_IDX] = "REST RA\nPre-A\nVolume"
-
 plot_matrix[:, EXERCISE_LA_PRE_IDX] = (
     pred_matrix[:, EXERCISE_LA_MIN_IDX]
     + pred_matrix[:, EXERCISE_LA_PRE_IDX] * (pred_matrix[:, EXERCISE_LA_MAX_IDX] - pred_matrix[:, EXERCISE_LA_MIN_IDX])
@@ -2049,6 +2080,8 @@ plot_tgt_stds_np[EXERCISE_RA_PRE_IDX] = EXERCISE_RA_PRE_DISPLAY_STD
 normalised = (plot_matrix - plot_tgt_means_np) / plot_tgt_stds_np
 
 short_names = [n.replace("_", "\n") for n in output_names]
+short_names[REST_LA_PRE_IDX] = "REST LA\nPre-A\nVolume"
+short_names[REST_RA_PRE_IDX] = "REST RA\nPre-A\nVolume"
 short_names[EXERCISE_LA_PRE_IDX] = "EXERCISE LA\nPre-A\nVolume"
 short_names[EXERCISE_RA_PRE_IDX] = "EXERCISE RA\nPre-A\nVolume"
 

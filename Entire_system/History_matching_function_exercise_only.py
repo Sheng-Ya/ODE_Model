@@ -72,6 +72,23 @@ EMULATOR_OUTPUT_NAMES = [
 ]
 
 
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(minimum, value)
+
+
+def _cleanup_torch_memory() -> None:
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 class HistoryMatching(TorchDeviceMixin):
     r"""
     History Matching class for model calibration.
@@ -199,14 +216,14 @@ class HistoryMatching(TorchDeviceMixin):
             Tensor indicating whether each implausability score is NROY
             given self.rank and self.threshold values.
         """
-        # Sort implausibilities for each sample (descending)
-        I_sorted, index_for_sort = torch.sort(implausibility, dim=1, descending=True)
-        values, row_idx = torch.sort(I_sorted[:, 0], descending=True)
-        implausibility_sorted_by_col0 = I_sorted[row_idx]
-        index_of_implausibility_sorted_by_col0 = index_for_sort[row_idx]
+        if self.rank == 1:
+            rank_values = implausibility.max(dim=1).values
+        else:
+            # rank-th largest is the (n_outputs - rank + 1)-th value in ascending order.
+            kth = implausibility.shape[1] - self.rank + 1
+            rank_values = implausibility.kthvalue(kth, dim=1).values
 
-        # The rank-th highest output implausibility must be <= threshold
-        return I_sorted[:, self.rank - 1] <= self.threshold
+        return rank_values <= self.threshold
 
     def get_nroy(
         self, implausibility: TensorLike, x: TensorLike | None = None
@@ -372,6 +389,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         device: DeviceLike | None = None,
         random_seed: int | None = None,
         log_level: str = "debug",
+        run_dir: str = ".",
     ):
         """
         Initialize the history matching workflow object.
@@ -418,12 +436,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
         log_level: str
             The logging level to use. One of: "debug", "info", "warning", "error",
             "critical", "progress_bar" (default).
+        run_dir: str
+            Directory where generated NROY samples, emulator files, and wave
+            artifacts are saved and loaded.
         """
         super().__init__(observations, threshold, model_discrepancy, rank, device)
         self.simulator = simulator
         if random_seed is not None:
             set_random_seed(seed=random_seed)
         self.logger, self.progress_bar = get_configured_logger(log_level)
+        self.run_dir = os.path.abspath(os.fspath(run_dir))
+        os.makedirs(self.run_dir, exist_ok=True)
 
         self.result = result
         self.emulator = result.model
@@ -446,8 +469,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # If use `run_waves()`, results are stored here
         self.wave_results = []
         self._current_wave_idx: int | None = None
+        self._last_completed_wave_idx: int | None = None
         self._save_wave_artifacts = True
-        self._wave_artifacts_dir = "."
+        self._wave_artifacts_dir = self.run_dir
         self._last_wave_train_points: TensorLike | None = None
 
         # Save names and indices of parameters to calibrate
@@ -467,6 +491,23 @@ class HistoryMatchingWorkflow(HistoryMatching):
         if torch.is_tensor(array):
             return array.detach().cpu().numpy()
         return np.asarray(array)
+
+    def _run_path(self, *parts: str) -> str:
+        return os.path.join(self.run_dir, *parts)
+
+    def _resolve_artifact_dir(self, path: str) -> str:
+        path = os.fspath(path)
+        if os.path.isabs(path):
+            return path
+        if path in ("", "."):
+            return self.run_dir
+        return self._run_path(path)
+
+    def _resolve_output_path(self, path: str) -> str:
+        path = os.fspath(path)
+        if os.path.isabs(path):
+            return path
+        return self._run_path(path)
 
     def _wave_number(self) -> int | None:
         if self._current_wave_idx is None:
@@ -526,22 +567,32 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         lower, upper = self.atrial_ratio_bounds
         n_mc = self.atrial_ratio_mc_samples
+        chunk_size = _env_int("HM_RATIO_MC_CHUNK_SIZE", 32_768)
+        probabilities = torch.empty_like(min_mean)
 
-        # Sample from emulator marginals and estimate P(lower <= ratio <= upper).
-        min_draws = min_mean[:, None] + min_var.clamp(min=0).sqrt()[:, None] * torch.randn(
-            min_mean.shape[0], n_mc, device=min_mean.device, dtype=min_mean.dtype
-        )
-        max_draws = max_mean[:, None] + max_var.clamp(min=0).sqrt()[:, None] * torch.randn(
-            max_mean.shape[0], n_mc, device=max_mean.device, dtype=max_mean.dtype
-        )
-        pre_draws = pre_mean[:, None] + pre_var.clamp(min=0).sqrt()[:, None] * torch.randn(
-            pre_mean.shape[0], n_mc, device=pre_mean.device, dtype=pre_mean.dtype
-        )
+        for start in range(0, min_mean.shape[0], chunk_size):
+            end = min(start + chunk_size, min_mean.shape[0])
+            min_slice = min_mean[start:end]
+            max_slice = max_mean[start:end]
+            pre_slice = pre_mean[start:end]
 
-        denom = self._safe_ratio_denominator(max_draws - min_draws)
-        ratio = (pre_draws - min_draws) / denom
-        in_band = (max_draws > min_draws) & (ratio >= lower) & (ratio <= upper)
-        return in_band.float().mean(dim=1)
+            # Sample from emulator marginals and estimate P(lower <= ratio <= upper).
+            min_draws = min_slice[:, None] + min_var[start:end].clamp(min=0).sqrt()[:, None] * torch.randn(
+                min_slice.shape[0], n_mc, device=min_slice.device, dtype=min_slice.dtype
+            )
+            max_draws = max_slice[:, None] + max_var[start:end].clamp(min=0).sqrt()[:, None] * torch.randn(
+                max_slice.shape[0], n_mc, device=max_slice.device, dtype=max_slice.dtype
+            )
+            pre_draws = pre_slice[:, None] + pre_var[start:end].clamp(min=0).sqrt()[:, None] * torch.randn(
+                pre_slice.shape[0], n_mc, device=pre_slice.device, dtype=pre_slice.dtype
+            )
+
+            denom = self._safe_ratio_denominator(max_draws - min_draws)
+            ratio = (pre_draws - min_draws) / denom
+            in_band = (max_draws > min_draws) & (ratio >= lower) & (ratio <= upper)
+            probabilities[start:end] = in_band.float().mean(dim=1)
+
+        return probabilities
 
     def _is_within_bounds(
         self, sample: TensorLike, bounds_dict: dict[str, tuple[float, float]]
@@ -614,13 +665,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
             msg = "All parameters are constant, cannot sample from them."
             raise ValueError(msg)
 
-        # Only use non-constant parameters for mean and covariance to sample from
+        # Only use non-constant parameters for means and bounds to sample from.
         nroy_params_to_sample = self.nroy_samples[:, sample_params_idx]
         stdev = (
                         nroy_params_to_sample.max(dim=0).values
                         - nroy_params_to_sample.min(dim=0).values
                 ) * scaling_factor
-        # covariance_matrix = torch.diag(stdev ** 2)
 
         # Shuffle the order of means to sample from
         num_means = nroy_params_to_sample.shape[0]
@@ -642,7 +692,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         high_all = torch.tensor([b[1] for b in bounds.values()], device=self.device)
         low = low_all[sample_params_idx]
         high = high_all[sample_params_idx]
-        std = stdev  # already [d_nonconst]
+        std = torch.clamp(stdev, min=1e-12)
 
         # Precompute these once (outside sample_batch)
         sample_idx_t = torch.tensor(sample_params_idx, device=self.device, dtype=torch.long)
@@ -654,6 +704,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             const_idx_t, const_vals_t = None, None
 
         param_dim = len(bounds)
+        eps = 1e-7
 
         def _phi(x):
             return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
@@ -716,7 +767,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
     def pre_wave_train_emulators(self, n_simulations: int = 4096, refit_on_all_data: bool = False) -> None:
         """
         Pre-wave step: generate hybrid samples, run them through the simulator,
-        train one emulator per output, and save them to Emulator_exercise_only/.
+        train one emulator per output, and save them under run_dir/Emulator_exercise_only/.
 
         This must be called BEFORE run_waves(). It populates train_x / train_y
         and creates the initial emulators that wave 0 will load.
@@ -745,6 +796,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.train_x = x
         self.train_y = y
 
+        torch.save(x, self._run_path("X_train.pt"))
+        torch.save(y, self._run_path("Y_train.pt"))
+
         # Train and save one emulator per output
         output_names_full = self._exercise_output_names()
 
@@ -760,17 +814,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
             self.refit_emulator(X_fit[:, self.parameter_idx], Y_fit)
 
-            parent = os.path.join("Emulator_exercise_only", target_name)
+            parent = self._run_path("Emulator_exercise_only", target_name)
             os.makedirs(parent, exist_ok=True)
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(self.emulator, path1)
             print(f"  Saved to {path1}")
-
-        torch.save(x, "X_train.pt")
-        torch.save(y, "Y_train.pt")
+            self.emulator = None
+            del X_fit, Y_fit
+            _cleanup_torch_memory()
 
         print("=" * 60)
-        print("PRE-WAVE: All emulators trained and saved to Emulator_exercise_only/")
+        print(f"PRE-WAVE: All emulators trained and saved to {self._run_path('Emulator_exercise_only')}")
         print("=" * 60)
 
     def _sample_within_bounds(
@@ -858,14 +912,14 @@ class HistoryMatchingWorkflow(HistoryMatching):
         if use_raw_model:
             test_x = self.simulator.sample_inputs(n).to(self.device)
             # +/-20 %
-            parent = "Emulator_exercise_only"
+            parent = self._run_path("Emulator_exercise_only")
             # parent = "DGSM_Exercise_Paper/HM_fifth_90_Exercise_Only/Emulator_exercise_only"
             # parent = "Emulator_initial_V_tot"
             # # +/-50%
             # parent = "Emulator_Paper_same_1000"
         else:
             test_x = self.cloud_sample(n, scaling_factor).to(self.device)
-            parent = "Emulator_exercise_only_wave"
+            parent = self._run_path("Emulator_exercise_only_wave")
             # parent = "Emulator_wave_V_tot"
 
         output_names = [
@@ -966,6 +1020,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         print("min adjusted mean_tensor[:,17] where impl_score < 3:", min_col_17.item())
         print("min adjusted mean_tensor[:,18] where impl_score < 3:", min_col_18.item())
 
+        del mean_tensor, var_tensor, phys_mask, mask
+        _cleanup_torch_memory()
         return test_x, impl_scores
 
     def sample_tensor(self, n: int, x: TensorLike) -> TensorLike:
@@ -1265,11 +1321,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Save on CPU so it's portable across machines/devices. This happens after
         # filtering so resume/cloud sampling uses the updated NROY set.
-        torch.save(self.nroy_samples.detach().cpu(), "nroy_samples_exercise.pt")
+        torch.save(self.nroy_samples.detach().cpu(), self._run_path("nroy_samples_exercise.pt"))
         self._last_wave_train_points = x.detach().cpu()
 
         output_names_full = EMULATOR_OUTPUT_NAMES
         wave_number = self._wave_number()
+        wave_emulator_root = self._run_path("Emulator_exercise_only_wave")
         snapshot_root = (
             os.path.join(self._wave_artifacts_dir, f"Emulator_wave_{wave_number}")
             if self._save_wave_artifacts and wave_number is not None
@@ -1310,7 +1367,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             print(f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
 
             # save
-            parent = os.path.join("Emulator_exercise_only_wave", target_name)
+            parent = os.path.join(wave_emulator_root, target_name)
             # parent = os.path.join("Emulator_wave_V_tot", target_name)
             os.makedirs(parent, exist_ok=True)
             #######################################
@@ -1341,13 +1398,33 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 ############
                 joblib.dump(emulator, os.path.join(snapshot_parent, model_filename))
 
-            return target_name, emulator
+            del (
+                numpy_artifacts,
+                y_test_emulator_mean,
+                y_test_emulator_variance,
+                x_fit,
+                y_fit,
+                x_train,
+                y_train,
+                x_test,
+                y_test,
+                emulator,
+            )
+            _cleanup_torch_memory()
+            return target_name
 
-        results = Parallel(n_jobs=len(output_names_full))(
-            delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
-            for j, target_name in enumerate(output_names_full)
-        )
-        get_reusable_executor().shutdown(wait=True)
+        if refit_emulator:
+            n_jobs = min(
+                len(output_names_full),
+                _env_int("HM_EMULATOR_TRAIN_N_JOBS", min(8, len(output_names_full))),
+            )
+            results = Parallel(n_jobs=n_jobs, backend="threading")(
+                delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
+                for j, target_name in enumerate(output_names_full)
+            )
+            del results
+            get_reusable_executor().shutdown(wait=True)
+            _cleanup_torch_memory()
         # for j, target_name in enumerate(output_names_full):
         #     # Optionally refit the emulator using the most recent simulations or all data
         #     if refit_emulator:
@@ -1388,6 +1465,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         resume_wave: bool = False,
         save_wave_artifacts: bool = True,
         wave_artifacts_dir: str = ".",
+        keep_all_wave_results: bool = True,
     ) -> list[tuple[TensorLike, TensorLike]]:
         """
         Run multiple waves of the history matching workflow.
@@ -1425,6 +1503,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
             Whether to save per-wave emulator snapshots and `.npy` artifacts.
         wave_artifacts_dir: str
             Directory where per-wave artifacts are written.
+        keep_all_wave_results: bool
+            Whether to retain every wave in memory. If False, only the most recent
+            wave is kept while artifacts are still written to disk.
 
         Returns
         -------
@@ -1432,16 +1513,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
             A tensor of tested input parameters and their implausibility scores.
         """
         if resume_wave == True:
-            self.nroy_samples = torch.load("nroy_samples_exercise.pt", map_location="cpu").to(self.device)
-            last_wave = int(torch.load("last_wave.pt", map_location="cpu"))
+            self.nroy_samples = torch.load(self._run_path("nroy_samples_exercise.pt"), map_location="cpu").to(self.device)
+            last_wave = int(torch.load(self._run_path("last_wave.pt"), map_location="cpu"))
             start_i = last_wave + 1
             print(start_i)
         else:
             start_i = 0
 
         self.wave_results = []
+        self._last_completed_wave_idx = None
         self._save_wave_artifacts = save_wave_artifacts
-        self._wave_artifacts_dir = wave_artifacts_dir
+        self._wave_artifacts_dir = self._resolve_artifact_dir(wave_artifacts_dir)
         if self._save_wave_artifacts:
             os.makedirs(self._wave_artifacts_dir, exist_ok=True)
         for i in range(start_i, n_waves):
@@ -1449,7 +1531,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # if i == 0: # 110599
             #     self.threshold = 3.5 # change
             if i == 1:  # 154081
-                self.threshold = 3.5
+                self.threshold = 3.25
             if i > 1: # 154081
                 self.threshold = 3.0
 
@@ -1486,7 +1568,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 logger.warning(msg)
                 break
 
-            self.wave_results.append((test_x, impl_scores))
+            if keep_all_wave_results:
+                self.wave_results.append((test_x, impl_scores))
+            else:
+                self.wave_results = [(test_x, impl_scores)]
             # self.plot_wave((len(self.wave_results) - 1), fname=f"200000_wave_{(len(self.wave_results) - 1)}_rest.png")
 
             # Get NROY points from impl scores and check fraction
@@ -1500,7 +1585,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 nroy_frac * 100,
             )
 
-            torch.save(int(i), "last_wave.pt")
+            torch.save(int(i), self._run_path("last_wave.pt"))
+            self._last_completed_wave_idx = i
+            del nroy_x
+            _cleanup_torch_memory()
 
             if nroy_frac > frac_nroy_stop:
                 logger.info(
@@ -1619,7 +1707,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         if fname is None:
             return display_figure(fig)
-        fig.savefig(fname, bbox_inches="tight")
+        fig.savefig(self._resolve_output_path(fname), bbox_inches="tight")
         return None
 
         # def scatter_continuous(x, y, **kwargs):
@@ -1803,5 +1891,5 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         if fname is None:
             return display_figure(fig)
-        plt.savefig(f"{param}_wave_evolution.png", dpi=300, bbox_inches="tight")
+        plt.savefig(self._resolve_output_path(fname), dpi=300, bbox_inches="tight")
         return None

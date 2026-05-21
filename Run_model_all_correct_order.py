@@ -22,7 +22,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 80000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 200 # Maximum time limit to avoid infinite loops
+max_time = 60 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -520,7 +520,12 @@ def simulate():
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
-    P_rv_min_idx = np.array([c + np.argmin(P_rv[c:o_next]) for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])])
+    # New RVEDP definition: P_rv at V_rv peak within each filling window (pulmonic-close -> next pulmonic-open).
+    # V_rv peaks at end of diastole before phi rises, so this is the strict pre-QRS RVEDP.
+    P_rv_edp_idx = np.array([
+        c + np.argmax(V_rv[c:o_next])
+        for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])
+    ], dtype=int)
 
     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 
@@ -595,7 +600,7 @@ def simulate():
     # np.savez(f'HR_vs_time.npz', HR=Next_Conditions["HR_check"], time=Next_Conditions["time_history"], HR_average = Next_Conditions["HR"])
     print(np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
           np.mean(V_lv[pairs_ao[:, 0]]), np.mean(V_lv[pairs_ao[:, 1]]), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
-          np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
+          np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]),
           np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
           np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
           np.mean(V_la[pairs_mi[:, 1]]), np.mean(V_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent1_idx]),
@@ -608,7 +613,7 @@ def simulate():
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]),
             np.mean(V_rv[pairs_po[:, 1]]),
-            np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
+            np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]),
             IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
 
 
@@ -736,6 +741,30 @@ if __name__ == "__main__":
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
     plt.grid()
     plt.tight_layout()
+    plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2_art_plot"][:index], label="Pa_O2_art_plot",
+             color="m")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_O2"][:index],
+             label="PA_O2", color="r")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index], label="Vagal firing", color="c")
+
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index],
+             label="Pa_O2", color="b")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change",
+    #          color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change",
+    #          color='g')
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Firing rate (spikes/s)")
+    ax1.tick_params(axis='y', labelcolor="k")
+    ax1.legend(loc="upper left")
+    ax1.grid(True)
+
     plt.show()
 
     fig, ax1 = plt.subplots()
@@ -1068,7 +1097,7 @@ if __name__ == "__main__":
     # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["VT_ra"][index-80000:index], label="VT_ra")
     # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["VT_la"][index-80000:index], label="VT_la")
 
-    # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi_atr"][index-80000:index], label="phi_atr")
+    ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi"][index-80000:index], label="phi")
     ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["AA"][index - 80000:index],
              label="P_peri", color="k")
     ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["theta_tr"][index - 80000:index],
@@ -1256,6 +1285,10 @@ if __name__ == "__main__":
     #
     # Flows
     fig, ax1 = plt.subplots()
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2_art_plot"][:index],
+             label="Pa_CO2_art_plot")
+    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["PA_CO2"][:index],
+             label="PA_CO2")
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index],
              label="Pa_CO2")
 

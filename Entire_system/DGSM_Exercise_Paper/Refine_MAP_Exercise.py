@@ -62,6 +62,21 @@ def _log_det_jac_np(z, prior_lo, prior_hi):
     return (log_sig_pos + log_sig_neg + log_width).sum(axis=-1)
 
 
+def _sigmoid_np(z):
+    z = np.asarray(z, dtype=np.float64)
+    out = np.empty_like(z, dtype=np.float64)
+    pos = z >= 0.0
+    out[pos] = 1.0 / (1.0 + np.exp(-z[pos]))
+    ez = np.exp(z[~pos])
+    out[~pos] = ez / (1.0 + ez)
+    return out
+
+
+def _logit_np(p):
+    p = np.asarray(p, dtype=np.float64)
+    return np.log(p) - np.log1p(-p)
+
+
 def compute_map(run_dir, top_k=10):
     posterior = np.load(os.path.join(run_dir, "posterior_samples.npy"))
     posterior_z = np.load(os.path.join(run_dir, "posterior_z.npy"))
@@ -105,6 +120,7 @@ def compute_map(run_dir, top_k=10):
         "n_samples": n_samples,
         "prior_lower": prior_lo,
         "prior_upper": prior_hi,
+        "posterior_z": posterior_z,
     }
 
 
@@ -113,7 +129,7 @@ def compute_map(run_dir, top_k=10):
 # ---------------------------------------------------------------------
 
 def _resolve_emulator_dir(run_dir, cfg):
-    emu_cfg = cfg.get("emulator_dir", "DGSM_Exercise_Paper/HM_eighth_medium_RA_high_C_pa/Emulator_exercise_only_wave") # change
+    emu_cfg = cfg.get("emulator_dir")
     if os.path.isabs(emu_cfg) and os.path.isdir(emu_cfg):
         return emu_cfg
     candidates = [
@@ -455,10 +471,6 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
     return log_post_theta_from_z
 
 
-def _logit(p):
-    return math.log(p / (1.0 - p))
-
-
 def _boundary_hits(theta, prior_lo, prior_hi, names=None, tol=0.01):
     theta = np.asarray(theta, dtype=np.float64)
     prior_lo = np.asarray(prior_lo, dtype=np.float64)
@@ -486,21 +498,62 @@ def _boundary_hits(theta, prior_lo, prior_hi, names=None, tol=0.01):
     return hits
 
 
+def _make_z_bounds(ndim, posterior_z=None, z_trust_quantile=0.001,
+                   min_bound_fraction=1e-4):
+    bounds = None
+
+    if min_bound_fraction is not None and min_bound_fraction > 0.0:
+        eps = float(min_bound_fraction)
+        if not 0.0 < eps < 0.5:
+            raise ValueError("--min-bound-fraction must be in (0, 0.5).")
+        lo = np.full(ndim, _logit_np(eps), dtype=np.float64)
+        hi = np.full_like(lo, _logit_np(1.0 - eps))
+        bounds = (lo, hi)
+
+    if posterior_z is not None and z_trust_quantile is not None and z_trust_quantile > 0.0:
+        q = float(z_trust_quantile)
+        if not 0.0 < q < 0.5:
+            raise ValueError("--z-trust-quantile must be in (0, 0.5), or 0 to disable.")
+        z_lo = np.nanquantile(posterior_z, q, axis=0).astype(np.float64)
+        z_hi = np.nanquantile(posterior_z, 1.0 - q, axis=0).astype(np.float64)
+        if bounds is None:
+            bounds = (z_lo, z_hi)
+        else:
+            lo, hi = bounds
+            if lo.size == 1:
+                lo = np.full_like(z_lo, lo.item())
+                hi = np.full_like(z_hi, hi.item())
+            bounds = (np.maximum(lo, z_lo), np.minimum(hi, z_hi))
+
+    if bounds is None:
+        return None
+
+    lo, hi = bounds
+    bad = lo >= hi
+    if np.any(bad):
+        eps_lo = _logit_np(float(min_bound_fraction or 1e-8))
+        eps_hi = _logit_np(1.0 - float(min_bound_fraction or 1e-8))
+        lo[bad] = eps_lo
+        hi[bad] = eps_hi
+    return list(zip(lo.tolist(), hi.tolist()))
+
+
 def refine_map_multistart(top_k, objective_fn, prior_lo, prior_hi,
                           n_starts=10, maxiter=200, gtol=1e-5,
-                          interior_eps=0.0):
+                          posterior_z=None, z_trust_quantile=0.001,
+                          min_bound_fraction=1e-4):
     from scipy.optimize import minimize
     import torch
 
     n_starts = min(n_starts, len(top_k))
     starts = top_k[:n_starts]
     results = []
-    scipy_bounds = None
-    if interior_eps > 0.0:
-        if not 0.0 < interior_eps < 0.5:
-            raise ValueError("--interior-eps must be in (0, 0.5).")
-        z_abs = _logit(1.0 - float(interior_eps))
-        scipy_bounds = [(-z_abs, z_abs)] * len(starts[0]["sample_z"])
+    z_bounds = _make_z_bounds(
+        ndim=len(prior_lo),
+        posterior_z=posterior_z,
+        z_trust_quantile=z_trust_quantile,
+        min_bound_fraction=min_bound_fraction,
+    )
 
     def fun_and_grad(z_np):
         z_t = torch.tensor(z_np, dtype=torch.float32, requires_grad=True)
@@ -513,16 +566,24 @@ def refine_map_multistart(top_k, objective_fn, prior_lo, prior_hi,
     for s in starts:
         z0 = np.asarray(s["sample_z"], dtype=np.float64)
         x0 = z0.copy()
+        if z_bounds is not None:
+            z_lo = np.asarray([b[0] for b in z_bounds], dtype=np.float64)
+            z_hi = np.asarray([b[1] for b in z_bounds], dtype=np.float64)
+            x0 = np.clip(x0, z_lo, z_hi)
         opt = minimize(
             fun=lambda z: fun_and_grad(z)[0],
             x0=x0,
             jac=lambda z: fun_and_grad(z)[1],
             method="L-BFGS-B",
-            bounds=scipy_bounds,
+            bounds=z_bounds,
             options={"maxiter": int(maxiter), "gtol": float(gtol), "maxls": 50},
         )
         z_star = opt.x.astype(np.float64)
-        theta_star = prior_lo + (prior_hi - prior_lo) / (1.0 + np.exp(-z_star))
+        theta_star = prior_lo + (prior_hi - prior_lo) * _sigmoid_np(z_star)
+        edge_fraction = np.minimum(
+            (theta_star - prior_lo) / (prior_hi - prior_lo),
+            (prior_hi - theta_star) / (prior_hi - prior_lo),
+        )
         logp_star = -float(opt.fun)
         results.append({
             "start_rank": int(s["rank"]),
@@ -535,6 +596,9 @@ def refine_map_multistart(top_k, objective_fn, prior_lo, prior_hi,
             "final_log_post_theta": logp_star,
             "z": z_star,
             "theta": theta_star,
+            "min_edge_fraction": float(np.min(edge_fraction)),
+            "n_edge_fraction_lt_1e-3": int(np.sum(edge_fraction < 1e-3)),
+            "n_edge_fraction_lt_1e-2": int(np.sum(edge_fraction < 1e-2)),
             "improvement": logp_star - float(s["log_post_theta"]),
         })
 
@@ -665,7 +729,8 @@ def _save_outputs(run_dir, sampled_map, refined_best, all_runs,
                   sampled_pred=None, refined_pred=None,
                   sampled_sd=None, refined_sd=None,
                   boundary_hits=None,
-                  interior_eps=0.0):
+                  z_trust_quantile=0.001,
+                  min_bound_fraction=1e-4):
     np.save(os.path.join(run_dir, "sampled_map_sample.npy"), sampled_map["sample"])
     np.save(os.path.join(run_dir, "sampled_map_sample_z.npy"), sampled_map["sample_z"])
     np.save(os.path.join(run_dir, "refined_map_sample.npy"), refined_best["theta"])
@@ -692,7 +757,8 @@ def _save_outputs(run_dir, sampled_map, refined_best, all_runs,
         },
         "boundary_diagnostics": {
             "tol_fraction": 0.01,
-            "interior_eps": float(interior_eps),
+            "z_trust_quantile": float(z_trust_quantile),
+            "min_bound_fraction": float(min_bound_fraction),
             "n_hits": int(len(boundary_hits or [])),
             "hits": boundary_hits or [],
         },
@@ -713,7 +779,7 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join("HM_eighth_medium_RA_high_C_pa", "MCMC_fifth_90_Exercise_Only"), # change
+        default=os.path.join("HM_try/run_20260520_183843", "MCMC_start_50_Exercise_Only"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
@@ -721,12 +787,29 @@ def main():
     p.add_argument("--maxiter", type=int, default=200, help="Maximum L-BFGS iterations per start.")
     p.add_argument("--gtol", type=float, default=1e-5, help="Projected-gradient tolerance for L-BFGS-B.")
     p.add_argument(
-        "--interior-eps",
+        "--z-trust-quantile",
         type=float,
-        default=0.0,
+        default=0.001,
         help=(
-            "Optional distance from each prior bound in fractional units. "
-            "For example, 0.01 constrains theta to the central 98%% of each range."
+            "Constrain refinement to per-parameter posterior_z quantiles "
+            "[q, 1-q]. Use 0 to disable this trust region."
+        ),
+    )
+    p.add_argument(
+        "--min-bound-fraction",
+        type=float,
+        default=1e-4,
+        help=(
+            "Keep refined parameters this fractional distance inside the "
+            "prior box. Use 0 to allow exact prior boundaries."
+        ),
+    )
+    p.add_argument(
+        "--use-copula-prior",
+        action="store_true",
+        help=(
+            "Include the learned copula prior in the refinement objective. "
+            "By default refinement uses the emulator likelihood only."
         ),
     )
     p.add_argument("--emulator-dir", default=None, help="Override EMULATOR_DIR from config.json.")
@@ -760,7 +843,16 @@ def main():
     gp_caches = _load_gp_caches(emulator_dir, output_names)
     residual_corr = _estimate_residual_corr(gp_caches, output_names)
     output_indices = _resolve_output_indices(output_names)
-    copula = _load_copula_prior(run_dir) if cfg.get("use_copula_prior", False) else None
+    if args.use_copula_prior:
+        if cfg.get("use_copula_prior", False):
+            copula = _load_copula_prior(run_dir)
+            print("Copula prior: enabled for MAP refinement.")
+        else:
+            copula = None
+            print("Copula prior: requested, but this run config has use_copula_prior=false.")
+    else:
+        copula = None
+        print("Copula prior: disabled for MAP refinement.")
 
     objective_fn = make_theta_space_objective(
         prior_lo=prior_lo,
@@ -782,7 +874,9 @@ def main():
         n_starts=args.n_starts,
         maxiter=args.maxiter,
         gtol=args.gtol,
-        interior_eps=args.interior_eps,
+        posterior_z=map_info["posterior_z"],
+        z_trust_quantile=args.z_trust_quantile,
+        min_bound_fraction=args.min_bound_fraction,
     )
 
     subset_vars_path = os.path.join(run_dir, "subset_vars.npy")
@@ -810,6 +904,9 @@ def main():
     print(f"  iterations         = {refined_best['nit']}")
     print(f"  log p(theta|y)     = {refined_best['final_log_post_theta']:.6f}")
     print(f"  improvement        = {refined_best['improvement']:.6f}")
+    print(f"  min edge fraction  = {refined_best['min_edge_fraction']:.6g}")
+    print(f"  edge count <1e-3   = {refined_best['n_edge_fraction_lt_1e-3']}")
+    print(f"  edge count <1e-2   = {refined_best['n_edge_fraction_lt_1e-2']}")
     print(f"  message            = {refined_best['message']}")
     if boundary_hits:
         print()
@@ -817,7 +914,7 @@ def main():
             "Boundary warning: refined MAP has "
             f"{len(boundary_hits)} parameter(s) within 1% of a prior bound."
         )
-        print("  Consider rerunning with --interior-eps 0.01 before trusting emulator-only refinement.")
+        print("  Consider increasing --min-bound-fraction before trusting emulator-only refinement.")
         for hit in boundary_hits[:12]:
             print(
                 f"  {hit['name']}: {hit['side']} bound "
@@ -834,7 +931,8 @@ def main():
             f"success={str(row['success']):<5}  "
             f"logp={row['final_log_post_theta']:.6f}  "
             f"delta={row['improvement']:+.6f}  "
-            f"nit={row['nit']:>3d}"
+            f"nit={row['nit']:>3d}  "
+            f"min_edge={row['min_edge_fraction']:.3g}"
         )
 
     sampled_mu, sampled_sd = _predict_at(sampled_map["sample"], gp_caches, output_names)
@@ -870,7 +968,8 @@ def main():
             sampled_sd=sampled_sd,
             refined_sd=refined_sd,
             boundary_hits=boundary_hits,
-            interior_eps=args.interior_eps,
+            z_trust_quantile=args.z_trust_quantile,
+            min_bound_fraction=args.min_bound_fraction,
         )
         print()
         print(f"Saved: {os.path.join(run_dir, 'refined_map_sample.npy')}")
@@ -882,8 +981,8 @@ def main():
 
     from SALib import ProblemSpec
 
-    upper = 1.2
-    lower = 0.8
+    upper = 1.5
+    lower = 0.5
 
     sp = ProblemSpec({ # change
         'names': [
@@ -1026,7 +1125,7 @@ def main():
             [0.056603285263 * lower, 0.056603285263 * upper],  # KE_ra [MAP]
             [1.339029184488 * lower, 1.339029184488 * upper],  # P0_lv [MAP]
             [1.726056390733 * lower, 1.726056390733 * upper],  # P0_rv [MAP]
-            [0.04 * lower, 0.04 * upper],
+            [0.04 * 0.8, 0.04 * 1.2],
             [22.265451555023 * lower, 22.265451555023 * upper],  # fab_o [MAP]
             [18.218922112121 * lower, 18.218922112121 * upper],  # fes_o [MAP]
             [2.380337872283 * lower, 2.380337872283 * upper],  # fes_inf [MAP]
@@ -1097,7 +1196,7 @@ def main():
             [53 * lower, 53 * upper],
             [6 * lower, 6 * upper],
             [6 * lower, 6 * upper],
-            [34.285802585415 * lower, 34.285802585415 * upper],  # PaCO2_n [MAP]
+            [34.285802585415 * 0.8, 34.285802585415 * 1.2],  # PaCO2_n [MAP]
             [45.884608749171 * lower, 45.884608749171 * upper],  # f_ab_max [MAP]
             [2.52 * lower, 2.52 * upper],
             [10.34115989836 * lower, 10.34115989836 * upper],  # k_ab [MAP]
@@ -1251,65 +1350,6 @@ def main():
     original_bounds = [b[:] for b in sp["bounds"]]
 
 
-    def build_full_parameters_from_subset(subset_values, sp, subset_vars, precision=12):
-        """
-        Build full Parameters dict from a subset array.
-
-        - Parameters in subset_vars are taken from subset_values
-        - All other parameters are set to their nominal value
-          = midpoint of their bounds
-
-        Parameters
-        ----------
-        subset_values : array-like
-            Values for the retained subset parameters, in the same order as subset_vars.
-        sp : ProblemSpec-like dict
-            Must contain:
-                sp["names"]  : list of parameter names
-                sp["bounds"] : list of [lower, upper] bounds
-        subset_vars : list[str]
-            Retained parameter names in the correct order.
-        precision : int
-            Decimal rounding precision.
-
-        Returns
-        -------
-        dict
-            Full parameter dictionary.
-        """
-        subset_values = np.asarray(subset_values, dtype=float)
-
-        if len(subset_values) != len(subset_vars):
-            raise ValueError(
-                f"Length mismatch: got {len(subset_values)} subset values "
-                f"but {len(subset_vars)} subset parameter names."
-            )
-
-        # map retained parameter name -> sampled value
-        subset_map = {
-            name: round(float(val), precision)
-            for name, val in zip(subset_vars, subset_values)
-        }
-
-        Parameters = {}
-        for name, (lo, hi) in zip(sp["names"], sp["bounds"]):
-            if name in subset_map:
-                Parameters[name] = subset_map[name]
-            else:
-                nominal = round(0.5 * (float(lo) + float(hi)), precision)
-                Parameters[name] = nominal
-
-        return Parameters
-
-
-    def format_parameters_dict(parameters, precision=12):
-        parts = []
-        for k, v in parameters.items():
-            s = f"{v:.{precision}f}".rstrip("0").rstrip(".")
-            parts.append(f'"{k}": {s}')
-        return "Parameters = { " + ", ".join(parts) + " }"
-
-
     # ------------------------------------------------------------
     # Your existing subset_vars definition
     # ------------------------------------------------------------
@@ -1338,6 +1378,8 @@ def main():
     #     "Entire_system/MCMC_Rest_20_21_04_3000_logspline_copula_prior/refined_map_sample.npy"
     # )
     subset_values = refined_best["theta"]
+    # subset_values = np.load(os.path.join(run_dir, "sampled_map_sample.npy"))
+
 
     if len(subset_vars) != len(subset_values):
         raise ValueError(

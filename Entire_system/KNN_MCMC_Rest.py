@@ -17,22 +17,26 @@ Why NUTS over emcee / random-walk MH:
     handling the very different scales across the 69 parameters.
   - ~100-200x more sample-efficient than emcee for this dimensionality.
 
-Expects in working directory:
-  NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY parameter vectors
-  NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY bounds dict
-  {EMULATOR_DIR}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
+Expects history-matching artifacts beside this script:
+  test_params_wave_{WAVE}.npy
+  nroy_mask_wave_{WAVE}.npy
+  param_range_wave_{WAVE}.npy
+  Emulator_wave_{WAVE}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
 
 Usage:
-  python KNN_MCMC_Rest.py
-  python KNN_MCMC_Rest.py --chain-id 0 --n-chains 4
-  python KNN_MCMC_Rest.py --aggregate-only --n-chains 4
+  python3 KNN_MCMC_Rest.py
+  python3 KNN_MCMC_Rest.py --sequential
+  python3 KNN_MCMC_Rest.py --hm-wave 3
+  python3 KNN_MCMC_Rest.py --chain-id 0 --n-chains 4
+  python3 KNN_MCMC_Rest.py --aggregate-only --n-chains 4
 """
 
 import math
-# import os
+import os
 import sys
 import json
 import argparse
+import subprocess
 import warnings
 import joblib
 import numpy as np
@@ -51,7 +55,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-import os
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(multiprocessing.cpu_count()))   # set before sklearn/joblib uses loky
 
 warnings.filterwarnings("ignore")
@@ -65,14 +68,115 @@ warnings.filterwarnings("ignore")
 # --aggregate-only   : skip chain running; load all chain_z_{c}.npy from
 #                      out_dir and run diagnostics + plots only.
 # --n-chains N       : expected number of chains to run/aggregate.
-# (no args)          : backward-compatible sequential N_CHAINS run.
+# (no args)          : run N_CHAINS chain workers concurrently, then aggregate.
+# --sequential       : run all chains sequentially in this process.
 _parser = argparse.ArgumentParser()
 _parser.add_argument("--chain-id", type=int, default=-1)
 _parser.add_argument("--aggregate-only", action="store_true")
 _parser.add_argument("--n-chains", type=int, default=None)
+_parser.add_argument("--sequential", action="store_true")
+_parser.add_argument(
+    "--hm-artifacts-dir",
+    default=None,
+    help="Directory containing history-matching wave artifacts; default is the script directory.",
+)
+_parser.add_argument(
+    "--hm-wave",
+    type=int,
+    default=None,
+    help="History-matching wave number to load; default is wave 3 if complete, otherwise the latest complete wave.",
+)
+_parser.add_argument(
+    "--threads-per-chain",
+    type=int,
+    default=None,
+    help="CPU threads assigned to each parallel chain worker; default is cpu_count // n_chains.",
+)
 _args, _ = _parser.parse_known_args()
 CHAIN_ID       = _args.chain_id
 AGGREGATE_ONLY = _args.aggregate_only
+
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(SCRIPT_DIR)
+
+
+def _resolve_path(path):
+    if os.path.isabs(path):
+        return os.path.abspath(path)
+    return os.path.abspath(os.path.join(SCRIPT_DIR, path))
+
+
+HM_ARTIFACTS_DIR = (
+    _resolve_path(_args.hm_artifacts_dir)
+    if _args.hm_artifacts_dir
+    else SCRIPT_DIR
+)
+
+
+def _wave_artifact_paths(wave_number):
+    return {
+        "test_params": os.path.join(HM_ARTIFACTS_DIR, f"test_params_wave_{wave_number}.npy"),
+        "nroy_mask": os.path.join(HM_ARTIFACTS_DIR, f"nroy_mask_wave_{wave_number}.npy"),
+        "param_range": os.path.join(HM_ARTIFACTS_DIR, f"param_range_wave_{wave_number}.npy"),
+        "emulator_dir": os.path.join(HM_ARTIFACTS_DIR, f"Emulator_wave_{wave_number}"),
+    }
+
+
+def _wave_is_complete(wave_number):
+    paths = _wave_artifact_paths(wave_number)
+    return (
+        os.path.isfile(paths["test_params"])
+        and os.path.isfile(paths["nroy_mask"])
+        and os.path.isfile(paths["param_range"])
+        and os.path.isdir(paths["emulator_dir"])
+    )
+
+
+def _discover_hm_wave():
+    requested_wave = _args.hm_wave
+    if requested_wave is None:
+        requested_wave_env = os.environ.get("HM_WAVE")
+        if requested_wave_env:
+            requested_wave = int(requested_wave_env)
+
+    if requested_wave is not None:
+        if not _wave_is_complete(requested_wave):
+            paths = _wave_artifact_paths(requested_wave)
+            missing = [
+                path for path in paths.values()
+                if not (os.path.isdir(path) if path.endswith(f"Emulator_wave_{requested_wave}") else os.path.isfile(path))
+            ]
+            raise FileNotFoundError(
+                f"Requested HM wave {requested_wave} is incomplete in {HM_ARTIFACTS_DIR}.\n"
+                f"Missing: {missing}"
+            )
+        return requested_wave
+
+    preferred_wave = 3
+    if _wave_is_complete(preferred_wave):
+        return preferred_wave
+
+    candidates = []
+    prefix = "test_params_wave_"
+    suffix = ".npy"
+    if os.path.isdir(HM_ARTIFACTS_DIR):
+        for name in os.listdir(HM_ARTIFACTS_DIR):
+            if name.startswith(prefix) and name.endswith(suffix):
+                wave_text = name[len(prefix):-len(suffix)]
+                if wave_text.isdigit():
+                    wave_number = int(wave_text)
+                    if _wave_is_complete(wave_number):
+                        candidates.append(wave_number)
+
+    if candidates:
+        return max(candidates)
+
+    raise FileNotFoundError(
+        "No complete HM wave artifacts were found. Run "
+        "`python3 Bayesian_Calibration_Rest.py` first in the same project folder, "
+        "or pass --hm-artifacts-dir/--hm-wave explicitly."
+    )
 
 
 
@@ -84,11 +188,11 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
-DATE_SUFFIX  = "12_4"                    # matches HM output file names # change
+DATE_SUFFIX  = "18_05"                    # matches HM output file names # change
 PERCENT      = 20                        # param range +/-% used in HM # change
-root = "MCMC_HPC" # change
-EMULATOR_DIR = f"{root}/Emulator_wave_3"     # GP emulators from last refitted wave # change
-out_dir = f"{root}/MCMC_Rest_{PERCENT}_05_05_1500_logspline_copula_prior"
+HM_WAVE_NUMBER = _discover_hm_wave()
+EMULATOR_DIR = os.path.join(HM_ARTIFACTS_DIR, f"Emulator_wave_{HM_WAVE_NUMBER}")     # GP emulators from selected HM wave # change
+out_dir = os.path.join(SCRIPT_DIR, f"MCMC_Rest_{PERCENT}_{DATE_SUFFIX}_1500_logspline_copula_prior")
 os.makedirs(out_dir, exist_ok=True)
 
 
@@ -133,6 +237,144 @@ if AGGREGATE_ONLY and CHAIN_ID >= 0:
     raise ValueError("--aggregate-only and --chain-id are mutually exclusive")
 if CHAIN_ID < -1 or CHAIN_ID >= N_CHAINS:
     raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
+if _args.threads_per_chain is not None and _args.threads_per_chain < 1:
+    raise ValueError(
+        f"--threads-per-chain must be >= 1, got {_args.threads_per_chain}"
+    )
+
+
+def _parallel_worker_env(n_chains, threads_per_chain):
+    """Environment for concurrent chain subprocesses on Linux/HPC nodes."""
+    env = os.environ.copy()
+    if threads_per_chain is None:
+        threads_per_chain = max(1, (os.cpu_count() or n_chains) // max(n_chains, 1))
+        override = False
+    else:
+        override = True
+
+    thread_vars = (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "TORCH_NUM_THREADS",
+        "LOKY_MAX_CPU_COUNT",
+    )
+    for name in thread_vars:
+        if override:
+            env[name] = str(threads_per_chain)
+        else:
+            env.setdefault(name, str(threads_per_chain))
+    return env, threads_per_chain
+
+
+def _mcmc_driver_args():
+    return [
+        "--hm-artifacts-dir", HM_ARTIFACTS_DIR,
+        "--hm-wave", str(HM_WAVE_NUMBER),
+    ]
+
+
+def _run_parallel_chains_and_aggregate():
+    """Default no-arg driver: run one subprocess per chain, then aggregate."""
+    script_path = os.path.abspath(__file__)
+    run_cwd = os.getcwd()
+    env, threads_per_chain = _parallel_worker_env(
+        N_CHAINS, _args.threads_per_chain
+    )
+
+    print("  Mode: PARALLEL DRIVER (one subprocess per chain)", flush=True)
+    print(
+        f"Launching {N_CHAINS} chain workers concurrently "
+        f"({threads_per_chain} CPU thread(s) per worker by default).",
+        flush=True,
+    )
+    print(f"Worker logs will be written to {os.path.abspath(out_dir)}", flush=True)
+
+    workers = []
+    try:
+        for c in range(N_CHAINS):
+            log_path = os.path.abspath(os.path.join(out_dir, f"chain_{c}.log"))
+            log_file = open(log_path, "w", buffering=1)
+            cmd = [
+                sys.executable,
+                script_path,
+                "--chain-id", str(c),
+                "--n-chains", str(N_CHAINS),
+                *_mcmc_driver_args(),
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=run_cwd,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            workers.append((c, proc, log_path, log_file))
+            print(f"  chain {c}: pid={proc.pid}, log={log_path}", flush=True)
+
+        failed = []
+        for c, proc, log_path, log_file in workers:
+            return_code = proc.wait()
+            log_file.close()
+            if return_code != 0:
+                failed.append((c, return_code, log_path))
+            else:
+                print(f"  chain {c}: complete", flush=True)
+    except KeyboardInterrupt:
+        print("\nInterrupted; terminating chain workers...", flush=True)
+        for _, proc, _, log_file in workers:
+            if proc.poll() is None:
+                proc.terminate()
+            log_file.close()
+        raise
+
+    if failed:
+        print("\nOne or more chain workers failed:", flush=True)
+        for c, return_code, log_path in failed:
+            print(
+                f"  chain {c}: exit code {return_code}; see {log_path}",
+                flush=True,
+            )
+        sys.exit(1)
+
+    aggregate_log = os.path.abspath(os.path.join(out_dir, "aggregate.log"))
+    print(f"\nAll chains complete; aggregating results into {out_dir}/", flush=True)
+    print(f"Aggregate log: {aggregate_log}", flush=True)
+    with open(aggregate_log, "w", buffering=1) as log_file:
+        aggregate_return_code = subprocess.call(
+            [
+                sys.executable,
+                script_path,
+                "--aggregate-only",
+                "--n-chains", str(N_CHAINS),
+                *_mcmc_driver_args(),
+            ],
+            cwd=run_cwd,
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+    if aggregate_return_code != 0:
+        print(
+            f"Aggregation failed with exit code {aggregate_return_code}; "
+            f"see {aggregate_log}",
+            flush=True,
+        )
+        sys.exit(aggregate_return_code)
+
+    print("Parallel MCMC run complete.", flush=True)
+    sys.exit(0)
+
+
+if (
+    N_CHAINS > 1
+    and CHAIN_ID < 0
+    and not AGGREGATE_ONLY
+    and not _args.sequential
+):
+    _run_parallel_chains_and_aggregate()
 
 CHAIN_WORKER = CHAIN_ID >= 0
 WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
@@ -1244,12 +1486,21 @@ subset_vars_set = {
 print("=" * 60)
 print("STEP 1 -- Loading history matching results")
 print("=" * 60)
+print(f"  HM artifacts dir: {HM_ARTIFACTS_DIR}")
+print(f"  HM wave: {HM_WAVE_NUMBER}")
+print(f"  Emulator dir: {EMULATOR_DIR}")
 
-nroy_points_np = np.load(
-    f"{root}/nroy_points_wave_3.npy" # change
+test_x = np.load(
+    os.path.join(HM_ARTIFACTS_DIR, f"test_params_wave_{HM_WAVE_NUMBER}.npy") # change
 )
+nroy_mask = np.load(
+    os.path.join(HM_ARTIFACTS_DIR, f"nroy_mask_wave_{HM_WAVE_NUMBER}.npy") # change
+)
+
+nroy_points_np = test_x[nroy_mask]
+
 nroy_params_dict = np.load(
-    f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True # change
+    os.path.join(HM_ARTIFACTS_DIR, f"param_range_wave_{HM_WAVE_NUMBER}.npy"), allow_pickle=True # change
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
@@ -1568,15 +1819,16 @@ print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
       f"norm={grad_check.norm().item():.4f}")
 assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
-# ---------- Multi-chain NUTS (sequential / array-task / aggregate) ----------
+# ---------- Multi-chain NUTS (parallel driver / sequential / array-task / aggregate) ----------
 # Three execution modes (see CLI block at top):
-#   1. Default            : run all N_CHAINS sequentially in this process.
+#   1. --sequential       : run all N_CHAINS sequentially in this process.
 #   2. --chain-id c       : run only chain c, save per-chain output, exit.
 #                           Used by HPC array-job (one task = one chain).
 #   3. --aggregate-only   : skip chains entirely; load chain_z_{c}.npy from
 #                           out_dir for c in 0..N_CHAINS-1.
 # Posterior samples, split-R-hat and ESS are identical regardless of mode;
-# array-job mode collapses wall time from N_CHAINS x to 1 x per chain.
+# the default no-arg driver runs chain workers concurrently and then launches
+# aggregate-only mode once all workers finish.
 print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
 print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
 print(f"  target_accept_prob = {TARGET_ACCEPT}")
@@ -1851,6 +2103,8 @@ config = {
     "target_accept":   TARGET_ACCEPT,
     "max_tree_depth":  MAX_TREE_DEPTH,
     "emulator_dir":    EMULATOR_DIR,
+    "hm_artifacts_dir": HM_ARTIFACTS_DIR,
+    "hm_wave_number":  HM_WAVE_NUMBER,
     "date_suffix":     DATE_SUFFIX,
     "percent":         PERCENT,
     # "knn_k":           KNN_K,

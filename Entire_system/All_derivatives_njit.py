@@ -60,6 +60,54 @@ def compute_mean_selected(HR_store, indices):
 
     return total / len(indices)
 
+
+@njit
+def oxygen_content_from_po2(po2, pco2, C_O2_param1, C_O2_param2, C_O2_param3, scale_param3, scale_param4, PaCO2_n):
+    po2_safe = max(po2, 1e-10)
+    po2_virt = po2_safe * (PaCO2_n / max(pco2, 1e-10)) ** scale_param3
+    so2 = (po2_virt ** C_O2_param2) / (po2_virt ** C_O2_param2 + scale_param4 ** C_O2_param2)
+    return C_O2_param1 * 150 * so2 + C_O2_param3 * po2_safe
+
+
+@njit
+def invert_o2_content_to_po2(o2_content, pco2, C_O2_param1, C_O2_param2, C_O2_param3, scale_param3, scale_param4, PaCO2_n):
+    lo = 1e-10
+    hi = 1000.0
+
+    if o2_content <= oxygen_content_from_po2(lo, pco2, C_O2_param1, C_O2_param2, C_O2_param3, scale_param3, scale_param4, PaCO2_n):
+        return lo
+    if o2_content >= oxygen_content_from_po2(hi, pco2, C_O2_param1, C_O2_param2, C_O2_param3, scale_param3, scale_param4, PaCO2_n):
+        return hi
+
+    for _ in range(50):
+        mid = 0.5 * (lo + hi)
+        mid_content = oxygen_content_from_po2(mid, pco2, C_O2_param1, C_O2_param2, C_O2_param3, scale_param3, scale_param4, PaCO2_n)
+        if mid_content < o2_content:
+            lo = mid
+        else:
+            hi = mid
+
+    return 0.5 * (lo + hi)
+
+
+@njit
+def co2_content_from_pco2(pco2, po2, a2_gas, alpha2, beta2, C2, K2, Z):
+    po2_safe = max(po2, 1e-10)
+    pco2_safe = max(pco2, 1e-10)
+    fco2 = max((pco2_safe * (1 + beta2 * po2_safe)) / (K2 * (1 + alpha2 * po2_safe)), 1e-10)
+    fco2_root = fco2 ** (1 / a2_gas)
+    return (C2 * Z) * fco2_root / (1 + fco2_root)
+
+
+@njit
+def invert_co2_content_to_pco2(co2_content, po2, a2_gas, alpha2, beta2, C2, K2, Z):
+    po2_safe = max(po2, 1e-10)
+    content_max = C2 * Z
+    co2_content_safe = min(max(co2_content, 1e-10), content_max - 1e-10)
+    co2_ratio = max(co2_content_safe / (content_max - co2_content_safe), 1e-10)
+    return (co2_ratio ** a2_gas) * (K2 * (1 + alpha2 * po2_safe)) / (1 + beta2 * po2_safe)
+
+
 @njit
 def eval_spline(V, knots, coeffs):
     # clip to domain
@@ -85,7 +133,7 @@ def eval_spline(V, knots, coeffs):
 def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store,
     HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store, Vu_amv_every_store, Emax_lv_every_store,
     Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
-    f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history, PA_O2_every_store, PA_CO2_every_store,
+    f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history, Pa_O2_art_target_every_store, Pa_CO2_art_target_every_store,
     Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store, Pa_CO2_every_store, Pb_CO2_every_store,
     PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store, cs_t1, cs_t2, knots_1, knots_2):
     """
@@ -679,14 +727,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     # Ta = LCTV / Q_la
     # Ta = 6  # decreased to have a smaller circular buffer
 
-    PA_O2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_O2_every_store, PA_O2)
-    PA_CO2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, PA_CO2_every_store, PA_CO2)
-
-    d2Pa_O2_dt2 = (PA_O2_delay - (T1 + T2) * dPa_O2_dt - Pa_O2) / (T1 * T2)
-    d2Pa_CO2_dt2 = (PA_CO2_delay - (T1 + T2) * dPa_CO2_dt - Pa_CO2) / (T1 * T2)
-
-    FCO2 = max((PA_CO2 * (1 + beta2 * PA_O2)) / (K2 * (1 + alpha2 * PA_O2)), 1e-10)
-    CeCO2 = (C2 * Z) * (FCO2 ** (1 / a2_gas)) / (1 + (FCO2 ** (1 / a2_gas)))
+    CeCO2 = co2_content_from_pco2(PA_CO2, PA_O2, a2_gas, alpha2, beta2, C2, K2, Z)
 
     # alpha_O2 = 0.0000317
     # alpha_CO2 = 0.000667
@@ -770,6 +811,18 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     CaO2 = (1 - s) * CeO2 + s * CvO2
     CaCO2 = (1 - s) * CeCO2 + s * CvCO2
 
+    Pa_O2_art_target_every = invert_o2_content_to_po2(
+        CaO2, Pa_CO2, C_O2_param1, C_O2_param2, C_O2_param3, scale_param3, scale_param4, PaCO2_n
+    )
+    Pa_O2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, Pa_O2_art_target_every_store, Pa_O2_art_target_every)
+    d2Pa_O2_dt2 = (Pa_O2_delay - (T1 + T2) * dPa_O2_dt - Pa_O2) / (T1 * T2)
+
+    Pa_CO2_art_target_every = invert_co2_content_to_pco2(
+        CaCO2, Pa_O2_art_target_every, a2_gas, alpha2, beta2, C2, K2, Z
+    )
+    Pa_CO2_delay = get_delayed_value(t, Ta, all_time, last_index, BUFFER_LIMIT, Pa_CO2_art_target_every_store, Pa_CO2_art_target_every)
+    d2Pa_CO2_dt2 = (Pa_CO2_delay - (T1 + T2) * dPa_CO2_dt - Pa_CO2) / (T1 * T2)
+
     dCBO2_dt = (-MRBO2 + Q_bp_1000 * (CaO2 - CvbO2)) / VB  # brain volume for conc is 0.9
     dCvbCO2_dt = (MRBCO2 + Q_bp_1000 * (CaCO2 - CvbCO2)) / VB  # brain volume for conc is 0.9
 
@@ -791,13 +844,13 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     V_CO2 = VL_CO2
 
     if dV_dt >= 0:  # deadspace PAO2 is increasing towards 150
-        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s) + dV_dt * (
+        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CeO2) * (1 - s) + dV_dt * (
                 Pd_5_O2 - PA_O2)) / V_O2  # 863 is unit conversion. First from stpd to btps (x 1.21), then into pressure (x 713, P_atm - P_h20)
-        dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
+        dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CeCO2) * (1 - s) + dV_dt * (Pd_5_CO2 - PA_CO2)) / V_CO2
 
     else:  # deadspace PAO2 is decreasing towards PA_O2 during expiration
-        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CaO2) * (1 - s)) / V_O2
-        dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CaCO2) * (1 - s)) / V_CO2
+        dPA_O2_dt = (863 * Q_pp_1000 * (CvO2 - CeO2) * (1 - s)) / V_O2
+        dPA_CO2_dt = (863 * Q_pp_1000 * (CvCO2 - CeCO2) * (1 - s)) / V_CO2
 
     # Metabolism Dynamic
     MRR = max((MRBCO2 + MRBO2 + MRTCO2 + MRTO2) / (MRBCO2 + MRBO2 + MRTCO2_basal + MRTO2_basal), 1)
@@ -996,6 +1049,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             # Gas exchange outputs
             Pa_O2, Pa_CO2, Pb_CO2,
             PA_O2, PA_CO2, Nt,
+            Pa_O2_art_target_every, Pa_CO2_art_target_every,
 
             t1, t2, finish_breath_time, PamO2, PamCO2, PmbCO2,
 
@@ -1055,13 +1109,13 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
     (HR_store, time_since_beat_store, HR_every_store, Vu_ev_every_store, Vu_sv_every_store, Vu_rmv_every_store,
      Vu_amv_every_store, Emax_lv_every_store, Emax_rv_every_store, Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store,
      Emax_lv_store, Emax_rv_store, f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
-     PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store,
+     Pa_O2_art_target_every_store, Pa_CO2_art_target_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store, Pa_O2_every_store,
      Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store, t2_store) = [
         updates[key] for key in
         ["HR_store", "time_since_beat_store", "HR_every_store", "Vu_ev_every_store", "Vu_sv_every_store",
          "Vu_rmv_every_store", "Vu_amv_every_store", "Emax_lv_every_store", "Emax_rv_every_store", "Vu_ev_store",
          "Vu_sv_store", "Vu_rmv_store", "Vu_amv_store", "Emax_lv_store", "Emax_rv_store", "f_sp_store", "f_sh_store",
-         "f_v_store", "f_sv_store", "phi_met_store", "PA_O2_every_store", "PA_CO2_every_store", "Nt_store",
+         "f_v_store", "f_sv_store", "phi_met_store", "Pa_O2_art_target_every_store", "Pa_CO2_art_target_every_store", "Nt_store",
          "prev_flat_bit_store", "finish_breath_time", "Pa_O2_every_store", "Pa_CO2_every_store", "Pb_CO2_every_store",
          "PamO2", "PamCO2", "PmbCO2", "t1_store", "t2_store"]]
 
@@ -1076,6 +1130,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
      Pa_O2, Pa_CO2, Pb_CO2,
      PA_O2, PA_CO2, Nt,
+     Pa_O2_art_target_every, Pa_CO2_art_target_every,
 
      t1, t2, finish_breath_time, PamO2, PamCO2, PmbCO2,
 
@@ -1107,7 +1162,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
                       Emax_rv_every_store,
                       Vu_ev_store, Vu_sv_store, Vu_rmv_store, Vu_amv_store, Emax_lv_store, Emax_rv_store,
                       f_sp_history, f_sh_history, f_v_history, f_sv_history, phi_met_history,
-                      PA_O2_every_store, PA_CO2_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store,
+                      Pa_O2_art_target_every_store, Pa_CO2_art_target_every_store, Nt_store, prev_flat_bit_store, finish_breath_time_store,
                       Pa_O2_every_store,
                       Pa_CO2_every_store, Pb_CO2_every_store, PamO2_store, PamCO2_store, PmbCO2_store, t1_store,
                       t2_store, cs_t1, cs_t2, knots_1, knots_2)
@@ -1144,12 +1199,12 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             [  # Resp control inputs
                 "Pa_O2_every_store", "Pa_CO2_every_store", "Pb_CO2_every_store",
                 # Histories for gas
-                "PA_O2_every_store", "PA_CO2_every_store", "Nt_store"
+                "Pa_O2_art_target_every_store", "Pa_CO2_art_target_every_store", "Nt_store"
             ],
 
             [  # Corresponding values
                 Pa_O2, Pa_CO2, Pb_CO2,
-                PA_O2, PA_CO2, Nt]
+                Pa_O2_art_target_every, Pa_CO2_art_target_every, Nt]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 
