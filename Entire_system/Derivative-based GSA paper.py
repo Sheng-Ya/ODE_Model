@@ -1,25 +1,58 @@
 import math
+import warnings
 from collections import OrderedDict
 
 from SALib import ProblemSpec
 from SALib.plotting.bar import plot as barplot
 from scipy.stats import spearmanr
+import seaborn as sns
 
 # from SALib.analyze import dgsm
 import dgsm_edited as dgsm
 import matplotlib.pyplot as plt
 import numpy as np
 
+warnings.filterwarnings(
+    "ignore",
+    message=".*use_inf_as_na option is deprecated.*",
+    category=FutureWarning,
+)
+
 percentage = 90 # change
 
 X = np.load('DGSM_500_X_rest_90_14_04.npy') # change
-Result = np.load('DGSM_500_Result_rest_90_14_04.npy')[::273,:] # change
-num_zero_rows = np.sum(~Result.any(axis=1))
+Result = np.load('DGSM_500_Result_rest_90_14_04.npy') # change
+
+# base_idx = np.arange(0, X.shape[0], 273)
+# HR_col = 0
+# mask_blocks_unphysio = np.array([
+#     np.all(np.abs(Result[i + 1:i + 273, HR_col]) != 4)
+#     for i in base_idx
+# ])
+# mask_full = np.repeat(mask_blocks_unphysio, 273)
+#
+# # Filter arrays
+# X = X[mask_full]
+# Result = Result[mask_full]
+
+# base_idx = np.arange(0, X.shape[0], 273)
+# HR_col = 1
+# mask_blocks_unphysio = np.array([
+#     np.all(np.abs(Result[i + 1:i + 273, HR_col]) < 200)
+#     for i in base_idx
+# ])
+# mask_full = np.repeat(mask_blocks_unphysio, 273)
+#
+# # Filter arrays
+# X = X[mask_full]
+# Result = Result[mask_full]
+
+# num_zero_rows = np.sum(~Result.any(axis=1))
 # X = np.load('DGSM_500_X_rest_50_14_04.npy')
 # Result = np.load('DGSM_500_Result_rest_50_14_04.npy')
 
 # Result = np.vstack([Result0, Result1, Result2, Result3])
-# np.save("DGSM_500_Result_rest_50_14_04.npy", Result)
+# np.save("DGSM_500_Result_rest_90_14_04.npy", Result)
 
 lower = 1 - percentage/100
 upper = 1 + percentage/100
@@ -71,6 +104,8 @@ mask_blocks_std = np.all(block_std <= std_thresh, axis=1)
 # mask_blocks_E_rs = np.abs(E_rs_base - E_rs_nominal) / E_rs_nominal <= 0.40
 # mask_blocks_R_rs = np.abs(R_rs_base - R_rs_nominal) / R_rs_nominal <= 0.40
 #
+
+
 # Keep only blocks where all perturbed HR values are within 0.03 of the base HR (convergence check)
 HR_col = 0
 mask_blocks_conv = np.array([
@@ -78,9 +113,9 @@ mask_blocks_conv = np.array([
     for i in base_idx
 ])
 
-HR_col = 25
+CO_col = 25
 mask_blocks_conv_tidal = np.array([
-    np.all(np.abs(Result[i + 1:i + block_size, HR_col] - Result[i, HR_col]) < 0.03)
+    np.all(np.abs(Result[i + 1:i + block_size, CO_col] - Result[i, CO_col]) < 0.03)
     for i in base_idx
 ])
 
@@ -290,6 +325,38 @@ output_names_reduced = [
     "Max LA Pressure V Wave",
     "LA Pre-Atrial Contraction Volume", "RA Pre-Atrial Contraction Volume", "Max LV Pressure Deriv", "Max RV Pressure Deriv", "Tidal Volume", "Minute Ventilation",
     "PaO2", "PaCO2"]
+
+
+# # density plots for every Result column
+# density_n_cols = 4
+# density_n_rows = math.ceil(Result.shape[1] / density_n_cols)
+# density_fig, density_axes = plt.subplots(
+#     density_n_rows,
+#     density_n_cols,
+#     figsize=(4.5 * density_n_cols, 3.2 * density_n_rows),
+#     constrained_layout=True,
+# )
+# density_axes = np.atleast_1d(density_axes).ravel()
+#
+# for col, ax in enumerate(density_axes[:Result.shape[1]]):
+#     values = Result[:, col]
+#     finite_values = values[np.isfinite(values)]
+#     output_label = output_names[col] if col < len(output_names) else f"Result column {col}"
+#
+#     if finite_values.size < 2 or np.nanstd(finite_values) == 0:
+#         ax.text(0.5, 0.5, "No density", ha="center", va="center")
+#     else:
+#         sns.kdeplot(finite_values, fill=True, linewidth=1.2, ax=ax)
+#
+#     ax.set_title(output_label, fontsize=10)
+#     ax.set_xlabel(output_label)
+#     ax.set_ylabel("Density")
+#
+# for ax in density_axes[Result.shape[1]:]:
+#     ax.axis("off")
+#
+# density_fig.suptitle("Density plots for Result columns", fontsize=14)
+# plt.show()
 
 
 

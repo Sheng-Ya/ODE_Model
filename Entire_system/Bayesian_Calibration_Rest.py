@@ -169,7 +169,7 @@ sp = ProblemSpec({
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
         [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
         [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
+        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.15], [120 * 0.9, 120 * upper], [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
         [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
         [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
@@ -189,7 +189,7 @@ sp = ProblemSpec({
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-        [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
+        [27 * lower, 27 * upper], [38.703 * lower, 38.703 * upper],
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -310,7 +310,7 @@ if __name__ == "__main__":
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=3.0,
+        threshold=3.5,
         random_seed=random_seed,
         calibration_params=subset_vars,
         atrial_ratio_bounds=atrial_ratio_bounds,
@@ -466,21 +466,3 @@ if __name__ == "__main__":
 
     # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results))}_{percent}_rest.png")
     print(len(hmw.wave_results)-1)
-
-
-
-
-
-    #
-    # model_post_hm = hmw.emulator  # Use the emulator from history matching
-    # parameter_range = {k: v for k, v in params_post_hm.items() if k in subset_vars}
-    #
-    # bc = BayesianCalibration(
-    #     emulator=model_post_hm,
-    #     parameter_range=parameter_range,
-    #     observations={k: torch.tensor(v[0]) for k, v in observation.items()},
-    #     # take account of the emulator uncertainty
-    #     model_uncertainty=True,
-    #     # specify observation noise as variance
-    #     observation_noise={k: v[1] ** 2 for k, v in observation.items()}
-    # )

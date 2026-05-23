@@ -24,7 +24,7 @@ from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import make_fresh_storage
 
 target_values = np.arange(0, 10000, 10)
-BUFFER_LIMIT = 40000
+BUFFER_LIMIT = 80000
 
 max_time = 60 # Maximum time limit to avoid infinite loops
 
@@ -431,10 +431,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
         if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
-    pairs_ao = pairs_ao[-11:-1]
-    pairs_po = pairs_po[-11:-1]
-    pairs_mi = pairs_mi[-11:-1]
-    pairs_tr = pairs_tr[-11:-1]
+    pairs_ao = pairs_ao[-10:]
+    pairs_po = pairs_po[-10:]
+    pairs_mi = pairs_mi[-10:]
+    pairs_tr = pairs_tr[-10:]
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
@@ -461,7 +461,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when mitral valve is open -> get second min la P
     P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
@@ -470,7 +470,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when tricuspid valve is open -> get second min la P
     P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
@@ -502,7 +502,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # Find transitions: where phi_atr goes from 0 to >0
     starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
-    local_mins = starts[-11:-1]
+    local_mins = starts[-10:]
     last_10_b4_LA_atrial_contract = V_la[local_mins]
     last_10_b4_RA_atrial_contract = V_ra[local_mins]
 
@@ -541,8 +541,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     start_idx = start_idx[:n_pairs]
     end_idx = end_idx[:n_pairs]
 
-    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
-    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
+    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     mean_min_Total_Volume = np.mean(Total_Volume[Total_Vol_min_idx])
     mean_max_Total_Volume = np.mean(Total_Volume[Total_Vol_max_idx])
@@ -550,10 +550,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
 
     dP_lv_dt_store = np.concatenate((local_updates["dP_lv_dt_store"][i_buffer:], local_updates["dP_lv_dt_store"][:i_buffer]))
-    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
-    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
 
@@ -709,7 +709,7 @@ def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef,
 
 
 # # code for running serially but for each base point separately
-# def parallel_simulations(param_samples, storage, save_path='Result_DGSM_new.npy'):
+# def parallel_simulations(param_samples, save_path='Result_DGSM_new.npy'):
 #     results_all = []
 #
 #     if os.path.exists(save_path):
@@ -830,7 +830,6 @@ if __name__ == "__main__":
             "Vu_pp", "Vu_pv", "Vu_la", "Vu_lv",
             "Vu_ra", "Vu_rv",
 
-            "V_tot",
             "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
             "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
             "tau_Vev", "tau_Vrmv", "tau_Vsv", "Vu_amv0",
@@ -868,7 +867,7 @@ if __name__ == "__main__":
             [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
             [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
             [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
-            [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
+            [0.025 * lower, 0.025 * upper], [5.85 * lower, 5.85 * upper], [5.8 * lower, 5.8 * upper],
             [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
             [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
             [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
@@ -895,7 +894,7 @@ if __name__ == "__main__":
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
             [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
             [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
+            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.15], [120 * 0.9, 120 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
             [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
             [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
@@ -915,9 +914,8 @@ if __name__ == "__main__":
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
             [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-            [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
+            [27 * lower, 27 * upper], [38.703 * lower, 38.703 * upper],
 
-            [5027.15 * lower, 5027.15 * upper],
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
             [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
@@ -944,14 +942,16 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
-    X = finite_diff.sample(sp, 500)
-    np.save("DGSM_500_X_rest_20_14_04_V_tot.npy", X)
-    X = np.load("DGSM_500_X_rest_20_14_04_V_tot.npy")
+    # X = finite_diff.sample(sp, 500)
+    # np.save("DGSM_500_X_rest_20_14_04_V_tot.npy", X)
+    X = np.load("DGSM_500_X_rest_20_22_05.npy")[273*375:273*450,:]
+    # A = np.load(r"X:\home\project\Result_task_20_00.npy")
+
 
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
     # AA = param_samples[0]
     # print(AA)
 
-    Result = parallel_simulations(param_samples, n_jobs=256)
-    np.save(f'DGSM_Result_rest_20_14_04_V_tot.npy', Result)
+    Result = parallel_simulations(param_samples, n_jobs = 64)
+    np.save(f'DGSM_Result_rest_20_22_05_375_450.npy', Result)

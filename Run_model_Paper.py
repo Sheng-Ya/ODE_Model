@@ -30,7 +30,7 @@ target_values = np.arange(0, 10000, 10)
 
 time_saved = 0.005
 BUFFER_LIMIT = 80000
-CACHE_PATH = Path("Run_model_Paper_simulation_cache.pkl")
+CACHE_PATH = Path("Run_model_Paper_simulation_cache1.pkl")
 CACHE_VERSION = 2
 ACTIVATION_ATRIAL_PV_OUTPUT = "Run_model_Paper_activation_atrial_pv.png"
 GAS_EXCHANGE_OUTPUT = "Run_model_Paper_gas_exchange.png"

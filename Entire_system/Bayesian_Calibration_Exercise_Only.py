@@ -3,6 +3,7 @@ import warnings
 import joblib
 import numpy as np
 import pyro
+from datetime import datetime
 from multiprocessing import resource_tracker
 
 import torch
@@ -23,6 +24,41 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 random_seed = 42
 set_random_seed(random_seed)
 pyro.set_rng_seed(random_seed)
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+HM_RUNS_ROOT = os.path.join(SCRIPT_DIR, "HM_try")
+
+
+def env_int(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(minimum, value)
+
+
+def create_hm_run_dir() -> str:
+    requested_run_dir = os.environ.get("HM_RUN_DIR")
+    if requested_run_dir:
+        run_dir = requested_run_dir
+        if not os.path.isabs(run_dir):
+            run_dir = os.path.join(SCRIPT_DIR, run_dir)
+        os.makedirs(run_dir, exist_ok=True)
+        return run_dir
+
+    run_name = os.environ.get("HM_RUN_NAME") or datetime.now().strftime("run_%Y%m%d_%H%M%S")
+    run_dir = os.path.join(HM_RUNS_ROOT, run_name)
+    base_run_dir = run_dir
+    suffix = 1
+    while os.path.exists(run_dir):
+        run_dir = f"{base_run_dir}_{suffix:02d}"
+        suffix += 1
+
+    os.makedirs(run_dir, exist_ok=True)
+    return run_dir
 
 # Treat atrial contraction as a physiologic interval constraint rather than a
 # point target for columns 17/18.
@@ -126,10 +162,10 @@ sp = ProblemSpec({
         ],
 
     'bounds': [
-        [0.028128886172 * lower, 0.028128886172 * upper],  # beta2 [MAP]
-        [98.686027305558 * lower, 98.686027305558 * upper],  # C2 [MAP]
-        [217.468913253282 * lower, 217.468913253282 * upper],  # K2 [MAP]
-        [2.112600215332 * lower, 2.112600215332 * upper],  # a2 [MAP]
+        [0.026056388103 * lower, 0.026056388103 * upper],  # beta2 [MAP]
+        [104.314359039737 * lower, 104.314359039737 * upper],  # C2 [MAP]
+        [221.095091804686 * lower, 221.095091804686 * upper],  # K2 [MAP]
+        [1.45760013289 * lower, 1.45760013289 * upper],  # a2 [MAP]
         [0.05591 * lower, 0.05591 * upper],
         [346000 * lower, 346000 * upper],
         [0.1698 * lower, 0.1698 * upper],
@@ -137,20 +173,20 @@ sp = ProblemSpec({
         [1 * lower, 1 * upper],
         [0.2025 * lower, 0.2025 * upper],
         [0.00000000472 * lower, 0.00000000472 * upper],
-        [0.138409845242 * lower, 0.138409845242 * upper],  # V0_dead [MAP]
+        [0.190316563756 * lower, 0.190316563756 * upper],  # V0_dead [MAP]
         [0.0673 * lower, 0.0673 * upper],
-        [24.9622934977 * lower, 24.9622934977 * upper],  # E_rs [MAP]
-        [2.617339253117 * lower, 2.617339253117 * upper],  # R_rs [MAP]
-        [3.276917493802 * lower, 3.276917493802 * upper],  # C_jp [MAP]
+        [24.914957306103 * lower, 24.914957306103 * upper],  # E_rs [MAP]
+        [3.621416064005 * lower, 3.621416064005 * upper],  # R_rs [MAP]
+        [3.150315009113 * lower, 3.150315009113 * upper],  # C_jp [MAP]
         [0.28 * lower, 0.28 * upper],
         [0.00022 * lower, 0.00022 * upper],
-        [0.052276641363 * lower, 0.052276641363 * upper],  # R_sa [MAP]
+        [0.069297821233 * lower, 0.069297821233 * upper],  # R_sa [MAP]
         [9.4 * lower, 9.4 * upper],
         [10.71 * lower, 10.71 * upper],
         [20 * lower, 20 * upper],
         [3.57 * lower, 3.57 * upper],
         [6.28 * lower, 6.28 * upper],
-        [52.360166668329 * lower, 52.360166668329 * upper],  # C_sv [MAP]
+        [53.700745884199 * lower, 53.700745884199 * upper],  # C_sv [MAP]
         [24.17 * lower, 24.17 * upper],
         [10 * lower, 10 * upper],
         [0.0833 * lower, 0.0833 * upper],
@@ -163,38 +199,38 @@ sp = ProblemSpec({
         [0.3855 * lower, 0.3855 * upper],
         [50 * lower, 50 * upper],
         [10000 * lower, 10000 * upper],
-        [0.02152115199 * lower, 0.02152115199 * upper],  # Rvc_n [MAP]
+        [0.020008843735 * lower, 0.020008843735 * upper],  # Rvc_n [MAP]
         [5.85 * lower, 5.85 * upper],
         [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper],
         [0.00018 * lower, 0.00018 * upper],
-        [0.026124878653 * lower, 0.026124878653 * upper],  # R_pa [MAP]
-        [0.071545017892 * lower, 0.071545017892 * upper],  # R_pp [MAP]
+        [0.018414673946 * lower, 0.018414673946 * upper],  # R_pa [MAP]
+        [0.071550840611 * lower, 0.071550840611 * upper],  # R_pp [MAP]
         [0.0056 * lower, 0.0056 * upper],
-        [0.377605089684 * lower, 0.377605089684 * upper],  # Emax_la [MAP]
-        [0.539762064629 * lower, 0.539762064629 * upper],  # P0_la [MAP]
-        [0.399635672188 * lower, 0.399635672188 * upper],  # Emax_ra [MAP]
-        [0.505092990017 * lower, 0.505092990017 * upper],  # P0_ra [MAP]
-        [0.056677565473 * lower, 0.056677565473 * upper],  # KE_la [MAP]
-        [0.056603285263 * lower, 0.056603285263 * upper],  # KE_ra [MAP]
-        [1.339029184488 * lower, 1.339029184488 * upper],  # P0_lv [MAP]
-        [1.726056390733 * lower, 1.726056390733 * upper],  # P0_rv [MAP]
+        [0.539484450273 * lower, 0.539484450273 * upper],  # Emax_la [MAP]
+        [0.539711575691 * lower, 0.539711575691 * upper],  # P0_la [MAP]
+        [0.383211426561 * lower, 0.383211426561 * upper],  # Emax_ra [MAP]
+        [0.539669442011 * lower, 0.539669442011 * upper],  # P0_ra [MAP]
+        [0.057486653259 * lower, 0.057486653259 * upper],  # KE_la [MAP]
+        [0.040029311567 * lower, 0.040029311567 * upper],  # KE_ra [MAP]
+        [1.442044484136 * lower, 1.442044484136 * upper],  # P0_lv [MAP]
+        [1.2459103951 * lower, 1.2459103951 * upper],  # P0_rv [MAP]
         [0.04 * lower, 0.04 * upper],
-        [22.265451555023 * lower, 22.265451555023 * upper],  # fab_o [MAP]
-        [18.218922112121 * lower, 18.218922112121 * upper],  # fes_o [MAP]
-        [2.380337872283 * lower, 2.380337872283 * upper],  # fes_inf [MAP]
+        [20.015768519964 * lower, 20.015768519964 * upper],  # fab_o [MAP]
+        [18.538774839743 * lower, 18.538774839743 * upper],  # fes_o [MAP]
+        [1.819256530955 * lower, 1.819256530955 * upper],  # fes_inf [MAP]
         [80 * lower, 80 * upper],
-        [2.731738871452 * lower, 2.731738871452 * upper],  # fev_o [MAP]
-        [7.192889356083 * lower, 7.192889356083 * upper],  # fev_inf [MAP]
-        [0.058714931159 * lower, 0.058714931159 * upper],  # kes [MAP]
+        [2.737077669881 * lower, 2.737077669881 * upper],  # fev_o [MAP]
+        [5.491207566281 * lower, 5.491207566281 * upper],  # fev_inf [MAP]
+        [0.059948847087 * lower, 0.059948847087 * upper],  # kes [MAP]
         [7.06 * lower, 7.06 * upper],
         [0.658 * lower, 0.658 * upper],
         [0.65 * lower, 0.65 * upper],
-        [0.387442873016 * lower, 0.387442873016 * upper],  # Io_sv [MAP]
+        [0.382454133527 * lower, 0.382454133527 * upper],  # Io_sv [MAP]
         [0.126 * lower, 0.126 * upper],
         [0.114 * lower, 0.114 * upper],
         [0.13 * lower, 0.13 * upper],
-        [0.075391340744 * lower, 0.075391340744 * upper],  # kcc_sv [MAP]
+        [0.073914097993 * lower, 0.073914097993 * upper],  # kcc_sv [MAP]
         [0.0162 * lower, 0.0162 * upper],
         [9 * lower, 9 * upper],
         [-0.0283 * upper, -0.0283 * lower],
@@ -205,9 +241,9 @@ sp = ProblemSpec({
         [1.9 * lower, 1.9 * upper],
         [-0.0008 * upper, -0.0008 * lower],
         [-0.68 * upper, -0.68 * lower],
-        [-1.736708705976 * upper, -1.736708705976 * lower],  # Wb_sh [MAP]
+        [-1.98712918802 * upper, -1.98712918802 * lower],  # Wb_sh [MAP]
         [-1.1375 * upper, -1.1375 * lower],
-        [-0.981441628267 * upper, -0.981441628267 * lower],  # Wb_sv [MAP]
+        [-0.960143990803 * upper, -0.960143990803 * lower],  # Wb_sv [MAP]
         [1 * lower, 1 * upper],
         [1.716 * lower, 1.716 * upper],
         [1.716 * lower, 1.716 * upper],
@@ -219,9 +255,9 @@ sp = ProblemSpec({
         [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper],
-        [2.140324085081 * lower, 2.140324085081 * upper],  # Emax_lv0 [MAP]
-        [1.211920888108 * lower, 1.211920888108 * upper],  # Emax_rv0 [MAP]
-        [2.294737349681 * lower, 2.294737349681 * upper],  # fes_min [MAP]
+        [2.666380393754 * lower, 2.666380393754 * upper],  # Emax_lv0 [MAP]
+        [1.390021697651 * lower, 1.390021697651 * upper],  # Emax_rv0 [MAP]
+        [3.189025830605 * lower, 3.189025830605 * upper],  # fes_min [MAP]
         [0.475 * lower, 0.475 * upper],
         [0.282 * lower, 0.282 * upper],
         [2.47 * lower, 2.47 * upper],
@@ -246,15 +282,15 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper],
         [3.6 * lower, 3.6 * upper],
         [13.32 * lower, 13.32 * upper],
-        [11.439319151118 * lower, 11.439319151118 * upper],  # theta_svn [MAP]
+        [11.458386800796 * lower, 11.458386800796 * upper],  # theta_svn [MAP]
         [53 * lower, 53 * upper],
         [6 * lower, 6 * upper],
         [6 * lower, 6 * upper],
-        [34.285802585415 * lower, 34.285802585415 * upper],  # PaCO2_n [MAP]
-        [45.884608749171 * lower, 45.884608749171 * upper],  # f_ab_max [MAP]
+        [32.617140230052 * lower, 32.617140230052 * upper],  # PaCO2_n [MAP]
+        [38.255264072196 * lower, 38.255264072196 * upper],  # f_ab_max [MAP]
         [2.52 * lower, 2.52 * upper],
-        [10.34115989836 * lower, 10.34115989836 * upper],  # k_ab [MAP]
-        [93.207195116882 * lower, 93.207195116882 * 1.05],  # P_n [MAP]
+        [10.652774100123 * lower, 10.652774100123 * upper],  # k_ab [MAP]
+        [83.075364716124 * lower, 83.075364716124 * 1.05],  # P_n [MAP]
         [112 * 0.9, 112 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper],
@@ -263,16 +299,16 @@ sp = ProblemSpec({
         [3 * lower, 3 * upper],
         [45 * lower, 45 * upper],
         [11.76 * lower, 11.76 * upper],
-        [-0.148817315305 * upper, -0.148817315305 * lower],  # GT_s [MAP]
-        [0.101747481016 * lower, 0.101747481016 * upper],  # GT_v [MAP]
-        [0.596627550099 * lower, 0.596627550099 * upper],  # T0 [MAP]
+        [-0.104052194839 * upper, -0.104052194839 * lower],  # GT_s [MAP]
+        [0.075051827744 * lower, 0.075051827744 * upper],  # GT_v [MAP]
+        [0.493091533616 * lower, 0.493091533616 * upper],  # T0 [MAP]
         [20.9 * lower, 20.9 * upper],
         [92.8 * lower, 92.8 * upper],
         [10570 * lower, 10570 * upper],
         [-5.251 * upper, -5.251 * lower],
         [0.14 * lower, 0.14 * upper],
         [10 * lower, 10 * upper],
-        [1.043329600998 * lower, 1.043329600998 * upper],  # MO2_bp [MAP]
+        [0.740470614424 * lower, 0.740470614424 * upper],  # MO2_bp [MAP]
         [6.57 * lower, 6.57 * upper],
         [0.11 * lower, 0.11 * upper],
         [0.155 * lower, 0.155 * upper],
@@ -284,11 +320,11 @@ sp = ProblemSpec({
         [0.86 * lower, 0.86 * upper],
         [19.71 * lower, 19.71 * upper],
         [12660 * lower, 12660 * upper],
-        [0.176437135914 * lower, 0.176437135914 * upper],  # Cvam_O2_n [MAP]
+        [0.135218326531 * lower, 0.135218326531 * upper],  # Cvam_O2_n [MAP]
         [30 * lower, 30 * upper],
         [40 * lower, 40 * upper],
-        [0.364224033684 * lower, 0.364224033684 * upper],  # Io_met [MAP]
-        [0.207486994448 * lower, 0.207486994448 * upper],  # kmet [MAP]
+        [0.341510756868 * lower, 0.341510756868 * upper],  # Io_met [MAP]
+        [0.149970059492 * lower, 0.149970059492 * upper],  # kmet [MAP]
         [0.516 * lower, 0.516 * upper],
         [20 * lower, 20 * upper],
         [-1.87 * upper, -1.87 * lower],
@@ -300,37 +336,37 @@ sp = ProblemSpec({
         [1200 * lower, 1200 * upper],
         [200 * lower, 200 * upper],
         [2 * lower, 2 * upper],
-        [3.85395429664 * lower, 3.85395429664 * upper],  # Kv_mi [MAP]
+        [4.197484149057 * lower, 4.197484149057 * upper],  # Kv_mi [MAP]
         [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper],
         [2000 * lower, 2000 * upper],
         [2 * lower, 2 * upper],
-        [5.920354651805 * lower, 5.920354651805 * upper],  # Kv_po [MAP]
+        [8.082182497661 * lower, 8.082182497661 * upper],  # Kv_po [MAP]
         [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper],
         [200 * lower, 200 * upper],
         [2 * lower, 2 * upper],
-        [2.99930933847 * lower, 2.99930933847 * upper],  # Kv_tr [MAP]
+        [2.802882618089 * lower, 2.802882618089 * upper],  # Kv_tr [MAP]
         [1.309 * lower, 1.309 * upper],
         [0.0000317 * lower, 0.0000317 * upper],
         [350 * lower, 350 * upper],
         [400 * lower, 400 * upper],
         [400 * lower, 400 * upper],
         [350 * lower, 350 * upper],
-        [0.001467256351 * lower, 0.001467256351 * upper],  # C_O2_param1 [MAP]
+        [0.001446768212 * lower, 0.001446768212 * upper],  # C_O2_param1 [MAP]
         [2.6 * lower, 2.6 * upper],
         [0.0000303 * lower, 0.0000303 * upper],
         [104 * lower, 104 * upper],
-        [244.300604572585 * lower, 244.300604572585 * upper],  # Vu_bv [MAP]
+        [247.007713832753 * lower, 247.007713832753 * upper],  # Vu_bv [MAP]
         [93.16 * lower, 93.16 * upper],
-        [513.581916326122 * lower, 513.581916326122 * upper],  # Vu_jp [MAP]
+        [464.099601030366 * lower, 464.099601030366 * upper],  # Vu_jp [MAP]
         [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper],
         [114 * lower, 114 * upper],
-        [20.706126986862 * lower, 20.706126986862 * upper],  # Vu_la [MAP]
-        [18.211277987379 * lower, 18.211277987379 * upper],  # Vu_lv [MAP]
-        [32.226545809855 * lower, 32.226545809855 * upper],  # Vu_ra [MAP]
-        [43.823591328824 * lower, 43.823591328824 * upper],  # Vu_rv [MAP]
+        [28.782795216021 * lower, 28.782795216021 * upper],  # Vu_la [MAP]
+        [18.382176871651 * lower, 18.382176871651 * upper],  # Vu_lv [MAP]
+        [31.978194395465 * lower, 31.978194395465 * upper],  # Vu_ra [MAP]
+        [46.425736923554 * lower, 46.425736923554 * upper],  # Vu_rv [MAP]
         [8 * lower, 8 * upper],
         [8 * lower, 8 * upper],
         [2 * lower, 2 * upper],
@@ -341,10 +377,10 @@ sp = ProblemSpec({
         [20 * lower, 20 * upper],
         [20 * lower, 20 * upper],
         [20 * lower, 20 * upper],
-        [328.89728958731 * lower, 328.89728958731 * upper],  # Vu_amv0 [MAP]
-        [524.205789891646 * lower, 524.205789891646 * upper],  # Vu_ev0 [MAP]
+        [229.299959741592 * lower, 229.299959741592 * upper],  # Vu_amv0 [MAP]
+        [727.971826624144 * lower, 727.971826624144 * upper],  # Vu_ev0 [MAP]
         [190.95 * lower, 190.95 * upper],
-        [1155.334613152734 * lower, 1155.334613152734 * upper],  # Vu_sv0 [MAP]
+        [1163.779935864205 * lower, 1163.779935864205 * upper],  # Vu_sv0 [MAP]
         [20 * lower, 20 * upper],
         [30 * lower, 30 * upper],
         [2.076 * lower, 2.076 * upper],
@@ -372,8 +408,8 @@ sp = ProblemSpec({
         [0.2 * lower, 0.2 * upper],
         [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper],
-        [0.012939074222 * lower, 0.012939074222 * upper],  # KE_lv [MAP]
-        [0.012658121689 * lower, 0.012658121689 * upper],  # KE_rv [MAP]
+        [0.013195593572 * lower, 0.013195593572 * upper],  # KE_lv [MAP]
+        [0.008823078488 * lower, 0.008823078488 * upper],  # KE_rv [MAP]
         [0.1 * lower, 0.1 * upper],
         [0.2 * lower, 0.2 * upper],
         [3 * lower, 3 * upper],
@@ -389,24 +425,39 @@ sp = ProblemSpec({
         [26.6 * lower, 26.6 * upper],
         [0.04 * lower, 0.04 * upper],
         [80 * lower, 80 * upper],
-        [0.05044738931 * lower, 0.05044738931 * upper],  # rise_time_atr [MAP]
-        [0.337807425424 * lower, 0.337807425424 * upper],  # rise_time_ven [MAP]
-        [0.496681422525 * 0.85, 0.496681422525 * 1.15],  # fall_time_ven [MAP]
-        [0.973148107036 * 0.92, 0.973148107036 * 1.08],  # ahead1 [MAP]
+        [0.05165157622 * lower, 0.05165157622 * upper],  # rise_time_atr [MAP]
+        [0.35970683371 * lower, 0.35970683371 * upper],  # rise_time_ven [MAP]
+        [0.501698599678 * 0.85, 0.501698599678 * 1.15],  # fall_time_ven [MAP]
+        [0.84695219825 * 0.92, 0.84695219825 * 1.08],  # ahead1 [MAP]
         [0.0873 * lower, 0.0873 * upper],
-        [1.226419109093 * 0.85, 1.226419109093 * 1.15],  # r [MAP]
-        [1.293670186787 * 0.85, 1.293670186787 * 1.15],  # l [MAP]
-        [156.079753805999 * lower, 156.079753805999 * upper],  # V_nominal [MAP]
-        [42.925020131524 * lower, 42.925020131524 * upper],  # V_scale [MAP]
+        [1.063125062813 * 0.85, 1.063125062813 * 1.15],  # r [MAP]
+        [1.37966131513 * 0.85, 1.37966131513 * 1.15],  # l [MAP]
+        [132.336714485812 * lower, 132.336714485812 * upper],  # V_nominal [MAP]
+        [44.106896806161 * lower, 44.106896806161 * upper],  # V_scale [MAP]
     ]
 })
 
 # Exercise
-subset_vars = {'alpha2', 'C_amv', 'C_bv', 'C_ev', 'C_pa', 'C_pp', 'C_pv', 'C_sa', 'Cvb_O2_n', 'f_acCO2_n', 'G_ap',
-               'g_ccsh', 'GEmax_lv', 'GEmax_rv', 'gM', 'GR_amp', 'GV_amv', 'GV_dead', 'GV_ev', 'GV_sv', 'Io_sh',
-               'Io_sp', 'K1_vc', 'k_ac', 'KcCO2', 'KcMRV', 'kev', 'Kp_mi', 'Kp_po', 'MO2_ampn', 'P_n_max', 'PaO2_ac_n',
-               'phi_max', 'R_amp0', 'R_bpn', 'R_mi', 'R_po', 'R_tr', 'tauMR', 'theta_spn', 'theta_v', 'VA_rest', 'Wc_v',
-               'Wp_v', 'Ysh_max', 'Ysv_max', 'Yv_max'}
+# subset_vars = {'alpha2', 'C_amv', 'C_bv', 'C_ev', 'C_pa', 'C_pp', 'C_pv', 'C_sa', 'Cvb_O2_n', 'f_acCO2_n', 'G_ap',
+#                'g_ccsh', 'GEmax_lv', 'GEmax_rv', 'gM', 'GR_amp', 'GV_amv', 'GV_dead', 'GV_ev', 'GV_sv', 'Io_sh',
+#                'Io_sp', 'K1_vc', 'k_ac', 'KcCO2', 'KcMRV', 'kev', 'Kp_mi', 'Kp_po', 'MO2_ampn', 'P_n_max', 'PaO2_ac_n',
+#                'phi_max', 'R_amp0', 'R_bpn', 'R_mi', 'R_po', 'R_tr', 'tauMR', 'theta_spn', 'theta_v', 'VA_rest', 'Wc_v',
+#                'Wp_v', 'Ysh_max', 'Ysv_max', 'Yv_max'}
+# subset_vars = {'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_pv', 'C_sv', 'E_rs', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
+#                'fall_time_ven', 'fes_o', 'fev_o', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GT_v', 'GV_dead',
+#                'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
+#                'P_n_max', 'PaCO2_n', 'phi_max', 'r', 'R_amp0', 'R_pa', 'R_po', 'R_pp', 'R_rs', 'R_sa', 'rise_time_ven',
+#                'Rvc_n', 'T0', 'tauMR', 'V0_dead', 'V_nominal', 'V_scale', 'VA_rest', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+#                'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wp_v', 'Yv_max',
+#                # added
+#                "C_pa", 'alpha2', 'C_ev', 'GV_ev', 'GV_amv', 'C_sa', 's'}
+subset_vars = {'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead', 'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV',
+                        'P_n_max', 'phi_max', 'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max',
+                        'alpha2', 'C_amv', 'C_bv', 'C_ev', 'C_pa', 'C_pp', 'C_sa',
+                        'Cvb_O2_n', 'f_acCO2_n', 'g_ccsh', 'gM', 'GV_amv', 'GV_ev',
+                        'Io_sp', 'K1_vc', 'k_ac', 'kev', 'Kp_mi', 'Kp_po', 'MO2_ampn',
+                        'PaO2_ac_n', 'R_bpn', 'R_mi', 'R_tr', 'theta_spn', 'theta_v',
+                        'Wc_v', 'Ysh_max', 'Ysv_max'}
 
 
 # MUST SORT SO ITS THE SAME ORDER
@@ -438,7 +489,9 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # LOAD EMULATOR
 # ----------------------------
 # change (emulator for rest/exercise)
-Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
+Heart_Rate_emulator = joblib.load(
+    os.path.join(SCRIPT_DIR, "Heart_Rate", "GaussianProcessMatern32_Heart_Rate_best.joblib")
+)
 
 # # Exercise (second is variance, not standard deviation)
 observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Diastolic Pressure": (76.4, 82.81),
@@ -455,6 +508,8 @@ observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Dia
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
+    hm_run_dir = create_hm_run_dir()
+    print(f"HM artifacts will be written to: {hm_run_dir}")
 
     # # nroy_samples_rest.pt rows are the same as in NROY_Points_rest_20.npy
     # AAA = np.load("Calibration_Exercise_New/NROY_Points_exercise_50.npy")
@@ -501,7 +556,7 @@ if __name__ == "__main__":
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=3.5,
+        threshold=3.95,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
@@ -509,13 +564,26 @@ if __name__ == "__main__":
         atrial_ratio_bounds=ATRIAL_RATIO_BOUNDS,
         atrial_ratio_min_probability=ATRIAL_RATIO_MIN_PROBABILITY,
         atrial_ratio_mc_samples=ATRIAL_RATIO_MC_SAMPLES,
+        run_dir=hm_run_dir,
     )
 
     # # --- PRE-WAVE: Train initial emulators from hybrid samples ---
-    hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+    pre_wave_simulations = env_int("HM_PRE_WAVE_SIMULATIONS", 4096)
+    wave_simulations = env_int("HM_WAVE_SIMULATIONS", 2048)
+    size = env_int("HM_TEST_SAMPLES", 200000)
+
+    # hmw.pre_wave_train_emulators(n_simulations=pre_wave_simulations, refit_on_all_data=False)
     # A = torch.load(r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Exercise_Paper\HM_third_improved_LHCS_no_neg\last_wave.pt")
-    size = 200000
-    _ = hmw.run_waves(n_waves=4, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(
+        n_waves=4,
+        n_simulations=wave_simulations,
+        n_test_samples=size,
+        refit_on_all_data=False,
+        refit_emulator_on_last_wave=True,
+        max_retries=15,
+        resume_wave=False,
+        keep_all_wave_results=False,
+    )
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
@@ -528,10 +596,10 @@ if __name__ == "__main__":
         buffer_ratio=0.0
     )
 
-    np.save(f"NROY_Points_exercise_{percent}.npy", nroy_points)
-    np.save(f"NROY_Params_exercise_{percent}.npy", params_post_hm)
-    np.save(f"NROY_Implaus_exercise_{percent}.npy", impl_scores)
-    np.save(f"test_param_exercise_{percent}.npy", test_parameters)
+    np.save(os.path.join(hm_run_dir, f"NROY_Points_exercise_{percent}.npy"), nroy_points)
+    np.save(os.path.join(hm_run_dir, f"NROY_Params_exercise_{percent}.npy"), params_post_hm)
+    np.save(os.path.join(hm_run_dir, f"NROY_Implaus_exercise_{percent}.npy"), impl_scores)
+    np.save(os.path.join(hm_run_dir, f"test_param_exercise_{percent}.npy"), test_parameters)
 
-    print(len(hmw.wave_results)-1)
+    print(hmw._last_completed_wave_idx)
     # hmw.plot_wave((len(hmw.wave_results)-1), fname=f"{size}_wave_{(len(hmw.wave_results)-1)}_{percent}.png")

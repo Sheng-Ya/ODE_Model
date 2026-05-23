@@ -24,6 +24,7 @@ Expects in working directory:
 
 Usage:
   python MCMC_Union.py
+  python MCMC_Union.py --sequential
   python MCMC_Union.py --chain-id 0 --n-chains 4
   python MCMC_Union.py --aggregate-only --n-chains 4
 """
@@ -33,6 +34,7 @@ import math
 import sys
 import json
 import argparse
+import subprocess
 import warnings
 import joblib
 import numpy as np
@@ -65,11 +67,19 @@ warnings.filterwarnings("ignore")
 # --aggregate-only   : skip chain running; load all chain_z_{c}.npy from
 #                      out_dir and run diagnostics + plots only.
 # --n-chains N       : expected number of chains to run/aggregate.
-# (no args)          : backward-compatible sequential N_CHAINS run.
+# (no args)          : run N_CHAINS chain workers concurrently, then aggregate.
+# --sequential       : run all chains sequentially in this process.
 _parser = argparse.ArgumentParser()
 _parser.add_argument("--chain-id", type=int, default=-1)
 _parser.add_argument("--aggregate-only", action="store_true")
 _parser.add_argument("--n-chains", type=int, default=None)
+_parser.add_argument("--sequential", action="store_true")
+_parser.add_argument(
+    "--threads-per-chain",
+    type=int,
+    default=None,
+    help="CPU threads assigned to each parallel chain worker; default is cpu_count // n_chains.",
+)
 _args, _ = _parser.parse_known_args()
 CHAIN_ID       = _args.chain_id
 AGGREGATE_ONLY = _args.aggregate_only
@@ -86,10 +96,8 @@ pyro.set_rng_seed(RANDOM_SEED)
 
 PERCENT      = 50                        # param range +/-% used in HM # change
 root = "." # change
-EMULATOR_DIR = f"Emulator_wave_5"     # GP emulators from last refitted wave # change
-if not os.path.isdir(EMULATOR_DIR) and os.path.isdir("Emulator_wave_5"):
-    EMULATOR_DIR = "Wave_5"
-out_dir = f"MCMC_Union_{PERCENT}_16_05_3000_logspline_copula_prior"
+EMULATOR_DIR = f"Emulator_union_wave"     # GP emulators from last refitted wave # change
+out_dir = f"MCMC_Union_{PERCENT}_22_05_logspline_copula_prior"
 os.makedirs(out_dir, exist_ok=True)
 
 
@@ -134,6 +142,141 @@ if AGGREGATE_ONLY and CHAIN_ID >= 0:
     raise ValueError("--aggregate-only and --chain-id are mutually exclusive")
 if CHAIN_ID < -1 or CHAIN_ID >= N_CHAINS:
     raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
+if _args.threads_per_chain is not None and _args.threads_per_chain < 1:
+    raise ValueError(
+        f"--threads-per-chain must be >= 1, got {_args.threads_per_chain}"
+    )
+
+
+def _parallel_worker_env(n_chains, threads_per_chain):
+    """Environment for concurrent chain subprocesses on Linux/HPC nodes."""
+    env = os.environ.copy()
+    if threads_per_chain is None:
+        threads_per_chain = max(1, (os.cpu_count() or n_chains) // max(n_chains, 1))
+        override = False
+    else:
+        override = True
+
+    thread_vars = (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "TORCH_NUM_THREADS",
+        "LOKY_MAX_CPU_COUNT",
+    )
+    for name in thread_vars:
+        if override:
+            env[name] = str(threads_per_chain)
+        else:
+            env.setdefault(name, str(threads_per_chain))
+    return env, threads_per_chain
+
+
+def _mcmc_driver_args():
+    return []
+
+
+def _run_parallel_chains_and_aggregate():
+    """Default no-arg driver: run one subprocess per chain, then aggregate."""
+    script_path = os.path.abspath(__file__)
+    run_cwd = os.getcwd()
+    env, threads_per_chain = _parallel_worker_env(
+        N_CHAINS, _args.threads_per_chain
+    )
+
+    print("  Mode: PARALLEL DRIVER (one subprocess per chain)", flush=True)
+    print(
+        f"Launching {N_CHAINS} chain workers concurrently "
+        f"({threads_per_chain} CPU thread(s) per worker by default).",
+        flush=True,
+    )
+    print(f"Worker logs will be written to {os.path.abspath(out_dir)}", flush=True)
+
+    workers = []
+    try:
+        for c in range(N_CHAINS):
+            log_path = os.path.abspath(os.path.join(out_dir, f"chain_{c}.log"))
+            log_file = open(log_path, "w", buffering=1)
+            cmd = [
+                sys.executable,
+                script_path,
+                "--chain-id", str(c),
+                "--n-chains", str(N_CHAINS),
+                *_mcmc_driver_args(),
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=run_cwd,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            workers.append((c, proc, log_path, log_file))
+            print(f"  chain {c}: pid={proc.pid}, log={log_path}", flush=True)
+
+        failed = []
+        for c, proc, log_path, log_file in workers:
+            return_code = proc.wait()
+            log_file.close()
+            if return_code != 0:
+                failed.append((c, return_code, log_path))
+            else:
+                print(f"  chain {c}: complete", flush=True)
+    except KeyboardInterrupt:
+        print("\nInterrupted; terminating chain workers...", flush=True)
+        for _, proc, _, log_file in workers:
+            if proc.poll() is None:
+                proc.terminate()
+            log_file.close()
+        raise
+
+    if failed:
+        print("\nOne or more chain workers failed:", flush=True)
+        for c, return_code, log_path in failed:
+            print(
+                f"  chain {c}: exit code {return_code}; see {log_path}",
+                flush=True,
+            )
+        sys.exit(1)
+
+    aggregate_log = os.path.abspath(os.path.join(out_dir, "aggregate.log"))
+    print(f"\nAll chains complete; aggregating results into {out_dir}/", flush=True)
+    print(f"Aggregate log: {aggregate_log}", flush=True)
+    with open(aggregate_log, "w", buffering=1) as log_file:
+        aggregate_return_code = subprocess.call(
+            [
+                sys.executable,
+                script_path,
+                "--aggregate-only",
+                "--n-chains", str(N_CHAINS),
+                *_mcmc_driver_args(),
+            ],
+            cwd=run_cwd,
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+    if aggregate_return_code != 0:
+        print(
+            f"Aggregation failed with exit code {aggregate_return_code}; "
+            f"see {aggregate_log}",
+            flush=True,
+        )
+        sys.exit(aggregate_return_code)
+
+    print("Parallel MCMC run complete.", flush=True)
+    sys.exit(0)
+
+
+if (
+    N_CHAINS > 1
+    and CHAIN_ID < 0
+    and not AGGREGATE_ONLY
+    and not _args.sequential
+):
+    _run_parallel_chains_and_aggregate()
 
 CHAIN_WORKER = CHAIN_ID >= 0
 WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
@@ -153,7 +296,7 @@ EXERCISE_RA_MIN_IDX, EXERCISE_RA_MAX_IDX, EXERCISE_RA_PRE_IDX = 34, 35, 43
 
 ATRIAL_GAUSSIAN_SKIP = (REST_LA_PRE_IDX, REST_RA_PRE_IDX, EXERCISE_LA_PRE_IDX, EXERCISE_RA_PRE_IDX)
 ATRIAL_COV_JITTER = 1e-10
-ATRIAL_RATIO_TARGET = (0.25, 0.0002777)
+ATRIAL_RATIO_TARGET = (0.25, 0.000625)
 
 # Display-only atrial pre-contraction volume targets used in the final
 # posterior-predictive box plot. The likelihood remains defined on the
@@ -1278,7 +1421,7 @@ EXERCISE_RA_PRE_DISPLAY_MEAN, EXERCISE_RA_PRE_DISPLAY_STD = _propagated_vpre_dis
 # CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis) # change
 # ================================================================
 subset_vars_set = {
-        # Rest_only
+    # Rest_only
     'beta2', 'C_jp', 'Cvam_O2_n', 'Emax_la', 'f_ab_max', 'fab_o',
     'fes_inf', 'fes_min', 'fev_inf', 'Io_met', 'Io_sv', 'K2',
     'k_ab', 'kcc_sv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr',
@@ -1288,7 +1431,7 @@ subset_vars_set = {
     # Exercise Only
     'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
     'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P_n_max', 'phi_max',
-    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max',
+    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max', 'C_pa',
 
     # Overlap
     'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_sv', 'E_rs',
@@ -1652,15 +1795,17 @@ print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
       f"norm={grad_check.norm().item():.4f}")
 assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
-# ---------- Multi-chain NUTS (sequential / array-task / aggregate) ----------
-# Three execution modes (see CLI block at top):
-#   1. Default            : run all N_CHAINS sequentially in this process.
-#   2. --chain-id c       : run only chain c, save per-chain output, exit.
-#                           Used by HPC array-job (one task = one chain).
-#   3. --aggregate-only   : skip chains entirely; load chain_z_{c}.npy from
+# ---------- Multi-chain NUTS (parallel driver / sequential / array-task / aggregate) ----------
+# Four execution modes (see CLI block at top):
+#   1. Default            : parent process launches one subprocess per chain,
+#                           then runs --aggregate-only after all workers finish.
+#   2. --sequential       : run all N_CHAINS sequentially in this process.
+#   3. --chain-id c       : run only chain c, save per-chain output, exit.
+#                           Used by the default driver and HPC array jobs.
+#   4. --aggregate-only   : skip chains entirely; load chain_z_{c}.npy from
 #                           out_dir for c in 0..N_CHAINS-1.
 # Posterior samples, split-R-hat and ESS are identical regardless of mode;
-# array-job mode collapses wall time from N_CHAINS x to 1 x per chain.
+# parallel driver / array-job mode collapses wall time from N_CHAINS x to 1 x per chain.
 print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
 print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
 print(f"  target_accept_prob = {TARGET_ACCEPT}")

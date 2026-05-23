@@ -1012,15 +1012,22 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 mean_tensor.shape[0], dtype=torch.bool, device=mean_tensor.device
             )
 
-        # Filter non-physiological emulator predictions before NROY selection:
-        # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
+        # Filter non-physiological emulator predictions before NROY selection.
+        # Require high predictive probability that min atrial volumes are positive.
+        min_volume_positive_probability = 0.95
+
+        def probability_greater_than_zero(mean, var):
+            sd = torch.sqrt(torch.clamp(var, min=1e-12))
+            z = mean / (sd * math.sqrt(2.0))
+            return 0.5 * (1.0 + torch.erf(z))
+
         phys_mask = (
-            (mean_tensor[:, 13] > test_x[:, 201])
-            & (mean_tensor[:, 9] > test_x[:, 203])
+            (probability_greater_than_zero(mean_tensor[:, 13], var_tensor[:, 13]) >= min_volume_positive_probability)
+            & (probability_greater_than_zero(mean_tensor[:, 9], var_tensor[:, 9]) >= min_volume_positive_probability)
             & (mean_tensor[:, 10] > mean_tensor[:, 9])
             & (mean_tensor[:, 14] > mean_tensor[:, 13])
-            & (mean_tensor[:, 38] > test_x[:, 201])
-            & (mean_tensor[:, 34] > test_x[:, 203])
+            & (probability_greater_than_zero(mean_tensor[:, 38], var_tensor[:, 38]) >= min_volume_positive_probability)
+            & (probability_greater_than_zero(mean_tensor[:, 34], var_tensor[:, 34]) >= min_volume_positive_probability)
             & (mean_tensor[:, 35] > mean_tensor[:, 34])
             & (mean_tensor[:, 39] > mean_tensor[:, 38])
             & atrial_ratio_mask
@@ -1036,12 +1043,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         if mask.any():
             min_col_13 = mean_tensor[mask, 13].min()
-            min_col_17 = mean_tensor[mask, 17].min()
-            min_col_18 = mean_tensor[mask, 18].min()
+            min_col_17 = mean_tensor[mask, 34].min()
+            min_col_18 = mean_tensor[mask, 38].min()
 
             print(f"min mean_tensor[:,13] where impl_score < {self.threshold}:", min_col_13.item())
-            print(f"min adjusted mean_tensor[:,17] where impl_score < {self.threshold}:", min_col_17.item())
-            print(f"min adjusted mean_tensor[:,18] where impl_score < {self.threshold}:", min_col_18.item())
+            print(f"min adjusted mean_tensor[:,34] where impl_score < {self.threshold}:", min_col_17.item())
+            print(f"min adjusted mean_tensor[:,38] where impl_score < {self.threshold}:", min_col_18.item())
         else:
             print(f"No NROY samples found below threshold {self.threshold}.")
 

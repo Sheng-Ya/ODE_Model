@@ -33,8 +33,8 @@ observation = {
     "Max RA Volume": (92.4, 380.25),
     "Min LA Volume": (30.6, 84.64),
     "Max LA Volume": (68.3, 306.25),
-    "LA Contraction Volume diff": (0.25, 0.0002777),
-    "RA Contraction Volume diff": (0.25, 0.0002777),
+    "LA Contraction Volume diff": (0.25, 0.000625),
+    "RA Contraction Volume diff": (0.25, 0.000625),
 }
 
 LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
@@ -753,7 +753,7 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join(r"DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa_new_rv_min_pa_gas", "MCMC_Rest_20_18_05_1500_logspline_copula_prior"), # change
+        default=os.path.join(r"DGSM_Rest_Paper\HM_Rest_AGAIN_medium_RA_high_C_pa_new_rv_min_pa_gas", "MCMC_Rest_20_18_05_1500_logspline_copula_prior"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
@@ -778,7 +778,7 @@ def main():
             "prior box. Use 0 to allow exact prior boundaries."
         ),
     )
-    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\HM_Rest_medium_RA_high_C_pa_new_rv_min_pa_gas\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
+    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\HM_Rest_AGAIN_medium_RA_high_C_pa_new_rv_min_pa_gas\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
     p.add_argument("--no-save", action="store_true", help="Print only; do not save outputs.")
     args = p.parse_args()
 

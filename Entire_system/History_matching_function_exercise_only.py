@@ -998,8 +998,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Filter non-physiological emulator predictions before NROY selection:
         # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
         phys_mask = (
-            (mean_tensor[:, 13] > test_x[:, 201])
-            & (mean_tensor[:, 9] > test_x[:, 203])
+            (mean_tensor[:, 13] > 0)
+            & (mean_tensor[:, 9] > 0)
             & (mean_tensor[:, 10] > mean_tensor[:, 9])
             & (mean_tensor[:, 14] > mean_tensor[:, 13])
             & atrial_ratio_mask
@@ -1531,7 +1531,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # if i == 0: # 110599
             #     self.threshold = 3.5 # change
             if i == 1:  # 154081
-                self.threshold = 3.25
+                self.threshold = 3.5
             if i > 1: # 154081
                 self.threshold = 3.0
 

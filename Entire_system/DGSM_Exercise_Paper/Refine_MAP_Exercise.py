@@ -33,8 +33,8 @@ observation = {
     "Max RA Volume": (77.3, 342.25),
     "Min LA Volume": (23.0, 94.09),
     "Max LA Volume": (66.3, 388.09),
-    "LA Contraction Volume diff": (0.25, 0.0002777),
-    "RA Contraction Volume diff": (0.25, 0.0002777),
+    "LA Contraction Volume diff": (0.25, 0.000625),
+    "RA Contraction Volume diff": (0.25, 0.000625),
 }
 
 LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
@@ -420,6 +420,7 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
         total_var = (obs_vars_t + vars_).clamp(min=1e-10)
         z_norm = (obs_means_t - mus) / torch.sqrt(total_var)
         ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
+        target_z_obs = (mus - obs_means_t) / torch.sqrt(obs_vars_t.clamp(min=1e-10))
 
         if residual_corr is not None and output_indices is not None:
             gaussian_mask = torch.ones_like(mus, dtype=torch.bool)
@@ -457,6 +458,16 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
                 + (obs_means_t[ra_pre_idx] - ra_r_mean) ** 2 / ra_total_var
                 + torch.log(ra_total_var)
             )
+            target_z_obs = target_z_obs.clone()
+            target_z_obs[la_pre_idx] = (
+                la_r_mean - obs_means_t[la_pre_idx]
+            ) / torch.sqrt(obs_vars_t[la_pre_idx].clamp(min=1e-10))
+            target_z_obs[ra_pre_idx] = (
+                ra_r_mean - obs_means_t[ra_pre_idx]
+            ) / torch.sqrt(obs_vars_t[ra_pre_idx].clamp(min=1e-10))
+
+        target_excess = torch.relu(torch.abs(target_z_obs) - 1.0)
+        ll = ll - 25.0 * (target_excess ** 2).sum()
 
         if copula is None:
             lp = torch.tensor(0.0, dtype=torch.float32)
@@ -779,7 +790,7 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join("HM_try/run_20260520_183843", "MCMC_start_50_Exercise_Only"), # change
+        default=os.path.join("HM_try/run_20260521_041557", "MCMC_50_no_HM_exercise_only"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
@@ -1072,10 +1083,10 @@ def main():
         ],
 
         'bounds': [
-            [0.028128886172 * lower, 0.028128886172 * upper],  # beta2 [MAP]
-            [98.686027305558 * lower, 98.686027305558 * upper],  # C2 [MAP]
-            [217.468913253282 * lower, 217.468913253282 * upper],  # K2 [MAP]
-            [2.112600215332 * lower, 2.112600215332 * upper],  # a2 [MAP]
+            [0.026056388103 * lower, 0.026056388103 * upper],  # beta2 [MAP]
+            [104.314359039737 * lower, 104.314359039737 * upper],  # C2 [MAP]
+            [221.095091804686 * lower, 221.095091804686 * upper],  # K2 [MAP]
+            [1.45760013289 * lower, 1.45760013289 * upper],  # a2 [MAP]
             [0.05591 * lower, 0.05591 * upper],
             [346000 * lower, 346000 * upper],
             [0.1698 * lower, 0.1698 * upper],
@@ -1083,20 +1094,20 @@ def main():
             [1 * lower, 1 * upper],
             [0.2025 * lower, 0.2025 * upper],
             [0.00000000472 * lower, 0.00000000472 * upper],
-            [0.138409845242 * lower, 0.138409845242 * upper],  # V0_dead [MAP]
+            [0.190316563756 * lower, 0.190316563756 * upper],  # V0_dead [MAP]
             [0.0673 * lower, 0.0673 * upper],
-            [24.9622934977 * lower, 24.9622934977 * upper],  # E_rs [MAP]
-            [2.617339253117 * lower, 2.617339253117 * upper],  # R_rs [MAP]
-            [3.276917493802 * lower, 3.276917493802 * upper],  # C_jp [MAP]
+            [24.914957306103 * lower, 24.914957306103 * upper],  # E_rs [MAP]
+            [3.621416064005 * lower, 3.621416064005 * upper],  # R_rs [MAP]
+            [3.150315009113 * lower, 3.150315009113 * upper],  # C_jp [MAP]
             [0.28 * lower, 0.28 * upper],
             [0.00022 * lower, 0.00022 * upper],
-            [0.052276641363 * lower, 0.052276641363 * upper],  # R_sa [MAP]
+            [0.069297821233 * lower, 0.069297821233 * upper],  # R_sa [MAP]
             [9.4 * lower, 9.4 * upper],
             [10.71 * lower, 10.71 * upper],
             [20 * lower, 20 * upper],
             [3.57 * lower, 3.57 * upper],
             [6.28 * lower, 6.28 * upper],
-            [52.360166668329 * lower, 52.360166668329 * upper],  # C_sv [MAP]
+            [53.700745884199 * lower, 53.700745884199 * upper],  # C_sv [MAP]
             [24.17 * lower, 24.17 * upper],
             [10 * lower, 10 * upper],
             [0.0833 * lower, 0.0833 * upper],
@@ -1109,38 +1120,38 @@ def main():
             [0.3855 * lower, 0.3855 * upper],
             [50 * lower, 50 * upper],
             [10000 * lower, 10000 * upper],
-            [0.02152115199 * lower, 0.02152115199 * upper],  # Rvc_n [MAP]
+            [0.020008843735 * lower, 0.020008843735 * upper],  # Rvc_n [MAP]
             [5.85 * lower, 5.85 * upper],
             [5.8 * lower, 5.8 * upper],
             [25.37 * lower, 25.37 * upper],
             [0.00018 * lower, 0.00018 * upper],
-            [0.026124878653 * lower, 0.026124878653 * upper],  # R_pa [MAP]
-            [0.071545017892 * lower, 0.071545017892 * upper],  # R_pp [MAP]
+            [0.018414673946 * lower, 0.018414673946 * upper],  # R_pa [MAP]
+            [0.071550840611 * lower, 0.071550840611 * upper],  # R_pp [MAP]
             [0.0056 * lower, 0.0056 * upper],
-            [0.377605089684 * lower, 0.377605089684 * upper],  # Emax_la [MAP]
-            [0.539762064629 * lower, 0.539762064629 * upper],  # P0_la [MAP]
-            [0.399635672188 * lower, 0.399635672188 * upper],  # Emax_ra [MAP]
-            [0.505092990017 * lower, 0.505092990017 * upper],  # P0_ra [MAP]
-            [0.056677565473 * lower, 0.056677565473 * upper],  # KE_la [MAP]
-            [0.056603285263 * lower, 0.056603285263 * upper],  # KE_ra [MAP]
-            [1.339029184488 * lower, 1.339029184488 * upper],  # P0_lv [MAP]
-            [1.726056390733 * lower, 1.726056390733 * upper],  # P0_rv [MAP]
-            [0.04 * 0.8, 0.04 * 1.2],
-            [22.265451555023 * lower, 22.265451555023 * upper],  # fab_o [MAP]
-            [18.218922112121 * lower, 18.218922112121 * upper],  # fes_o [MAP]
-            [2.380337872283 * lower, 2.380337872283 * upper],  # fes_inf [MAP]
+            [0.539484450273 * lower, 0.539484450273 * upper],  # Emax_la [MAP]
+            [0.539711575691 * lower, 0.539711575691 * upper],  # P0_la [MAP]
+            [0.383211426561 * lower, 0.383211426561 * upper],  # Emax_ra [MAP]
+            [0.539669442011 * lower, 0.539669442011 * upper],  # P0_ra [MAP]
+            [0.057486653259 * lower, 0.057486653259 * upper],  # KE_la [MAP]
+            [0.040029311567 * lower, 0.040029311567 * upper],  # KE_ra [MAP]
+            [1.442044484136 * lower, 1.442044484136 * upper],  # P0_lv [MAP]
+            [1.2459103951 * lower, 1.2459103951 * upper],  # P0_rv [MAP]
+            [0.04 * lower, 0.04 * upper],
+            [20.015768519964 * lower, 20.015768519964 * upper],  # fab_o [MAP]
+            [18.538774839743 * lower, 18.538774839743 * upper],  # fes_o [MAP]
+            [1.819256530955 * lower, 1.819256530955 * upper],  # fes_inf [MAP]
             [80 * lower, 80 * upper],
-            [2.731738871452 * lower, 2.731738871452 * upper],  # fev_o [MAP]
-            [7.192889356083 * lower, 7.192889356083 * upper],  # fev_inf [MAP]
-            [0.058714931159 * lower, 0.058714931159 * upper],  # kes [MAP]
+            [2.737077669881 * lower, 2.737077669881 * upper],  # fev_o [MAP]
+            [5.491207566281 * lower, 5.491207566281 * upper],  # fev_inf [MAP]
+            [0.059948847087 * lower, 0.059948847087 * upper],  # kes [MAP]
             [7.06 * lower, 7.06 * upper],
             [0.658 * lower, 0.658 * upper],
             [0.65 * lower, 0.65 * upper],
-            [0.387442873016 * lower, 0.387442873016 * upper],  # Io_sv [MAP]
+            [0.382454133527 * lower, 0.382454133527 * upper],  # Io_sv [MAP]
             [0.126 * lower, 0.126 * upper],
             [0.114 * lower, 0.114 * upper],
             [0.13 * lower, 0.13 * upper],
-            [0.075391340744 * lower, 0.075391340744 * upper],  # kcc_sv [MAP]
+            [0.073914097993 * lower, 0.073914097993 * upper],  # kcc_sv [MAP]
             [0.0162 * lower, 0.0162 * upper],
             [9 * lower, 9 * upper],
             [-0.0283 * upper, -0.0283 * lower],
@@ -1151,9 +1162,9 @@ def main():
             [1.9 * lower, 1.9 * upper],
             [-0.0008 * upper, -0.0008 * lower],
             [-0.68 * upper, -0.68 * lower],
-            [-1.736708705976 * upper, -1.736708705976 * lower],  # Wb_sh [MAP]
+            [-1.98712918802 * upper, -1.98712918802 * lower],  # Wb_sh [MAP]
             [-1.1375 * upper, -1.1375 * lower],
-            [-0.981441628267 * upper, -0.981441628267 * lower],  # Wb_sv [MAP]
+            [-0.960143990803 * upper, -0.960143990803 * lower],  # Wb_sv [MAP]
             [1 * lower, 1 * upper],
             [1.716 * lower, 1.716 * upper],
             [1.716 * lower, 1.716 * upper],
@@ -1165,9 +1176,9 @@ def main():
             [0.4 * lower, 0.4 * upper],
             [0.4 * lower, 0.4 * upper],
             [0.4 * lower, 0.4 * upper],
-            [2.140324085081 * lower, 2.140324085081 * upper],  # Emax_lv0 [MAP]
-            [1.211920888108 * lower, 1.211920888108 * upper],  # Emax_rv0 [MAP]
-            [2.294737349681 * lower, 2.294737349681 * upper],  # fes_min [MAP]
+            [2.666380393754 * lower, 2.666380393754 * upper],  # Emax_lv0 [MAP]
+            [1.390021697651 * lower, 1.390021697651 * upper],  # Emax_rv0 [MAP]
+            [3.189025830605 * lower, 3.189025830605 * upper],  # fes_min [MAP]
             [0.475 * lower, 0.475 * upper],
             [0.282 * lower, 0.282 * upper],
             [2.47 * lower, 2.47 * upper],
@@ -1192,15 +1203,15 @@ def main():
             [30 * lower, 30 * upper],
             [3.6 * lower, 3.6 * upper],
             [13.32 * lower, 13.32 * upper],
-            [11.439319151118 * lower, 11.439319151118 * upper],  # theta_svn [MAP]
+            [11.458386800796 * lower, 11.458386800796 * upper],  # theta_svn [MAP]
             [53 * lower, 53 * upper],
             [6 * lower, 6 * upper],
             [6 * lower, 6 * upper],
-            [34.285802585415 * 0.8, 34.285802585415 * 1.2],  # PaCO2_n [MAP]
-            [45.884608749171 * lower, 45.884608749171 * upper],  # f_ab_max [MAP]
+            [32.617140230052 * lower, 32.617140230052 * upper],  # PaCO2_n [MAP]
+            [38.255264072196 * lower, 38.255264072196 * upper],  # f_ab_max [MAP]
             [2.52 * lower, 2.52 * upper],
-            [10.34115989836 * lower, 10.34115989836 * upper],  # k_ab [MAP]
-            [93.207195116882 * lower, 93.207195116882 * 1.05],  # P_n [MAP]
+            [10.652774100123 * lower, 10.652774100123 * upper],  # k_ab [MAP]
+            [83.075364716124 * lower, 83.075364716124 * 1.05],  # P_n [MAP]
             [112 * 0.9, 112 * upper],
             [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper],
@@ -1209,16 +1220,16 @@ def main():
             [3 * lower, 3 * upper],
             [45 * lower, 45 * upper],
             [11.76 * lower, 11.76 * upper],
-            [-0.148817315305 * upper, -0.148817315305 * lower],  # GT_s [MAP]
-            [0.101747481016 * lower, 0.101747481016 * upper],  # GT_v [MAP]
-            [0.596627550099 * lower, 0.596627550099 * upper],  # T0 [MAP]
+            [-0.104052194839 * upper, -0.104052194839 * lower],  # GT_s [MAP]
+            [0.075051827744 * lower, 0.075051827744 * upper],  # GT_v [MAP]
+            [0.493091533616 * lower, 0.493091533616 * upper],  # T0 [MAP]
             [20.9 * lower, 20.9 * upper],
             [92.8 * lower, 92.8 * upper],
             [10570 * lower, 10570 * upper],
             [-5.251 * upper, -5.251 * lower],
             [0.14 * lower, 0.14 * upper],
             [10 * lower, 10 * upper],
-            [1.043329600998 * lower, 1.043329600998 * upper],  # MO2_bp [MAP]
+            [0.740470614424 * lower, 0.740470614424 * upper],  # MO2_bp [MAP]
             [6.57 * lower, 6.57 * upper],
             [0.11 * lower, 0.11 * upper],
             [0.155 * lower, 0.155 * upper],
@@ -1230,11 +1241,11 @@ def main():
             [0.86 * lower, 0.86 * upper],
             [19.71 * lower, 19.71 * upper],
             [12660 * lower, 12660 * upper],
-            [0.176437135914 * lower, 0.176437135914 * upper],  # Cvam_O2_n [MAP]
+            [0.135218326531 * lower, 0.135218326531 * upper],  # Cvam_O2_n [MAP]
             [30 * lower, 30 * upper],
             [40 * lower, 40 * upper],
-            [0.364224033684 * lower, 0.364224033684 * upper],  # Io_met [MAP]
-            [0.207486994448 * lower, 0.207486994448 * upper],  # kmet [MAP]
+            [0.341510756868 * lower, 0.341510756868 * upper],  # Io_met [MAP]
+            [0.149970059492 * lower, 0.149970059492 * upper],  # kmet [MAP]
             [0.516 * lower, 0.516 * upper],
             [20 * lower, 20 * upper],
             [-1.87 * upper, -1.87 * lower],
@@ -1246,37 +1257,37 @@ def main():
             [1200 * lower, 1200 * upper],
             [200 * lower, 200 * upper],
             [2 * lower, 2 * upper],
-            [3.85395429664 * lower, 3.85395429664 * upper],  # Kv_mi [MAP]
+            [4.197484149057 * lower, 4.197484149057 * upper],  # Kv_mi [MAP]
             [1.309 * lower, 1.309 * upper],
             [2000 * lower, 2000 * upper],
             [2000 * lower, 2000 * upper],
             [2 * lower, 2 * upper],
-            [5.920354651805 * lower, 5.920354651805 * upper],  # Kv_po [MAP]
+            [8.082182497661 * lower, 8.082182497661 * upper],  # Kv_po [MAP]
             [1.309 * lower, 1.309 * upper],
             [2000 * lower, 2000 * upper],
             [200 * lower, 200 * upper],
             [2 * lower, 2 * upper],
-            [2.99930933847 * lower, 2.99930933847 * upper],  # Kv_tr [MAP]
+            [2.802882618089 * lower, 2.802882618089 * upper],  # Kv_tr [MAP]
             [1.309 * lower, 1.309 * upper],
             [0.0000317 * lower, 0.0000317 * upper],
             [350 * lower, 350 * upper],
             [400 * lower, 400 * upper],
             [400 * lower, 400 * upper],
             [350 * lower, 350 * upper],
-            [0.001467256351 * lower, 0.001467256351 * upper],  # C_O2_param1 [MAP]
+            [0.001446768212 * lower, 0.001446768212 * upper],  # C_O2_param1 [MAP]
             [2.6 * lower, 2.6 * upper],
             [0.0000303 * lower, 0.0000303 * upper],
             [104 * lower, 104 * upper],
-            [244.300604572585 * lower, 244.300604572585 * upper],  # Vu_bv [MAP]
+            [247.007713832753 * lower, 247.007713832753 * upper],  # Vu_bv [MAP]
             [93.16 * lower, 93.16 * upper],
-            [513.581916326122 * lower, 513.581916326122 * upper],  # Vu_jp [MAP]
+            [464.099601030366 * lower, 464.099601030366 * upper],  # Vu_jp [MAP]
             [123 * lower, 123 * upper],
             [116.68 * lower, 116.68 * upper],
             [114 * lower, 114 * upper],
-            [20.706126986862 * lower, 20.706126986862 * upper],  # Vu_la [MAP]
-            [18.211277987379 * lower, 18.211277987379 * upper],  # Vu_lv [MAP]
-            [32.226545809855 * lower, 32.226545809855 * upper],  # Vu_ra [MAP]
-            [43.823591328824 * lower, 43.823591328824 * upper],  # Vu_rv [MAP]
+            [28.782795216021 * lower, 28.782795216021 * upper],  # Vu_la [MAP]
+            [18.382176871651 * lower, 18.382176871651 * upper],  # Vu_lv [MAP]
+            [31.978194395465 * lower, 31.978194395465 * upper],  # Vu_ra [MAP]
+            [46.425736923554 * lower, 46.425736923554 * upper],  # Vu_rv [MAP]
             [8 * lower, 8 * upper],
             [8 * lower, 8 * upper],
             [2 * lower, 2 * upper],
@@ -1287,10 +1298,10 @@ def main():
             [20 * lower, 20 * upper],
             [20 * lower, 20 * upper],
             [20 * lower, 20 * upper],
-            [328.89728958731 * lower, 328.89728958731 * upper],  # Vu_amv0 [MAP]
-            [524.205789891646 * lower, 524.205789891646 * upper],  # Vu_ev0 [MAP]
+            [229.299959741592 * lower, 229.299959741592 * upper],  # Vu_amv0 [MAP]
+            [727.971826624144 * lower, 727.971826624144 * upper],  # Vu_ev0 [MAP]
             [190.95 * lower, 190.95 * upper],
-            [1155.334613152734 * lower, 1155.334613152734 * upper],  # Vu_sv0 [MAP]
+            [1163.779935864205 * lower, 1163.779935864205 * upper],  # Vu_sv0 [MAP]
             [20 * lower, 20 * upper],
             [30 * lower, 30 * upper],
             [2.076 * lower, 2.076 * upper],
@@ -1318,8 +1329,8 @@ def main():
             [0.2 * lower, 0.2 * upper],
             [4 * lower, 4 * upper],
             [0.3 * lower, 0.3 * upper],
-            [0.012939074222 * lower, 0.012939074222 * upper],  # KE_lv [MAP]
-            [0.012658121689 * lower, 0.012658121689 * upper],  # KE_rv [MAP]
+            [0.013195593572 * lower, 0.013195593572 * upper],  # KE_lv [MAP]
+            [0.008823078488 * lower, 0.008823078488 * upper],  # KE_rv [MAP]
             [0.1 * lower, 0.1 * upper],
             [0.2 * lower, 0.2 * upper],
             [3 * lower, 3 * upper],
@@ -1335,15 +1346,15 @@ def main():
             [26.6 * lower, 26.6 * upper],
             [0.04 * lower, 0.04 * upper],
             [80 * lower, 80 * upper],
-            [0.05044738931 * lower, 0.05044738931 * upper],  # rise_time_atr [MAP]
-            [0.337807425424 * lower, 0.337807425424 * upper],  # rise_time_ven [MAP]
-            [0.496681422525 * 0.85, 0.496681422525 * 1.15],  # fall_time_ven [MAP]
-            [0.973148107036 * 0.92, 0.973148107036 * 1.08],  # ahead1 [MAP]
+            [0.05165157622 * lower, 0.05165157622 * upper],  # rise_time_atr [MAP]
+            [0.35970683371 * lower, 0.35970683371 * upper],  # rise_time_ven [MAP]
+            [0.501698599678 * 0.85, 0.501698599678 * 1.15],  # fall_time_ven [MAP]
+            [0.84695219825 * 0.92, 0.84695219825 * 1.08],  # ahead1 [MAP]
             [0.0873 * lower, 0.0873 * upper],
-            [1.226419109093 * 0.85, 1.226419109093 * 1.15],  # r [MAP]
-            [1.293670186787 * 0.85, 1.293670186787 * 1.15],  # l [MAP]
-            [156.079753805999 * lower, 156.079753805999 * upper],  # V_nominal [MAP]
-            [42.925020131524 * lower, 42.925020131524 * upper],  # V_scale [MAP]
+            [1.063125062813 * 0.85, 1.063125062813 * 1.15],  # r [MAP]
+            [1.37966131513 * 0.85, 1.37966131513 * 1.15],  # l [MAP]
+            [132.336714485812 * lower, 132.336714485812 * upper],  # V_nominal [MAP]
+            [44.106896806161 * lower, 44.106896806161 * upper],  # V_scale [MAP]
         ]
     })
 

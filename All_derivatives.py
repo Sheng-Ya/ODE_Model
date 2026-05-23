@@ -1032,9 +1032,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    if 60 < t:
-        MRCO2 = 1.2 / 60 - MRBCO2
-        MRO2 = 1.2 / 60 - MRBO2
+    # if 60 < t:
+    #     MRCO2 = 1.2 / 60 - MRBCO2
+    #     MRO2 = 1.2 / 60 - MRBO2
 
     # if 200 < t:
     #     MRCO2 = 1 / 60 - MRBCO2

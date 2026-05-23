@@ -1353,7 +1353,7 @@ observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Dia
 "Max LA Pressure Atrial contraction": (19, 49), "Max LA Pressure Mitral Opening": (19, 64),
 # Atrial entries are active-emptying fractions. The corresponding pre-A
 # display targets are derived below from min/max volume and this fraction.
-"LA Contraction Volume diff": (0.25, 0.0002777), "RA Contraction Volume diff": (0.25, 0.0002777),
+"LA Contraction Volume diff": (0.25, 0.000625), "RA Contraction Volume diff": (0.25, 0.000625),
 "LV Pressure Deriv": (1750, 272484), "RV Pressure Deriv": (713, 12100), "Tidal Volume": (2.22, 0.4096),
 "Minute Ventilation": (62.6, 320.41), "PaO2": (97.2, 36.0), "PaCO2": (38.4, 6.76)}
 

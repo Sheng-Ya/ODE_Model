@@ -137,7 +137,7 @@ sp = ProblemSpec({
         [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
         [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
         [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
-        [0.025 * lower, 0.025 * upper], [0.76 * lower, 0.76 * upper], [5.8 * lower, 5.8 * upper],
+        [0.025 * lower, 0.025 * upper], [5.85 * lower, 5.85 * upper], [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
         [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
         [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
@@ -164,7 +164,7 @@ sp = ProblemSpec({
         [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
         [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
         [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
+        [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.15], [120 * 0.9, 120 * upper], [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
         [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
         [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
@@ -184,7 +184,7 @@ sp = ProblemSpec({
         [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
         [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-        [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper], # Vu_ra lower
+        [27 * lower, 27 * upper], [38.703 * lower, 38.703 * upper], # Vu_ra lower
 
         [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
         [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
@@ -208,30 +208,6 @@ sp = ProblemSpec({
         [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
 })
 
-Rest_only = {
-    'beta2', 'C_jp', 'Cvam_O2_n', 'Emax_la', 'f_ab_max', 'fab_o',
-    'fes_inf', 'fes_min', 'fev_inf', 'Io_met', 'Io_sv', 'K2',
-    'k_ab', 'kcc_sv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr',
-    'MO2_bp', 'P0_ra', 'P_n', 'rise_time_atr', 'theta_svn',
-    'Vu_amv0', 'Vu_bv', 'Wb_sh', 'Wb_sv'
-}
-
-Exercise_only = {
-    'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
-    'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P_n_max', 'phi_max',
-    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max'
-}
-
-Overlap = {
-    'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_sv', 'E_rs',
-    'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'fall_time_ven',
-    'fes_o', 'fev_o', 'GT_s', 'GT_v', 'KE_la', 'KE_lv',
-    'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
-    'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa',
-    'rise_time_ven', 'Rvc_n', 'T0', 'V0_dead', 'V_nominal',
-    'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra',
-    'Vu_rv', 'Vu_sv0'
-}
 
 Union = {
     # Rest_only
@@ -244,7 +220,7 @@ Union = {
     # Exercise Only
     'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
     'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P_n_max', 'phi_max',
-    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max',
+    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max', 'C_pa',
 
     # Overlap
     'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_sv', 'E_rs',
@@ -260,9 +236,6 @@ Union = {
 
 
 # MUST SORT SO ITS THE SAME ORDER
-subset_Rest_only = [name for name in sp["names"] if name in Rest_only]
-subset_Exercise_only = [name for name in sp["names"] if name in Exercise_only]
-subset_Overlap = [name for name in sp["names"] if name in Overlap]
 subset_vars = [name for name in sp["names"] if name in Union]
 
 
@@ -335,8 +308,8 @@ if __name__ == "__main__":
     # # --- PRE-WAVE: Train initial emulators from hybrid samples ---
     hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
 
-    size = 200000
-    _ = hmw.run_waves(n_waves=5, n_simulations=2048, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    size = 80000
+    _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

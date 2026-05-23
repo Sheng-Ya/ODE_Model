@@ -109,7 +109,7 @@ observation = {
     "Max_LA_Pressure_Atrial_contraction": (13.0, 9.0),
     "Max_LA_Pressure_Mitral_Opening": (12.0, 9.0),
     # Exact propagated pre-A moments implied by
-    #   V_pre = V_min + f * (V_max - V_min),  f ~ N(0.25, 0.0002777)
+    #   V_pre = V_min + f * (V_max - V_min),  f ~ N(0.25, 0.000625)
     "LA_Contraction_Volume_diff": (40.025, 67.253867386),
     "RA_Contraction_Volume_diff": (57.375, 95.071688266),
     "LV_Pressure_Deriv": (1461.0, 146689.0),
