@@ -5,7 +5,7 @@ from Simulator_Union import Simulator
 import copy
 
 # from check import Parameters as trial
-from All_derivatives_njit import model_derivatives
+from Union_Calibration.All_derivatives_njit import model_derivatives
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
 import signal
