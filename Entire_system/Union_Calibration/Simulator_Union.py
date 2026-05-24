@@ -300,6 +300,12 @@ class Simulator(ABC, ValidationMixin):
                 return None
             if result.ndim == 1:
                 result = result.unsqueeze(0)
+            if not torch.isfinite(result).all():
+                self.logger.warning(
+                    "Simulation %d/%d produced non-finite output; dropping",
+                    i + 1, len(x),
+                )
+                return None
             if torch.all(result == 0):
                 self.logger.warning("Simulation %d/%d produced all-zero output; dropping", i + 1, len(x))
                 return None

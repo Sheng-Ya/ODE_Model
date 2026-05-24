@@ -28,6 +28,7 @@ ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
 ATRIAL_RATIO_MIN_PROBABILITY = 0.05
 ATRIAL_RATIO_MC_SAMPLES = 128
 ATRIAL_VOLUME_MIN_PROBABILITY = 0.67
+INVALID_TRAINING_FRACTION = 0.20
 
 # ----------------------------
 # PROBLEM SPECIFICATION
@@ -313,7 +314,7 @@ if __name__ == "__main__":
     # hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
 
     size = 80000
-    _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False, invalid_training_fraction=INVALID_TRAINING_FRACTION)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

@@ -1117,10 +1117,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
             & atrial_volume_ok(rest_pre_ra, 0.0)
             & (mean_tensor[:, rest_max_ra] > mean_tensor[:, rest_min_ra])
             & (mean_tensor[:, rest_max_la] > mean_tensor[:, rest_min_la])
-            & atrial_volume_ok(exercise_min_la, vu_la)
-            & atrial_volume_ok(exercise_min_ra, vu_ra)
-            & atrial_volume_ok(exercise_pre_la, vu_la)
-            & atrial_volume_ok(exercise_pre_ra, vu_ra)
+            & atrial_volume_ok(exercise_min_la, 0.0)
+            & atrial_volume_ok(exercise_min_ra, 0.0)
+            & atrial_volume_ok(exercise_pre_la, 0.0)
+            & atrial_volume_ok(exercise_pre_ra, 0.0)
             & (mean_tensor[:, exercise_max_ra] > mean_tensor[:, exercise_min_ra])
             & (mean_tensor[:, exercise_max_la] > mean_tensor[:, exercise_min_la])
             & atrial_ratio_mask
@@ -1216,6 +1216,21 @@ class HistoryMatchingWorkflow(HistoryMatching):
         finite_mask = torch.isfinite(y).all(dim=1)
         x = x[finite_mask]
         y = y[finite_mask]
+        preserve_atrial_invalid_rows = torch.zeros(y.shape[0], dtype=torch.bool, device=self.device)
+        if y.shape[1] > max(EXERCISE_ATRIAL_VOLUME_COLUMNS):
+            exercise_min_ra = EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]
+            exercise_min_la = EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]
+            exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
+            exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
+            vu_la = x[:, self.vu_la_param_idx].to(device=y.device, dtype=y.dtype)
+            vu_ra = x[:, self.vu_ra_param_idx].to(device=y.device, dtype=y.dtype)
+            preserve_atrial_invalid_rows = (
+                (y[:, ATRIAL_VOLUME_COLUMNS] <= 0).any(dim=1)
+                | (y[:, exercise_min_la] <= vu_la)
+                | (y[:, exercise_pre_la] <= vu_la)
+                | (y[:, exercise_min_ra] <= vu_ra)
+                | (y[:, exercise_pre_ra] <= vu_ra)
+            )
 
         # 3-sigma outlier filter (columnwise)
         if y.shape[0] > 2:
@@ -1231,7 +1246,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 (y[:, varying_cols] >= (col_mean[varying_cols] - 3 * col_std[varying_cols]))
                 & (y[:, varying_cols] <= (col_mean[varying_cols] + 3 * col_std[varying_cols]))
             )
-            row_mask = within.all(dim=1)
+            row_mask = within.all(dim=1) | preserve_atrial_invalid_rows
             x = x[row_mask, :]
             y = y[row_mask, :]
 
@@ -1333,6 +1348,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         scaling_factor: float = 0.1,
         refit_emulator: bool = True,
         refit_on_all_data: bool = True,
+        invalid_training_fraction: float = 0.2,
     ) -> tuple[TensorLike, TensorLike]:
         """
         Run a wave of the history matching workflow.
@@ -1359,6 +1375,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         refit_on_all_data: bool
             Whether to refit the emulator on all available data or just the data
             available from the most recent simulation run. Defaults to True.
+        invalid_training_fraction: float
+            Fraction of each wave's training simulations to draw from RO/invalid
+            candidates so the emulator keeps learning non-physiological boundaries.
 
         Returns
         -------
@@ -1374,9 +1393,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
         logger.debug(msg)
         self._last_wave_train_points = None
 
-        test_parameters_list, impl_scores_list, nroy_parameters_list = (
+        test_parameters_list, impl_scores_list, nroy_parameters_list, invalid_parameters_list, ro_parameters_list = (
             [],
             [],
+            [torch.empty((0, self.simulator.in_dim), device=self.device)],
+            [torch.empty((0, self.simulator.in_dim), device=self.device)],
             [torch.empty((0, self.simulator.in_dim), device=self.device)],
         )
 
@@ -1403,11 +1424,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # print("done getting the impl_score")
             # test parameters is a concatenation of every parameter set from before
             nroy_parameters = self.get_nroy(impl_scores, test_parameters)
+            nroy_mask = self._create_nroy_mask(impl_scores)
+            invalid_mask = torch.all(impl_scores == 4, dim=1)
+            invalid_parameters = test_parameters[invalid_mask]
+            ro_parameters = test_parameters[~nroy_mask & ~invalid_mask]
 
             # print("done getting the nroy from self.get_nroy")
 
             # Store results (test_parameters_list will have as many entries as 200000 * no. of retries)
             nroy_parameters_list.append(nroy_parameters)
+            invalid_parameters_list.append(invalid_parameters)
+            ro_parameters_list.append(ro_parameters)
             test_parameters_list.append(test_parameters)
             impl_scores_list.append(impl_scores)
             nroy_total += nroy_parameters.shape[0]
@@ -1423,9 +1450,33 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # # Next time that call run(), will sample using these NROY points
         self.nroy_samples = torch.cat(nroy_parameters_list, 0)
+        invalid_parameters_all = torch.cat(invalid_parameters_list, 0)
+        ro_parameters_all = torch.cat(ro_parameters_list, 0)
 
-        # Randomly pick at most `n_simulations` parameters from NROY to simulate
-        nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+        # Keep NROY for the calibration cloud, but include RO/invalid candidates in
+        # emulator training so signed atrial-volume failure regions are not forgotten.
+        invalid_training_fraction = max(0.0, min(float(invalid_training_fraction), 0.5))
+        n_invalid_training = int(round(n_simulations * invalid_training_fraction))
+        invalid_training_samples = torch.empty((0, self.simulator.in_dim), device=self.device)
+        if n_invalid_training > 0:
+            if invalid_parameters_all.shape[0] > 0:
+                n_from_invalid = min(n_invalid_training, invalid_parameters_all.shape[0])
+                invalid_training_samples = self.sample_tensor(n_from_invalid, invalid_parameters_all)
+            if invalid_training_samples.shape[0] < n_invalid_training and ro_parameters_all.shape[0] > 0:
+                n_from_ro = min(
+                    n_invalid_training - invalid_training_samples.shape[0],
+                    ro_parameters_all.shape[0],
+                )
+                ro_training_samples = self.sample_tensor(n_from_ro, ro_parameters_all)
+                invalid_training_samples = torch.cat([invalid_training_samples, ro_training_samples], dim=0)
+
+        n_nroy_training = max(0, n_simulations - invalid_training_samples.shape[0])
+        nroy_simulation_samples = self.sample_tensor(n_nroy_training, self.nroy_samples)
+        training_simulation_samples = torch.cat([nroy_simulation_samples, invalid_training_samples], dim=0)
+        print(
+            f"Training simulations: {nroy_simulation_samples.shape[0]} NROY + "
+            f"{invalid_training_samples.shape[0]} RO/invalid boundary samples"
+        )
         # nroy_params = torch.cat(nroy_parameters_list, dim=0)
         #
         # implaus_tensor = torch.cat(impl_scores_list, 0)
@@ -1448,14 +1499,23 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # A = torch.from_numpy(A)
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
-        x, y = self.simulate(nroy_simulation_samples)
-        min_col_13 = y[:, 13].min()
-        min_col_34 = y[:, 34].min()
-        min_col_38 = y[:, 38].min()
-        print(min_col_13, min_col_38, min_col_34)
-
+        x, y = self.simulate(training_simulation_samples)
         if x.shape[0] == 0 or y.shape[0] == 0:
             raise RuntimeError("No valid simulated union targets were produced for emulator training.")
+
+        min_rest_la = y[:, EMULATOR_OUTPUT_INDEX["Rest_Min_LA_Volume"]].min()
+        min_exercise_ra = y[:, EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]].min()
+        min_exercise_la = y[:, EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]].min()
+        min_exercise_pre_ra = y[:, EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]].min()
+        min_exercise_pre_la = y[:, EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]].min()
+        print(
+            "training atrial minima:",
+            min_rest_la,
+            min_exercise_ra,
+            min_exercise_la,
+            min_exercise_pre_ra,
+            min_exercise_pre_la,
+        )
 
         if not refit_emulator:
             return torch.cat(test_parameters_list, 0), torch.cat(impl_scores_list, 0)
@@ -1618,6 +1678,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         resume_wave: bool = False,
         save_wave_artifacts: bool = True,
         wave_artifacts_dir: str = ".",
+        invalid_training_fraction: float = 0.2,
     ) -> list[tuple[TensorLike, TensorLike]]:
         """
         Run multiple waves of the history matching workflow.
@@ -1655,6 +1716,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
             Whether to save per-wave emulator snapshots and `.npy` artifacts.
         wave_artifacts_dir: str
             Directory where per-wave artifacts are written.
+        invalid_training_fraction: float
+            Fraction of wave training simulations reserved for RO/invalid boundary
+            candidates. These are not added to NROY, only to emulator training.
 
         Returns
         -------
@@ -1705,6 +1769,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 scaling_factor=scaling_factor,
                 refit_emulator=refit_emulator,
                 refit_on_all_data=refit_on_all_data,
+                invalid_training_fraction=invalid_training_fraction,
             )
 
             if len(test_x) < n_simulations or len(impl_scores) < n_simulations:
