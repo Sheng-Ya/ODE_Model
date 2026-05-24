@@ -27,6 +27,7 @@ pyro.set_rng_seed(random_seed)
 ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
 ATRIAL_RATIO_MIN_PROBABILITY = 0.05
 ATRIAL_RATIO_MC_SAMPLES = 128
+ATRIAL_VOLUME_MIN_PROBABILITY = 0.67
 
 # ----------------------------
 # PROBLEM SPECIFICATION
@@ -305,6 +306,7 @@ if __name__ == "__main__":
         atrial_ratio_bounds=ATRIAL_RATIO_BOUNDS,
         atrial_ratio_min_probability=ATRIAL_RATIO_MIN_PROBABILITY,
         atrial_ratio_mc_samples=ATRIAL_RATIO_MC_SAMPLES,
+        atrial_volume_min_probability=ATRIAL_VOLUME_MIN_PROBABILITY,
     )
 
     # # --- PRE-WAVE: Train initial emulators from hybrid samples ---

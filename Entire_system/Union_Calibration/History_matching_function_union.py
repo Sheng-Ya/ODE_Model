@@ -105,6 +105,31 @@ EMULATOR_OUTPUT_NAMES = [
             "Exercise_Tidal_Volume", "Exercise_Minute_Ventilation", "Exercise_PaO2", "Exercise_PaCO2",
 ]
 
+EMULATOR_OUTPUT_INDEX = {name: idx for idx, name in enumerate(EMULATOR_OUTPUT_NAMES)}
+REST_ATRIAL_VOLUME_COLUMNS = [
+    EMULATOR_OUTPUT_INDEX[name]
+    for name in [
+        "Rest_Min_RA_Volume",
+        "Rest_Max_RA_Volume",
+        "Rest_Min_LA_Volume",
+        "Rest_Max_LA_Volume",
+        "Rest_Pre_LA_Contraction_Volume",
+        "Rest_Pre_RA_Contraction_Volume",
+    ]
+]
+EXERCISE_ATRIAL_VOLUME_COLUMNS = [
+    EMULATOR_OUTPUT_INDEX[name]
+    for name in [
+        "Exercise_Min_RA_Volume",
+        "Exercise_Max_RA_Volume",
+        "Exercise_Min_LA_Volume",
+        "Exercise_Max_LA_Volume",
+        "Exercise_Pre_LA_Contraction_Volume",
+        "Exercise_Pre_RA_Contraction_Volume",
+    ]
+]
+ATRIAL_VOLUME_COLUMNS = REST_ATRIAL_VOLUME_COLUMNS + EXERCISE_ATRIAL_VOLUME_COLUMNS
+
 
 class HistoryMatching(TorchDeviceMixin):
     r"""
@@ -321,6 +346,18 @@ class HistoryMatching(TorchDeviceMixin):
         return torch.where(denominator.abs() < eps, signed_eps, denominator)
 
     @staticmethod
+    def _probability_greater_than(
+        mean: TensorLike,
+        var: TensorLike,
+        lower_bound: TensorLike | float,
+    ) -> TensorLike:
+        if not torch.is_tensor(lower_bound):
+            lower_bound = torch.full_like(mean, float(lower_bound))
+        sd = torch.sqrt(torch.clamp(var, min=1e-12))
+        z = (mean - lower_bound.to(device=mean.device, dtype=mean.dtype)) / (sd * math.sqrt(2.0))
+        return 0.5 * (1.0 + torch.erf(z))
+
+    @staticmethod
     def generate_param_bounds(
         nroy_x: TensorLike,
         buffer_ratio: float = 0.05,
@@ -391,6 +428,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         atrial_ratio_bounds: tuple[float, float] | None = None,
         atrial_ratio_min_probability: float = 0.0,
         atrial_ratio_mc_samples: int = 128,
+        atrial_volume_min_probability: float = 0.0,
         device: DeviceLike | None = None,
         random_seed: int | None = None,
         log_level: str = "debug",
@@ -433,6 +471,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             Minimum predictive probability required for the ratio to lie in range.
         atrial_ratio_mc_samples: int
             Monte Carlo samples used to propagate emulator uncertainty to the ratio.
+        atrial_volume_min_probability: float
+            Minimum predictive probability that atrial volume constraints are valid.
         device: DeviceLike | None
             The device to use. If None, the default torch device is returned.
         random_seed: int | None
@@ -483,6 +523,9 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.atrial_ratio_bounds = atrial_ratio_bounds
         self.atrial_ratio_min_probability = atrial_ratio_min_probability
         self.atrial_ratio_mc_samples = atrial_ratio_mc_samples
+        self.atrial_volume_min_probability = atrial_volume_min_probability
+        self.vu_la_param_idx = self.simulator.get_parameter_idx("Vu_la")
+        self.vu_ra_param_idx = self.simulator.get_parameter_idx("Vu_ra")
 
     @staticmethod
     def _to_numpy(array: TensorLike | np.ndarray) -> np.ndarray:
@@ -1038,15 +1081,48 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # impl_scores = impl_scores[phys_mask]
 
 
+        rest_min_ra = EMULATOR_OUTPUT_INDEX["Rest_Min_RA_Volume"]
+        rest_max_ra = EMULATOR_OUTPUT_INDEX["Rest_Max_RA_Volume"]
+        rest_min_la = EMULATOR_OUTPUT_INDEX["Rest_Min_LA_Volume"]
+        rest_max_la = EMULATOR_OUTPUT_INDEX["Rest_Max_LA_Volume"]
+        rest_pre_la = EMULATOR_OUTPUT_INDEX["Rest_Pre_LA_Contraction_Volume"]
+        rest_pre_ra = EMULATOR_OUTPUT_INDEX["Rest_Pre_RA_Contraction_Volume"]
+        exercise_min_ra = EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]
+        exercise_max_ra = EMULATOR_OUTPUT_INDEX["Exercise_Max_RA_Volume"]
+        exercise_min_la = EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]
+        exercise_max_la = EMULATOR_OUTPUT_INDEX["Exercise_Max_LA_Volume"]
+        exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
+        exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
+
+        vu_la = test_x[:, self.vu_la_param_idx]
+        vu_ra = test_x[:, self.vu_ra_param_idx]
+        atrial_volume_probability = self.atrial_volume_min_probability
+
+        def atrial_volume_ok(column, lower_bound):
+            if atrial_volume_probability > 0:
+                return (
+                    self._probability_greater_than(
+                        mean_tensor[:, column],
+                        var_tensor[:, column],
+                        lower_bound,
+                    )
+                    >= atrial_volume_probability
+                )
+            return mean_tensor[:, column] > lower_bound
+
         phys_mask = (
-            (mean_tensor[:, 13] > 0)
-            & (mean_tensor[:, 9] > 0)
-            & (mean_tensor[:, 10] > mean_tensor[:, 9])
-            & (mean_tensor[:, 14] > mean_tensor[:, 13])
-            & (mean_tensor[:, 38] > test_x[:, 201])
-            & (mean_tensor[:, 34] > test_x[:, 203])
-            & (mean_tensor[:, 35] > mean_tensor[:, 34])
-            & (mean_tensor[:, 39] > mean_tensor[:, 38])
+            atrial_volume_ok(rest_min_la, 0.0)
+            & atrial_volume_ok(rest_min_ra, 0.0)
+            & atrial_volume_ok(rest_pre_la, 0.0)
+            & atrial_volume_ok(rest_pre_ra, 0.0)
+            & (mean_tensor[:, rest_max_ra] > mean_tensor[:, rest_min_ra])
+            & (mean_tensor[:, rest_max_la] > mean_tensor[:, rest_min_la])
+            & atrial_volume_ok(exercise_min_la, vu_la)
+            & atrial_volume_ok(exercise_min_ra, vu_ra)
+            & atrial_volume_ok(exercise_pre_la, vu_la)
+            & atrial_volume_ok(exercise_pre_ra, vu_ra)
+            & (mean_tensor[:, exercise_max_ra] > mean_tensor[:, exercise_min_ra])
+            & (mean_tensor[:, exercise_max_la] > mean_tensor[:, exercise_min_la])
             & atrial_ratio_mask
             & atrial_ratio_mask_exercise
         )
@@ -1056,13 +1132,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
         mask = self._create_nroy_mask(impl_scores)
 
         if mask.any():
-            min_col_13 = mean_tensor[mask, 13].min()
-            min_col_17 = mean_tensor[mask, 34].min()
-            min_col_18 = mean_tensor[mask, 38].min()
+            min_rest_la = mean_tensor[mask, rest_min_la].min()
+            min_exercise_ra = mean_tensor[mask, exercise_min_ra].min()
+            min_exercise_la = mean_tensor[mask, exercise_min_la].min()
+            min_exercise_pre_ra = mean_tensor[mask, exercise_pre_ra].min()
+            min_exercise_pre_la = mean_tensor[mask, exercise_pre_la].min()
 
-            print(f"min mean_tensor[:,13] where impl_score < {self.threshold}:", min_col_13.item())
-            print(f"min adjusted mean_tensor[:,34] where impl_score < {self.threshold}:", min_col_17.item())
-            print(f"min adjusted mean_tensor[:,38] where impl_score < {self.threshold}:", min_col_18.item())
+            print(f"min predicted Rest_Min_LA_Volume where NROY:", min_rest_la.item())
+            print(f"min predicted Exercise_Min_RA_Volume where NROY:", min_exercise_ra.item())
+            print(f"min predicted Exercise_Min_LA_Volume where NROY:", min_exercise_la.item())
+            print(f"min predicted Exercise_Pre_RA_Contraction_Volume where NROY:", min_exercise_pre_ra.item())
+            print(f"min predicted Exercise_Pre_LA_Contraction_Volume where NROY:", min_exercise_pre_la.item())
         else:
             print(f"No NROY samples found below threshold {self.threshold}.")
 
@@ -1142,7 +1222,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
             col_mean = y.mean(dim=0)
             col_std = y.std(dim=0, unbiased=False)
             within = torch.ones_like(y, dtype=torch.bool)
-            varying_cols = col_std > 0
+            outlier_filter_cols = torch.ones(y.shape[1], dtype=torch.bool, device=self.device)
+            atrial_cols = [col for col in ATRIAL_VOLUME_COLUMNS if col < y.shape[1]]
+            if atrial_cols:
+                outlier_filter_cols[torch.tensor(atrial_cols, device=self.device)] = False
+            varying_cols = (col_std > 0) & outlier_filter_cols
             within[:, varying_cols] = (
                 (y[:, varying_cols] >= (col_mean[varying_cols] - 3 * col_std[varying_cols]))
                 & (y[:, varying_cols] <= (col_mean[varying_cols] + 3 * col_std[varying_cols]))
@@ -1151,8 +1235,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
             x = x[row_mask, :]
             y = y[row_mask, :]
 
-        if self.nroy_samples is not None and y.shape[1] > 38:
-            remove_from_nroy = x[(y[:, 34] < 0) | (y[:, 38] < 0)]
+        if self.nroy_samples is not None and y.shape[1] > max(EXERCISE_ATRIAL_VOLUME_COLUMNS):
+            exercise_min_ra = EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]
+            exercise_min_la = EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]
+            exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
+            exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
+            vu_la = x[:, self.vu_la_param_idx].to(device=y.device, dtype=y.dtype)
+            vu_ra = x[:, self.vu_ra_param_idx].to(device=y.device, dtype=y.dtype)
+            invalid_exercise_atrial = (
+                (y[:, exercise_min_la] <= vu_la)
+                | (y[:, exercise_pre_la] <= vu_la)
+                | (y[:, exercise_min_ra] <= vu_ra)
+                | (y[:, exercise_pre_ra] <= vu_ra)
+            )
+            remove_from_nroy = x[invalid_exercise_atrial]
             if remove_from_nroy.shape[0] > 0:
                 nroy_device = self.nroy_samples.device
                 keep_nroy_mask = torch.ones(

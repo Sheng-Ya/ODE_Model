@@ -756,8 +756,6 @@ class Cardiopulmonary(Simulator):
 
             if self._has_converged(storage_final):
                 break
-        else:
-            print("rest did not meet convergence tolerance before max attempts")
 
         latest_nonzero_index = (storage_final["i"].item() - 1) % BUFFER_LIMIT
         exercise_start_time = storage_final["all_time"][latest_nonzero_index]
@@ -774,7 +772,7 @@ class Cardiopulmonary(Simulator):
             if self._has_converged(storage_final):
                 return torch.cat([result_rest, result_exercise], dim=1)
 
-        print("exercise did not meet convergence tolerance before max attempts")
+        # print("exercise did not meet convergence tolerance before max attempts")
         return torch.cat([result_rest, result_exercise], dim=1)
 
 
