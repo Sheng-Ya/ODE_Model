@@ -448,8 +448,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         theta_ao = theta_min
 
     # Compute area ratio with smooth transition
-    AR_ao = ((1 - math.cos(theta_ao)) ** 2) / ((1 - math.cos(theta_ao_max)) ** 2)
-    # AR_ao = ((1 - math.cos(theta_ao - theta_min)) ** 2) / ((1 - math.cos(theta_ao_max - theta_min)) ** 2)
+    # AR_ao = ((1 - math.cos(theta_ao)) ** 2) / ((1 - math.cos(theta_ao_max)) ** 2)
+    AR_ao = ((1 - math.cos(theta_ao - theta_min)) ** 2) / ((1 - math.cos(theta_ao_max - theta_min)) ** 2)
 
     # Flow with smooth transition
     Q_lv = valve_signal * (math.sqrt(np.maximum(P_lv - P_sa, 0)) * AR_ao * R_ao)
@@ -603,8 +603,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
         theta_mi = theta_min
 
     # Compute area ratio with smooth transition
-    AR_mi = ((1 - math.cos(theta_mi)) ** 2) / ((1 - math.cos(theta_mi_max)) ** 2)
-    # AR_mi = ((1 - math.cos(theta_mi - theta_min)) ** 2) / ((1 - math.cos(theta_mi_max - theta_min)) ** 2)
+    # AR_mi = ((1 - math.cos(theta_mi)) ** 2) / ((1 - math.cos(theta_mi_max)) ** 2)
+    AR_mi = ((1 - math.cos(theta_mi - theta_min)) ** 2) / ((1 - math.cos(theta_mi_max - theta_min)) ** 2)
 
     # Flow with smooth transition
     Qi_lv = valve_signal * (math.sqrt(np.maximum(P_la - P_lv, 0)) * AR_mi * R_mi)
@@ -643,8 +643,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_po = valve_signal * ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
 
     # Compute area ratio with smooth transition
-    AR_po = ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
-    # AR_po = ((1 - math.cos(theta_po - theta_min)) ** 2) / ((1 - math.cos(theta_po_max - theta_min)) ** 2)
+    # AR_po = ((1 - math.cos(theta_po)) ** 2) / ((1 - math.cos(theta_po_max)) ** 2)
+    AR_po = ((1 - math.cos(theta_po - theta_min)) ** 2) / ((1 - math.cos(theta_po_max - theta_min)) ** 2)
     # Flow with smooth transition
     Q_rv = valve_signal * (math.sqrt(np.maximum(P_rv - P_pa, 0)) * AR_po * R_po)
 
@@ -706,8 +706,8 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     AR_tr = valve_signal * ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
 
     # # Compute area ratio with smooth transition
-    AR_tr = ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
-    # AR_tr = ((1 - math.cos(theta_tr - theta_min)) ** 2) / ((1 - math.cos(theta_tr_max - theta_min)) ** 2)
+    # AR_tr = ((1 - math.cos(theta_tr)) ** 2) / ((1 - math.cos(theta_tr_max)) ** 2)
+    AR_tr = ((1 - math.cos(theta_tr - theta_min)) ** 2) / ((1 - math.cos(theta_tr_max - theta_min)) ** 2)
 
     # Flow with smooth transition
     Qi_rv = valve_signal * (math.sqrt(np.maximum(P_ra - P_rv, 0)) * AR_tr * R_tr)
