@@ -1,11 +1,18 @@
 import numpy as np
 import torch
 from SALib import ProblemSpec
+from pathlib import Path
+import sys
+
+PARENT_DIR = Path(__file__).resolve().parents[1]
+if str(PARENT_DIR) not in sys.path:
+    sys.path.append(str(PARENT_DIR))
+
 from Simulator_Union import Simulator
 import copy
 
 # from check import Parameters as trial
-from Union_Calibration.All_derivatives_njit import model_derivatives
+from All_derivatives_njit import model_derivatives
 from scipy.optimize import minimize
 from Resp_Control_Breath_Optimiser import objective
 import signal

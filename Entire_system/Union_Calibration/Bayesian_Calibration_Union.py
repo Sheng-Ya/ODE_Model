@@ -3,6 +3,7 @@ import warnings
 import joblib
 import numpy as np
 import pyro
+from pathlib import Path
 from multiprocessing import resource_tracker
 # Prevent the resource tracker from complaining about shared memory cleanup
 resource_tracker._resource_tracker._STOP = True
@@ -258,7 +259,8 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # LOAD EMULATOR
 # ----------------------------
 # change (emulator for rest/exercise)
-Heart_Rate_emulator = joblib.load("Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
+PARENT_DIR = Path(__file__).resolve().parents[1]
+Heart_Rate_emulator = joblib.load(PARENT_DIR / "Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
 
 # # Exercise (second is variance, not standard deviation)
 observation = {
@@ -306,7 +308,7 @@ if __name__ == "__main__":
     )
 
     # # --- PRE-WAVE: Train initial emulators from hybrid samples ---
-    hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+    # hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
 
     size = 80000
     _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)

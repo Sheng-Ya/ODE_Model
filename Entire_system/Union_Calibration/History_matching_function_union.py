@@ -1012,30 +1012,44 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 mean_tensor.shape[0], dtype=torch.bool, device=mean_tensor.device
             )
 
-        # Filter non-physiological emulator predictions before NROY selection.
-        # Require high predictive probability that min atrial volumes are positive.
-        min_volume_positive_probability = 0.95
+        # # Filter non-physiological emulator predictions before NROY selection.
+        # # Require high predictive probability that min atrial volumes are positive.
+        # min_volume_positive_probability = 0.67
+        #
+        # def probability_greater_than_zero(mean, var):
+        #     sd = torch.sqrt(torch.clamp(var, min=1e-12))
+        #     z = mean / (sd * math.sqrt(2.0))
+        #     return 0.5 * (1.0 + torch.erf(z))
+        #
+        # phys_mask = (
+        #     (probability_greater_than_zero(mean_tensor[:, 13], var_tensor[:, 13]) >= min_volume_positive_probability)
+        #     & (probability_greater_than_zero(mean_tensor[:, 9], var_tensor[:, 9]) >= min_volume_positive_probability)
+        #     & (mean_tensor[:, 10] > mean_tensor[:, 9])
+        #     & (mean_tensor[:, 14] > mean_tensor[:, 13])
+        #     & (probability_greater_than_zero(mean_tensor[:, 38], var_tensor[:, 38]) >= min_volume_positive_probability)
+        #     & (probability_greater_than_zero(mean_tensor[:, 34], var_tensor[:, 34]) >= min_volume_positive_probability)
+        #     & (mean_tensor[:, 35] > mean_tensor[:, 34])
+        #     & (mean_tensor[:, 39] > mean_tensor[:, 38])
+        #     & atrial_ratio_mask
+        #     & atrial_ratio_mask_exercise
+        # )
+        # test_x = test_x[phys_mask]
+        # mean_tensor = mean_tensor[phys_mask]
+        # impl_scores = impl_scores[phys_mask]
 
-        def probability_greater_than_zero(mean, var):
-            sd = torch.sqrt(torch.clamp(var, min=1e-12))
-            z = mean / (sd * math.sqrt(2.0))
-            return 0.5 * (1.0 + torch.erf(z))
 
         phys_mask = (
-            (probability_greater_than_zero(mean_tensor[:, 13], var_tensor[:, 13]) >= min_volume_positive_probability)
-            & (probability_greater_than_zero(mean_tensor[:, 9], var_tensor[:, 9]) >= min_volume_positive_probability)
+            (mean_tensor[:, 13] > 0)
+            & (mean_tensor[:, 9] > 0)
             & (mean_tensor[:, 10] > mean_tensor[:, 9])
             & (mean_tensor[:, 14] > mean_tensor[:, 13])
-            & (probability_greater_than_zero(mean_tensor[:, 38], var_tensor[:, 38]) >= min_volume_positive_probability)
-            & (probability_greater_than_zero(mean_tensor[:, 34], var_tensor[:, 34]) >= min_volume_positive_probability)
+            & (mean_tensor[:, 38] > test_x[:, 201])
+            & (mean_tensor[:, 34] > test_x[:, 203])
             & (mean_tensor[:, 35] > mean_tensor[:, 34])
             & (mean_tensor[:, 39] > mean_tensor[:, 38])
             & atrial_ratio_mask
             & atrial_ratio_mask_exercise
         )
-        # test_x = test_x[phys_mask]
-        # mean_tensor = mean_tensor[phys_mask]
-        # impl_scores = impl_scores[phys_mask]
 
         impl_scores[~phys_mask] = 4
 
@@ -1136,6 +1150,22 @@ class HistoryMatchingWorkflow(HistoryMatching):
             row_mask = within.all(dim=1)
             x = x[row_mask, :]
             y = y[row_mask, :]
+
+        if self.nroy_samples is not None and y.shape[1] > 38:
+            remove_from_nroy = x[(y[:, 34] < 0) | (y[:, 38] < 0)]
+            if remove_from_nroy.shape[0] > 0:
+                nroy_device = self.nroy_samples.device
+                keep_nroy_mask = torch.ones(
+                    self.nroy_samples.shape[0], dtype=torch.bool, device=nroy_device
+                )
+                for rejected in remove_from_nroy:
+                    rejected = rejected.to(nroy_device)
+                    matches = torch.where(
+                        keep_nroy_mask & torch.all(self.nroy_samples == rejected, dim=1)
+                    )[0]
+                    if matches.numel() > 0:
+                        keep_nroy_mask[matches] = False
+                self.nroy_samples = self.nroy_samples[keep_nroy_mask]
 
         self.train_y = y
         self.train_x = x
@@ -1323,6 +1353,10 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
+        min_col_13 = y[:, 13].min()
+        min_col_34 = y[:, 34].min()
+        min_col_38 = y[:, 38].min()
+        print(min_col_13, min_col_38, min_col_34)
 
         if x.shape[0] == 0 or y.shape[0] == 0:
             raise RuntimeError("No valid simulated union targets were produced for emulator training.")
