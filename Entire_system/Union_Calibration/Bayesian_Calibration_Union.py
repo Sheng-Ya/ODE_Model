@@ -9,7 +9,11 @@ from multiprocessing import resource_tracker
 resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
-from History_matching_function_union import HistoryMatchingWorkflow, RAW_SIMULATION_OUTPUT_NAMES
+from History_matching_function_union import (
+    ATRIAL_MARGIN_OUTPUT_NAME,
+    HistoryMatchingWorkflow,
+    RAW_SIMULATION_OUTPUT_NAMES,
+)
 from AutoEmulate_Simulator_Union import Cardiopulmonary
 
 # ----------------------------
@@ -22,13 +26,15 @@ random_seed = 42
 set_random_seed(random_seed)
 pyro.set_rng_seed(random_seed)
 
-# Treat atrial contraction as a physiologic interval constraint rather than a
-# point target for columns 17/18.
+# Treat atrial contraction as a physiologic interval constraint and use a
+# separate signed-margin emulator for exercise atrial validity.
 ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
 ATRIAL_RATIO_MIN_PROBABILITY = 0.05
 ATRIAL_RATIO_MC_SAMPLES = 128
 ATRIAL_VOLUME_MIN_PROBABILITY = 0.67
-INVALID_TRAINING_FRACTION = 0.20
+ATRIAL_MARGIN_MIN_PROBABILITY = 0.95
+ATRIAL_MARGIN_CLIP_BOUNDS = (-20.0, 80.0)
+PRE_WAVE_N_SIMULATIONS = 4096
 
 # ----------------------------
 # PROBLEM SPECIFICATION
@@ -308,13 +314,21 @@ if __name__ == "__main__":
         atrial_ratio_min_probability=ATRIAL_RATIO_MIN_PROBABILITY,
         atrial_ratio_mc_samples=ATRIAL_RATIO_MC_SAMPLES,
         atrial_volume_min_probability=ATRIAL_VOLUME_MIN_PROBABILITY,
+        atrial_margin_min_probability=ATRIAL_MARGIN_MIN_PROBABILITY,
+        atrial_margin_clip_bounds=ATRIAL_MARGIN_CLIP_BOUNDS,
     )
 
-    # # --- PRE-WAVE: Train initial emulators from hybrid samples ---
-    # hmw.pre_wave_train_emulators(n_simulations=4096, refit_on_all_data=False)
+    initial_margin_emulator = (
+        Path("Emulator_union_initial")
+        / ATRIAL_MARGIN_OUTPUT_NAME
+        / f"GaussianProcessMatern32_{ATRIAL_MARGIN_OUTPUT_NAME}_best.joblib"
+    )
+    if not initial_margin_emulator.exists():
+        print("Initial signed-margin emulator is missing; running pre-wave training.")
+        hmw.pre_wave_train_emulators(n_simulations=PRE_WAVE_N_SIMULATIONS, refit_on_all_data=False)
 
     size = 80000
-    _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False, invalid_training_fraction=INVALID_TRAINING_FRACTION)
+    _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]
