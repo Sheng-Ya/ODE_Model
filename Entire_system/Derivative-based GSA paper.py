@@ -18,10 +18,10 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
-percentage = 90 # change
+percentage = 20 # change
 
-X = np.load('DGSM_500_X_rest_90_14_04.npy') # change
-Result = np.load('DGSM_500_Result_rest_90_14_04.npy') # change
+X = np.load('DGSM_500_X_rest_20_22_05.npy') # change
+Result = np.load('DGSM_Result_rest_20_22_05.npy') # change
 
 # base_idx = np.arange(0, X.shape[0], 273)
 # HR_col = 0
@@ -51,8 +51,12 @@ Result = np.load('DGSM_500_Result_rest_90_14_04.npy') # change
 # X = np.load('DGSM_500_X_rest_50_14_04.npy')
 # Result = np.load('DGSM_500_Result_rest_50_14_04.npy')
 
+# Result0 = np.load(r"X:\home\project\Result_task_20_00_Rest.npy")
+# Result1 = np.load(r"X:\home\project\Result_task_20_01_Rest.npy")
+# Result2 = np.load(r"X:\home\project\Result_task_20_02_Rest.npy")
+# Result3 = np.load(r"X:\home\project\Result_task_20_03_Rest.npy")
 # Result = np.vstack([Result0, Result1, Result2, Result3])
-# np.save("DGSM_500_Result_rest_90_14_04.npy", Result)
+# np.save("DGSM_Result_rest_20_22_05.npy", Result)
 
 lower = 1 - percentage/100
 upper = 1 + percentage/100

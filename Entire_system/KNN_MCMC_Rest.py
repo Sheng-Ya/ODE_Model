@@ -188,7 +188,7 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
-DATE_SUFFIX  = "18_05"                    # matches HM output file names # change
+DATE_SUFFIX  = "24_05"                    # matches HM output file names # change
 PERCENT      = 20                        # param range +/-% used in HM # change
 HM_WAVE_NUMBER = _discover_hm_wave()
 EMULATOR_DIR = os.path.join(HM_ARTIFACTS_DIR, f"Emulator_wave_{HM_WAVE_NUMBER}")     # GP emulators from selected HM wave # change
@@ -1405,8 +1405,8 @@ output_names = [
     "Max_RA_Pressure_Atrial_contraction",
     "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
     "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff",
-    "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
+    "Max_LA_Pressure_Mitral_Opening", "Pre_LA_Contraction_Volume",
+    "Pre_RA_Contraction_Volume", "LV_Pressure_Deriv",
     "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
     "PaO2", "PaCO2",
 ]
@@ -1432,8 +1432,8 @@ observation = {
     "Max LA Volume": (68.3, 306.25),
     "Max LA Pressure Atrial contraction": (13.0, 9.0),
     "Max LA Pressure Mitral Opening": (12.0, 9.0),
-    "LA Contraction Volume diff": (0.25, 0.000625),
-    "RA Contraction Volume diff": (0.25, 0.000625),
+    "Pre LA Contraction Volume": (0.25, 0.0025),
+    "Pre RA Contraction Volume": (0.25, 0.0025),
     "LV Pressure Deriv": (1461.0, 146689.0),
     "RV Pressure Deriv": (271.0, 3025.0),
     "Tidal Volume": (0.850, 0.16),
@@ -1447,33 +1447,29 @@ LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
     observation["Min LA Volume"][1],
     observation["Max LA Volume"][0],
     observation["Max LA Volume"][1],
-    observation["LA Contraction Volume diff"][0],
-    observation["LA Contraction Volume diff"][1],
+    observation["Pre LA Contraction Volume"][0],
+    observation["Pre LA Contraction Volume"][1],
 )
 RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
     observation["Min RA Volume"][0],
     observation["Min RA Volume"][1],
     observation["Max RA Volume"][0],
     observation["Max RA Volume"][1],
-    observation["RA Contraction Volume diff"][0],
-    observation["RA Contraction Volume diff"][1],
+    observation["Pre RA Contraction Volume"][0],
+    observation["Pre RA Contraction Volume"][1],
 )
 
 # ================================================================
 # CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis) # change
 # ================================================================
-subset_vars_set = {
-    'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv',
-    'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0',
-    'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o',
-    'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2',
-    'k_ab', 'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes',
-    'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la',
-    'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp',
-    'R_rs', 'R_sa', 'rise_time_atr', 'rise_time_ven', 'Rvc_n', 'T0',
-    'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
-    'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0',
-    'Wb_sh', 'Wb_sv',
+subset_vars_set = {'a2', 'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_O2_param2', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'E_rs',
+               'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+               'fes_o', 'fev_inf', 'fev_o', 'GEmax_lv', 'GT_s', 'GT_v', 'GV_sv', 'Io_met', 'Io_sv', 'K2', 'k_ab',
+               'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kp_po', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l',
+               'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_po', 'R_pp', 'R_rs', 'R_sa',
+               'rise_time_atr', 'rise_time_ven', 'Rvc_n', 's', 'scale_param1', 'scale_param4', 'T0', 'theta_svn',
+               'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra',
+               'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'
 }
 
 
@@ -1989,8 +1985,7 @@ with torch.no_grad():
 
 # Replace the raw mL predictions at the atrial-diff indices with the derived
 # active-emptying fraction so the predictive table, normalised box plot and
-# saved pred_check_matrix.npy compare directly against the ratio targets
-# stored in obs_means_t / obs_vars_t.
+# saved pred_check_matrix.npy compare against the atrial interval target.
 _la_denom = pred_matrix[:, LA_MAX_IDX] - pred_matrix[:, LA_MIN_IDX]
 _ra_denom = pred_matrix[:, RA_MAX_IDX] - pred_matrix[:, RA_MIN_IDX]
 _la_denom = np.where(np.abs(_la_denom) < 1e-8, np.where(_la_denom >= 0, 1e-8, -1e-8), _la_denom)
@@ -1999,15 +1994,21 @@ pred_matrix[:, LA_PRE_IDX] = (pred_matrix[:, LA_PRE_IDX] - pred_matrix[:, LA_MIN
 pred_matrix[:, RA_PRE_IDX] = (pred_matrix[:, RA_PRE_IDX] - pred_matrix[:, RA_MIN_IDX]) / _ra_denom
 
 print(f"{'Output':<45} {'Mean Pred':>10} {'Std Pred':>10} "
-      f"{'Target':>10} {'% <=1s':>8}")
-print("-" * 90)
+      f"{'Target':>15} {'% ok':>8}")
+print("-" * 95)
 for i, name in enumerate(output_names):
     preds  = pred_matrix[:, i]
-    tgt    = obs_means_t[i].item()
-    std    = obs_stds_t[i].item()
-    within = (np.abs(preds - tgt) <= std).mean() * 100
+    if i in ATRIAL_GAUSSIAN_SKIP:
+        lower, upper = (0.20, 0.30)
+        target = f"[{lower:.2f}, {upper:.2f}]"
+        within = ((preds >= lower) & (preds <= upper)).mean() * 100
+    else:
+        tgt = obs_means_t[i].item()
+        std = obs_stds_t[i].item()
+        target = f"{tgt:.3f}"
+        within = (np.abs(preds - tgt) <= std).mean() * 100
     print(f"{name:<45} {preds.mean():10.3f} {preds.std():10.3f} "
-          f"{tgt:10.3f} {within:7.1f}%")
+          f"{target:>15} {within:7.1f}%")
 
 # ============================================================
 # 7. SAVE RESULTS
@@ -2109,6 +2110,10 @@ config = {
     "percent":         PERCENT,
     # "knn_k":           KNN_K,
     "n_pred_check":    N_PRED_CHECK,
+    "atrial_likelihood": "soft_interval_probability",
+    "atrial_ratio_bounds": list((0.20, 0.30)),
+    "atrial_ratio_display_mean": 0.25,
+    "atrial_ratio_display_var": 0.0025,
     "use_copula_prior":     bool(USE_COPULA_PRIOR and copula_prior_cache is not None),
     "marginal_type":        (copula_prior_cache.get("marginal_type")
                              if copula_prior_cache is not None else None),

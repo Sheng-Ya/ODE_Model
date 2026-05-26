@@ -67,7 +67,7 @@ EMULATOR_OUTPUT_NAMES = [
     "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
     "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
     "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
+    "Max_LA_Pressure_Mitral_Opening", "Pre_LA_Contraction_Volume", "Pre_RA_Contraction_Volume",
     "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
     "PaO2", "PaCO2",
 ]
@@ -962,8 +962,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # Filter non-physiological emulator predictions before NROY selection:
         # col 13 = Min_LA_Volume > Vu_la (param 201), col 9 = Min_RA_Volume > Vu_ra (param 203)
         phys_mask = (
-            (mean_tensor[:, 13] > test_x[:, 201])
-            & (mean_tensor[:, 9] > test_x[:, 203])
+            (mean_tensor[:, 13] > 10)
+            & (mean_tensor[:, 9] > 10)
             & (mean_tensor[:, 10] > mean_tensor[:, 9])
             & (mean_tensor[:, 14] > mean_tensor[:, 13])
             & atrial_ratio_mask

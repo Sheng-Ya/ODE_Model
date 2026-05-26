@@ -6,53 +6,21 @@ import os
 import joblib
 import numpy as np
 
-def _propagated_vpre_display_stats(vmin_mean, vmin_var, vmax_mean, vmax_var,
-                                   f_mean, f_var):
-    """Display-only mean/std for V_pre = V_min + f * (V_max - V_min).
+ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
+ATRIAL_INTERVAL_PROB_FLOOR = 1e-12
+ATRIAL_RATIO_DISPLAY_MEAN = 0.5 * (ATRIAL_RATIO_BOUNDS[0] + ATRIAL_RATIO_BOUNDS[1])
+ATRIAL_RATIO_DISPLAY_STD = 0.5 * (ATRIAL_RATIO_BOUNDS[1] - ATRIAL_RATIO_BOUNDS[0])
+ATRIAL_RATIO_DISPLAY_VAR = ATRIAL_RATIO_DISPLAY_STD ** 2
 
-    This mirrors the zero-cross-covariance assumption used by the MCMC
-    observation model: V_min, V_max and the active-emptying fraction f are
-    treated as independent when constructing the display normalisation.
-    """
-    delta_mean = float(vmax_mean) - float(vmin_mean)
-    f_mean = float(f_mean)
-    f_var = float(f_var)
-
-    vpre_mean = float(vmin_mean) + f_mean * delta_mean
-    ef2 = f_mean ** 2 + f_var
-    e1mf2 = (1.0 - f_mean) ** 2 + f_var
-    vpre_var = (
-        e1mf2 * float(vmin_var)
-        + ef2 * float(vmax_var)
-        + f_var * delta_mean ** 2
-    )
-    return vpre_mean, math.sqrt(max(vpre_var, 0.0))
 
 observation = {
     "Min RA Volume": (45.7, 125.44),
     "Max RA Volume": (92.4, 380.25),
     "Min LA Volume": (30.6, 84.64),
     "Max LA Volume": (68.3, 306.25),
-    "LA Contraction Volume diff": (0.25, 0.000625),
-    "RA Contraction Volume diff": (0.25, 0.000625),
+    "Pre RA Contraction Volume": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_VAR),
+    "Pre LA Contraction Volume": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_VAR),
 }
-
-LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Min LA Volume"][0],
-    observation["Min LA Volume"][1],
-    observation["Max LA Volume"][0],
-    observation["Max LA Volume"][1],
-    observation["LA Contraction Volume diff"][0],
-    observation["LA Contraction Volume diff"][1],
-)
-RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Min RA Volume"][0],
-    observation["Min RA Volume"][1],
-    observation["Max RA Volume"][0],
-    observation["Max RA Volume"][1],
-    observation["RA Contraction Volume diff"][0],
-    observation["RA Contraction Volume diff"][1],
-)
 
 
 def _log_det_jac_np(z, prior_lo, prior_hi):
@@ -210,10 +178,10 @@ def _resolve_output_indices(output_names):
     required = {
         "la_min": "Min_LA_Volume",
         "la_max": "Max_LA_Volume",
-        "la_pre": "LA_Contraction_Volume_diff",
+        "la_pre": "Pre_LA_Contraction_Volume",
         "ra_min": "Min_RA_Volume",
         "ra_max": "Max_RA_Volume",
-        "ra_pre": "RA_Contraction_Volume_diff",
+        "ra_pre": "Pre_RA_Contraction_Volume",
     }
     name_to_idx = {str(name): i for i, name in enumerate(output_names)}
     missing = [name for name in required.values() if name not in name_to_idx]
@@ -227,6 +195,31 @@ def _safe_ratio_denominator(x, eps=1e-8):
 
     sign = torch.where(x >= 0, torch.ones_like(x), -torch.ones_like(x))
     return torch.where(x.abs() < eps, sign * eps, x)
+
+
+def _safe_ratio_denominator_np(x, eps=1e-8):
+    x = np.asarray(x, dtype=np.float64)
+    sign = np.where(x >= 0.0, 1.0, -1.0)
+    return np.where(np.abs(x) < eps, sign * eps, x)
+
+
+def _ratio_mean_sd_from_outputs(mean_vec, sd_vec, idx_min, idx_max, idx_pre):
+    """Delta-method ratio mean/sd for plotting raw emulator output columns."""
+    vmin = float(mean_vec[idx_min])
+    vmax = float(mean_vec[idx_max])
+    vpre = float(mean_vec[idx_pre])
+    denom = float(_safe_ratio_denominator_np(vmax - vmin))
+    ratio = (vpre - vmin) / denom
+
+    d_vpre = 1.0 / denom
+    d_vmin = (vpre - vmax) / (denom ** 2)
+    d_vmax = -(vpre - vmin) / (denom ** 2)
+    var = (
+        (d_vmin * float(sd_vec[idx_min])) ** 2
+        + (d_vmax * float(sd_vec[idx_max])) ** 2
+        + (d_vpre * float(sd_vec[idx_pre])) ** 2
+    )
+    return ratio, math.sqrt(max(var, 0.0))
 
 
 def _local_output_covariance(vars_, residual_corr, idxs, jitter=1e-10):
@@ -257,6 +250,17 @@ def _ratio_moments(mean_vec, cov):
     ratio_mean = ratio.mean()
     ratio_var = ((ratio - ratio_mean) ** 2).mean().clamp_min(1e-12)
     return ratio_mean, ratio_var
+
+
+def _normal_interval_log_prob(mean, var, lower, upper):
+    import torch
+
+    sd = torch.sqrt(var.clamp(min=1e-12))
+    inv_scale = 1.0 / (math.sqrt(2.0) * sd)
+    upper_cdf = 0.5 * (1.0 + torch.erf((upper - mean) * inv_scale))
+    lower_cdf = 0.5 * (1.0 + torch.erf((lower - mean) * inv_scale))
+    probability = upper_cdf - lower_cdf
+    return torch.log(probability.clamp_min(ATRIAL_INTERVAL_PROB_FLOOR))
 
 
 def _estimate_residual_corr(gp_caches, output_names):
@@ -450,24 +454,17 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
 
             la_pre_idx = output_indices["la_pre"]
             ra_pre_idx = output_indices["ra_pre"]
-            la_total_var = (obs_vars_t[la_pre_idx] + la_r_var).clamp(min=1e-10)
-            ra_total_var = (obs_vars_t[ra_pre_idx] + ra_r_var).clamp(min=1e-10)
-            ll = ll - 0.5 * (
-                (obs_means_t[la_pre_idx] - la_r_mean) ** 2 / la_total_var
-                + torch.log(la_total_var)
-                + (obs_means_t[ra_pre_idx] - ra_r_mean) ** 2 / ra_total_var
-                + torch.log(ra_total_var)
+            ratio_lower, ratio_upper = ATRIAL_RATIO_BOUNDS
+            ll = ll + (
+                _normal_interval_log_prob(la_r_mean, la_r_var, ratio_lower, ratio_upper)
+                + _normal_interval_log_prob(ra_r_mean, ra_r_var, ratio_lower, ratio_upper)
             )
             target_z_obs = target_z_obs.clone()
-            target_z_obs[la_pre_idx] = (
-                la_r_mean - obs_means_t[la_pre_idx]
-            ) / torch.sqrt(obs_vars_t[la_pre_idx].clamp(min=1e-10))
-            target_z_obs[ra_pre_idx] = (
-                ra_r_mean - obs_means_t[ra_pre_idx]
-            ) / torch.sqrt(obs_vars_t[ra_pre_idx].clamp(min=1e-10))
+            target_z_obs[la_pre_idx] = 0.0
+            target_z_obs[ra_pre_idx] = 0.0
 
-        target_excess = torch.relu(torch.abs(target_z_obs) - 0.98)
-        ll = ll - 25.0 * (target_excess ** 2).sum()
+        target_excess = torch.relu(torch.abs(target_z_obs) - 0.9)
+        ll = ll - 80 * (target_excess ** 2).sum()
 
         if copula is None:
             lp = torch.tensor(0.0, dtype=torch.float32)
@@ -620,32 +617,25 @@ def _plot_vs_targets(run_dir, output_names,
         ra_max = output_indices["ra_max"]
         ra_pre = output_indices["ra_pre"]
 
-        plot_obs_means[la_pre] = LA_PRE_DISPLAY_MEAN
-        plot_obs_means[ra_pre] = RA_PRE_DISPLAY_MEAN
-        plot_obs_stds[la_pre] = LA_PRE_DISPLAY_STD
-        plot_obs_stds[ra_pre] = RA_PRE_DISPLAY_STD
-        short_names[la_pre] = "LA\nPre-A\nVolume"
-        short_names[ra_pre] = "RA\nPre-A\nVolume"
+        plot_obs_means[la_pre] = ATRIAL_RATIO_DISPLAY_MEAN
+        plot_obs_means[ra_pre] = ATRIAL_RATIO_DISPLAY_MEAN
+        plot_obs_stds[la_pre] = ATRIAL_RATIO_DISPLAY_STD
+        plot_obs_stds[ra_pre] = ATRIAL_RATIO_DISPLAY_STD
+        short_names[la_pre] = "LA\nPre-A\nFraction"
+        short_names[ra_pre] = "RA\nPre-A\nFraction"
 
-        if plot_matrix is not None:
-            la_denom = plot_matrix[:, la_max] - plot_matrix[:, la_min]
-            ra_denom = plot_matrix[:, ra_max] - plot_matrix[:, ra_min]
-            la_denom = np.where(
-                np.abs(la_denom) < 1e-8,
-                np.where(la_denom >= 0, 1e-8, -1e-8),
-                la_denom,
-            )
-            ra_denom = np.where(
-                np.abs(ra_denom) < 1e-8,
-                np.where(ra_denom >= 0, 1e-8, -1e-8),
-                ra_denom,
-            )
-            plot_matrix[:, la_pre] = (
-                plot_matrix[:, la_min] + plot_matrix[:, la_pre] * la_denom
-            )
-            plot_matrix[:, ra_pre] = (
-                plot_matrix[:, ra_min] + plot_matrix[:, ra_pre] * ra_denom
-            )
+        sampled_plot_mu[la_pre], sampled_plot_sd[la_pre] = _ratio_mean_sd_from_outputs(
+            sampled_mu, sampled_sd, la_min, la_max, la_pre
+        )
+        sampled_plot_mu[ra_pre], sampled_plot_sd[ra_pre] = _ratio_mean_sd_from_outputs(
+            sampled_mu, sampled_sd, ra_min, ra_max, ra_pre
+        )
+        refined_plot_mu[la_pre], refined_plot_sd[la_pre] = _ratio_mean_sd_from_outputs(
+            refined_mu, refined_sd, la_min, la_max, la_pre
+        )
+        refined_plot_mu[ra_pre], refined_plot_sd[ra_pre] = _ratio_mean_sd_from_outputs(
+            refined_mu, refined_sd, ra_min, ra_max, ra_pre
+        )
 
     fig, ax = plt.subplots(figsize=(max(12, 0.6 * n_out), 6))
 
@@ -753,7 +743,7 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join(r"DGSM_Rest_Paper\HM_Rest_AGAIN_medium_RA_high_C_pa_new_rv_min_pa_gas", "MCMC_Rest_20_18_05_1500_logspline_copula_prior"), # change
+        default=os.path.join(r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper_Final_20", "MCMC_Rest_20_25_05_1500_logspline_copula_prior"), # change
         help="Path to a MCMC_Rest_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
@@ -778,7 +768,7 @@ def main():
             "prior box. Use 0 to allow exact prior boundaries."
         ),
     )
-    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\HM_Rest_AGAIN_medium_RA_high_C_pa_new_rv_min_pa_gas\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
+    p.add_argument("--emulator-dir", default=r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper_Final_20\Emulator_wave_3" , help="Override EMULATOR_DIR from config.json.") # change
     p.add_argument("--no-save", action="store_true", help="Print only; do not save outputs.")
     args = p.parse_args()
 
@@ -1041,7 +1031,7 @@ def main():
             [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
             [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
             [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [112 * 0.9, 112 * upper], [1.4 * lower, 1.4 * upper],
+            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.05], [120 * 0.9, 120 * upper], [1.4 * lower, 1.4 * upper],
             [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
             [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
             [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
@@ -1061,7 +1051,7 @@ def main():
             [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
             [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
             [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-            [24 * lower, 24 * upper], [38.703 * lower, 38.703 * upper],
+            [27 * lower, 27 * upper], [38.703 * lower, 38.703 * upper],
 
             [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
             [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],

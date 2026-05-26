@@ -214,13 +214,15 @@ sp = ProblemSpec({
 })
 
 # # Rest: parameters contribute at least 1% and up to 90% sensitivity for 25 targets
-subset_vars = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
-               'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
-               'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
-               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
-               'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
-               'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
-               'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
+subset_vars = {'a2', 'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_O2_param2', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'E_rs',
+               'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+               'fes_o', 'fev_inf', 'fev_o', 'GEmax_lv', 'GT_s', 'GT_v', 'GV_sv', 'Io_met', 'Io_sv', 'K2', 'k_ab',
+               'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kp_po', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l',
+               'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_po', 'R_pp', 'R_rs', 'R_sa',
+               'rise_time_atr', 'rise_time_ven', 'Rvc_n', 's', 'scale_param1', 'scale_param4', 'T0', 'theta_svn',
+               'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra',
+               'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'
+}
 
 
 # MUST SORT SO ITS THE SAME ORDER
@@ -245,6 +247,8 @@ output_names = [
     "Max_LA_Pressure_Mitral_Opening", "Pre_LA_Contraction_Volume", "Pre_RA_Contraction_Volume", "LV_Pressure_Deriv",
     "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation", "PaO2",
     "PaCO2"]
+
+# A = np.load(r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper_Final_20\MCMC_Rest_20_18_05_1500_logspline_copula_prior\full_param_best_joint_sample.npy")
 
 # ----------------------------
 # LOAD SIMULATOR

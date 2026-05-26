@@ -393,6 +393,16 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     V_heart_peri = VT_la + VT_lv + VT_ra + VT_rv
     P_peri = math.exp(min((V_heart_peri - (Vu_ra + Vu_la + Vu_lv + Vu_rv + V_nominal)) / V_scale, 50))
 
+    # # Pericardial pressure as seen by the atria: use only ventricular contributions.
+    # # The full V_heart_peri spikes during isovolumic ventricular contraction because V_la
+    # # and V_ra grow rapidly via venous return while V_lv and V_rv are frozen; the exponential
+    # # P_peri then transmits that spike to P_ra and P_la, creating the end-of-contraction kink.
+    # # Real physiology buffers this through AV-plane descent (atrial filling is absorbed by
+    # # ventricular geometry change, producing the X descent in the RA waveform), which the
+    # # rigid V_heart_peri form omits. Approximating that by dropping atrial volumes here.
+    # V_heart_peri_a = max(VT_lv - Vu_lv, 0.0) + max(VT_rv - Vu_rv, 0.0)
+    # P_peri_a = math.exp(min((V_heart_peri_a - V_nominal) / V_scale, 50))
+
     # # AV Piston Parameters from Maksuti et al. (2015)
     # Iavp = 2
     # k_avp = 1000.0

@@ -281,92 +281,281 @@ sp = ProblemSpec({
         'V_nominal',
         'V_scale',
     ],
-        'bounds': [
-            # gas
-            [0.03255 * lower, 0.03255 * upper], [87 * lower, 87 * upper], [194.4 * lower, 194.4 * upper], [1.819 * lower, 1.819 * upper],
-            [0.05591 * lower, 0.05591 * upper], [346000 * lower, 346000 * upper], [0.1698 * lower, 0.1698 * upper],
-            # resp control
-            [0.2332 * lower, 0.2332 * upper], [1 * lower, 1 * upper], [0.2025 * lower, 0.2025 * upper], [4.72e-09 * lower, 4.72e-09 * upper],
-            [0.1587 * lower, 0.1587 * upper], [0.0673 * lower, 0.0673 * upper],
-            [21.9 * 0.8, 21.9 * 1.2], [3.02 * 0.8, 3.02 * 1.2],
-            # cardio
-            [3.72 * lower, 3.72 * upper], [0.28 * lower, 0.28 * upper], [0.00022 * lower, 0.00022 * upper], [0.06 * lower, 0.06 * upper],
-            [9.4 * lower, 9.4 * upper], [10.71 * lower, 10.71 * upper], [20 * lower, 20 * upper], [3.57 * lower, 3.57 * upper],
-            [6.28 * lower, 6.28 * upper], [61.11 * lower, 61.11 * upper], [24.17 * lower, 24.17 * upper], [10 * lower, 10 * upper],
-            [0.0833 * lower, 0.0833 * upper], [0.075 * lower, 0.075 * upper], [0.04 * lower, 0.04 * upper], [0.224 * lower, 0.224 * upper],
-            [0.125 * lower, 0.125 * upper], [0.038 * lower, 0.038 * upper], [0.15 * lower, 0.15 * upper], [0.3855 * lower, 0.3855 * upper],
-            [50 * lower, 50 * upper], [10000 * lower, 10000 * upper],
-            [0.025 * lower, 0.025 * upper], [5.85 * lower, 5.85 * upper], [5.8 * lower, 5.8 * upper],
-            [25.37 * lower, 25.37 * upper], [0.00018 * lower, 0.00018 * upper], [0.023 * lower, 0.023 * upper], [0.0894 * lower, 0.0894 * upper],
-            [0.0056 * lower, 0.0056 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper], [0.45 * lower, 0.45 * upper],
-            [0.45 * lower, 0.45 * upper], [0.05 * lower, 0.05 * upper], [0.05 * lower, 0.05 * upper], [1.5 * lower, 1.5 * upper],
-            [1.5 * lower, 1.5 * upper],
-            [0.04 * lower, 0.04 * upper],
-            # cardio control
-            [25 * lower, 25 * upper], [16.11 * lower, 16.11 * upper], [2.1 * lower, 2.1 * upper], [80 * lower, 80 * upper],
-            [3.2 * lower, 3.2 * upper], [6.3 * lower, 6.3 * upper], [0.0675 * lower, 0.0675 * upper], [7.06 * lower, 7.06 * upper],
-            [0.658 * lower, 0.658 * upper], [0.65 * lower, 0.65 * upper], [0.45 * lower, 0.45 * upper], [0.126 * lower, 0.126 * upper],
-            [0.114 * lower, 0.114 * upper], [0.13 * lower, 0.13 * upper], [0.09 * lower, 0.09 * upper], [0.0162 * lower, 0.0162 * upper],
-            [9 * lower, 9 * upper], [-0.0283 * upper, -0.0283 * lower], [5.5 * lower, 5.5 * upper], [-0.037 * upper, -0.037 * lower],
-            [64.9 * lower, 64.9 * upper], [-0.437 * upper, -0.437 * lower], [1.9 * lower, 1.9 * upper], [-0.0008 * upper, -0.0008 * lower],
-            [-0.68 * upper, -0.68 * lower], [-1.75 * upper, -1.75 * lower], [-1.1375 * upper, -1.1375 * lower], [-1.1375 * upper, -1.1375 * lower],
-            [1 * lower, 1 * upper], [1.716 * lower, 1.716 * upper], [1.716 * lower, 1.716 * upper], [0.2 * lower, 0.2 * upper],
-            [-0.3997 * upper, -0.3997 * lower], [-0.3997 * upper, -0.3997 * lower], [-0.103 * upper, -0.103 * lower],
-            [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper], [0.4 * lower, 0.4 * upper],
-            [2.392 * lower, 2.392 * upper], [1.412 * lower, 1.412 * upper], [2.66 * lower, 2.66 * upper], [0.475 * lower, 0.475 * upper],
-            [0.282 * lower, 0.282 * upper], [2.47 * lower, 2.47 * upper], [1.94 * lower, 1.94 * upper], [2.47 * lower, 2.47 * upper],
-            [0.695 * lower, 0.695 * upper], [-58.29 * upper, -58.29 * lower], [-74.21 * upper, -74.21 * lower], [-58.29 * upper, -58.29 * lower],
-            [-265.4 * upper, -265.4 * lower], [3.51 * lower, 3.51 * upper], [1.655 * lower, 1.655 * upper], [5.27 * lower, 5.27 * upper],
-            #
-            [2.49 * lower, 2.49 * upper], [1 * lower, 1 * upper], [1.5 * lower, 1.5 * upper],
-            [6 * lower, 6 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
-            [45 * lower, 45 * upper], [30 * lower, 30 * upper], [30 * lower, 30 * upper], [3.6 * lower, 3.6 * upper],
-            [13.32 * lower, 13.32 * upper], [13.32 * lower, 13.32 * upper], [53 * lower, 53 * upper], [6 * lower, 6 * upper],
-            [6 * lower, 6 * upper], [40 * lower, 40 * upper], [47.78 * lower, 47.78 * upper], [2.52 * lower, 2.52 * upper],
-            [11.76 * lower, 11.76 * upper], [92 * lower, 92 * 1.15], [120 * 0.9, 120 * upper], [1.4 * lower, 1.4 * upper],
-            [12.3 * lower, 12.3 * upper], [0.835 * lower, 0.835 * upper], [29.27 * lower, 29.27 * upper], [3 * lower, 3 * upper],
-            [45 * lower, 45 * upper], [11.76 * lower, 11.76 * upper], [-0.13 * upper, -0.13 * lower], [0.09 * lower, 0.09 * upper],
-            [0.58 * lower, 0.58 * upper], [20.9 * lower, 20.9 * upper], [92.8 * lower, 92.8 * upper], [10570 * lower, 10570 * upper],
-            [-5.251 * upper, -5.251 * lower], [0.14 * lower, 0.14 * upper], [10 * lower, 10 * upper], [0.925 * lower, 0.925 * upper],
-            [6.57 * lower, 6.57 * upper], [0.11 * lower, 0.11 * upper], [0.155 * lower, 0.155 * upper], [35 * lower, 35 * upper],
-            [30 * lower, 30 * upper], [11.11 * lower, 11.11 * upper], [142.8 * lower, 142.8 * upper], [0.4 * lower, 0.4 * upper],
-            [0.86 * lower, 0.86 * upper], [19.71 * lower, 19.71 * upper], [12660 * lower, 12660 * upper], [0.1555 * lower, 0.1555 * upper],
-            [30 * lower, 30 * upper], [40 * lower, 40 * upper], [0.4266 * lower, 0.4266 * upper], [0.18 * lower, 0.18 * upper],
-            [0.516 * lower, 0.516 * upper], [20 * lower, 20 * upper], [-1.87 * upper, -1.87 * lower],
-            # added params
-            [1000 * lower, 1000 * upper], [5000 * lower, 5000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-            [1200 * lower, 1200 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [2000 * lower, 2000 * upper], [2 * lower, 2 * upper], [7 * lower, 7 * upper], [1.309 * lower, 1.309 * upper],
-            [2000 * lower, 2000 * upper], [200 * lower, 200 * upper], [2 * lower, 2 * upper], [3.5 * lower, 3.5 * upper], [1.309 * lower, 1.309 * upper],
-            [0.0000317 * lower, 0.0000317 * upper], [350 * lower, 350 * upper], [400 * lower, 400 * upper], [400 * lower, 400 * upper],
-            [350 * lower, 350 * upper], [0.00134 * lower, 0.00134 * upper], [2.6 * lower, 2.6 * upper], [3.03e-5 * lower, 3.03e-5 * upper],
-            [104 * lower, 104 * upper], [279.49 * lower, 279.49 * upper], [93.16 * lower, 93.16 * upper],
-            [579.76 * lower, 579.76 * upper], [123 * lower, 123 * upper],
-            [116.68 * lower, 116.68 * upper], [114 * lower, 114 * upper], [24 * lower, 24 * upper], [15.908 * lower, 15.908 * upper],
-            [27 * lower, 27 * upper], [38.703 * lower, 38.703 * upper],
-
-            [8 * lower, 8 * upper], [8 * lower, 8 * upper], [2 * lower, 2 * upper],
-            [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [20 * lower, 20 * upper],
-            [20 * lower, 20 * upper], [20 * lower, 20 * upper], [20 * lower, 20 * upper], [286.4 * lower, 286.4 * upper],
-            [607.8 * lower, 607.8 * upper], [190.95 * lower, 190.95 * upper], [1361.6 * lower, 1361.6 * upper], [20 * lower, 20 * upper],
-            [30 * lower, 30 * upper], [2.076 * lower, 2.076 * upper], [0.8 * lower, 0.8 * upper], [2 * lower, 2 * upper],
-            [2 * lower, 2 * upper], [2 * lower, 2 * upper], [1.5 * lower, 1.5 * upper], [20 * lower, 20 * upper],
-            [10 * lower, 10 * upper], [5 * lower, 5 * upper], [40 * lower, 40 * upper], [10 * lower, 10 * upper],
-            [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper], [2 * lower, 2 * upper],
-            [2 * lower, 2 * upper], [2 * lower, 2 * upper], [5 * lower, 5 * upper], [5 * lower, 5 * upper],
-            [5 * lower, 5 * upper], [5 * lower, 5 * upper], [2 * lower, 2 * upper], [0.2 * lower, 0.2 * upper],
-            [4 * lower, 4 * upper], [0.3 * lower, 0.3 * upper], [0.014 * lower, 0.014 * upper], [0.011 * lower, 0.011 * upper],
-            [0.1 * lower, 0.1 * upper], [0.2 * lower, 0.2 * upper], [3 * lower, 3 * upper], [2.5 * lower, 2.5 * upper],
-            [20 * lower, 20 * upper], [0.01 * lower, 0.01 * upper], [50 * lower, 50 * upper], [0.25 * lower, 0.25 * upper],
-            [0.25 * lower, 0.25 * upper], [50 * lower, 50 * upper],
-
-            # further added params
-            [4.9 * lower, 4.9 * upper], [0.3 * lower, 0.3 * upper], [26.6 * lower, 26.6 * upper],
-            [0.04 * lower, 0.04 * upper], [80 * lower, 80 * upper],
-            [0.045 * lower, 0.045 * upper], [0.3 * 0.8, 0.3 * 1.2], [0.45 * 0.85, 0.45 * 1.15], [0.92 * 0.92, 0.92 * 1.08],
-            [0.0873 * lower, 0.0873 * upper], [1.2 * 0.85, 1.2 * 1.15], [1.2 * 0.85, 1.2 * 1.15], [150 * lower, 150 * upper], [50 * lower, 50 * upper]]
-    })
-
+    'bounds': [
+        [0.03255 * lower, 0.03255 * upper],
+        [98.640209672481 * lower, 98.640209672481 * upper],  # C2 [MAP]
+        [168.668058520599 * lower, 168.668058520599 * upper],  # K2 [MAP]
+        [2.05720263191 * lower, 2.05720263191 * upper],  # a2 [MAP]
+        [0.05591 * lower, 0.05591 * upper],
+        [346000 * lower, 346000 * upper],
+        [0.1698 * lower, 0.1698 * upper],
+        [0.2332 * lower, 0.2332 * upper],
+        [1 * lower, 1 * upper],
+        [0.2025 * lower, 0.2025 * upper],
+        [0.00000000472 * lower, 0.00000000472 * upper],
+        [0.180760531763 * lower, 0.180760531763 * upper],  # V0_dead [MAP]
+        [0.0673 * lower, 0.0673 * upper],
+        [24.771332348072 * lower, 24.771332348072 * upper],  # E_rs [MAP]
+        [3.308951736968 * lower, 3.308951736968 * upper],  # R_rs [MAP]
+        [3.178371624738 * lower, 3.178371624738 * upper],  # C_jp [MAP]
+        [0.28 * lower, 0.28 * upper],
+        [0.00022 * lower, 0.00022 * upper],
+        [0.067627524644 * lower, 0.067627524644 * upper],  # R_sa [MAP]
+        [9.4 * lower, 9.4 * upper],
+        [10.71 * lower, 10.71 * upper],
+        [20 * lower, 20 * upper],
+        [3.57 * lower, 3.57 * upper],
+        [6.28 * lower, 6.28 * upper],
+        [57.296181668841 * lower, 57.296181668841 * upper],  # C_sv [MAP]
+        [24.17 * lower, 24.17 * upper],
+        [10 * lower, 10 * upper],
+        [0.0833 * lower, 0.0833 * upper],
+        [0.075 * lower, 0.075 * upper],
+        [0.04 * lower, 0.04 * upper],
+        [0.224 * lower, 0.224 * upper],
+        [0.125 * lower, 0.125 * upper],
+        [0.038 * lower, 0.038 * upper],
+        [0.15 * lower, 0.15 * upper],
+        [0.3855 * lower, 0.3855 * upper],
+        [50 * lower, 50 * upper],
+        [10000 * lower, 10000 * upper],
+        [0.020011011618 * lower, 0.020011011618 * upper],  # Rvc_n [MAP]
+        [5.85 * lower, 5.85 * upper],
+        [5.8 * lower, 5.8 * upper],
+        [25.37 * lower, 25.37 * upper],
+        [0.00018 * lower, 0.00018 * upper],
+        [0.023 * lower, 0.023 * upper],
+        [0.082324220616 * lower, 0.082324220616 * upper],  # R_pp [MAP]
+        [0.0056 * lower, 0.0056 * upper],
+        [0.387283349395 * lower, 0.387283349395 * upper],  # Emax_la [MAP]
+        [0.51807469575 * lower, 0.51807469575 * upper],  # P0_la [MAP]
+        [0.360330241084 * lower, 0.360330241084 * upper],  # Emax_ra [MAP]
+        [0.380765929195 * lower, 0.380765929195 * upper],  # P0_ra [MAP]
+        [0.057937819808 * lower, 0.057937819808 * upper],  # KE_la [MAP]
+        [0.04293465892 * lower, 0.04293465892 * upper],  # KE_ra [MAP]
+        [1.442691243336 * lower, 1.442691243336 * upper],  # P0_lv [MAP]
+        [1.29130584142 * lower, 1.29130584142 * upper],  # P0_rv [MAP]
+        [0.034856261421 * lower, 0.034856261421 * upper],  # s [MAP]
+        [21.617810506166 * lower, 21.617810506166 * upper],  # fab_o [MAP]
+        [17.175133514906 * lower, 17.175133514906 * upper],  # fes_o [MAP]
+        [2.07231183456 * lower, 2.07231183456 * upper],  # fes_inf [MAP]
+        [80 * lower, 80 * upper],
+        [2.770365085494 * lower, 2.770365085494 * upper],  # fev_o [MAP]
+        [7.423024627183 * lower, 7.423024627183 * upper],  # fev_inf [MAP]
+        [0.05880583949 * lower, 0.05880583949 * upper],  # kes [MAP]
+        [7.06 * lower, 7.06 * upper],
+        [0.658 * lower, 0.658 * upper],
+        [0.65 * lower, 0.65 * upper],
+        [0.511820670232 * lower, 0.511820670232 * upper],  # Io_sv [MAP]
+        [0.126 * lower, 0.126 * upper],
+        [0.114 * lower, 0.114 * upper],
+        [0.13 * lower, 0.13 * upper],
+        [0.080130200394 * lower, 0.080130200394 * upper],  # kcc_sv [MAP]
+        [0.0162 * lower, 0.0162 * upper],
+        [9 * lower, 9 * upper],
+        [-0.0283 * upper, -0.0283 * lower],
+        [5.5 * lower, 5.5 * upper],
+        [-0.037 * upper, -0.037 * lower],
+        [64.9 * lower, 64.9 * upper],
+        [-0.437 * upper, -0.437 * lower],
+        [1.9 * lower, 1.9 * upper],
+        [-0.0008 * upper, -0.0008 * lower],
+        [-0.68 * upper, -0.68 * lower],
+        [-2.018544472453 * upper, -2.018544472453 * lower],  # Wb_sh [MAP]
+        [-1.1375 * upper, -1.1375 * lower],
+        [-1.004859455505 * upper, -1.004859455505 * lower],  # Wb_sv [MAP]
+        [1 * lower, 1 * upper],
+        [1.716 * lower, 1.716 * upper],
+        [1.716 * lower, 1.716 * upper],
+        [0.2 * lower, 0.2 * upper],
+        [-0.3997 * upper, -0.3997 * lower],
+        [-0.3997 * upper, -0.3997 * lower],
+        [-0.103 * upper, -0.103 * lower],
+        [0.4 * lower, 0.4 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [2.060317555315 * lower, 2.060317555315 * upper],  # Emax_lv0 [MAP]
+        [1.279086612055 * lower, 1.279086612055 * upper],  # Emax_rv0 [MAP]
+        [2.996981540095 * lower, 2.996981540095 * upper],  # fes_min [MAP]
+        [0.431945385857 * lower, 0.431945385857 * upper],  # GEmax_lv [MAP]
+        [0.282 * lower, 0.282 * upper],
+        [2.47 * lower, 2.47 * upper],
+        [1.94 * lower, 1.94 * upper],
+        [2.47 * lower, 2.47 * upper],
+        [0.695 * lower, 0.695 * upper],
+        [-58.29 * upper, -58.29 * lower],
+        [-74.21 * upper, -74.21 * lower],
+        [-58.29 * upper, -58.29 * lower],
+        [-237.648313155424 * upper, -237.648313155424 * lower],  # GV_sv [MAP]
+        [3.51 * lower, 3.51 * upper],
+        [1.655 * lower, 1.655 * upper],
+        [5.27 * lower, 5.27 * upper],
+        [2.49 * lower, 2.49 * upper],
+        [1 * lower, 1 * upper],
+        [1.5 * lower, 1.5 * upper],
+        [6 * lower, 6 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [45 * lower, 45 * upper],
+        [30 * lower, 30 * upper],
+        [30 * lower, 30 * upper],
+        [3.6 * lower, 3.6 * upper],
+        [13.32 * lower, 13.32 * upper],
+        [11.1940122515 * lower, 11.1940122515 * upper],  # theta_svn [MAP]
+        [53 * lower, 53 * upper],
+        [6 * lower, 6 * upper],
+        [6 * lower, 6 * upper],
+        [33.674334951783 * lower, 33.674334951783 * upper],  # PaCO2_n [MAP]
+        [47.041027400563 * lower, 47.041027400563 * upper],  # f_ab_max [MAP]
+        [2.52 * lower, 2.52 * upper],
+        [10.038635495577 * lower, 10.038635495577 * upper],  # k_ab [MAP]
+        [101.115183178836 * lower, 101.115183178836 * 1.05],  # P_n [MAP]
+        [112 * 0.9, 112 * upper],
+        [1.4 * lower, 1.4 * upper],
+        [12.3 * lower, 12.3 * upper],
+        [0.835 * lower, 0.835 * upper],
+        [29.27 * lower, 29.27 * upper],
+        [3 * lower, 3 * upper],
+        [45 * lower, 45 * upper],
+        [11.76 * lower, 11.76 * upper],
+        [-0.112650592783 * upper, -0.112650592783 * lower],  # GT_s [MAP]
+        [0.100153101641 * lower, 0.100153101641 * upper],  # GT_v [MAP]
+        [0.654880149316 * lower, 0.654880149316 * upper],  # T0 [MAP]
+        [20.9 * lower, 20.9 * upper],
+        [92.8 * lower, 92.8 * upper],
+        [10570 * lower, 10570 * upper],
+        [-5.251 * upper, -5.251 * lower],
+        [0.158362780305 * lower, 0.158362780305 * upper],  # Cvb_O2_n [MAP]
+        [10 * lower, 10 * upper],
+        [0.925 * lower, 0.925 * upper],
+        [6.57 * lower, 6.57 * upper],
+        [0.11 * lower, 0.11 * upper],
+        [0.155 * lower, 0.155 * upper],
+        [35 * lower, 35 * upper],
+        [30 * lower, 30 * upper],
+        [11.11 * lower, 11.11 * upper],
+        [142.8 * lower, 142.8 * upper],
+        [0.4 * lower, 0.4 * upper],
+        [0.86 * lower, 0.86 * upper],
+        [19.71 * lower, 19.71 * upper],
+        [12660 * lower, 12660 * upper],
+        [0.135937785465 * lower, 0.135937785465 * upper],  # Cvam_O2_n [MAP]
+        [30 * lower, 30 * upper],
+        [40 * lower, 40 * upper],
+        [0.36721777927 * lower, 0.36721777927 * upper],  # Io_met [MAP]
+        [0.204798869807 * lower, 0.204798869807 * upper],  # kmet [MAP]
+        [0.516 * lower, 0.516 * upper],
+        [20 * lower, 20 * upper],
+        [-1.87 * upper, -1.87 * lower],
+        [1000 * lower, 1000 * upper],
+        [5000 * lower, 5000 * upper],
+        [2 * lower, 2 * upper],
+        [7 * lower, 7 * upper],
+        [1.309 * lower, 1.309 * upper],
+        [1200 * lower, 1200 * upper],
+        [200 * lower, 200 * upper],
+        [2 * lower, 2 * upper],
+        [4.198293711872 * lower, 4.198293711872 * upper],  # Kv_mi [MAP]
+        [1.309 * lower, 1.309 * upper],
+        [2293.073313146301 * lower, 2293.073313146301 * upper],  # Kp_po [MAP]
+        [2000 * lower, 2000 * upper],
+        [2 * lower, 2 * upper],
+        [8.115098186092 * lower, 8.115098186092 * upper],  # Kv_po [MAP]
+        [1.309 * lower, 1.309 * upper],
+        [2000 * lower, 2000 * upper],
+        [200 * lower, 200 * upper],
+        [2 * lower, 2 * upper],
+        [2.958475913209 * lower, 2.958475913209 * upper],  # Kv_tr [MAP]
+        [1.309 * lower, 1.309 * upper],
+        [0.0000317 * lower, 0.0000317 * upper],
+        [393.134478510141 * lower, 393.134478510141 * upper],  # R_po [MAP]
+        [400 * lower, 400 * upper],
+        [400 * lower, 400 * upper],
+        [350 * lower, 350 * upper],
+        [0.001513621371 * lower, 0.001513621371 * upper],  # C_O2_param1 [MAP]
+        [2.891202516105 * lower, 2.891202516105 * upper],  # C_O2_param2 [MAP]
+        [0.0000303 * lower, 0.0000303 * upper],
+        [104 * lower, 104 * upper],
+        [311.969906535 * lower, 311.969906535 * upper],  # Vu_bv [MAP]
+        [93.16 * lower, 93.16 * upper],
+        [513.955410368231 * lower, 513.955410368231 * upper],  # Vu_jp [MAP]
+        [123 * lower, 123 * upper],
+        [116.68 * lower, 116.68 * upper],
+        [114 * lower, 114 * upper],
+        [27.301439733132 * lower, 27.301439733132 * upper],  # Vu_la [MAP]
+        [17.35873806827 * lower, 17.35873806827 * upper],  # Vu_lv [MAP]
+        [32.331282965822 * lower, 32.331282965822 * upper],  # Vu_ra [MAP]
+        [43.648498038143 * lower, 43.648498038143 * upper],  # Vu_rv [MAP]
+        [8 * lower, 8 * upper],
+        [8 * lower, 8 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper],
+        [20 * lower, 20 * upper],
+        [246.325150657968 * lower, 246.325150657968 * upper],  # Vu_amv0 [MAP]
+        [646.987007375066 * lower, 646.987007375066 * upper],  # Vu_ev0 [MAP]
+        [190.95 * lower, 190.95 * upper],
+        [1262.699536885199 * lower, 1262.699536885199 * upper],  # Vu_sv0 [MAP]
+        [20 * lower, 20 * upper],
+        [30 * lower, 30 * upper],
+        [2.076 * lower, 2.076 * upper],
+        [0.8 * lower, 0.8 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [1.5 * lower, 1.5 * upper],
+        [20 * lower, 20 * upper],
+        [10 * lower, 10 * upper],
+        [5 * lower, 5 * upper],
+        [40 * lower, 40 * upper],
+        [10 * lower, 10 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [2 * lower, 2 * upper],
+        [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper],
+        [5 * lower, 5 * upper],
+        [2 * lower, 2 * upper],
+        [0.2 * lower, 0.2 * upper],
+        [4 * lower, 4 * upper],
+        [0.3 * lower, 0.3 * upper],
+        [0.012573867389 * lower, 0.012573867389 * upper],  # KE_lv [MAP]
+        [0.00928516807 * lower, 0.00928516807 * upper],  # KE_rv [MAP]
+        [0.1 * lower, 0.1 * upper],
+        [0.2 * lower, 0.2 * upper],
+        [3 * lower, 3 * upper],
+        [2.5 * lower, 2.5 * upper],
+        [20 * lower, 20 * upper],
+        [0.01 * lower, 0.01 * upper],
+        [50 * lower, 50 * upper],
+        [0.25 * lower, 0.25 * upper],
+        [0.25 * lower, 0.25 * upper],
+        [50 * lower, 50 * upper],
+        [4.300117727822 * lower, 4.300117727822 * upper],  # scale_param1 [MAP]
+        [0.3 * lower, 0.3 * upper],
+        [30.621117364076 * lower, 30.621117364076 * upper],  # scale_param4 [MAP]
+        [0.04 * lower, 0.04 * upper],
+        [80 * lower, 80 * upper],
+        [0.038470374015 * lower, 0.038470374015 * upper],  # rise_time_atr [MAP]
+        [0.351802683206 * lower, 0.351802683206 * upper],  # rise_time_ven [MAP]
+        [0.504893619857 * 0.85, 0.504893619857 * 1.15],  # fall_time_ven [MAP]
+        [0.941623732815 * 0.92, 0.941623732815 * 1.08],  # ahead1 [MAP]
+        [0.0873 * lower, 0.0873 * upper],
+        [1.101085481093 * 0.85, 1.101085481093 * 1.15],  # r [MAP]
+        [1.356014731 * 0.85, 1.356014731 * 1.15],  # l [MAP]
+        [132.141948246527 * lower, 132.141948246527 * upper],  # V_nominal [MAP]
+        [50.289524292913 * lower, 50.289524292913 * upper],  # V_scale [MAP]
+    ]
+})
 # Compute nominal values from the base value in each bounds expression, rather
 # than from the midpoint of the evaluated bounds.
 precision = 12
