@@ -1091,13 +1091,44 @@ if __name__ == "__main__":
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i:], Next_Conditions["P_rv_store"][:i]))
     all_time = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
 
+
     fig, ax1 = plt.subplots()
     # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Qi_rv"][index-80000:index], label="Qi_rv")
     # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Q_ra"][index-80000:index], label="Q_ra")
     # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["VT_ra"][index-80000:index], label="VT_ra")
     # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["VT_la"][index-80000:index], label="VT_la")
 
+    ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi_atr"][index-80000:index], label="phi_atr")
     ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi"][index-80000:index], label="phi")
+    ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["theta_tr"][index - 80000:index],
+             label="Tricuspid")  #
+    ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["theta_po"][index - 80000:index],
+             label="Pulmonary")  #
+
+    # ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["x_r_store"][index - 80000:index], label="x_r")
+    # ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["v_r_store"][index - 80000:index], label="v_r", color="grey")
+
+    #
+    # ax1.set_xlabel("Time (s)")
+    ax1.legend(loc="upper left")
+    ax2 = ax1.twinx()
+    ax2.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["P_ra"][index - 80000:index],
+             label="P_ra", color="m")
+    ax2.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["AA"][index - 80000:index],
+             label="P_peri", color="k")
+    ax2.legend(loc="upper right")
+    plt.show()
+
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Qi_rv"][index-80000:index], label="Qi_rv")
+    # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Q_ra"][index-80000:index], label="Q_ra")
+    # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["VT_ra"][index-80000:index], label="VT_ra")
+    # ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["VT_la"][index-80000:index], label="VT_la")
+
+    ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi_atr"][index-80000:index], label="phi_atr")
+    ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi"][index-80000:index], label="phi")
+
     ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["AA"][index - 80000:index],
              label="P_peri", color="k")
     ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["theta_tr"][index - 80000:index],
@@ -1475,12 +1506,12 @@ if __name__ == "__main__":
     # plt.grid(True)
     plt.show()
 
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_O2"][:index], label="Arterial pO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Pa_O2"][index-80000:index], label="Arterial pO$_{2}$")
     # plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Nt"][:index], label="Nt")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtO2"][:index], label="Venous pO$_{2}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pa_CO2"][:index], label="Arterial pCO$_{2}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["PvtCO2"][:index], label="Venous pCO$_{2}$")
-    plt.plot(Next_Conditions["time_history"][:index], Next_Conditions["Pb_CO2"][:index], label="Cerebral pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["PvtO2"][index-80000:index], label="Venous pO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Pa_CO2"][index-80000:index], label="Arterial pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["PvtCO2"][index-80000:index], label="Venous pCO$_{2}$")
+    plt.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["Pb_CO2"][index-80000:index], label="Cerebral pCO$_{2}$")
 
     plt.xlabel("Time (s)")
     plt.ylabel("Partial Pressure (mmHg)")

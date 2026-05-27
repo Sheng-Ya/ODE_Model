@@ -14,13 +14,23 @@ import numpy as np
 # X = np.load('DGSM_Exercise_Paper/DGSM_500_X_exercise_20_24_04.npy')
 # Result = np.load('DGSM_Exercise_Paper/DGSM_500_Result_exercise_20_24_04.npy')
 
-X = np.load('DGSM_500_X_exercise_20_11_05_constants.npy')
-Result = np.load('DGSM_500_Result_exercise_20_11_05_constants.npy')
+# X = np.load('DGSM_500_X_exercise_20_11_05_constants.npy')
+# Result = np.load('DGSM_500_Result_exercise_20_11_05_constants.npy')
+
+X = np.load('DGSM_500_X_exercise_20_25_05.npy')
+Result = np.load("DGSM_500_Result_exercise_20_25_05.npy")
+# Result0 = np.load(r'X:\home\project\Result_task_00_exercise.npy')
+# Result1 = np.load(r'X:\home\project\Result_task_01_exercise.npy')
+# Result2 = np.load(r'X:\home\project\Result_task_02_exercise.npy')
+# Result3 = np.load(r'X:\home\project\Result_task_03_exercise.npy')
+# Result = np.vstack([Result0, Result1, Result2, Result3])
+# np.save("DGSM_500_Result_exercise_20_25_05.npy", Result)
+
 # Result2 = np.load('DGSM_Rest_Paper/DGSM_500_Result_rest_20_10_04.npy')
-COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
-Result1 = np.delete(Result, COLS_TO_DROP, axis=1)
+# COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
+# Result1 = np.delete(Result, COLS_TO_DROP, axis=1)
 # Result2 = np.delete(Result2, COLS_TO_DROP, axis=1)
-Result1 = Result1[::204,0]
+# Result1 = Result1[::204,0]
 # Result2 = Result2[::273,21]
 
 # import seaborn as sns
@@ -34,8 +44,8 @@ Result1 = Result1[::204,0]
 # plt.show()
 
 
-lower = 0.1
-upper = 1.9
+lower = 0.8
+upper = 1.2
 
 Stroke_Volume = Result[:, 3] - Result[:, 4]
 Ejection_fraction = (Stroke_Volume / Result[:, 3]) * 100
@@ -489,86 +499,286 @@ HR = Result[:, 10]
 #     })
 
 sp = ProblemSpec({
-    'names': [
-        # gas
-        "alpha2", "KCCO2", "GV_dead",
-        # resp control
-        "KcCO2", "KcMRV", "KpCO2", "KpO2",
-        "VA_rest",
-        # cardio
-        "C_sa", "L_sa",
-        "C_amv", "C_bv", "C_ev", "C_hv",
-        "C_rmv", "kr_am", "P_0",
-        "R_amv_n", "R_bv_n", "R_ev_n", "R_hv_n",
-        "R_rmv_n", "R_sv_n", "K1_vc", "D1",
-        "Vvc_min", "Kr_vc",
-        "C_pa", "C_pp",
-        "C_pv", "L_pa",
-        "R_pv",
-        "s",
-        # cardio control
-        "fes_max",
-        "kev",
-        "Io_sh", "Io_sp", "Io_v",
-        "kcc_sh", "kcc_sp", "kcc_v",
-        "Ysh_max", "Ysh_min", "Ysp_max", "Ysp_min",
-        "Ysv_max", "Ysv_min", "Yv_max", "Yv_min",
-        "theta_v", "Wb_sp",
-        "Wc_sh", "Wc_sp", "Wc_sv", "Wc_v",
-        "Wp_sp", "Wp_sv", "Wp_v",
-        "Wt_sh", "Wt_sp", "Wt_sv", "Wt_v",
-        "GEmax_lv",
-        "GEmax_rv", "GR_amp", "GR_ep", "GR_rmp",
-        "GR_sp", "GV_amv", "GV_ev", "GV_rmv",
-        "GV_sv", "R_amp0", "R_ep0", "R_rmp0",
-        #
-        "R_sp0", "g_ccsh", "g_ccsp",
-        "kisc_sh", "kisc_sp", "kisc_sv",
-        "PO2_sh", "PO2_sp", "PO2_sv", "theta_shn",
-        "theta_spn", "x_sh", "x_sp",
-        "x_sv", "f_ab_min",
-        "P_n_max", "f_acCO2_n",
-        "f_ac_max", "f_ac_min", "k_ac", "K_H",
-        "PaO2_ac_n", "G_ap", "A", "B", "C",
-        "D", "Cvb_O2_n", "gb_O2",
-        "R_bpn", "Cvh_O2_n", "Cvrm_O2_n", "gh_O2",
-        "grm_O2", "Kh_CO2", "Krm_CO2", "MO2_hpn",
-        "MO2_rmp", "R_hpn", "W_hn",
-        "gam_O2", "gM",
-        "MO2_ampn", "phi_max", "phi_min",
-        # added params
-        "Kp_ao", "Kf_ao", "Kb_ao", "Kv_ao", "theta_ao_max",
-        "Kp_mi", "Kf_mi", "Kb_mi", "theta_mi_max",
-        "Kp_po", "Kf_po", "Kb_po", "theta_po_max",
-        "Kp_tr", "Kf_tr", "Kb_tr", "theta_tr_max",
-        "alpha_O2", "R_po", "R_mi", "R_tr",
-        "R_ao", "C_O2_param2", "C_O2_param3",
-        "PAMO2_nominal", "Vu_hv",
-        "Vu_vc",
-        "Vu_pp", "Vu_pv",
-
-        "tau_Emax_lv", "tau_Emax_rv", "tau_Ramp",
-        "tau_Rep", "tau_Rrmp", "tau_Rsp", "tau_Vamv",
-        "tau_Vev", "tau_Vrmv", "tau_Vsv",
-        "Vu_rmv0", "tau_cc",
-        "tau_isc", "tau_p", "tau_z", "tau_ac",
-        "tau_ap", "tau_Ts", "tau_Tv", "tau_CO2",
-        "tau_O2", "tau_w", "tau_M", "tau_met",
-        "DEmax_lv", "DEmax_rv", "DR_amp", "DR_ep",
-        "DR_rmp", "DR_sp", "DV_amv", "DV_ev",
-        "DV_rmv", "DV_sv", "DT_s", "DT_v",
-        "Dmet", "Ta",
-        "T1", "T2", "VL_CO2", "VL_O2",
-        "KCSFCO2", "VB", "tauMR", "VTCO2",
-        "VTO2", "tau_MRV",
-
-        # further added
-        "scale_param1", "scale_param3", "scale_param4",
-        "scale_param6", "Pa_O2_lower",
-        "theta_min",
-    ],
+        'names': [
+            'beta2',
+            'C2',
+            'K2',
+            'a2',
+            'alpha2',
+            'KCCO2',
+            'GV_dead',
+            'KcCO2',
+            'KcMRV',
+            'KpCO2',
+            'KpO2',
+            'V0_dead',
+            'VA_rest',
+            'E_rs',
+            'R_rs',
+            'C_jp',
+            'C_sa',
+            'L_sa',
+            'R_sa',
+            'C_amv',
+            'C_bv',
+            'C_ev',
+            'C_hv',
+            'C_rmv',
+            'C_sv',
+            'kr_am',
+            'P_0',
+            'R_amv_n',
+            'R_bv_n',
+            'R_ev_n',
+            'R_hv_n',
+            'R_rmv_n',
+            'R_sv_n',
+            'K1_vc',
+            'D1',
+            'Vvc_min',
+            'Kr_vc',
+            'Rvc_n',
+            'C_pa',
+            'C_pp',
+            'C_pv',
+            'L_pa',
+            'R_pa',
+            'R_pp',
+            'R_pv',
+            'Emax_la',
+            'P0_la',
+            'Emax_ra',
+            'P0_ra',
+            'KE_la',
+            'KE_ra',
+            'P0_lv',
+            'P0_rv',
+            's',
+            'fab_o',
+            'fes_o',
+            'fes_inf',
+            'fes_max',
+            'fev_o',
+            'fev_inf',
+            'kes',
+            'kev',
+            'Io_sh',
+            'Io_sp',
+            'Io_sv',
+            'Io_v',
+            'kcc_sh',
+            'kcc_sp',
+            'kcc_sv',
+            'kcc_v',
+            'Ysh_max',
+            'Ysh_min',
+            'Ysp_max',
+            'Ysp_min',
+            'Ysv_max',
+            'Ysv_min',
+            'Yv_max',
+            'Yv_min',
+            'theta_v',
+            'Wb_sh',
+            'Wb_sp',
+            'Wb_sv',
+            'Wc_sh',
+            'Wc_sp',
+            'Wc_sv',
+            'Wc_v',
+            'Wp_sp',
+            'Wp_sv',
+            'Wp_v',
+            'Wt_sh',
+            'Wt_sp',
+            'Wt_sv',
+            'Wt_v',
+            'Emax_lv0',
+            'Emax_rv0',
+            'fes_min',
+            'GEmax_lv',
+            'GEmax_rv',
+            'GR_amp',
+            'GR_ep',
+            'GR_rmp',
+            'GR_sp',
+            'GV_amv',
+            'GV_ev',
+            'GV_rmv',
+            'GV_sv',
+            'R_amp0',
+            'R_ep0',
+            'R_rmp0',
+            'R_sp0',
+            'g_ccsh',
+            'g_ccsp',
+            'kisc_sh',
+            'kisc_sp',
+            'kisc_sv',
+            'PO2_sh',
+            'PO2_sp',
+            'PO2_sv',
+            'theta_shn',
+            'theta_spn',
+            'theta_svn',
+            'x_sh',
+            'x_sp',
+            'x_sv',
+            'PaCO2_n',
+            'f_ab_max',
+            'f_ab_min',
+            'k_ab',
+            'P_n',
+            'P_n_max',
+            'f_acCO2_n',
+            'f_ac_max',
+            'f_ac_min',
+            'k_ac',
+            'K_H',
+            'PaO2_ac_n',
+            'G_ap',
+            'GT_s',
+            'GT_v',
+            'T0',
+            'A',
+            'B',
+            'C',
+            'D',
+            'Cvb_O2_n',
+            'gb_O2',
+            'MO2_bp',
+            'R_bpn',
+            'Cvh_O2_n',
+            'Cvrm_O2_n',
+            'gh_O2',
+            'grm_O2',
+            'Kh_CO2',
+            'Krm_CO2',
+            'MO2_hpn',
+            'MO2_rmp',
+            'R_hpn',
+            'W_hn',
+            'Cvam_O2_n',
+            'gam_O2',
+            'gM',
+            'Io_met',
+            'kmet',
+            'MO2_ampn',
+            'phi_max',
+            'phi_min',
+            'Kp_ao',
+            'Kf_ao',
+            'Kb_ao',
+            'Kv_ao',
+            'theta_ao_max',
+            'Kp_mi',
+            'Kf_mi',
+            'Kb_mi',
+            'Kv_mi',
+            'theta_mi_max',
+            'Kp_po',
+            'Kf_po',
+            'Kb_po',
+            'Kv_po',
+            'theta_po_max',
+            'Kp_tr',
+            'Kf_tr',
+            'Kb_tr',
+            'Kv_tr',
+            'theta_tr_max',
+            'alpha_O2',
+            'R_po',
+            'R_mi',
+            'R_tr',
+            'R_ao',
+            'C_O2_param1',
+            'C_O2_param2',
+            'C_O2_param3',
+            'PAMO2_nominal',
+            'Vu_bv',
+            'Vu_hv',
+            'Vu_jp',
+            'Vu_vc',
+            'Vu_pp',
+            'Vu_pv',
+            'Vu_la',
+            'Vu_lv',
+            'Vu_ra',
+            'Vu_rv',
+            'tau_Emax_lv',
+            'tau_Emax_rv',
+            'tau_Ramp',
+            'tau_Rep',
+            'tau_Rrmp',
+            'tau_Rsp',
+            'tau_Vamv',
+            'tau_Vev',
+            'tau_Vrmv',
+            'tau_Vsv',
+            'Vu_amv0',
+            'Vu_ev0',
+            'Vu_rmv0',
+            'Vu_sv0',
+            'tau_cc',
+            'tau_isc',
+            'tau_p',
+            'tau_z',
+            'tau_ac',
+            'tau_ap',
+            'tau_Ts',
+            'tau_Tv',
+            'tau_CO2',
+            'tau_O2',
+            'tau_w',
+            'tau_M',
+            'tau_met',
+            'DEmax_lv',
+            'DEmax_rv',
+            'DR_amp',
+            'DR_ep',
+            'DR_rmp',
+            'DR_sp',
+            'DV_amv',
+            'DV_ev',
+            'DV_rmv',
+            'DV_sv',
+            'DT_s',
+            'DT_v',
+            'Dmet',
+            'Ta',
+            'KE_lv',
+            'KE_rv',
+            'T1',
+            'T2',
+            'VL_CO2',
+            'VL_O2',
+            'KCSFCO2',
+            'VB',
+            'tauMR',
+            'VTCO2',
+            'VTO2',
+            'tau_MRV',
+            'scale_param1',
+            'scale_param3',
+            'scale_param4',
+            'scale_param6',
+            'Pa_O2_lower',
+            'rise_time_atr',
+            'rise_time_ven',
+            'fall_time_ven',
+            'ahead1',
+            'theta_min',
+            'r',
+            'l',
+            'V_nominal',
+            'V_scale',
+        ],
 
     'bounds': [
+        [0.03255 * lower, 0.03255 * upper],
+        [98.640209672481 * lower, 98.640209672481 * upper],  # C2 [MAP]
+        [168.668058520599 * lower, 168.668058520599 * upper],  # K2 [MAP]
+        [2.05720263191 * lower, 2.05720263191 * upper],  # a2 [MAP]
         [0.05591 * lower, 0.05591 * upper],
         [346000 * lower, 346000 * upper],
         [0.1698 * lower, 0.1698 * upper],
@@ -576,14 +786,20 @@ sp = ProblemSpec({
         [1 * lower, 1 * upper],
         [0.2025 * lower, 0.2025 * upper],
         [0.00000000472 * lower, 0.00000000472 * upper],
+        [0.180760531763 * lower, 0.180760531763 * upper],  # V0_dead [MAP]
         [0.0673 * lower, 0.0673 * upper],
+        [24.771332348072 * lower, 24.771332348072 * upper],  # E_rs [MAP]
+        [3.308951736968 * lower, 3.308951736968 * upper],  # R_rs [MAP]
+        [3.178371624738 * lower, 3.178371624738 * upper],  # C_jp [MAP]
         [0.28 * lower, 0.28 * upper],
         [0.00022 * lower, 0.00022 * upper],
+        [0.067627524644 * lower, 0.067627524644 * upper],  # R_sa [MAP]
         [9.4 * lower, 9.4 * upper],
         [10.71 * lower, 10.71 * upper],
         [20 * lower, 20 * upper],
         [3.57 * lower, 3.57 * upper],
         [6.28 * lower, 6.28 * upper],
+        [57.296181668841 * lower, 57.296181668841 * upper],  # C_sv [MAP]
         [24.17 * lower, 24.17 * upper],
         [10 * lower, 10 * upper],
         [0.0833 * lower, 0.0833 * upper],
@@ -596,19 +812,38 @@ sp = ProblemSpec({
         [0.3855 * lower, 0.3855 * upper],
         [50 * lower, 50 * upper],
         [10000 * lower, 10000 * upper],
-        [0.76 * lower, 0.76 * upper],
+        [0.020011011618 * lower, 0.020011011618 * upper],  # Rvc_n [MAP]
+        [5.85 * lower, 5.85 * upper],
         [5.8 * lower, 5.8 * upper],
         [25.37 * lower, 25.37 * upper],
         [0.00018 * lower, 0.00018 * upper],
+        [0.023 * lower, 0.023 * upper],
+        [0.082324220616 * lower, 0.082324220616 * upper],  # R_pp [MAP]
         [0.0056 * lower, 0.0056 * upper],
-        [0.04 * lower, 0.04 * upper],
+        [0.387283349395 * lower, 0.387283349395 * upper],  # Emax_la [MAP]
+        [0.51807469575 * lower, 0.51807469575 * upper],  # P0_la [MAP]
+        [0.360330241084 * lower, 0.360330241084 * upper],  # Emax_ra [MAP]
+        [0.380765929195 * lower, 0.380765929195 * upper],  # P0_ra [MAP]
+        [0.057937819808 * lower, 0.057937819808 * upper],  # KE_la [MAP]
+        [0.04293465892 * lower, 0.04293465892 * upper],  # KE_ra [MAP]
+        [1.442691243336 * lower, 1.442691243336 * upper],  # P0_lv [MAP]
+        [1.29130584142 * lower, 1.29130584142 * upper],  # P0_rv [MAP]
+        [0.034856261421 * lower, 0.034856261421 * upper],  # s [MAP]
+        [21.617810506166 * lower, 21.617810506166 * upper],  # fab_o [MAP]
+        [17.175133514906 * lower, 17.175133514906 * upper],  # fes_o [MAP]
+        [2.07231183456 * lower, 2.07231183456 * upper],  # fes_inf [MAP]
         [80 * lower, 80 * upper],
+        [2.770365085494 * lower, 2.770365085494 * upper],  # fev_o [MAP]
+        [7.423024627183 * lower, 7.423024627183 * upper],  # fev_inf [MAP]
+        [0.05880583949 * lower, 0.05880583949 * upper],  # kes [MAP]
         [7.06 * lower, 7.06 * upper],
         [0.658 * lower, 0.658 * upper],
         [0.65 * lower, 0.65 * upper],
+        [0.511820670232 * lower, 0.511820670232 * upper],  # Io_sv [MAP]
         [0.126 * lower, 0.126 * upper],
         [0.114 * lower, 0.114 * upper],
         [0.13 * lower, 0.13 * upper],
+        [0.080130200394 * lower, 0.080130200394 * upper],  # kcc_sv [MAP]
         [0.0162 * lower, 0.0162 * upper],
         [9 * lower, 9 * upper],
         [-0.0283 * upper, -0.0283 * lower],
@@ -619,7 +854,9 @@ sp = ProblemSpec({
         [1.9 * lower, 1.9 * upper],
         [-0.0008 * upper, -0.0008 * lower],
         [-0.68 * upper, -0.68 * lower],
+        [-2.018544472453 * upper, -2.018544472453 * lower],  # Wb_sh [MAP]
         [-1.1375 * upper, -1.1375 * lower],
+        [-1.004859455505 * upper, -1.004859455505 * lower],  # Wb_sv [MAP]
         [1 * lower, 1 * upper],
         [1.716 * lower, 1.716 * upper],
         [1.716 * lower, 1.716 * upper],
@@ -631,7 +868,10 @@ sp = ProblemSpec({
         [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper],
         [0.4 * lower, 0.4 * upper],
-        [0.475 * lower, 0.475 * upper],
+        [2.060317555315 * lower, 2.060317555315 * upper],  # Emax_lv0 [MAP]
+        [1.279086612055 * lower, 1.279086612055 * upper],  # Emax_rv0 [MAP]
+        [2.996981540095 * lower, 2.996981540095 * upper],  # fes_min [MAP]
+        [0.431945385857 * lower, 0.431945385857 * upper],  # GEmax_lv [MAP]
         [0.282 * lower, 0.282 * upper],
         [2.47 * lower, 2.47 * upper],
         [1.94 * lower, 1.94 * upper],
@@ -640,7 +880,7 @@ sp = ProblemSpec({
         [-58.29 * upper, -58.29 * lower],
         [-74.21 * upper, -74.21 * lower],
         [-58.29 * upper, -58.29 * lower],
-        [-265.4 * upper, -265.4 * lower],
+        [-237.648313155424 * upper, -237.648313155424 * lower],  # GV_sv [MAP]
         [3.51 * lower, 3.51 * upper],
         [1.655 * lower, 1.655 * upper],
         [5.27 * lower, 5.27 * upper],
@@ -655,11 +895,16 @@ sp = ProblemSpec({
         [30 * lower, 30 * upper],
         [3.6 * lower, 3.6 * upper],
         [13.32 * lower, 13.32 * upper],
+        [11.1940122515 * lower, 11.1940122515 * upper],  # theta_svn [MAP]
         [53 * lower, 53 * upper],
         [6 * lower, 6 * upper],
         [6 * lower, 6 * upper],
+        [33.674334951783 * lower, 33.674334951783 * upper],  # PaCO2_n [MAP]
+        [47.041027400563 * lower, 47.041027400563 * upper],  # f_ab_max [MAP]
         [2.52 * lower, 2.52 * upper],
-        [112 * 0.9, 112 * upper],
+        [10.038635495577 * lower, 10.038635495577 * upper],  # k_ab [MAP]
+        [101.115183178836 * lower, 101.115183178836 * 1.15],  # P_n [MAP]
+        [120 * 0.9, 120 * upper],
         [1.4 * lower, 1.4 * upper],
         [12.3 * lower, 12.3 * upper],
         [0.835 * lower, 0.835 * upper],
@@ -667,12 +912,16 @@ sp = ProblemSpec({
         [3 * lower, 3 * upper],
         [45 * lower, 45 * upper],
         [11.76 * lower, 11.76 * upper],
+        [-0.112650592783 * upper, -0.112650592783 * lower],  # GT_s [MAP]
+        [0.100153101641 * lower, 0.100153101641 * upper],  # GT_v [MAP]
+        [0.654880149316 * lower, 0.654880149316 * upper],  # T0 [MAP]
         [20.9 * lower, 20.9 * upper],
         [92.8 * lower, 92.8 * upper],
         [10570 * lower, 10570 * upper],
         [-5.251 * upper, -5.251 * lower],
-        [0.14 * lower, 0.14 * upper],
+        [0.158362780305 * lower, 0.158362780305 * upper],  # Cvb_O2_n [MAP]
         [10 * lower, 10 * upper],
+        [0.925 * lower, 0.925 * upper],
         [6.57 * lower, 6.57 * upper],
         [0.11 * lower, 0.11 * upper],
         [0.155 * lower, 0.155 * upper],
@@ -684,8 +933,11 @@ sp = ProblemSpec({
         [0.86 * lower, 0.86 * upper],
         [19.71 * lower, 19.71 * upper],
         [12660 * lower, 12660 * upper],
+        [0.135937785465 * lower, 0.135937785465 * upper],  # Cvam_O2_n [MAP]
         [30 * lower, 30 * upper],
         [40 * lower, 40 * upper],
+        [0.36721777927 * lower, 0.36721777927 * upper],  # Io_met [MAP]
+        [0.204798869807 * lower, 0.204798869807 * upper],  # kmet [MAP]
         [0.516 * lower, 0.516 * upper],
         [20 * lower, 20 * upper],
         [-1.87 * upper, -1.87 * lower],
@@ -697,27 +949,37 @@ sp = ProblemSpec({
         [1200 * lower, 1200 * upper],
         [200 * lower, 200 * upper],
         [2 * lower, 2 * upper],
+        [4.198293711872 * lower, 4.198293711872 * upper],  # Kv_mi [MAP]
         [1.309 * lower, 1.309 * upper],
-        [2000 * lower, 2000 * upper],
+        [2293.073313146301 * lower, 2293.073313146301 * upper],  # Kp_po [MAP]
         [2000 * lower, 2000 * upper],
         [2 * lower, 2 * upper],
+        [8.115098186092 * lower, 8.115098186092 * upper],  # Kv_po [MAP]
         [1.309 * lower, 1.309 * upper],
         [2000 * lower, 2000 * upper],
         [200 * lower, 200 * upper],
         [2 * lower, 2 * upper],
+        [2.958475913209 * lower, 2.958475913209 * upper],  # Kv_tr [MAP]
         [1.309 * lower, 1.309 * upper],
         [0.0000317 * lower, 0.0000317 * upper],
-        [350 * lower, 350 * upper],
+        [393.134478510141 * lower, 393.134478510141 * upper],  # R_po [MAP]
         [400 * lower, 400 * upper],
         [400 * lower, 400 * upper],
         [350 * lower, 350 * upper],
-        [2.6 * lower, 2.6 * upper],
+        [0.001513621371 * lower, 0.001513621371 * upper],  # C_O2_param1 [MAP]
+        [2.891202516105 * lower, 2.891202516105 * upper],  # C_O2_param2 [MAP]
         [0.0000303 * lower, 0.0000303 * upper],
         [104 * lower, 104 * upper],
+        [311.969906535 * lower, 311.969906535 * upper],  # Vu_bv [MAP]
         [93.16 * lower, 93.16 * upper],
+        [513.955410368231 * lower, 513.955410368231 * upper],  # Vu_jp [MAP]
         [123 * lower, 123 * upper],
         [116.68 * lower, 116.68 * upper],
         [114 * lower, 114 * upper],
+        [27.301439733132 * lower, 27.301439733132 * upper],  # Vu_la [MAP]
+        [17.35873806827 * lower, 17.35873806827 * upper],  # Vu_lv [MAP]
+        [32.331282965822 * lower, 32.331282965822 * upper],  # Vu_ra [MAP]
+        [43.648498038143 * lower, 43.648498038143 * upper],  # Vu_rv [MAP]
         [8 * lower, 8 * upper],
         [8 * lower, 8 * upper],
         [2 * lower, 2 * upper],
@@ -728,7 +990,10 @@ sp = ProblemSpec({
         [20 * lower, 20 * upper],
         [20 * lower, 20 * upper],
         [20 * lower, 20 * upper],
+        [246.325150657968 * lower, 246.325150657968 * upper],  # Vu_amv0 [MAP]
+        [646.987007375066 * lower, 646.987007375066 * upper],  # Vu_ev0 [MAP]
         [190.95 * lower, 190.95 * upper],
+        [1262.699536885199 * lower, 1262.699536885199 * upper],  # Vu_sv0 [MAP]
         [20 * lower, 20 * upper],
         [30 * lower, 30 * upper],
         [2.076 * lower, 2.076 * upper],
@@ -756,6 +1021,8 @@ sp = ProblemSpec({
         [0.2 * lower, 0.2 * upper],
         [4 * lower, 4 * upper],
         [0.3 * lower, 0.3 * upper],
+        [0.012573867389 * lower, 0.012573867389 * upper],  # KE_lv [MAP]
+        [0.00928516807 * lower, 0.00928516807 * upper],  # KE_rv [MAP]
         [0.1 * lower, 0.1 * upper],
         [0.2 * lower, 0.2 * upper],
         [3 * lower, 3 * upper],
@@ -766,12 +1033,20 @@ sp = ProblemSpec({
         [0.25 * lower, 0.25 * upper],
         [0.25 * lower, 0.25 * upper],
         [50 * lower, 50 * upper],
-        [4.9 * lower, 4.9 * upper],
+        [4.300117727822 * lower, 4.300117727822 * upper],  # scale_param1 [MAP]
         [0.3 * lower, 0.3 * upper],
-        [26.6 * lower, 26.6 * upper],
+        [30.621117364076 * lower, 30.621117364076 * upper],  # scale_param4 [MAP]
         [0.04 * lower, 0.04 * upper],
         [80 * lower, 80 * upper],
+        [0.038470374015 * lower, 0.038470374015 * upper],  # rise_time_atr [MAP]
+        [0.351802683206 * lower, 0.351802683206 * upper],  # rise_time_ven [MAP]
+        [0.504893619857 * 0.85, 0.504893619857 * 1.15],  # fall_time_ven [MAP]
+        [0.941623732815 * 0.92, 0.941623732815 * 1.08],  # ahead1 [MAP]
         [0.0873 * lower, 0.0873 * upper],
+        [1.101085481093 * 0.85, 1.101085481093 * 1.15],  # r [MAP]
+        [1.356014731 * 0.85, 1.356014731 * 1.15],  # l [MAP]
+        [132.141948246527 * lower, 132.141948246527 * upper],  # V_nominal [MAP]
+        [50.289524292913 * lower, 50.289524292913 * upper],  # V_scale [MAP]
     ]
 })
 

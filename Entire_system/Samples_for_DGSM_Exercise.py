@@ -24,7 +24,7 @@ from Initial_Conditions_after_running_again import Initial_Conditions
 from All_Next_Conditions import make_fresh_storage
 
 target_values = np.arange(0, 10000, 10)
-BUFFER_LIMIT = 40000
+BUFFER_LIMIT = 80000
 
 max_time = 60 # Maximum time limit to avoid infinite loops
 
@@ -431,10 +431,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
         if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
-    pairs_ao = pairs_ao[-11:-1]
-    pairs_po = pairs_po[-11:-1]
-    pairs_mi = pairs_mi[-11:-1]
-    pairs_tr = pairs_tr[-11:-1]
+    pairs_ao = pairs_ao[-10:]
+    pairs_po = pairs_po[-10:]
+    pairs_mi = pairs_mi[-10:]
+    pairs_tr = pairs_tr[-10:]
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
@@ -461,7 +461,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_la = np.concatenate((local_updates["P_la_store"][i_buffer:], local_updates["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when mitral valve is open -> get second min la P
     P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
@@ -470,7 +470,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_ra = np.concatenate((local_updates["P_ra_store"][i_buffer:], local_updates["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when tricuspid valve is open -> get second min la P
     P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
@@ -502,7 +502,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # Find transitions: where phi_atr goes from 0 to >0
     starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
-    local_mins = starts[-11:-1]
+    local_mins = starts[-10:]
     last_10_b4_LA_atrial_contract = V_la[local_mins]
     last_10_b4_RA_atrial_contract = V_ra[local_mins]
 
@@ -541,8 +541,8 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     start_idx = start_idx[:n_pairs]
     end_idx = end_idx[:n_pairs]
 
-    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
-    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
+    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     mean_min_Total_Volume = np.mean(Total_Volume[Total_Vol_min_idx])
     mean_max_Total_Volume = np.mean(Total_Volume[Total_Vol_max_idx])
@@ -550,10 +550,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     Vol_percentage_change = Pericardial_Volume_difference / mean_max_Total_Volume
 
     dP_lv_dt_store = np.concatenate((local_updates["dP_lv_dt_store"][i_buffer:], local_updates["dP_lv_dt_store"][:i_buffer]))
-    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
-    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
 
