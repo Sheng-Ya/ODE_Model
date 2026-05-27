@@ -4,7 +4,7 @@ KNN_MCMC_Rest.py — Post-history-matching calibration pipeline
 Pipeline:
   1. Load NROY results from history matching (3-sigma threshold)
   2. KNN density estimation -> find densest region as MCMC start
-  3. Pyro NUTS MCMC -> posterior distribution targeting 1 sigma of rest targets
+  3. Pyro NUTS MCMC -> posterior distribution targeting rest targets
 
 Why NUTS over emcee / random-walk MH:
   - 69 calibration parameters: gradient-based NUTS scales as O(d^{1/4}),
@@ -17,25 +17,32 @@ Why NUTS over emcee / random-walk MH:
     handling the very different scales across the 69 parameters.
   - ~100-200x more sample-efficient than emcee for this dimensionality.
 
-Expects in working directory:
-  NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY parameter vectors
-  NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy  -- NROY bounds dict
-  {EMULATOR_DIR}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
+Expects history-matching artifacts beside this script:
+  test_params_wave_{WAVE}.npy
+  nroy_mask_wave_{WAVE}.npy
+  param_range_wave_{WAVE}.npy
+  Emulator_wave_{WAVE}/{output_name}/GaussianProcessMatern32_{output_name}_best.joblib
 
 Usage:
-  python KNN_MCMC_Rest.py
+  python3 KNN_MCMC_Rest.py
+  python3 KNN_MCMC_Rest.py --sequential
+  python3 KNN_MCMC_Rest.py --hm-wave 3
+  python3 KNN_MCMC_Rest.py --chain-id 0 --n-chains 4
+  python3 KNN_MCMC_Rest.py --aggregate-only --n-chains 4
 """
 
 import math
-# import os
+import os
+import sys
 import json
-import multiprocessing
+import argparse
+import subprocess
 import warnings
 import joblib
 import numpy as np
 import torch
 import gpytorch
-
+import multiprocessing
 import pyro
 # import pyro.distributions as dist
 from pyro.infer import MCMC, NUTS, HMC
@@ -47,13 +54,130 @@ from scipy.stats import norm as _scipy_norm
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import os
-os.environ["LOKY_MAX_CPU_COUNT"] = str(multiprocessing.cpu_count()) # set before sklearn/joblib uses loky
+from matplotlib.ticker import FuncFormatter
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(multiprocessing.cpu_count()))   # set before sklearn/joblib uses loky
 
 warnings.filterwarnings("ignore")
 
-# posterior_np = np.load("MCMC_Rest_20_16_04_1200_lambda50/posterior_samples.npy")
-# pred_matrix = np.load("MCMC_Rest_20_16_04_1200_lambda50/pred_check_matrix.npy")
+# ================================================================
+# CLI: HPC array-job orchestration
+# ================================================================
+# --chain-id c       : run only chain c (0..N_CHAINS-1) and save
+#                      chain_z_{c}.npy + chain_diag_{c}.joblib in out_dir,
+#                      then exit before diagnostics/plotting.
+# --aggregate-only   : skip chain running; load all chain_z_{c}.npy from
+#                      out_dir and run diagnostics + plots only.
+# --n-chains N       : expected number of chains to run/aggregate.
+# (no args)          : run N_CHAINS chain workers concurrently, then aggregate.
+# --sequential       : run all chains sequentially in this process.
+_parser = argparse.ArgumentParser()
+_parser.add_argument("--chain-id", type=int, default=-1)
+_parser.add_argument("--aggregate-only", action="store_true")
+_parser.add_argument("--n-chains", type=int, default=None)
+_parser.add_argument("--sequential", action="store_true")
+_parser.add_argument(
+    "--hm-artifacts-dir",
+    default=None,
+    help="Directory containing history-matching wave artifacts; default is the script directory.",
+)
+_parser.add_argument(
+    "--hm-wave",
+    type=int,
+    default=None,
+    help="History-matching wave number to load; default is wave 3 if complete, otherwise the latest complete wave.",
+)
+_parser.add_argument(
+    "--threads-per-chain",
+    type=int,
+    default=None,
+    help="CPU threads assigned to each parallel chain worker; default is cpu_count // n_chains.",
+)
+_args, _ = _parser.parse_known_args()
+CHAIN_ID       = _args.chain_id
+AGGREGATE_ONLY = _args.aggregate_only
+
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(SCRIPT_DIR)
+
+
+def _resolve_path(path):
+    if os.path.isabs(path):
+        return os.path.abspath(path)
+    return os.path.abspath(os.path.join(SCRIPT_DIR, path))
+
+
+HM_ARTIFACTS_DIR = (
+    _resolve_path(_args.hm_artifacts_dir)
+    if _args.hm_artifacts_dir
+    else SCRIPT_DIR
+)
+
+
+def _wave_artifact_paths(wave_number):
+    return {
+        "test_params": os.path.join(HM_ARTIFACTS_DIR, f"test_params_wave_{wave_number}.npy"),
+        "nroy_mask": os.path.join(HM_ARTIFACTS_DIR, f"nroy_mask_wave_{wave_number}.npy"),
+        "param_range": os.path.join(HM_ARTIFACTS_DIR, f"param_range_wave_{wave_number}.npy"),
+        "emulator_dir": os.path.join(HM_ARTIFACTS_DIR, f"Emulator_wave_{wave_number}"),
+    }
+
+
+def _wave_is_complete(wave_number):
+    paths = _wave_artifact_paths(wave_number)
+    return (
+        os.path.isfile(paths["test_params"])
+        and os.path.isfile(paths["nroy_mask"])
+        and os.path.isfile(paths["param_range"])
+        and os.path.isdir(paths["emulator_dir"])
+    )
+
+
+def _discover_hm_wave():
+    requested_wave = _args.hm_wave
+    if requested_wave is None:
+        requested_wave_env = os.environ.get("HM_WAVE")
+        if requested_wave_env:
+            requested_wave = int(requested_wave_env)
+
+    if requested_wave is not None:
+        if not _wave_is_complete(requested_wave):
+            paths = _wave_artifact_paths(requested_wave)
+            missing = [
+                path for path in paths.values()
+                if not (os.path.isdir(path) if path.endswith(f"Emulator_wave_{requested_wave}") else os.path.isfile(path))
+            ]
+            raise FileNotFoundError(
+                f"Requested HM wave {requested_wave} is incomplete in {HM_ARTIFACTS_DIR}.\n"
+                f"Missing: {missing}"
+            )
+        return requested_wave
+
+    preferred_wave = 3
+    if _wave_is_complete(preferred_wave):
+        return preferred_wave
+
+    candidates = []
+    prefix = "test_params_wave_"
+    suffix = ".npy"
+    if os.path.isdir(HM_ARTIFACTS_DIR):
+        for name in os.listdir(HM_ARTIFACTS_DIR):
+            if name.startswith(prefix) and name.endswith(suffix):
+                wave_text = name[len(prefix):-len(suffix)]
+                if wave_text.isdigit():
+                    wave_number = int(wave_text)
+                    if _wave_is_complete(wave_number):
+                        candidates.append(wave_number)
+
+    if candidates:
+        return max(candidates)
+
+    raise FileNotFoundError(
+        "No complete HM wave artifacts were found. Run "
+        "`python3 Bayesian_Calibration_Rest.py` first in the same project folder, "
+        "or pass --hm-artifacts-dir/--hm-wave explicitly."
+    )
+
 
 
 # ================================================================
@@ -64,30 +188,14 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
-DATE_SUFFIX  = "12_4"                    # matches HM output file names
-PERCENT      = 20                        # param range +/-% used in HM
-root = "three_implaus_pre_A_calib"
-EMULATOR_DIR = f"{root}/Emulator_wave_1wave"     # GP emulators from last refitted wave
-out_dir = f"{root}/MCMC_Rest_{PERCENT}_21_04_3000_logspline_copula_prior"
+DATE_SUFFIX  = "18_05"                    # matches HM output file names # change
+PERCENT      = 20                        # param range +/-% used in HM # change
+HM_WAVE_NUMBER = _discover_hm_wave()
+EMULATOR_DIR = os.path.join(HM_ARTIFACTS_DIR, f"Emulator_wave_{HM_WAVE_NUMBER}")     # GP emulators from selected HM wave # change
+out_dir = os.path.join(SCRIPT_DIR, f"MCMC_Rest_{PERCENT}_{DATE_SUFFIX}_1500_logspline_copula_prior")
 os.makedirs(out_dir, exist_ok=True)
 
-# KNN
-KNN_K = 50                               # neighbours for density estimation
 
-# ---- Gaussian copula prior on NROY points --------------------------------
-# Rationale (see also the diagnostic NROY_joint_multimodality_check.py):
-#   - Full-covariance GMM in 60D has ~1891 free params per component, so BIC
-#     massively overpenalises extra components; the sweep collapsed to K=1 =
-#     plain MVN, which cannot represent the skew visible in NROY marginals.
-#   - Pairwise hexbin of the top-skewed NROY axes showed one connected
-#     high-density region per panel (skewed/corner-concentrated but not
-#     multimodal), so a unimodal-in-z Gaussian copula is adequate.
-#   - Copula factorisation (Sklar): p(theta) = c(F_1..F_d) * prod_i p_i.
-#     Per-axis Gaussian KDE captures marginal skew exactly (continuous,
-#     differentiable, no component-count hyperparameter). The Gaussian
-#     copula models only the dependency in rank-Gaussianised space with
-#     one correlation matrix R — far fewer params than a full-cov GMM and
-#     the right object to estimate given ~178k NROY points.
 USE_COPULA_PRIOR   = True          # False -> uniform box prior
 KDE_SUBSAMPLE      = 5000          # subsample size per-axis KDE eval at MCMC
 KDE_BANDWIDTH      = "silverman"   # "silverman" | "scott" | float
@@ -112,18 +220,214 @@ USE_LOGSPLINE_MARGINALS = True
 LOGSPLINE_N_INTERIOR    = 14        # interior knots on [L_i, U_i]
 LOGSPLINE_LAMBDA        = 5.0       # 2nd-difference smoothness penalty
 LOGSPLINE_N_GRID        = 1000      # per-axis fine grid for Z + CDF + MCMC
+LOGSPLINE_PLOT_DPI      = 1200      # high-resolution PNG export for copula plot
 
 # NUTS MCMC
 N_WARMUP        = 500                    # warmup (step-size + mass-matrix adapt)
 N_SAMPLES       = 3000                   # posterior draws per chain
-N_CHAINS        = 1                      # independent chains (sequential loop; Windows-safe)
+N_CHAINS        = 4                      # independent chains
 MAX_TREE_DEPTH  = 7
 TARGET_ACCEPT   = 0.8
+
+if _args.n_chains is not None:
+    N_CHAINS = _args.n_chains
+if N_CHAINS < 1:
+    raise ValueError(f"--n-chains must be >= 1, got {N_CHAINS}")
+if AGGREGATE_ONLY and CHAIN_ID >= 0:
+    raise ValueError("--aggregate-only and --chain-id are mutually exclusive")
+if CHAIN_ID < -1 or CHAIN_ID >= N_CHAINS:
+    raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
+if _args.threads_per_chain is not None and _args.threads_per_chain < 1:
+    raise ValueError(
+        f"--threads-per-chain must be >= 1, got {_args.threads_per_chain}"
+    )
+
+
+def _parallel_worker_env(n_chains, threads_per_chain):
+    """Environment for concurrent chain subprocesses on Linux/HPC nodes."""
+    env = os.environ.copy()
+    if threads_per_chain is None:
+        threads_per_chain = max(1, (os.cpu_count() or n_chains) // max(n_chains, 1))
+        override = False
+    else:
+        override = True
+
+    thread_vars = (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "TORCH_NUM_THREADS",
+        "LOKY_MAX_CPU_COUNT",
+    )
+    for name in thread_vars:
+        if override:
+            env[name] = str(threads_per_chain)
+        else:
+            env.setdefault(name, str(threads_per_chain))
+    return env, threads_per_chain
+
+
+def _mcmc_driver_args():
+    return [
+        "--hm-artifacts-dir", HM_ARTIFACTS_DIR,
+        "--hm-wave", str(HM_WAVE_NUMBER),
+    ]
+
+
+def _run_parallel_chains_and_aggregate():
+    """Default no-arg driver: run one subprocess per chain, then aggregate."""
+    script_path = os.path.abspath(__file__)
+    run_cwd = os.getcwd()
+    env, threads_per_chain = _parallel_worker_env(
+        N_CHAINS, _args.threads_per_chain
+    )
+
+    print("  Mode: PARALLEL DRIVER (one subprocess per chain)", flush=True)
+    print(
+        f"Launching {N_CHAINS} chain workers concurrently "
+        f"({threads_per_chain} CPU thread(s) per worker by default).",
+        flush=True,
+    )
+    print(f"Worker logs will be written to {os.path.abspath(out_dir)}", flush=True)
+
+    workers = []
+    try:
+        for c in range(N_CHAINS):
+            log_path = os.path.abspath(os.path.join(out_dir, f"chain_{c}.log"))
+            log_file = open(log_path, "w", buffering=1)
+            cmd = [
+                sys.executable,
+                script_path,
+                "--chain-id", str(c),
+                "--n-chains", str(N_CHAINS),
+                *_mcmc_driver_args(),
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=run_cwd,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            workers.append((c, proc, log_path, log_file))
+            print(f"  chain {c}: pid={proc.pid}, log={log_path}", flush=True)
+
+        failed = []
+        for c, proc, log_path, log_file in workers:
+            return_code = proc.wait()
+            log_file.close()
+            if return_code != 0:
+                failed.append((c, return_code, log_path))
+            else:
+                print(f"  chain {c}: complete", flush=True)
+    except KeyboardInterrupt:
+        print("\nInterrupted; terminating chain workers...", flush=True)
+        for _, proc, _, log_file in workers:
+            if proc.poll() is None:
+                proc.terminate()
+            log_file.close()
+        raise
+
+    if failed:
+        print("\nOne or more chain workers failed:", flush=True)
+        for c, return_code, log_path in failed:
+            print(
+                f"  chain {c}: exit code {return_code}; see {log_path}",
+                flush=True,
+            )
+        sys.exit(1)
+
+    aggregate_log = os.path.abspath(os.path.join(out_dir, "aggregate.log"))
+    print(f"\nAll chains complete; aggregating results into {out_dir}/", flush=True)
+    print(f"Aggregate log: {aggregate_log}", flush=True)
+    with open(aggregate_log, "w", buffering=1) as log_file:
+        aggregate_return_code = subprocess.call(
+            [
+                sys.executable,
+                script_path,
+                "--aggregate-only",
+                "--n-chains", str(N_CHAINS),
+                *_mcmc_driver_args(),
+            ],
+            cwd=run_cwd,
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+    if aggregate_return_code != 0:
+        print(
+            f"Aggregation failed with exit code {aggregate_return_code}; "
+            f"see {aggregate_log}",
+            flush=True,
+        )
+        sys.exit(aggregate_return_code)
+
+    print("Parallel MCMC run complete.", flush=True)
+    sys.exit(0)
+
+
+if (
+    N_CHAINS > 1
+    and CHAIN_ID < 0
+    and not AGGREGATE_ONLY
+    and not _args.sequential
+):
+    _run_parallel_chains_and_aggregate()
+
+CHAIN_WORKER = CHAIN_ID >= 0
+WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
+
+# Atrial contraction is enforced via the active-emptying fraction
+#   r = (V_pre_contraction - V_min) / (V_max - V_min)
+# treated as a soft interval event, matching the history-matching framing:
+# high posterior density is assigned when the emulator-predicted ratio has
+# probability mass inside [0.20, 0.30]. The corresponding observation entries
+# are retained only for saved diagnostics and display normalisation.
+LA_MIN_IDX, LA_MAX_IDX, LA_PRE_IDX = 13, 14, 17
+RA_MIN_IDX, RA_MAX_IDX, RA_PRE_IDX = 9, 10, 18
+ATRIAL_GAUSSIAN_SKIP = (LA_PRE_IDX, RA_PRE_IDX)
+ATRIAL_COV_JITTER = 1e-10
+ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
+ATRIAL_INTERVAL_PROB_FLOOR = 1e-12
+ATRIAL_RATIO_DISPLAY_MEAN = 0.5 * (ATRIAL_RATIO_BOUNDS[0] + ATRIAL_RATIO_BOUNDS[1])
+ATRIAL_RATIO_DISPLAY_STD = 0.5 * (ATRIAL_RATIO_BOUNDS[1] - ATRIAL_RATIO_BOUNDS[0])
+ATRIAL_RATIO_DISPLAY_VAR = ATRIAL_RATIO_DISPLAY_STD ** 2
+
+# Display-only atrial pre-contraction volume targets used in the final
+# posterior-predictive box plot. The likelihood remains an interval event
+# on the active-emptying fraction ratio above. For mean/std plots, the
+# fraction target is represented as 0.25 +/- 0.05 so the +/-1 band equals
+# the acceptable interval [0.20, 0.30].
 
 # Posterior predictive
 N_PRED_CHECK = 1500                       # posterior samples for predictive check
 
-# Likelihood: Gaussian
+# Likelihood: Gaussian on direct targets + interval probability on atrial ratios
+
+
+def _propagated_vpre_display_stats(vmin_mean, vmin_var, vmax_mean, vmax_var,
+                                   f_mean, f_var):
+    """Display-only mean/std for V_pre = V_min + f * (V_max - V_min).
+
+    This mirrors the zero-cross-covariance assumption used by the MCMC
+    observation model: V_min, V_max and the active-emptying fraction f are
+    treated as independent when constructing the display normalisation.
+    """
+    delta_mean = float(vmax_mean) - float(vmin_mean)
+    f_mean = float(f_mean)
+    f_var = float(f_var)
+
+    vpre_mean = float(vmin_mean) + f_mean * delta_mean
+    ef2 = f_mean ** 2 + f_var
+    e1mf2 = (1.0 - f_mean) ** 2 + f_var
+    vpre_var = (
+        e1mf2 * float(vmin_var)
+        + ef2 * float(vmax_var)
+        + f_var * delta_mean ** 2
+    )
+    return vpre_mean, math.sqrt(max(vpre_var, 0.0))
 
 def extract_fast_caches(emulators, output_names):
     """Pre-warm GPyTorch prediction caches and extract y-transform params.
@@ -179,76 +483,6 @@ def extract_fast_caches(emulators, output_names):
             "y_mean": combined_y_mean, "y_std": combined_y_std,
         }
     return caches
-
-
-# def make_fast_potential_fn(prior_lo, prior_hi, obs_means_t, obs_vars_t,
-#                            output_names, gp_caches,
-#                            ):
-#     """Potential energy calling GPyTorch directly — no autoemulate overhead.
-#
-#     Bypasses the expensive autoemulate wrapper:
-#       - delta_method with vmap/jacrev/hessian
-#       - Distribution object creation
-#       - make_positive_definite
-#     Keeps GPyTorch's exact kernel computation + cached prediction strategy.
-#
-#     For affine y-transforms (StandardizeTransform), the inverse is just:
-#         mu  = mean_t * y_std + y_mean
-#         var = var_t  * y_std²
-#     """
-#     log_width = torch.log(prior_hi - prior_lo)
-#
-#     def _potential(z_dict):
-#         z = z_dict["theta"]                                          # (ndim,)
-#
-#         # ---- sigmoid transform to constrained space ----
-#         sig_z = torch.sigmoid(z)
-#         theta = prior_lo + sig_z * (prior_hi - prior_lo)
-#
-#         # ---- log |det J| of sigmoid ----
-#         log_det_jac = (
-#             torch.nn.functional.logsigmoid(z)
-#             + torch.nn.functional.logsigmoid(-z)
-#             + log_width
-#         ).sum()
-#
-#         # ---- GP log-likelihood (fast GPyTorch path) ----
-#         mus = [None] * len(output_names)
-#         vars_ = [None] * len(output_names)
-#         for i, name in enumerate(output_names):
-#             c = gp_caches[name]
-#
-#             # Standardise input
-#             x_t = (theta - c["x_mean"]) / c["x_std"]                # (d,)
-#
-#             # GPyTorch prediction (cached Cholesky — no recomputation)
-#             with gpytorch.settings.fast_pred_var():
-#                 output = c["gp"](x_t.unsqueeze(0))
-#             mean_t = output.mean.squeeze()
-#             var_t  = output.variance.squeeze().clamp(min=1e-10)
-#
-#             # Affine y-inverse-transform (StandardizeTransform)
-#             mus[i]   = mean_t * c["y_std"] + c["y_mean"]
-#             vars_[i] = var_t  * c["y_std"] ** 2
-#
-#         # Gaussian likelihood:
-#         #   log p(y | theta) = -0.5 * sum_i [ z_i^2 + log(s_i^2) ]
-#         #   z_i = (y_i - mu_i) / s_i,  s_i^2 = obs_var_i + GP_var_i(theta)
-#         #
-#         # Why this shape:
-#         #   - The Gaussian term is the original likelihood -> recovers the tight
-#         #     posterior of the previous run (each output pulled toward its target
-#         #     with curvature 1/s_i^2).
-#         ll = torch.tensor(0.0, dtype=torch.float32)
-#         for i in range(len(output_names)):
-#             total_var = (obs_vars_t[i] + vars_[i]).clamp(min=1e-10)
-#             z = (obs_means_t[i] - mus[i]) / total_var.sqrt()
-#             ll = ll - 0.5 * (z ** 2 + torch.log(total_var))
-#
-#         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
-#         return -(ll + log_det_jac)
-#
-#     return _potential
 
 
 # ================================================================
@@ -393,13 +627,30 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
     X_scaled = X_train.unsqueeze(0) / lengthscale.unsqueeze(1)           # (n_out, n, d)
     dists    = torch.cdist(X_scaled, X_scaled, p=2.0)                    # (n_out, n, n)
     K_base   = (1.0 + SQRT3 * dists) * torch.exp(-SQRT3 * dists)
-    K        = outputscale.view(-1, 1, 1) * K_base
-    K        = K + noise.view(-1, 1, 1) * torch.eye(n_train).unsqueeze(0)
+    K_latent = outputscale.view(-1, 1, 1) * K_base
+    K        = K_latent + noise.view(-1, 1, 1) * torch.eye(
+        n_train, dtype=torch.float32
+    ).unsqueeze(0)
     L        = torch.linalg.cholesky(K)                                  # (n_out, n, n)
 
     alpha = torch.cholesky_solve(
         (y_train - mean_const.unsqueeze(-1)).unsqueeze(-1), L
     ).squeeze(-1)                                                        # (n_out, n)
+
+    # Estimate cross-output residual correlation once from the training fit.
+    mu_train_latent = mean_const.unsqueeze(-1) + torch.bmm(
+        K_latent, alpha.unsqueeze(-1)
+    ).squeeze(-1)
+    y_train_phys = y_train * y_std.unsqueeze(-1) + y_mean.unsqueeze(-1)
+    mu_train_phys = mu_train_latent * y_std.unsqueeze(-1) + y_mean.unsqueeze(-1)
+    residual = y_train_phys - mu_train_phys
+    residual_centered = residual - residual.mean(dim=1, keepdim=True)
+    residual_cov = residual_centered @ residual_centered.T / max(n_train - 1, 1)
+    residual_std = torch.sqrt(torch.diagonal(residual_cov).clamp_min(1e-12))
+    residual_corr = residual_cov / (
+        residual_std.unsqueeze(1) * residual_std.unsqueeze(0)
+    ).clamp_min(1e-12)
+    residual_corr.fill_diagonal_(1.0)
 
     # Per-test-step speedup: cache the scaled training inputs and their
     # squared norms so _matern32_cross_fast can compute
@@ -416,6 +667,7 @@ def build_batched_fast_caches(emulators, output_names, gp_caches):
         "y_mean": y_mean, "y_std": y_std,
         "X_train_scaled": X_train_scaled,
         "X_train_scaled_norm2": X_train_scaled_norm2,
+        "residual_corr": residual_corr,
     }
 
 
@@ -803,6 +1055,86 @@ def _logspline_copula_log_prob(theta, cop):
     return log_copula + log_f
 
 
+def _safe_ratio_denominator(denom, eps=1e-8):
+    """Keep ratio denominators away from zero without flipping sign."""
+    sign = torch.where(denom >= 0, torch.ones_like(denom), -torch.ones_like(denom))
+    return torch.where(denom.abs() < eps, sign * eps, denom)
+
+
+def _local_output_covariance(vars_, residual_corr, idxs):
+    """Approximate local joint covariance from per-output vars and global residual corr."""
+    idx_t = torch.as_tensor(idxs, dtype=torch.long, device=vars_.device)
+    local_var = vars_.index_select(0, idx_t).clamp(min=1e-12)
+    local_std = torch.sqrt(local_var)
+    corr = residual_corr.to(device=vars_.device, dtype=vars_.dtype)
+    corr_sub = corr.index_select(0, idx_t).index_select(1, idx_t)
+    cov = corr_sub * torch.outer(local_std, local_std)
+    eye = torch.eye(len(idxs), dtype=vars_.dtype, device=vars_.device)
+    return 0.5 * (cov + cov.T) + ATRIAL_COV_JITTER * eye
+
+
+def _ratio_moments(mean_vec, cov):
+    """Cubature-propagated mean and variance of the active-emptying fraction.
+
+    `mean_vec` and `cov` describe the joint Gaussian (V_min, V_max, V_pre)
+    GP marginals. Returns (ratio_mean, ratio_var) for
+        r = (V_pre - V_min) / (V_max - V_min)
+    so the caller can evaluate a soft interval likelihood on the derived ratio.
+    """
+    n_dim = mean_vec.numel()
+    chol = torch.linalg.cholesky(cov)
+    disp = math.sqrt(float(n_dim)) * chol.T
+    sigma_points = torch.cat(
+        (mean_vec.unsqueeze(0) + disp, mean_vec.unsqueeze(0) - disp), dim=0
+    )
+    ratio = (
+        sigma_points[:, 2] - sigma_points[:, 0]
+    ) / _safe_ratio_denominator(sigma_points[:, 1] - sigma_points[:, 0])
+    ratio_mean = ratio.mean()
+    ratio_var = ((ratio - ratio_mean) ** 2).mean().clamp_min(1e-12)
+    return ratio_mean, ratio_var
+
+
+def _normal_interval_log_prob(mean, var, lower, upper):
+    """Log probability that N(mean, var) lies in [lower, upper]."""
+    sd = torch.sqrt(var.clamp(min=1e-12))
+    inv_scale = 1.0 / (math.sqrt(2.0) * sd)
+    upper_cdf = 0.5 * (1.0 + torch.erf((upper - mean) * inv_scale))
+    lower_cdf = 0.5 * (1.0 + torch.erf((lower - mean) * inv_scale))
+    probability = upper_cdf - lower_cdf
+    return torch.log(probability.clamp_min(ATRIAL_INTERVAL_PROB_FLOOR))
+
+
+def _format_max_sig_figs(value, sig_figs=4, max_decimals=3):
+    """Format numeric labels with capped sig figs and decimal places."""
+    value = float(value)
+    if not np.isfinite(value):
+        return str(value)
+    if value == 0.0:
+        return "0"
+
+    rounded = float(f"{value:.{sig_figs}g}")
+    abs_rounded = abs(rounded)
+    magnitude = int(math.floor(math.log10(abs_rounded))) if abs_rounded > 0 else 0
+    decimals = min(max(sig_figs - magnitude - 1, 0), max_decimals)
+
+    if decimals > 0:
+        label = f"{rounded:.{decimals}f}".rstrip("0").rstrip(".")
+    else:
+        label = f"{rounded:.0f}"
+
+    # Keep one decimal when rounding collapses a non-integer to an integer
+    # label, e.g. 29.999 -> 30.0, while staying within the sig-fig cap.
+    if (
+        "." not in label
+        and not math.isclose(value, rounded, rel_tol=0.0, abs_tol=1e-12)
+        and abs_rounded < 10 ** (sig_figs - 1)
+    ):
+        label = f"{rounded:.1f}"
+
+    return label
+
+
 def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_lower,
                                  prior_upper, out_dir, n_bins=40, n_cols=7):
     """Save per-axis prior marginals overlaid on the empirical NROY histograms.
@@ -828,7 +1160,13 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
     axes = np.atleast_2d(axes)
 
     marginal_type = copula_cache.get("marginal_type", "kde")
+    is_logspline_plot = marginal_type == "logspline"
+    if is_logspline_plot:
+        fig.set_size_inches(2.35 * n_cols, 1.8 * n_rows)
     legend_added = False
+    max_sig_fig_formatter = FuncFormatter(
+        lambda x, _pos: _format_max_sig_figs(x, sig_figs=4)
+    )
 
     for j, name in enumerate(subset_vars):
         ax = axes[j // n_cols, j % n_cols]
@@ -836,8 +1174,11 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
 
         ax.hist(
             data_j, bins=n_bins, density=True,
-            color="steelblue", alpha=0.45, edgecolor="none",
-            label="NROY points" if not legend_added else None,
+            color="steelblue",
+            alpha=0.2 if is_logspline_plot else 0.25,
+            edgecolor="white" if is_logspline_plot else "none",
+            linewidth=0.25 if is_logspline_plot else 0.0,
+            # label="NROY sample" if is_logspline_plot and not legend_added else None,
         )
 
         L = float(prior_lower[j])
@@ -850,8 +1191,22 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
         if marginal_type == "logspline":
             xg = copula_cache["x_grid"][j].detach().cpu().numpy()
             fg = copula_cache["f_grid"][j].detach().cpu().numpy()
-            ax.plot(xg, fg, color="crimson", lw=1.3,
-                    label="logspline marginal" if not legend_added else None)
+            ax.plot(
+                xg, fg, color="#0b3d91", lw=1.1,
+                # label="Logspline prior" if not legend_added else None,
+            )
+            ax.set_xlim(L, U)
+            ax.set_xticks([L, U])
+            ax.xaxis.set_major_formatter(max_sig_fig_formatter)
+            ax.set_yticks([])
+
+            for spine in ("top", "right"):
+                ax.spines[spine].set_visible(False)
+            for spine in ("left", "bottom"):
+                ax.spines[spine].set_linewidth(0.6)
+                ax.spines[spine].set_color("#4d4d4d")
+            ax.tick_params(axis="x", labelsize=12, length=2.5, width=0.6)
+            ax.tick_params(axis="y", length=0)
         else:
             xg = np.linspace(L, U, 600)
             kde_data_j = copula_cache["kde_data"][j].detach().cpu().numpy()
@@ -861,13 +1216,20 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
             fg /= (kde_data_j.size * h_j * math.sqrt(2.0 * math.pi))
             ax.plot(xg, fg, color="crimson", lw=1.3,
                     label="KDE marginal" if not legend_added else None)
+            ax.xaxis.set_major_formatter(max_sig_fig_formatter)
+            ax.yaxis.set_major_formatter(max_sig_fig_formatter)
 
-        ax.axvline(L, color="grey", ls=":", lw=0.5, alpha=0.6)
-        ax.axvline(U, color="grey", ls=":", lw=0.5, alpha=0.6)
-        ax.set_title(name, fontsize=8)
-        ax.tick_params(labelsize=6)
-        ax.set_xlabel("value", fontsize=6)
-        ax.set_ylabel("density", fontsize=6)
+        if not is_logspline_plot:
+            ax.axvline(L, color="grey", ls=":", lw=0.5, alpha=0.6)
+            ax.axvline(U, color="grey", ls=":", lw=0.5, alpha=0.6)
+        # ax.set_title(name, fontsize=8)
+        if is_logspline_plot:
+            ax.set_xlabel(name, fontsize=12, labelpad=2)
+            ax.set_ylabel("")
+        else:
+            ax.tick_params(labelsize=10)
+            ax.set_xlabel(name, fontsize=12)
+            ax.set_ylabel("Density", fontsize=12)
         legend_added = True
 
     for k in range(ndim, n_rows * n_cols):
@@ -875,15 +1237,15 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, loc="upper center", ncol=2, fontsize=10,
-                   bbox_to_anchor=(0.5, 1.0))
+        fig.legend(handles, labels, loc="upper center", ncol=2, fontsize=12,
+                   frameon=False, bbox_to_anchor=(0.5, 1.0))
 
     if marginal_type == "logspline":
-        title = (
-            f"Logspline (P-spline) marginals on HM bounds "
-            f"[n_interior={LOGSPLINE_N_INTERIOR}, lambda={LOGSPLINE_LAMBDA}] "
-            f"vs NROY empirical distribution"
-        )
+        # title = (
+        #     f"Logspline (P-spline) marginals on HM bounds "
+        #     f"[n_interior={LOGSPLINE_N_INTERIOR}, lambda={LOGSPLINE_LAMBDA}] "
+        #     f"vs NROY empirical distribution"
+        # )
         out_name = "copula_marginals_vs_NROY_logspline.png"
     else:
         title = (
@@ -892,11 +1254,17 @@ def plot_prior_marginals_vs_nroy(copula_cache, nroy_subset, subset_vars, prior_l
         )
         out_name = "copula_marginals_vs_NROY_kde.png"
 
-    fig.suptitle(title, y=1.005, fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.985])
+    if is_logspline_plot:
+        fig.text(0.006, 0.5, "Density", va="center", rotation="vertical",
+                 fontsize=12)
+        fig.tight_layout(rect=[0.025, 0, 1, 0.985])
+    else:
+        # fig.suptitle(title, y=1.005, fontsize=12)
+        fig.tight_layout(rect=[0, 0, 1, 0.985])
 
     out_path = os.path.join(out_dir, out_name)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plot_dpi = LOGSPLINE_PLOT_DPI if is_logspline_plot else 150
+    fig.savefig(out_path, dpi=plot_dpi, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved: {out_path}")
     return out_path
@@ -933,6 +1301,7 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
     y_std                = bc["y_std"]
     X_train_scaled       = bc["X_train_scaled"]
     X_train_scaled_norm2 = bc["X_train_scaled_norm2"]
+    residual_corr        = bc["residual_corr"]
 
     def _potential(z_dict):
         z = z_dict["theta"]
@@ -976,7 +1345,33 @@ def make_fast_potential_fn_batched(prior_lo, prior_hi, obs_means_t, obs_vars_t,
 
         total_var = (obs_vars_t + vars_).clamp(min=1e-10)
         z_norm = (obs_means_t - mus) / total_var.sqrt()
-        ll = -0.5 * (z_norm ** 2 + torch.log(total_var)).sum()
+
+        gaussian_mask = torch.ones_like(mus, dtype=torch.bool)
+        gaussian_mask[list(ATRIAL_GAUSSIAN_SKIP)] = False
+        ll = -0.5 * (
+            z_norm[gaussian_mask] ** 2 + torch.log(total_var[gaussian_mask])
+        ).sum()
+
+        # Atrial active-emptying fraction enters as a soft interval event.
+        # The cubature step propagates joint emulator uncertainty across
+        # (V_min, V_max, V_pre) into a ratio distribution, then the likelihood
+        # is log P(lower <= ratio <= upper | theta), matching the HM framing.
+        la_mean = torch.stack((mus[LA_MIN_IDX], mus[LA_MAX_IDX], mus[LA_PRE_IDX]))
+        ra_mean = torch.stack((mus[RA_MIN_IDX], mus[RA_MAX_IDX], mus[RA_PRE_IDX]))
+        la_cov = _local_output_covariance(
+            vars_, residual_corr, (LA_MIN_IDX, LA_MAX_IDX, LA_PRE_IDX)
+        )
+        ra_cov = _local_output_covariance(
+            vars_, residual_corr, (RA_MIN_IDX, RA_MAX_IDX, RA_PRE_IDX)
+        )
+        la_r_mean, la_r_var = _ratio_moments(la_mean, la_cov)
+        ra_r_mean, ra_r_var = _ratio_moments(ra_mean, ra_cov)
+
+        ratio_lower, ratio_upper = ATRIAL_RATIO_BOUNDS
+        ll = ll + (
+            _normal_interval_log_prob(la_r_mean, la_r_var, ratio_lower, ratio_upper)
+            + _normal_interval_log_prob(ra_r_mean, ra_r_var, ratio_lower, ratio_upper)
+        )
 
         ll = torch.nan_to_num(ll, nan=-1e8, posinf=-1e8, neginf=-1e8)
         log_prior = torch.nan_to_num(log_prior, nan=-1e8, posinf=-1e8, neginf=-1e8)
@@ -1021,8 +1416,8 @@ output_names = [
     "Max_RA_Pressure_Atrial_contraction",
     "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume",
     "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LA_Contraction_Volume_diff",
-    "RA_Contraction_Volume_diff", "LV_Pressure_Deriv",
+    "Max_LA_Pressure_Mitral_Opening", "Pre_LA_Contraction_Volume",
+    "Pre_RA_Contraction_Volume", "LV_Pressure_Deriv",
     "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
     "PaO2", "PaCO2",
 ]
@@ -1040,16 +1435,16 @@ observation = {
     "Min RV Volume": (64.4, 299.29),
     "Max RV Pressure": (22.5, 56.25),
     "Min RV Pressure": (4.0, 9.0),
-    "Min RA Volume": (30.6, 76.4),
+    "Min RA Volume": (45.7, 125.44),
     "Max RA Volume": (92.4, 380.25),
     "Max RA Pressure Atrial contraction": (8.0, 9.0),
     "Max RA Pressure Tricuspid Opening": (5.0, 9.0),
-    "Min LA Volume": (32.9, 75.69),
+    "Min LA Volume": (30.6, 84.64),
     "Max LA Volume": (68.3, 306.25),
     "Max LA Pressure Atrial contraction": (13.0, 9.0),
     "Max LA Pressure Mitral Opening": (12.0, 9.0),
-    "LA Contraction Volume diff": (41.8, 62.41),
-    "RA Contraction Volume diff": (46.1, 73.96),
+    "Pre LA Contraction Volume": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_VAR),
+    "Pre RA Contraction Volume": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_VAR),
     "LV Pressure Deriv": (1461.0, 146689.0),
     "RV Pressure Deriv": (271.0, 3025.0),
     "Tidal Volume": (0.850, 0.16),
@@ -1058,27 +1453,35 @@ observation = {
     "PaCO2": (35.5, 24.01),
 }
 
-# ================================================================
-# CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis)
-# ================================================================
-# rest
-subset_vars_set = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv', 'Cvam_O2_n', 'E_rs', 'Emax_la',
-               'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
-               'fes_o', 'fev_inf', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv', 'KE_la',
-               'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l', 'MO2_bp', 'P0_la', 'P0_lv',
-               'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa', 'rise_time_atr',
-               'rise_time_ven', 'Rvc_n', 'T0', 'theta_svn', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv',
-               'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'}
+LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
+    observation["Min LA Volume"][0],
+    observation["Min LA Volume"][1],
+    observation["Max LA Volume"][0],
+    observation["Max LA Volume"][1],
+    observation["Pre LA Contraction Volume"][0],
+    observation["Pre LA Contraction Volume"][1],
+)
+RA_PRE_DISPLAY_MEAN, RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
+    observation["Min RA Volume"][0],
+    observation["Min RA Volume"][1],
+    observation["Max RA Volume"][0],
+    observation["Max RA Volume"][1],
+    observation["Pre RA Contraction Volume"][0],
+    observation["Pre RA Contraction Volume"][1],
+)
 
-
-# total blood volume
-# subset_vars_set = {
-#     'a2', 'ahead1', 'beta2', 'C2', 'C_O2_param1', 'Cvam_O2_n', 'E_rs', 'Emax_la', 'Emax_lv0', 'Emax_rv0',
-#                'f_ab_max', 'fall_time_ven', 'fes_inf', 'fes_min', 'fes_o', 'fev_o', 'GT_s', 'GT_v', 'Io_met', 'K2',
-#                'k_ab', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'P_n',
-#                'PaCO2_n', 'r', 'R_rs', 'R_sa', 'rise_time_ven', 'T0', 'V0_dead', 'V_nominal', 'V_scale', 'V_tot',
-#                'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra', 'Vu_rv', 'Vu_sv0', 'Wb_sh'
-# }
+# ================================================================
+# CALIBRATION PARAMETER SUBSET (from DGSM sensitivity analysis) # change
+# ================================================================
+subset_vars_set = {'a2', 'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_O2_param2', 'C_sv', 'Cvam_O2_n', 'Cvb_O2_n', 'E_rs',
+               'Emax_la', 'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'f_ab_max', 'fab_o', 'fall_time_ven', 'fes_inf', 'fes_min',
+               'fes_o', 'fev_inf', 'fev_o', 'GEmax_lv', 'GT_s', 'GT_v', 'GV_sv', 'Io_met', 'Io_sv', 'K2', 'k_ab',
+               'kcc_sv', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'kes', 'kmet', 'Kp_po', 'Kv_mi', 'Kv_po', 'Kv_tr', 'l',
+               'P0_la', 'P0_lv', 'P0_ra', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_po', 'R_pp', 'R_rs', 'R_sa',
+               'rise_time_atr', 'rise_time_ven', 'Rvc_n', 's', 'scale_param1', 'scale_param4', 'T0', 'theta_svn',
+               'V0_dead', 'V_nominal', 'V_scale', 'Vu_amv0', 'Vu_bv', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra',
+               'Vu_rv', 'Vu_sv0', 'Wb_sh', 'Wb_sv'
+}
 
 
 
@@ -1090,12 +1493,21 @@ subset_vars_set = {'a2', 'ahead1', 'beta2', 'C2', 'C_jp', 'C_O2_param1', 'C_sv',
 print("=" * 60)
 print("STEP 1 -- Loading history matching results")
 print("=" * 60)
+print(f"  HM artifacts dir: {HM_ARTIFACTS_DIR}")
+print(f"  HM wave: {HM_WAVE_NUMBER}")
+print(f"  Emulator dir: {EMULATOR_DIR}")
 
-nroy_points_np = np.load(
-    f"{root}/NROY_Points_rest_{PERCENT}_{DATE_SUFFIX}.npy"
+test_x = np.load(
+    os.path.join(HM_ARTIFACTS_DIR, f"test_params_wave_{HM_WAVE_NUMBER}.npy") # change
 )
+nroy_mask = np.load(
+    os.path.join(HM_ARTIFACTS_DIR, f"nroy_mask_wave_{HM_WAVE_NUMBER}.npy") # change
+)
+
+nroy_points_np = test_x[nroy_mask]
+
 nroy_params_dict = np.load(
-    f"{root}/NROY_Params_rest_{PERCENT}_{DATE_SUFFIX}.npy", allow_pickle=True
+    os.path.join(HM_ARTIFACTS_DIR, f"param_range_wave_{HM_WAVE_NUMBER}.npy"), allow_pickle=True # change
 ).item()
 
 # Parameter ordering from the HM bounds dict (matches sp["names"])
@@ -1237,8 +1649,11 @@ if USE_COPULA_PRIOR:
             "prior_lower":    np.asarray(prior_lower, dtype=np.float64),
             "prior_upper":    np.asarray(prior_upper, dtype=np.float64),
         }
-        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
-        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+        if WRITE_SHARED_ARTIFACTS:
+            joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+            print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+        else:
+            print("  Single-chain mode: skipping shared copula_prior.joblib write")
     else:
         print(f"  Fitting on N={n_nroy} points, d={ndim}")
         print(f"  KDE subsample per axis: {KDE_SUBSAMPLE}")
@@ -1284,8 +1699,11 @@ if USE_COPULA_PRIOR:
             "corr_shrink":    CORR_SHRINK,
             "subset_vars":    subset_vars,
         }
-        joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
-        print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+        if WRITE_SHARED_ARTIFACTS:
+            joblib.dump(copula_dump, os.path.join(out_dir, "copula_prior.joblib"))
+            print(f"  Saved copula to {out_dir}/copula_prior.joblib")
+        else:
+            print("  Single-chain mode: skipping shared copula_prior.joblib write")
 else:
     print("\n  USE_COPULA_PRIOR = False -> uniform box prior on NROY bounds")
 
@@ -1294,14 +1712,19 @@ prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
 prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
 
 # Save a diagnostic plot of the fitted prior marginals before MCMC starts.
-_ = plot_prior_marginals_vs_nroy(
-    copula_prior_cache,
-    nroy_subset=nroy_subset,
-    subset_vars=subset_vars,
-    prior_lower=prior_lower,
-    prior_upper=prior_upper,
-    out_dir=out_dir,
-)
+# Array workers skip this shared output to avoid concurrent writes; the
+# aggregate job writes it once.
+if WRITE_SHARED_ARTIFACTS and copula_prior_cache is not None:
+    _ = plot_prior_marginals_vs_nroy(
+        copula_prior_cache,
+        nroy_subset=nroy_subset,
+        subset_vars=subset_vars,
+        prior_lower=prior_lower,
+        prior_upper=prior_upper,
+        out_dir=out_dir,
+    )
+elif not WRITE_SHARED_ARTIFACTS:
+    print("  Single-chain mode: skipping shared prior marginal plot")
 
 # ============================================================
 # 2. LOAD GP EMULATORS
@@ -1332,20 +1755,7 @@ batched_cache = build_batched_fast_caches(emulators, output_names, gp_caches)
 print(f"  Batched cache: L={tuple(batched_cache['L'].shape)}, "
       f"alpha={tuple(batched_cache['alpha'].shape)}")
 
-# print("  Verifying batched path matches GPyTorch path on 5 NROY points...")
-# _rng_check = np.random.default_rng(0)
-# _check_idx = _rng_check.choice(nroy_subset.shape[0], size=5, replace=False)
-# _max_mu_rel_err, _max_var_rel_err = 0.0, 0.0
-# # Per-output worst error so we can see which GP disagrees if this fails.
-# _per_out_mu_err  = np.zeros(len(output_names))
-# _per_out_var_err = np.zeros(len(output_names))
-#
-# IMPORTANT: gpytorch's default is conjugate-gradient solves when
-# n_train > max_cholesky_size (default 800).  With n_train ~1500 that path is
-# *approximate*, so it disagrees with our exact-Cholesky manual path by ~1%.
-# For a fair numerical comparison we force gpytorch onto exact Cholesky too.
-# (This also means our new batched path is strictly more accurate than the
-# previous fast_pred_var-based inference — not a regression.)
+
 _n_train_here = batched_cache["L"].shape[-1]
 
 # Clear any cached prediction strategy on each GP so it rebuilds under the
@@ -1355,192 +1765,6 @@ for _name in output_names:
     _g = gp_caches[_name]["gp"]
     if hasattr(_g, "prediction_strategy"):
         _g.prediction_strategy = None
-
-# def _ctx_exact():
-#     # Fresh context manager each use — gpytorch.settings contexts are one-shot.
-#     return gpytorch.settings.max_cholesky_size(_n_train_here + 1000)
-#
-# for _tp_np in nroy_subset[_check_idx]:
-#     _tp = torch.tensor(_tp_np, dtype=torch.float32)
-#
-#     _mus_old  = torch.empty(len(output_names))
-#     _vars_old = torch.empty(len(output_names))
-#     for _i, _name in enumerate(output_names):
-#         _c = gp_caches[_name]
-#         with torch.no_grad(), _ctx_exact():
-#             _xt  = (_tp - _c["x_mean"]) / _c["x_std"]
-#             _out = _c["gp"](_xt.unsqueeze(0))
-#             _mus_old[_i]  = _out.mean.squeeze() * _c["y_std"] + _c["y_mean"]
-#             _vars_old[_i] = _out.variance.squeeze().clamp(min=1e-10) * _c["y_std"] ** 2
-#
-#     with torch.no_grad():
-#         _x_t = (_tp - batched_cache["x_mean"]) / batched_cache["x_std"]
-#         _k   = _matern32_cross(_x_t, batched_cache["X_train"],
-#                                batched_cache["lengthscale"],
-#                                batched_cache["outputscale"])
-#         _mu_lat  = batched_cache["mean_const"] + (_k * batched_cache["alpha"]).sum(dim=-1)
-#         _v       = torch.cholesky_solve(_k.unsqueeze(-1), batched_cache["L"]).squeeze(-1)
-#         _var_lat = (batched_cache["outputscale"] - (_k * _v).sum(dim=-1)).clamp(min=1e-10)
-#         _mus_new  = _mu_lat  * batched_cache["y_std"] + batched_cache["y_mean"]
-#         _vars_new = _var_lat * batched_cache["y_std"] ** 2
-#
-#     _mu_err_vec  = ((_mus_new  - _mus_old ).abs() / (_mus_old.abs()  + 1e-8)).cpu().numpy()
-#     _var_err_vec = ((_vars_new - _vars_old).abs() / (_vars_old.abs() + 1e-8)).cpu().numpy()
-#     _per_out_mu_err  = np.maximum(_per_out_mu_err,  _mu_err_vec)
-#     _per_out_var_err = np.maximum(_per_out_var_err, _var_err_vec)
-#     _max_mu_rel_err  = max(_max_mu_rel_err,  float(_mu_err_vec.max()))
-#     _max_var_rel_err = max(_max_var_rel_err, float(_var_err_vec.max()))
-#
-# print(f"  Max relative error across 5 points:  "
-#       f"mean={_max_mu_rel_err:.2e}  variance={_max_var_rel_err:.2e}")
-# if _max_mu_rel_err >= 1e-3 or _max_var_rel_err >= 1e-2:
-#     print("  Per-output error (sorted by mean error, showing worst 10):")
-#     _order = np.argsort(-_per_out_mu_err)[:10]
-#     for _i in _order:
-#         _gp = emulators[output_names[_i]].model
-#         print(f"    {output_names[_i]:<40} "
-#               f"mu_rel={_per_out_mu_err[_i]:.2e}  "
-#               f"var_rel={_per_out_var_err[_i]:.2e}  "
-#               f"mean={type(_gp.mean_module).__name__}  "
-#               f"kernel={type(_gp.covar_module).__name__}/"
-#               f"{type(getattr(_gp.covar_module,'base_kernel',_gp.covar_module)).__name__}")
-# # Tolerances reflect gpytorch's own float32 precision envelope on large kernels,
-# # not ours.  Cross-check (see commit notes): our manual float32 matches a float64
-# # reference to ~1e-6; gpytorch's float32 exact-Cholesky drifts by ~4e-4 in
-# # standardised space on the same input (LazyTensor intermediates).  So the
-# # residual in this assert is gpytorch-side drift — the batched path is at least
-# # as accurate as the gpytorch path it replaces.
-# assert _max_mu_rel_err  < 5e-3, f"Mean mismatch {_max_mu_rel_err:.2e} > 5e-3"
-# assert _max_var_rel_err < 1e-2, f"Variance mismatch {_max_var_rel_err:.2e} > 1e-2"
-# print("  Verification passed — batched path agrees with GPyTorch within float32 envelope.")
-#
-# # ---- Micro-benchmark old vs new potential path ----
-# import time as _time
-# _bench_prior_lo = torch.tensor(prior_lower, dtype=torch.float32)
-# _bench_prior_hi = torch.tensor(prior_upper, dtype=torch.float32)
-# _bench_obs_m = torch.tensor(
-#     [observation[n.replace("_", " ")][0] for n in output_names], dtype=torch.float32,
-# )
-# _bench_obs_v = torch.tensor(
-#     [observation[n.replace("_", " ")][1] for n in output_names], dtype=torch.float32,
-# )
-# _pf_old = make_fast_potential_fn(
-#     _bench_prior_lo, _bench_prior_hi, _bench_obs_m, _bench_obs_v,
-#     output_names, gp_caches,
-# )
-# _pf_new = make_fast_potential_fn_batched(
-#     _bench_prior_lo, _bench_prior_hi, _bench_obs_m, _bench_obs_v, batched_cache,
-# )
-# _z_bench = torch.zeros(ndim, dtype=torch.float32)
-#
-# # warmup (compile JIT caches etc.)
-# # Force exact Cholesky for the old path so its numerics match the new path —
-# # otherwise gpytorch silently uses CG (n_train > default max_cholesky_size=800)
-# # and values disagree by ~1% even though both are "correct" in their own way.
-# for _ in range(3):
-#     with torch.no_grad(), _ctx_exact():
-#         _pf_old({"theta": _z_bench}); _pf_new({"theta": _z_bench})
-#
-# _N_BENCH = 50
-# _t0 = _time.perf_counter()
-# for _ in range(_N_BENCH):
-#     with _ctx_exact():
-#         _zz = _z_bench.clone().requires_grad_(True)
-#         _p = _pf_old({"theta": _zz})
-#         _p.backward()
-# _t_old = (_time.perf_counter() - _t0) / _N_BENCH
-#
-# _t0 = _time.perf_counter()
-# for _ in range(_N_BENCH):
-#     _zz = _z_bench.clone().requires_grad_(True)
-#     _p = _pf_new({"theta": _zz})
-#     _p.backward()
-# _t_new = (_time.perf_counter() - _t0) / _N_BENCH
-#
-# with torch.no_grad(), _ctx_exact():
-#     _po = _pf_old({"theta": _z_bench}).item()
-# with torch.no_grad():
-#     _pn = _pf_new({"theta": _z_bench}).item()
-#
-# print(f"  Potential + grad per call:  old={_t_old*1e3:.2f} ms  "
-#       f"new={_t_new*1e3:.2f} ms  speedup={_t_old/_t_new:.1f}x")
-# print(f"  Potential value agreement (both exact-Chol):  "
-#       f"old={_po:.6f}  new={_pn:.6f}  |d|={abs(_po-_pn):.2e}")
-# # Tolerance is on absolute potential; values are O(1e2..1e4) so 0.5 is tight.
-# assert abs(_po - _pn) < 0.5, f"Potential mismatch {_po} vs {_pn}"
-#
-#
-# # ============================================================
-# # 3. KNN DENSITY ESTIMATION
-# # ============================================================
-# print("\n" + "=" * 60)
-# print("STEP 3 -- KNN density estimation")
-# print("=" * 60)
-#
-# # Standardise so that all dimensions contribute equally to distance
-# scaler = StandardScaler()
-# nroy_scaled = scaler.fit_transform(nroy_subset)
-#
-# knn = NearestNeighbors(n_neighbors=KNN_K, metric="euclidean", n_jobs=8)
-# knn.fit(nroy_scaled)
-#
-# # Density ~ 1 / (mean distance to k neighbours)
-# distances, _ = knn.kneighbors(nroy_scaled)
-# mean_dist = distances.mean(axis=1)
-# densities = 1.0 / (mean_dist + 1e-10)
-#
-# # Densest point = optimal MCMC starting position
-# densest_idx = np.argmax(densities)
-# best_start = nroy_subset[densest_idx]
-#
-# print(f"  k = {KNN_K}")
-# print(f"  Densest NROY index: {densest_idx}")
-# print(f"  Density at best:    {densities[densest_idx]:.4f}")
-# print(f"  Mean density:       {densities.mean():.4f}")
-#
-# top_10 = np.argsort(densities)[-10:][::-1]
-# print(f"  Top-10 densest idx: {top_10.tolist()}")
-#
-# # Sanity check: GP predictions at densest point
-# # NOTE: autoemulate uses output_from_samples=True, so predict_mean_and_variance
-# # returns a Monte Carlo estimate (noisy). Our fast-cache is the exact analytical
-# # GP prediction with affine y-inverse-transform — more accurate, not less.
-# # We verify the fast-cache against a second independent gp() call to confirm
-# # the x-standardisation and combined y-transform are correct.
-# theta_t = torch.tensor(best_start, dtype=torch.float32)
-#
-# print("\n  GP predictions at densest point (fast cache):")
-# print(f"  {'Output':<40} {'Pred':>10} {'Target':>10} "
-#       f"{'|d|/s':>7}")
-# print("  " + "-" * 75)
-# mus_check = [None] * len(output_names)
-# for i, name in enumerate(output_names):
-#     c = gp_caches[name]
-#     with torch.no_grad(), gpytorch.settings.fast_pred_var():
-#         xt = (theta_t - c["x_mean"]) / c["x_std"]
-#         output = c["gp"](xt.unsqueeze(0))
-#         mean_t = output.mean.squeeze()
-#         mus_check[i] = (mean_t * c["y_std"] + c["y_mean"]).item()
-#
-#
-# for i, name in enumerate(output_names):
-#     mu_fast = mus_check[i]
-#     obs_mean = observation[name.replace("_", " ")][0]
-#     obs_std  = observation[name.replace("_", " ")][1] ** 0.5
-#     sigma_away = abs(mu_fast - obs_mean) / obs_std
-#     flag = "" if sigma_away <= 1.0 else " *"
-#     print(f"  {name:<40} {mu_fast:10.3f} {obs_mean:10.3f} "
-#           f"{sigma_away:7.2f}{flag}")
-#
-# # Verify: two independent gp() calls at same point give identical results
-# # (confirms no stale caches or state-dependent prediction)
-# c0 = gp_caches[output_names[0]]
-# with torch.no_grad(), gpytorch.settings.fast_pred_var():
-#     xt = (theta_t - c0["x_mean"]) / c0["x_std"]
-#     mu_a = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
-#     mu_b = c0["gp"](xt.unsqueeze(0)).mean.squeeze().item()
-# assert mu_a == mu_b, f"GP prediction not deterministic: {mu_a} vs {mu_b}"
-# print("\n  Determinism check passed (two gp() calls match exactly)")
 
 # ============================================================
 # 4. PYRO NUTS MCMC  (custom potential_fn — no model tracing)
@@ -1585,9 +1809,11 @@ init_theta = torch.clamp(init_theta, prior_lo + eps, prior_hi - eps)
 theta_01 = (init_theta - prior_lo) / (prior_hi - prior_lo)
 init_z_all = torch.log(theta_01 / (1.0 - theta_01))    # (N_CHAINS, ndim)
 
-# Verify initial potential is finite (use chain-0 start)
+# Verify initial potential is finite.  In array mode, check this worker's
+# own initial point rather than chain 0's.
+initial_check_chain = CHAIN_ID if CHAIN_WORKER else 0
 with torch.no_grad():
-    z_test = init_z_all[0]
+    z_test = init_z_all[initial_check_chain]
     pe0 = potential_fn({"theta": z_test})
     print(f"  Initial potential energy: {pe0.item():.4f}")
     assert torch.isfinite(pe0), f"Initial PE is {pe0.item()}, check NROY start"
@@ -1600,74 +1826,127 @@ print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
       f"norm={grad_check.norm().item():.4f}")
 assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
-# ---------- Sequential multi-chain NUTS ----------
-# Pyro's native parallel multi-chain uses multiprocessing.spawn, which on
-# Windows requires an `if __name__ == "__main__":` guard AND a picklable
-# potential_fn.  This script has neither (the potential_fn closes over
-# large torch-tensor caches), so we run chains sequentially instead.
-# Posterior samples, split-R-hat and ESS are identical to parallel chains;
-# only wall time is N_CHAINS x longer.
+# ---------- Multi-chain NUTS (parallel driver / sequential / array-task / aggregate) ----------
+# Three execution modes (see CLI block at top):
+#   1. --sequential       : run all N_CHAINS sequentially in this process.
+#   2. --chain-id c       : run only chain c, save per-chain output, exit.
+#                           Used by HPC array-job (one task = one chain).
+#   3. --aggregate-only   : skip chains entirely; load chain_z_{c}.npy from
+#                           out_dir for c in 0..N_CHAINS-1.
+# Posterior samples, split-R-hat and ESS are identical regardless of mode;
+# the default no-arg driver runs chain workers concurrently and then launches
+# aggregate-only mode once all workers finish.
 print(f"  {N_CHAINS} chain(s) x ({N_WARMUP} warmup + {N_SAMPLES} samples)")
 print(f"  ndim = {ndim},  max_tree_depth = {MAX_TREE_DEPTH}")
 print(f"  target_accept_prob = {TARGET_ACCEPT}")
-print("  Running NUTS chains sequentially...")
+if AGGREGATE_ONLY:
+    print(f"  Mode: AGGREGATE-ONLY (loading per-chain files from {out_dir})")
+elif CHAIN_ID >= 0:
+    print(f"  Mode: SINGLE-CHAIN (chain-id={CHAIN_ID})")
+else:
+    print("  Mode: SEQUENTIAL (all chains in this process)")
 
 chain_samples_z  = []   # list of (N_SAMPLES, ndim) tensors
 chain_diag_list  = []   # per-chain diagnostics dicts
 chain_fell_back  = []   # which chains used HMC fallback
+mcmc_c           = None
 
-for c in range(N_CHAINS):
-    print(f"\n  --- Chain {c + 1}/{N_CHAINS} ---")
-    pyro.set_rng_seed(RANDOM_SEED + c)
-    init_z_c = init_z_all[c].clone()
+if AGGREGATE_ONLY:
+    for c in range(N_CHAINS):
+        z_path = os.path.join(out_dir, f"chain_z_{c}.npy")
+        if not os.path.exists(z_path):
+            raise FileNotFoundError(
+                f"Aggregate mode: missing {z_path}. "
+                f"Run all N_CHAINS={N_CHAINS} array tasks first."
+            )
+        zc = np.load(z_path)
+        chain_samples_z.append(torch.tensor(zc, dtype=torch.float32))
+        diag_path = os.path.join(out_dir, f"chain_diag_{c}.joblib")
+        if os.path.exists(diag_path):
+            payload = joblib.load(diag_path)
+            chain_diag_list.append(payload.get("diag", {}))
+            chain_fell_back.append(bool(payload.get("fell_back", False)))
+        else:
+            chain_diag_list.append({})
+            chain_fell_back.append(False)
+    print(f"  Loaded {N_CHAINS} chain samples from {out_dir}/")
+else:
+    chains_to_run = [CHAIN_ID] if CHAIN_ID >= 0 else list(range(N_CHAINS))
+    if CHAIN_ID >= 0 and not (0 <= CHAIN_ID < N_CHAINS):
+        raise ValueError(f"--chain-id={CHAIN_ID} outside [0, {N_CHAINS - 1}]")
 
-    nuts_c = NUTS(
-        potential_fn=potential_fn,
-        step_size=1e-3,
-        adapt_step_size=True,
-        adapt_mass_matrix=True,
-        max_tree_depth=MAX_TREE_DEPTH,
-        target_accept_prob=TARGET_ACCEPT,
-        jit_compile=False,
-    )
-    mcmc_c = MCMC(
-        nuts_c,
-        num_samples=N_SAMPLES,
-        warmup_steps=N_WARMUP,
-        num_chains=1,
-        initial_params={"theta": init_z_c},
-    )
+    for c in chains_to_run:
+        print(f"\n  --- Chain {c + 1}/{N_CHAINS} ---")
+        pyro.set_rng_seed(RANDOM_SEED + c)
+        init_z_c = init_z_all[c].clone()
 
-    fell_back = False
-    try:
-        mcmc_c.run()
-    except Exception as nuts_err:
-        print(f"  chain {c}: NUTS failed ({nuts_err})")
-        print(f"  chain {c}: falling back to HMC")
-        hmc_c = HMC(
+        nuts_c = NUTS(
             potential_fn=potential_fn,
             step_size=1e-3,
             adapt_step_size=True,
-            num_steps=20,
+            adapt_mass_matrix=True,
+            max_tree_depth=MAX_TREE_DEPTH,
+            target_accept_prob=TARGET_ACCEPT,
             jit_compile=False,
         )
         mcmc_c = MCMC(
-            hmc_c,
+            nuts_c,
             num_samples=N_SAMPLES,
             warmup_steps=N_WARMUP,
             num_chains=1,
             initial_params={"theta": init_z_c},
         )
-        mcmc_c.run()
-        fell_back = True
 
-    chain_samples_z.append(mcmc_c.get_samples()["theta"])   # (N_SAMPLES, ndim)
-    try:
-        chain_diag_list.append(mcmc_c.diagnostics())
-    except Exception as diag_err:
-        print(f"  chain {c}: diagnostics() failed: {diag_err}")
-        chain_diag_list.append({})
-    chain_fell_back.append(fell_back)
+        fell_back = False
+        try:
+            mcmc_c.run()
+        except Exception as nuts_err:
+            print(f"  chain {c}: NUTS failed ({nuts_err})")
+            print(f"  chain {c}: falling back to HMC")
+            hmc_c = HMC(
+                potential_fn=potential_fn,
+                step_size=1e-3,
+                adapt_step_size=True,
+                num_steps=20,
+                jit_compile=False,
+            )
+            mcmc_c = MCMC(
+                hmc_c,
+                num_samples=N_SAMPLES,
+                warmup_steps=N_WARMUP,
+                num_chains=1,
+                initial_params={"theta": init_z_c},
+            )
+            mcmc_c.run()
+            fell_back = True
+
+        z_c = mcmc_c.get_samples()["theta"]                  # (N_SAMPLES, ndim)
+        chain_samples_z.append(z_c)
+        try:
+            diag_c = mcmc_c.diagnostics()
+        except Exception as diag_err:
+            print(f"  chain {c}: diagnostics() failed: {diag_err}")
+            diag_c = {}
+        chain_diag_list.append(diag_c)
+        chain_fell_back.append(fell_back)
+
+        # Single-chain (HPC array task) mode: persist this chain's output
+        # so the aggregator can stack it later.
+        if CHAIN_ID >= 0:
+            np.save(os.path.join(out_dir, f"chain_z_{c}.npy"),
+                    z_c.detach().cpu().numpy())
+            joblib.dump(
+                {"diag": diag_c, "fell_back": fell_back, "chain_id": c},
+                os.path.join(out_dir, f"chain_diag_{c}.joblib"),
+            )
+            print(f"  chain {c}: saved chain_z_{c}.npy "
+                  f"+ chain_diag_{c}.joblib to {out_dir}/")
+
+    # Array-task mode: stop here — aggregation is done by a separate job.
+    if CHAIN_ID >= 0:
+        print(f"\n  Single-chain run complete (chain {CHAIN_ID}). "
+              f"Run with --aggregate-only after all {N_CHAINS} chains finish.")
+        sys.exit(0)
 
 # Stack into (C, N, d); keep last MCMC object for any residual references.
 z_chains = torch.stack(chain_samples_z, dim=0)
@@ -1687,18 +1966,13 @@ posterior_np = posterior.detach().cpu().numpy()
 
 posterior_chains = prior_lo + torch.sigmoid(z_chains) * (prior_hi - prior_lo)  # (C, N, ndim)
 
+# One-dimensional marginal summaries.  These are useful diagnostics, but they
+# should not be treated as a jointly valid posterior parameter vector.
 post_mean   = posterior_np.mean(axis=0)
 post_std    = posterior_np.std(axis=0)
 post_median = np.median(posterior_np, axis=0)
 post_q05    = np.percentile(posterior_np, 5, axis=0)
 post_q95    = np.percentile(posterior_np, 95, axis=0)
-
-print(f"\n{'Param':<20} {'Median':>12} {'Mean':>12} {'Std':>12} "
-      f"{'5%':>12} {'95%':>12}")
-print("-" * 80)
-for j, name in enumerate(subset_vars):
-    print(f"{name:<20} {post_median[j]:12.6g} {post_mean[j]:12.6g} "
-          f"{post_std[j]:12.6g} {post_q05[j]:12.6g} {post_q95[j]:12.6g}")
 
 # ============================================================
 # 6. POSTERIOR PREDICTIVE CHECK
@@ -1706,35 +1980,6 @@ for j, name in enumerate(subset_vars):
 print("\n" + "=" * 60)
 print("STEP 6 -- Posterior predictive check")
 print("=" * 60)
-
-# --- Check posterior MEDIAN ---
-x_med = torch.tensor(post_median, dtype=torch.float32).unsqueeze(0)
-
-print(f"\n--- Posterior MEDIAN predictions ---")
-print(f"{'Output':<45} {'Pred':>10} {'Target':>10} "
-      f"{'|d|/s':>8} {'<=1s':>5}")
-print("-" * 85)
-
-preds_med = [None] * len(output_names)
-for i, name in enumerate(output_names):
-    c = gp_caches[name]
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        xt = (x_med.squeeze() - c["x_mean"]) / c["x_std"]
-        out = c["gp"](xt.unsqueeze(0))
-        preds_med[i] = (out.mean.squeeze() * c["y_std"] + c["y_mean"]).item()
-
-n_within = 0
-for i, name in enumerate(output_names):
-    pred = preds_med[i]
-    tgt  = obs_means_t[i].item()
-    std  = obs_stds_t[i].item()
-    sig  = abs(pred - tgt) / std
-    ok   = sig <= 1.0
-    n_within += int(ok)
-    print(f"{name:<45} {pred:10.3f} {tgt:10.3f} "
-          f"{sig:8.3f} {'Y' if ok else 'N':>5}")
-print(f"\n  {n_within}/{len(output_names)} outputs within 1 sigma at "
-      f"posterior median")
 
 # --- Posterior predictive distribution (N_PRED_CHECK samples) ---
 print(f"\n--- Posterior predictive distribution ({N_PRED_CHECK} samples) ---")
@@ -1749,16 +1994,32 @@ with torch.no_grad():
     theta_batch = torch.tensor(posterior_np[check_idx], dtype=torch.float32)
     pred_matrix = batched_predict_mean(theta_batch, batched_cache).cpu().numpy()
 
+# Replace the raw mL predictions at the atrial-diff indices with the derived
+# active-emptying fraction so the predictive table, normalised box plot and
+# saved pred_check_matrix.npy compare against the atrial interval target.
+_la_denom = pred_matrix[:, LA_MAX_IDX] - pred_matrix[:, LA_MIN_IDX]
+_ra_denom = pred_matrix[:, RA_MAX_IDX] - pred_matrix[:, RA_MIN_IDX]
+_la_denom = np.where(np.abs(_la_denom) < 1e-8, np.where(_la_denom >= 0, 1e-8, -1e-8), _la_denom)
+_ra_denom = np.where(np.abs(_ra_denom) < 1e-8, np.where(_ra_denom >= 0, 1e-8, -1e-8), _ra_denom)
+pred_matrix[:, LA_PRE_IDX] = (pred_matrix[:, LA_PRE_IDX] - pred_matrix[:, LA_MIN_IDX]) / _la_denom
+pred_matrix[:, RA_PRE_IDX] = (pred_matrix[:, RA_PRE_IDX] - pred_matrix[:, RA_MIN_IDX]) / _ra_denom
+
 print(f"{'Output':<45} {'Mean Pred':>10} {'Std Pred':>10} "
-      f"{'Target':>10} {'% <=1s':>8}")
-print("-" * 90)
+      f"{'Target':>15} {'% ok':>8}")
+print("-" * 95)
 for i, name in enumerate(output_names):
     preds  = pred_matrix[:, i]
-    tgt    = obs_means_t[i].item()
-    std    = obs_stds_t[i].item()
-    within = (np.abs(preds - tgt) <= std).mean() * 100
+    if i in ATRIAL_GAUSSIAN_SKIP:
+        lower, upper = ATRIAL_RATIO_BOUNDS
+        target = f"[{lower:.2f}, {upper:.2f}]"
+        within = ((preds >= lower) & (preds <= upper)).mean() * 100
+    else:
+        tgt = obs_means_t[i].item()
+        std = obs_stds_t[i].item()
+        target = f"{tgt:.3f}"
+        within = (np.abs(preds - tgt) <= std).mean() * 100
     print(f"{name:<45} {preds.mean():10.3f} {preds.std():10.3f} "
-          f"{tgt:10.3f} {within:7.1f}%")
+          f"{target:>15} {within:7.1f}%")
 
 # ============================================================
 # 7. SAVE RESULTS
@@ -1768,9 +2029,9 @@ print("STEP 7 -- Saving results")
 print("=" * 60)
 
 np.save(os.path.join(out_dir, "posterior_samples.npy"), posterior_np)
-np.save(os.path.join(out_dir, "posterior_median.npy"), post_median)
 np.save(os.path.join(out_dir, "posterior_mean.npy"), post_mean)
 np.save(os.path.join(out_dir, "posterior_std.npy"), post_std)
+np.save(os.path.join(out_dir, "posterior_median.npy"), post_median)
 np.save(os.path.join(out_dir, "subset_vars.npy"),
         np.array(subset_vars, dtype=object))
 # np.save(os.path.join(out_dir, "knn_densities.npy"), densities)
@@ -1833,6 +2094,18 @@ for k in range(posterior_z.shape[0]):
         log_post_trace[k] = -potential_fn({"theta": posterior_z[k]}).item()
 np.save(os.path.join(out_dir, "log_posterior_trace.npy"), log_post_trace)
 
+# Joint representative point: use an actual posterior draw, not coordinate-wise
+# marginal means/medians.  This is the highest log-posterior draw among the
+# sampled states, so it preserves the posterior dependence structure.
+best_joint_idx = int(np.argmax(log_post_trace))
+post_joint_sample = posterior_np[best_joint_idx]
+post_joint_sample_z = posterior_z[best_joint_idx].detach().cpu().numpy()
+np.save(os.path.join(out_dir, "posterior_best_joint_sample.npy"), post_joint_sample)
+np.save(os.path.join(out_dir, "posterior_best_joint_sample_z.npy"), post_joint_sample_z)
+np.save(os.path.join(out_dir, "posterior_best_joint_sample_idx.npy"),
+        np.array(best_joint_idx, dtype=np.int64))
+print(f"  best sampled joint log-posterior index: {best_joint_idx}")
+
 # 5. Run configuration (for reproducibility).
 config = {
     "random_seed":     RANDOM_SEED,
@@ -1842,10 +2115,16 @@ config = {
     "target_accept":   TARGET_ACCEPT,
     "max_tree_depth":  MAX_TREE_DEPTH,
     "emulator_dir":    EMULATOR_DIR,
+    "hm_artifacts_dir": HM_ARTIFACTS_DIR,
+    "hm_wave_number":  HM_WAVE_NUMBER,
     "date_suffix":     DATE_SUFFIX,
     "percent":         PERCENT,
-    "knn_k":           KNN_K,
+    # "knn_k":           KNN_K,
     "n_pred_check":    N_PRED_CHECK,
+    "atrial_likelihood": "soft_interval_probability",
+    "atrial_ratio_bounds": list(ATRIAL_RATIO_BOUNDS),
+    "atrial_ratio_display_mean": ATRIAL_RATIO_DISPLAY_MEAN,
+    "atrial_ratio_display_var": ATRIAL_RATIO_DISPLAY_VAR,
     "use_copula_prior":     bool(USE_COPULA_PRIOR and copula_prior_cache is not None),
     "marginal_type":        (copula_prior_cache.get("marginal_type")
                              if copula_prior_cache is not None else None),
@@ -1880,19 +2159,20 @@ np.save(os.path.join(out_dir, "output_names.npy"),
 np.save(os.path.join(out_dir, "prior_lower.npy"), prior_lower)
 np.save(os.path.join(out_dir, "prior_upper.npy"), prior_upper)
 
-# Full 224-dim parameter vector at posterior median
+# Full 224-dim parameter vector at best sampled joint posterior point.
 # Non-calibration params stay at their nominal (fixed) values
 nominal = np.array(
     [0.5 * (nroy_params_dict[n][0] + nroy_params_dict[n][1])
      for n in all_param_names], dtype=np.float32,
 )
-full_median = nominal.copy()
-full_median[param_idx] = post_median.astype(np.float32)
-np.save(os.path.join(out_dir, "full_param_median.npy"), full_median)
+full_joint_sample = nominal.copy()
+full_joint_sample[param_idx] = post_joint_sample.astype(np.float32)
+np.save(os.path.join(out_dir, "full_param_best_joint_sample.npy"),
+        full_joint_sample)
 
 # Also save as {name: value} dict for easy simulator use
 posterior_param_dict = {
-    name: float(full_median[i])
+    name: float(full_joint_sample[i])
     for i, name in enumerate(all_param_names)
 }
 np.save(os.path.join(out_dir, "posterior_param_dict.npy"),
@@ -1915,23 +2195,20 @@ if n_plot == 1:
 
 for j in range(n_plot):
     # Trace
-    if posterior_chains is not None:
-        for c in range(posterior_chains.shape[0]):
-            axes[j, 0].plot(
-                posterior_chains[c, :, j].cpu().numpy(),
-                alpha=0.5, linewidth=0.5,
-            )
-    else:
-        axes[j, 0].plot(posterior_np[:, j], alpha=0.7, linewidth=0.5)
-    axes[j, 0].set_ylabel(subset_vars[j], fontsize=7)
-    axes[j, 0].set_title(f"Trace: {subset_vars[j]}", fontsize=8)
+    for c in range(posterior_chains.shape[0]):
+        axes[j, 0].plot(
+            posterior_chains[c, :, j].cpu().numpy(),
+            alpha=0.5, linewidth=0.5,
+        )
+
 
     # Marginal posterior
     axes[j, 1].hist(
         posterior_np[:, j], bins=50, density=True, alpha=0.7, color="steelblue"
     )
     axes[j, 1].axvline(
-        post_median[j], color="red", ls="--", lw=1.2, label="median"
+        post_joint_sample[j], color="red", ls="--", lw=1.2,
+        label="best joint sample"
     )
     axes[j, 1].axvline(
         prior_lower[j], color="black", ls=":", alpha=0.4, label="NROY bounds"
@@ -1946,11 +2223,32 @@ plt.close()
 
 # 8b. Normalised posterior predictive box plot
 fig, ax = plt.subplots(figsize=(16, 5))
-tgt_means_np = obs_means_t.numpy()
-tgt_stds_np  = obs_stds_t.numpy()
-normalised = (pred_matrix - tgt_means_np) / tgt_stds_np
+plot_matrix = pred_matrix.copy()
+plot_tgt_means_np = obs_means_t.numpy().copy()
+plot_tgt_stds_np = obs_stds_t.numpy().copy()
+
+# The likelihood for the atrial observables is defined on the active-emptying
+# fraction ratio, but for visual interpretation it is often more intuitive to
+# display the corresponding pre-atrial-contraction volume:
+#   V_pre = V_min + r * (V_max - V_min)
+plot_matrix[:, LA_PRE_IDX] = (
+    pred_matrix[:, LA_MIN_IDX]
+    + pred_matrix[:, LA_PRE_IDX] * (pred_matrix[:, LA_MAX_IDX] - pred_matrix[:, LA_MIN_IDX])
+)
+plot_matrix[:, RA_PRE_IDX] = (
+    pred_matrix[:, RA_MIN_IDX]
+    + pred_matrix[:, RA_PRE_IDX] * (pred_matrix[:, RA_MAX_IDX] - pred_matrix[:, RA_MIN_IDX])
+)
+plot_tgt_means_np[LA_PRE_IDX] = LA_PRE_DISPLAY_MEAN
+plot_tgt_means_np[RA_PRE_IDX] = RA_PRE_DISPLAY_MEAN
+plot_tgt_stds_np[LA_PRE_IDX] = LA_PRE_DISPLAY_STD
+plot_tgt_stds_np[RA_PRE_IDX] = RA_PRE_DISPLAY_STD
+
+normalised = (plot_matrix - plot_tgt_means_np) / plot_tgt_stds_np
 
 short_names = [n.replace("_", "\n") for n in output_names]
+short_names[LA_PRE_IDX] = "LA\nPre-A\nVolume"
+short_names[RA_PRE_IDX] = "RA\nPre-A\nVolume"
 x_pos = np.arange(len(output_names))
 
 ax.boxplot(
@@ -1967,7 +2265,7 @@ ax.axhline(-3, color="red",   ls=":",  alpha=0.4)
 ax.set_xticks(x_pos)
 ax.set_xticklabels(short_names, rotation=90, fontsize=6)
 ax.set_ylabel("(predicted - target) / sigma")
-ax.set_title("Posterior predictive normalised by population sigma")
+ax.set_title("Posterior predictive normalised by population sigma (atria shown as pre-A volume)")
 ax.legend(fontsize=8)
 plt.tight_layout()
 plt.savefig(

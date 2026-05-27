@@ -33,8 +33,8 @@ observation = {
     "Max RA Volume": (77.3, 342.25),
     "Min LA Volume": (23.0, 94.09),
     "Max LA Volume": (66.3, 388.09),
-    "LA Contraction Volume diff": (0.25, 0.000625),
-    "RA Contraction Volume diff": (0.25, 0.000625),
+    "LA Contraction Volume diff": (0.25, 0.0025),
+    "RA Contraction Volume diff": (0.25, 0.0025),
 }
 
 LA_PRE_DISPLAY_MEAN, LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(

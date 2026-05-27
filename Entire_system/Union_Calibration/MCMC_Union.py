@@ -296,7 +296,7 @@ EXERCISE_RA_MIN_IDX, EXERCISE_RA_MAX_IDX, EXERCISE_RA_PRE_IDX = 34, 35, 43
 
 ATRIAL_GAUSSIAN_SKIP = (REST_LA_PRE_IDX, REST_RA_PRE_IDX, EXERCISE_LA_PRE_IDX, EXERCISE_RA_PRE_IDX)
 ATRIAL_COV_JITTER = 1e-10
-ATRIAL_RATIO_TARGET = (0.25, 0.000625)
+ATRIAL_RATIO_TARGET = (0.25, 0.0025)
 
 # Display-only atrial pre-contraction volume targets used in the final
 # posterior-predictive box plot. The likelihood remains defined on the
