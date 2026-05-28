@@ -599,6 +599,7 @@ def simulate():
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
+    phi = np.concatenate((Next_Conditions["phi_store"][i_buffer:], Next_Conditions["phi_store"][:i_buffer]))
 
     dphi = np.diff(phi_atr, prepend=phi_atr[0])
     is_rising = dphi > 0
@@ -648,12 +649,16 @@ def simulate():
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
-    # New RVEDP definition: P_rv at V_rv peak within each filling window (pulmonic-close -> next pulmonic-open).
-    # V_rv peaks at end of diastole before phi rises, so this is the strict pre-QRS RVEDP.
-    P_rv_edp_idx = np.array([
-        c + np.argmax(V_rv[c:o_next])
-        for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])
-    ], dtype=int)
+    # RVEDP: last sample before ventricular activation rises in the filling window.
+    phi_eps = 1e-8
+    phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
+    P_rv_edp_idx = []
+    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
+        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
+        if candidates.size == 0:
+            raise ValueError("No ventricular phi rise found in RV filling window")
+        P_rv_edp_idx.append(candidates[0] - 1)
+    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
 
     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 
@@ -1245,15 +1250,20 @@ def _collect_results_plot_data(conditions, buffer_limit):
     V_la = traces["V_la_store"]
     P_la = traces["P_la_store"]
     phi_atr = traces["phi_atr_store"]
+    phi = traces["phi_store"]
 
     P_sa_max_idx = _window_indices(P_sa, pairs_ao, np.argmax)
     P_rv_max_idx = _window_indices(P_rv, pairs_po, np.argmax)
-    # New RVEDP definition: P_rv at V_rv peak within each filling window (pulmonic-close -> next pulmonic-open).
-    # V_rv peaks at end of diastole before phi rises, so this is the strict pre-QRS RVEDP.
-    P_rv_edp_idx = np.array([
-        c + np.argmax(V_rv[c:o_next])
-        for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])
-    ], dtype=int)
+    # RVEDP: last sample before ventricular activation rises in the filling window.
+    phi_eps = 1e-8
+    phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
+    P_rv_edp_idx = []
+    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
+        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
+        if candidates.size == 0:
+            raise ValueError("No ventricular phi rise found in RV filling window")
+        P_rv_edp_idx.append(candidates[0] - 1)
+    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
 
     atrial_rise_windows = _last_complete_pairs(_rising_windows(phi_atr))
     P_la_max_idx = _window_indices(P_la, atrial_rise_windows, np.argmax)

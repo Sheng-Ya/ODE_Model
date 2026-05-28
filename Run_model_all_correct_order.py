@@ -471,6 +471,7 @@ def simulate():
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
+    phi = np.concatenate((Next_Conditions["phi_store"][i_buffer:], Next_Conditions["phi_store"][:i_buffer]))
 
     dphi = np.diff(phi_atr, prepend=phi_atr[0])
     is_rising = dphi > 0
@@ -520,12 +521,15 @@ def simulate():
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
-    # New RVEDP definition: P_rv at V_rv peak within each filling window (pulmonic-close -> next pulmonic-open).
-    # V_rv peaks at end of diastole before phi rises, so this is the strict pre-QRS RVEDP.
-    P_rv_edp_idx = np.array([
-        c + np.argmax(V_rv[c:o_next])
-        for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])
-    ], dtype=int)
+    phi_eps = 1e-8
+    phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
+    P_rv_edp_idx = []
+    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
+        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
+        if candidates.size == 0:
+            raise ValueError("No ventricular phi rise found in RV filling window")
+        P_rv_edp_idx.append(candidates[0] - 1)
+    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
 
     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 
@@ -1011,6 +1015,7 @@ if __name__ == "__main__":
     theta_mi = np.concatenate((Next_Conditions["theta_mi_store"][i:], Next_Conditions["theta_mi_store"][:i]))
     theta_tr = np.concatenate((Next_Conditions["theta_tr_store"][i:], Next_Conditions["theta_tr_store"][:i]))
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
+    phi = np.concatenate((Next_Conditions["phi_store"][i:], Next_Conditions["phi_store"][:i]))
 
     N = 100  # number of consecutive closed samples required
 
@@ -1235,6 +1240,7 @@ if __name__ == "__main__":
 
 
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
+    phi = np.concatenate((Next_Conditions["phi_store"][i:], Next_Conditions["phi_store"][:i]))
 
     P_ra = np.concatenate((Next_Conditions["P_ra_store"][i:], Next_Conditions["P_ra_store"][:i]))
     dphi = np.diff(phi_atr, prepend=phi_atr[0])
@@ -1396,6 +1402,7 @@ if __name__ == "__main__":
     last_10_max_V_la = V_la[last_10_peaks_V_la]
 
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
+    phi = np.concatenate((Next_Conditions["phi_store"][i:], Next_Conditions["phi_store"][:i]))
     # Find transitions: where phi_atr goes from 0 to >0
     starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
 
@@ -1428,6 +1435,7 @@ if __name__ == "__main__":
     # plt.show()
 
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i:], Next_Conditions["phi_atr_store"][:i]))
+    phi = np.concatenate((Next_Conditions["phi_store"][i:], Next_Conditions["phi_store"][:i]))
 
     P_la = np.concatenate((Next_Conditions["P_la_store"][i:], Next_Conditions["P_la_store"][:i]))
     peaks, _ = find_peaks(P_la, distance=int(2000), prominence=1)

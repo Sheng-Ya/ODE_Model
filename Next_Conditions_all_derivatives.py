@@ -57,6 +57,7 @@ Next_Conditions = {
     "P_ra_store": np.array([0.0] * 80000),
     "P_lv_store": np.array([0.0] * 80000),
     "phi_atr_store": np.array([0.0] * 80000),
+    "phi_store": np.array([0.0] * 80000),
 
     "tidal_store": np.array([0.0] * 80000),
     "VAflow_store": np.array([0.0] * 80000),
