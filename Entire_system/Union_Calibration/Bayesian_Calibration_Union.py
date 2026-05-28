@@ -10,7 +10,6 @@ resource_tracker._resource_tracker._STOP = True
 from SALib import ProblemSpec
 from autoemulate.data.utils import set_random_seed
 from History_matching_function_union import (
-    ATRIAL_MARGIN_OUTPUT_NAME,
     HistoryMatchingWorkflow,
     RAW_SIMULATION_OUTPUT_NAMES,
 )
@@ -26,15 +25,11 @@ random_seed = 42
 set_random_seed(random_seed)
 pyro.set_rng_seed(random_seed)
 
-# Treat atrial contraction as a physiologic interval constraint and use a
-# separate signed-margin emulator for exercise atrial validity.
+# Treat atrial contraction as a physiologic interval constraint.
 ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
-ATRIAL_RATIO_MIN_PROBABILITY = 0.05
+ATRIAL_RATIO_MIN_PROBABILITY = 0.06
 ATRIAL_RATIO_MC_SAMPLES = 128
-ATRIAL_VOLUME_MIN_PROBABILITY = 0.67
-ATRIAL_MARGIN_MIN_PROBABILITY = 0.95
-ATRIAL_MARGIN_CLIP_BOUNDS = (-20.0, 80.0)
-PRE_WAVE_N_SIMULATIONS = 4096
+PRE_WAVE_N_SIMULATIONS = 8192
 
 # ----------------------------
 # PROBLEM SPECIFICATION
@@ -218,34 +213,37 @@ sp = ProblemSpec({
 })
 
 
-Union = {
-    # Rest_only
-    'beta2', 'C_jp', 'Cvam_O2_n', 'Emax_la', 'f_ab_max', 'fab_o',
-    'fes_inf', 'fes_min', 'fev_inf', 'Io_met', 'Io_sv', 'K2',
-    'k_ab', 'kcc_sv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr',
-    'MO2_bp', 'P0_ra', 'P_n', 'rise_time_atr', 'theta_svn',
-    'Vu_amv0', 'Vu_bv', 'Wb_sh', 'Wb_sv',
-
-    # Exercise Only
-    'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
-    'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P_n_max', 'phi_max',
-    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max', 'C_pa',
-
-    # Overlap
-    'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_sv', 'E_rs',
-    'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'fall_time_ven',
-    'fes_o', 'fev_o', 'GT_s', 'GT_v', 'KE_la', 'KE_lv',
-    'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
-    'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa',
-    'rise_time_ven', 'Rvc_n', 'T0', 'V0_dead', 'V_nominal',
-    'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra',
-    'Vu_rv', 'Vu_sv0'
+Rest_only = {
+    'Cvam_O2_n', 'Emax_la', 'Emax_ra', 'f_ab_max', 'fes_inf', 'fes_min', 'Io_met', 'Io_sv', 'K2', 'k_ab', 'kcc_sv',
+    'kes', 'kmet', 'Kp_po', 'Kv_mi', 'Kv_tr', 'P0_ra', 'rise_time_atr', 'scale_param1', 'theta_svn', 'Vu_amv0', 'Vu_bv',
+    'Vu_ra', 'Wb_sh', 'Wb_sv',
 }
 
+Exercise_only = {
+    'C_pv', 'G_ap', 'GEmax_rv', 'GR_amp', 'GV_dead', 'k_ac', 'KcCO2', 'KcMRV', 'MO2_bp', 'P_n_max', 'PaO2_ac_n',
+    'phi_max', 'R_amp0', 'R_mi', 'R_pv', 'tauMR', 'VA_rest', 'Wc_v', 'Wp_v', 'Yv_max',
+}
 
+Overlap = {
+    'a2', 'ahead1', 'C2', 'C_jp', 'C_O2_param1', 'C_O2_param2', 'C_sv', 'Cvb_O2_n', 'E_rs', 'Emax_lv0', 'Emax_rv0',
+    'fab_o', 'fall_time_ven', 'fes_o', 'fev_inf', 'fev_o', 'GEmax_lv', 'GT_s', 'GT_v', 'GV_sv', 'KE_la', 'KE_lv',
+    'KE_ra', 'KE_rv', 'Kv_po', 'l', 'P0_la', 'P0_lv', 'P0_rv', 'P_n', 'PaCO2_n', 'r', 'R_po', 'R_pp', 'R_rs', 'R_sa',
+    'rise_time_ven', 'Rvc_n', 's', 'scale_param4', 'T0', 'V0_dead', 'V_nominal', 'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la',
+    'Vu_lv', 'Vu_rv', 'Vu_sv0',
+}
 
-# MUST SORT SO ITS THE SAME ORDER
+# Full union — what the simulator varies (every other parameter is fixed at its midpoint).
+Union = Rest_only | Exercise_only | Overlap
+
+# Per-emulator parameter subsets. Rest emulators see rest-only + overlap; exercise emulators
+# see exercise-only + overlap. Overlap params couple the two during NROY scoring.
+Rest_subset_names = Rest_only | Overlap
+Exercise_subset_names = Exercise_only | Overlap
+
+# MUST SORT SO ITS THE SAME ORDER AS sp["names"] (the simulator's parameter order).
 subset_vars = [name for name in sp["names"] if name in Union]
+rest_subset_vars = [name for name in sp["names"] if name in Rest_subset_names]
+exercise_subset_vars = [name for name in sp["names"] if name in Exercise_subset_names]
 
 
 # Convert to dictionary
@@ -267,9 +265,10 @@ Simulator = Cardiopulmonary(param_ranges=param_ranges, output_names=output_names
 # LOAD EMULATOR
 # ----------------------------
 # change (emulator for rest/exercise)
-PARENT_DIR = Path(__file__).resolve().parents[1]
-Heart_Rate_emulator = joblib.load(PARENT_DIR / "Heart_Rate/GaussianProcessMatern32_Heart_Rate_best.joblib")
-
+PARENT_DIR = Path(__file__).resolve().parent
+Heart_Rate_emulator = joblib.load(
+    PARENT_DIR / "Heart_Rate" / "GaussianProcessMatern32_Heart_Rate_best.joblib"
+)
 # # Exercise (second is variance, not standard deviation)
 observation = {
 # Rest
@@ -300,35 +299,30 @@ observation = {
 # ----------------------------
 if __name__ == "__main__":
 
+    # A = np.load(r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\Union_Calibration2\Emulator_wave_1\y_train.npy")
+    # mask = A[:,38] < 0
+    # AA = A[mask,:]
     hmw = HistoryMatchingWorkflow(
         simulator=Simulator,
         result=Heart_Rate_emulator,
         observations=observation,
         # optional parameters
-        threshold=3.75,
+        threshold=3.0,
         random_seed=random_seed,
         # train_x=X,
         # train_y=Result,
         calibration_params=subset_vars,
+        rest_calibration_params=rest_subset_vars,
+        exercise_calibration_params=exercise_subset_vars,
         atrial_ratio_bounds=ATRIAL_RATIO_BOUNDS,
         atrial_ratio_min_probability=ATRIAL_RATIO_MIN_PROBABILITY,
         atrial_ratio_mc_samples=ATRIAL_RATIO_MC_SAMPLES,
-        atrial_volume_min_probability=ATRIAL_VOLUME_MIN_PROBABILITY,
-        atrial_margin_min_probability=ATRIAL_MARGIN_MIN_PROBABILITY,
-        atrial_margin_clip_bounds=ATRIAL_MARGIN_CLIP_BOUNDS,
     )
 
-    initial_margin_emulator = (
-        Path("Emulator_union_initial")
-        / ATRIAL_MARGIN_OUTPUT_NAME
-        / f"GaussianProcessMatern32_{ATRIAL_MARGIN_OUTPUT_NAME}_best.joblib"
-    )
-    if not initial_margin_emulator.exists():
-        print("Initial signed-margin emulator is missing; running pre-wave training.")
-        hmw.pre_wave_train_emulators(n_simulations=PRE_WAVE_N_SIMULATIONS, refit_on_all_data=False)
+    hmw.pre_wave_train_emulators(n_simulations=PRE_WAVE_N_SIMULATIONS, refit_on_all_data=False)
 
-    size = 80000
-    _ = hmw.run_waves(n_waves=5, n_simulations=800, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
+    size = 400000
+    _ = hmw.run_waves(n_waves=5, n_simulations=6000, n_test_samples=size, refit_on_all_data=False, refit_emulator_on_last_wave=True, max_retries=15, resume_wave=False)
 
     # Get the last wave results
     test_parameters, impl_scores = hmw.wave_results[-1]

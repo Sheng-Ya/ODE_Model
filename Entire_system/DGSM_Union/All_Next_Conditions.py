@@ -57,6 +57,7 @@ def make_fresh_storage():
         "P_ra_store": np.zeros(80000),
         "P_lv_store": np.zeros(80000),
         "phi_atr_store": np.zeros(80000),
+        "phi_store": np.zeros(80000),
 
         "tidal_store": np.zeros(80000),
         "VAflow_store": np.zeros(80000),
