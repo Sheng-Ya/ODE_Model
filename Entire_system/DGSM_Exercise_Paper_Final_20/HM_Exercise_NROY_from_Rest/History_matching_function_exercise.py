@@ -1,8 +1,9 @@
 import logging
 import warnings
+import gc
 import numpy as np
 from joblib.externals.loky import get_reusable_executor
-from scipy.stats import gaussian_kde
+from scipy.stats import gaussian_kde, qmc
 import os
 import joblib
 from autoemulate.core.model_selection import evaluate, r2_metric
@@ -204,14 +205,15 @@ class HistoryMatching(TorchDeviceMixin):
             Tensor indicating whether each implausability score is NROY
             given self.rank and self.threshold values.
         """
-        # Sort implausibilities for each sample (descending)
-        I_sorted, index_for_sort = torch.sort(implausibility, dim=1, descending=True)
-        values, row_idx = torch.sort(I_sorted[:, 0], descending=True)
-        implausibility_sorted_by_col0 = I_sorted[row_idx]
-        index_of_implausibility_sorted_by_col0 = index_for_sort[row_idx]
+        if self.rank == 1:
+            ranked_implausibility = torch.amax(implausibility, dim=1)
+        else:
+            ranked_implausibility = torch.topk(
+                implausibility, k=self.rank, dim=1, largest=True
+            ).values[:, -1]
 
         # The rank-th highest output implausibility must be <= threshold
-        return I_sorted[:, self.rank - 1] <= self.threshold
+        return ranked_implausibility <= self.threshold
 
     def get_nroy(
         self, implausibility: TensorLike, x: TensorLike | None = None
@@ -462,6 +464,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # If use `run_waves()`, results are stored here
         self.wave_results = []
+        self.last_wave_index = -1
 
         # Save names and indices of parameters to calibrate
         self.calibration_params = calibration_params or list(
@@ -489,6 +492,15 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self.atrial_ratio_bounds = atrial_ratio_bounds
         self.atrial_ratio_min_probability = atrial_ratio_min_probability
         self.atrial_ratio_mc_samples = atrial_ratio_mc_samples
+        self.ratio_probability_batch_size = int(
+            os.environ.get("HM_RATIO_MC_BATCH_SIZE", "20000")
+        )
+        self.prediction_batch_size = int(
+            os.environ.get("HM_PREDICTION_BATCH_SIZE", "50000")
+        )
+        self.keep_all_wave_results = (
+            os.environ.get("HM_KEEP_ALL_WAVE_RESULTS", "0") == "1"
+        )
 
     @staticmethod
     def _safe_ratio_denominator(denominator: TensorLike, eps: float = 1e-8) -> TensorLike:
@@ -511,20 +523,51 @@ class HistoryMatchingWorkflow(HistoryMatching):
         lower, upper = self.atrial_ratio_bounds
         n_mc = self.atrial_ratio_mc_samples
 
-        min_draws = min_mean[:, None] + min_var.clamp(min=0).sqrt()[:, None] * torch.randn(
-            min_mean.shape[0], n_mc, device=min_mean.device, dtype=min_mean.dtype
-        )
-        max_draws = max_mean[:, None] + max_var.clamp(min=0).sqrt()[:, None] * torch.randn(
-            max_mean.shape[0], n_mc, device=max_mean.device, dtype=max_mean.dtype
-        )
-        pre_draws = pre_mean[:, None] + pre_var.clamp(min=0).sqrt()[:, None] * torch.randn(
-            pre_mean.shape[0], n_mc, device=pre_mean.device, dtype=pre_mean.dtype
-        )
+        def estimate_batch(
+            min_mean_b,
+            min_var_b,
+            max_mean_b,
+            max_var_b,
+            pre_mean_b,
+            pre_var_b,
+        ):
+            min_draws = min_mean_b[:, None] + min_var_b.clamp(min=0).sqrt()[:, None] * torch.randn(
+                min_mean_b.shape[0], n_mc, device=min_mean_b.device, dtype=min_mean_b.dtype
+            )
+            max_draws = max_mean_b[:, None] + max_var_b.clamp(min=0).sqrt()[:, None] * torch.randn(
+                max_mean_b.shape[0], n_mc, device=max_mean_b.device, dtype=max_mean_b.dtype
+            )
+            pre_draws = pre_mean_b[:, None] + pre_var_b.clamp(min=0).sqrt()[:, None] * torch.randn(
+                pre_mean_b.shape[0], n_mc, device=pre_mean_b.device, dtype=pre_mean_b.dtype
+            )
 
-        denom = self._safe_ratio_denominator(max_draws - min_draws)
-        ratio = (pre_draws - min_draws) / denom
-        in_band = (max_draws > min_draws) & (ratio >= lower) & (ratio <= upper)
-        return in_band.float().mean(dim=1)
+            denom = self._safe_ratio_denominator(max_draws - min_draws)
+            ratio = (pre_draws - min_draws) / denom
+            in_band = (max_draws > min_draws) & (ratio >= lower) & (ratio <= upper)
+            return in_band.float().mean(dim=1)
+
+        batch_size = max(1, self.ratio_probability_batch_size)
+        if min_mean.shape[0] <= batch_size:
+            return estimate_batch(min_mean, min_var, max_mean, max_var, pre_mean, pre_var)
+
+        probabilities = torch.empty_like(min_mean)
+        for start in range(0, min_mean.shape[0], batch_size):
+            end = min(start + batch_size, min_mean.shape[0])
+            probabilities[start:end] = estimate_batch(
+                min_mean[start:end],
+                min_var[start:end],
+                max_mean[start:end],
+                max_var[start:end],
+                pre_mean[start:end],
+                pre_var[start:end],
+            )
+        return probabilities
+
+    @staticmethod
+    def _cat_or_single(parts: list[TensorLike], dim: int = 0) -> TensorLike:
+        if len(parts) == 1:
+            return parts[0]
+        return torch.cat(parts, dim=dim)
 
     def _is_within_bounds(
         self, sample: TensorLike, bounds_dict: dict[str, tuple[float, float]]
@@ -762,16 +805,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         min_samples_per_mean = n // num_means
         remainder_to_sample = n % num_means
 
-        # Determine number of parallel jobs
-        n_jobs = 40  # use all cores
-
-        # Split permuted means into batches
-        chunk_size = math.ceil(num_means / n_jobs)
-        batches = [
-            means_to_sample[i:i + chunk_size]
-            for i in range(0, num_means, chunk_size)
-        ]
-
         # precompute once outside the loop:
         low_all = torch.tensor([b[0] for b in bounds.values()], device=self.device)
         high_all = torch.tensor([b[1] for b in bounds.values()], device=self.device)
@@ -790,29 +823,22 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         param_dim = len(bounds)
 
-        def sample_batch(batch, batch_idx):
-            outs = []
-            for j, mean in enumerate(batch):
-                i = batch_idx * chunk_size + j
-                n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
+        results = torch.empty((n, param_dim), device=self.device, dtype=low.dtype)
+        write_start = 0
+        for i, mean in enumerate(means_to_sample):
+            n_samples = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
+            if n_samples == 0:
+                continue
 
-                x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)  # [n_samples, d_nonconst]
+            x_nonconst = self.truncated_normal_1d(mean, std, low, high, n_samples)
+            write_end = write_start + n_samples
+            if const_idx_t is not None:
+                results[write_start:write_end, const_idx_t] = const_vals_t.to(x_nonconst.dtype)
+            results[write_start:write_end, sample_idx_t] = x_nonconst
+            write_start = write_end
 
-                full = torch.empty((n_samples, param_dim), device=self.device, dtype=x_nonconst.dtype)
-                if const_idx_t is not None:
-                    full[:, const_idx_t] = const_vals_t.to(x_nonconst.dtype)
-                full[:, sample_idx_t] = x_nonconst
-
-                outs.append(full)
-
-            # print(f"==============Batch {batch_idx + 1} done")
-            return torch.cat(outs, dim=0) if outs else torch.empty((0, param_dim), device=self.device)
-
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(sample_batch)(batch, idx) for idx, batch in enumerate(batches)
-        )
         print(f"==============Batch done")
-        return torch.cat(results, dim=0)
+        return results[:write_start]
 
 
         # def sample_batch_serial(batch, batch_idx):
@@ -885,40 +911,30 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 - overlap_reference_samples.min(dim=0).values
             ) * scaling_factor
 
-            num_means = overlap_reference_samples.shape[0]
-            perm = torch.randperm(num_means, device=self.device)
+            num_reference_means = overlap_reference_samples.shape[0]
+            num_means = min(num_reference_means, n)
+            perm = torch.randperm(num_reference_means, device=self.device)[:num_means]
+            means_to_sample = overlap_reference_samples[perm]
             min_samples_per_mean = n // num_means
             remainder_to_sample = n % num_means
-
-            n_jobs = 64
-            chunk_size = math.ceil(num_means / n_jobs)
-            batches = [
-                overlap_reference_samples[perm][i:i + chunk_size]
-                for i in range(0, num_means, chunk_size)
-            ]
             n_overlap = len(self.overlap_idx)
 
-            def sample_overlap_batch(batch, batch_idx):
-                outs = []
-                for j, mean in enumerate(batch):
-                    i = batch_idx * chunk_size + j
-                    ns = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
-                    x_sampled = self.truncated_normal_1d(
-                        mean, stdev_overlap, low_overlap, high_overlap, ns
-                    )
-                    outs.append(x_sampled)
-
-                return (
-                    torch.cat(outs, dim=0)
-                    if outs
-                    else torch.empty((0, n_overlap), device=self.device)
-                )
-
-            results_overlap = Parallel(n_jobs=n_jobs)(
-                delayed(sample_overlap_batch)(batch, idx)
-                for idx, batch in enumerate(batches)
+            overlap_samples = torch.empty(
+                (n, n_overlap),
+                device=self.device,
+                dtype=overlap_reference_samples.dtype,
             )
-            overlap_samples = torch.cat(results_overlap, dim=0)
+            write_start = 0
+            for i, mean in enumerate(means_to_sample):
+                ns = min_samples_per_mean + (1 if i < remainder_to_sample else 0)
+                if ns == 0:
+                    continue
+                write_end = write_start + ns
+                overlap_samples[write_start:write_end] = self.truncated_normal_1d(
+                    mean, stdev_overlap, low_overlap, high_overlap, ns
+                )
+                write_start = write_end
+            overlap_samples = overlap_samples[:write_start]
             print("==============Overlap cloud sampling done")
         else:
             raise ValueError(
@@ -926,16 +942,36 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 "Use 'empirical' or 'cloud'."
             )
 
+        all_param_names = list(self.simulator.parameters_range.keys())
+
         # --- Step 2: Uniform sample the EXERCISE-ONLY parameters ---
         exercise_only_idx_t = torch.tensor(self.exercise_only_idx, device=self.device, dtype=torch.long)
-        uniform_all = self.simulator.sample_inputs(n).to(self.device)  # [n, in_dim]
-        exercise_only_samples = uniform_all[:, exercise_only_idx_t]  # [n, n_exercise_only]
+        if len(self.exercise_only_idx) == 0:
+            exercise_only_samples = torch.empty(
+                (n, 0), device=self.device, dtype=overlap_samples.dtype
+            )
+        else:
+            exercise_bounds = [
+                self.simulator.parameters_range[all_param_names[i]]
+                for i in self.exercise_only_idx
+            ]
+            exercise_unit_samples = qmc.LatinHypercube(
+                d=len(exercise_bounds)
+            ).random(n=n)
+            exercise_scaled_samples = qmc.scale(
+                exercise_unit_samples,
+                [b[0] for b in exercise_bounds],
+                [b[1] for b in exercise_bounds],
+            ).astype(np.float32, copy=False)
+            exercise_only_samples = torch.from_numpy(exercise_scaled_samples).to(
+                device=self.device, dtype=overlap_samples.dtype
+            )
+            del exercise_unit_samples, exercise_scaled_samples
         # print(f"==============Exercise-only uniform sampling done")
 
         # --- Step 3: Assemble full parameter tensor ---
         # Start with nominal/fixed values for ALL parameters
         # Use the midpoint of the simulator range for non-calibrated params
-        all_param_names = list(self.simulator.parameters_range.keys())
         nominal = torch.tensor(
             [0.5 * (self.simulator.parameters_range[p][0] + self.simulator.parameters_range[p][1])
              for p in all_param_names],
@@ -1131,7 +1167,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # print(f"  Saved to {path1}")
             return target_name
 
-        Parallel(n_jobs=25)(
+        fit_jobs = max(1, int(os.environ.get("HM_EMULATOR_FIT_JOBS", "1")))
+        Parallel(n_jobs=fit_jobs)(
         delayed(fit_one_initial_output)(
             j, target_name, self.train_x, self.train_y,
             self.parameter_idx, self.result, self.device,
@@ -1323,42 +1360,39 @@ class HistoryMatchingWorkflow(HistoryMatching):
             "Max_LA_Pressure_Mitral_Opening", "LA_Pre_Atrial_Contraction_Volume", "RA_Pre_Atrial_Contraction_Volume",
             "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation",
             "PaO2", "PaCO2"]
-        models = {}
-        for name in output_names:
-            folder = name
-            path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
-            models[name] = joblib.load(path1)
-
-        # means = {}
-        # variances = {}
-        #
-        # for name in output_names:
-        #     target_emulator = models[name]
-        #     with torch.no_grad():
-        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
-        #             test_x[:, self.parameter_idx]
-        #         )
-
-        n_jobs = len(output_names)
+        batch_params = test_x[:, self.parameter_idx]
+        mean_tensor = torch.empty(
+            (batch_params.shape[0], len(output_names)),
+            device=self.device,
+            dtype=batch_params.dtype,
+        )
+        var_tensor = torch.empty_like(mean_tensor)
+        prediction_batch_size = max(1, self.prediction_batch_size)
         use_raw_model = self.nroy_samples is None
 
-        def predict_one_output(name, X):
-            if use_raw_model:
-                target_emulator = models[name].model
-            else:
-                target_emulator = models[name]
+        with torch.no_grad():
+            for col, name in enumerate(output_names):
+                folder = name
+                path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
+                loaded_emulator = joblib.load(path1)
+                target_emulator = loaded_emulator.model if use_raw_model else loaded_emulator
 
-            mean, var = target_emulator.predict_mean_and_variance(X)
-            return name, mean, var
+                for start in range(0, batch_params.shape[0], prediction_batch_size):
+                    end = min(start + prediction_batch_size, batch_params.shape[0])
+                    mean, var = target_emulator.predict_mean_and_variance(
+                        batch_params[start:end]
+                    )
+                    mean_tensor[start:end, col] = torch.as_tensor(
+                        mean, device=self.device, dtype=mean_tensor.dtype
+                    ).reshape(-1)
+                    var_tensor[start:end, col] = torch.as_tensor(
+                        var, device=self.device, dtype=var_tensor.dtype
+                    ).reshape(-1)
 
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
+                del target_emulator, loaded_emulator
+                gc.collect()
 
-        means = {name: mean for name, mean, var in results}
-        variances = {name: var for name, mean, var in results}
-
-        mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
-        var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
+        del batch_params
 
         assert var_tensor is not None
         impl_scores = self.calculate_implausibility(mean_tensor, var_tensor)
@@ -1608,16 +1642,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
             test_parameters_list, impl_scores_list, nroy_parameters_list = (
                 [],
                 [],
-                [torch.empty((0, self.simulator.in_dim), device=self.device)],
+                [],
             )
 
             retries = 0
-            while torch.cat(nroy_parameters_list, 0).shape[0] < n_simulations:
+            nroy_count = 0
+            while nroy_count < n_simulations:
                 if retries == max_retries:
                     msg = (
                         f"Could not generate n_simulations ({n_simulations}) samples "
                         f"that are NROY after {max_retries} retries. "
-                        f"Only {torch.cat(nroy_parameters_list, 0).shape[0]} "
+                        f"Only {nroy_count} "
                         "samples generated."
                     )
                     raise Warning(msg)
@@ -1638,10 +1673,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 nroy_parameters_list.append(nroy_parameters)
                 test_parameters_list.append(test_parameters)
                 impl_scores_list.append(impl_scores)
+                nroy_count += nroy_parameters.shape[0]
 
                 msg = (
                     f"Generated {nroy_parameters.shape[0]} NROY samples on try "
-                    f"{retries + 1}, have {torch.cat(nroy_parameters_list, 0).shape[0]} "
+                    f"{retries + 1}, have {nroy_count} "
                     f"total NROY samples so far."
                 )
                 logger.debug(msg)
@@ -1649,10 +1685,12 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 retries += 1
 
             # # Next time that call run(), will sample using these NROY points
-            self.nroy_samples = torch.cat(nroy_parameters_list, 0)
+            self.nroy_samples = self._cat_or_single(nroy_parameters_list, 0)
 
             # Randomly pick at most `n_simulations` parameters from NROY to simulate
             nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+            del nroy_parameters_list
+            gc.collect()
 
             # # pick `n_simulations` parameters from NROY with lowest implausibility
             # nroy_params = torch.cat(nroy_parameters_list, dim=0)
@@ -1680,6 +1718,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
+        del nroy_simulation_samples
+        gc.collect()
         print(f"WAVE: Simulator returned {x.shape[0]} valid samples out of {n_simulations}")
 
         output_names_full = self._exercise_output_names()
@@ -1713,7 +1753,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         # torch.save(y, f"Y_train_wave_{(len(self.wave_results) - 1)}_exercise_.pt")
 
         # Return test parameters and impl scores for this run/wave
-        return torch.cat(test_parameters_list, 0), torch.cat(impl_scores_list, 0)
+        return self._cat_or_single(test_parameters_list, 0), self._cat_or_single(impl_scores_list, 0)
 
     def run_waves(
         self,
@@ -1782,11 +1822,14 @@ class HistoryMatchingWorkflow(HistoryMatching):
         for i in range(start_i, n_waves):
             if i > 0:
                 self.threshold = 3.0
-                n_simulations = 200000
+                n_test_samples = 200000
 
             logger.info("Running history matching wave %d/%d", i + 1, n_waves)
             refit_emulator = i != n_waves - 1 or refit_emulator_on_last_wave
             phys_seed_only = use_phys_seed_wave0 and i == 0
+            if not self.keep_all_wave_results:
+                self.wave_results.clear()
+                gc.collect()
             test_x, impl_scores = self.run(
                 n_simulations=n_simulations,
                 n_test_samples=n_test_samples,
@@ -1809,7 +1852,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 logger.warning(msg)
                 break
 
-            self.wave_results.append((test_x, impl_scores))
+            if self.keep_all_wave_results:
+                self.wave_results.append((test_x, impl_scores))
+            else:
+                self.wave_results[:] = [(test_x, impl_scores)]
+            self.last_wave_index = i
             if phys_seed_only:
                 logger.info(
                     "Wave %d/%d used physiological seeding; skipping NROY "

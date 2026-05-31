@@ -1,4 +1,5 @@
 import logging
+import os
 from abc import ABC, abstractmethod
 
 import torch
@@ -354,25 +355,28 @@ class Simulator(ABC, ValidationMixin):
         """
         self.logger.info("Running batch simulation for %d samples", len(x))
 
+        total = len(x)
+
         # Helper function for a single simulation
-        def _run_one(i):
-            self.logger.debug("Running simulation for sample %d/%d", i + 1, len(x))
-            result = self.forward(x[i: i + 1], allow_failures=allow_failures)
+        def _run_one(i, sample):
+            self.logger.debug("Running simulation for sample %d/%d", i + 1, total)
+            result = self.forward(sample, allow_failures=allow_failures)
             if result is None:
                 self.logger.warning(
                     "Simulation %d/%d failed. Result is None and not appended",
-                    i + 1, len(x),
+                    i + 1, total,
                 )
                 return None
             elif torch.is_tensor(result) and torch.all(result == 0):
-                self.logger.warning("Simulation %d/%d produced all-zero output; dropping", i + 1, len(x))
+                self.logger.warning("Simulation %d/%d produced all-zero output; dropping", i + 1, total)
                 return None
             else:
-                self.logger.debug("Simulation %d/%d successful", i + 1, len(x))
+                self.logger.debug("Simulation %d/%d successful", i + 1, total)
                 return (i, result)
 
-        batch_size = 256
-        outputs = []
+        batch_size = max(1, int(os.environ.get("SIMULATOR_BATCH_SIZE", "256")))
+        n_jobs = max(1, int(os.environ.get("SIMULATOR_N_JOBS", "40")))
+        results, valid_idx = [], []
 
         # Parallel execution with tqdm progress bar, dispatched in bounded batches.
         with tqdm_joblib(
@@ -384,38 +388,36 @@ class Simulator(ABC, ValidationMixin):
                     unit_scale=True,
                 )
         ):
-            for batch_start in range(0, len(x), batch_size):
-                batch_end = min(batch_start + batch_size, len(x))
+            for batch_start in range(0, total, batch_size):
+                batch_end = min(batch_start + batch_size, total)
                 self.logger.debug(
                     "Running simulation batch %d-%d/%d",
                     batch_start + 1,
                     batch_end,
-                    len(x),
+                    total,
                 )
-                outputs.extend(
-                    Parallel(n_jobs=40, backend="loky")(
-                        delayed(_run_one)(i) for i in range(batch_start, batch_end)
+                batch_outputs = Parallel(
+                    n_jobs=n_jobs, backend="loky", pre_dispatch=n_jobs
+                )(
+                        delayed(_run_one)(i, x[i: i + 1])
+                        for i in range(batch_start, batch_end)
                     )
-                )
+                for out in batch_outputs:
+                    if out is not None:
+                        idx, result = out
+                        results.append(result)
+                        valid_idx.append(idx)
             # n_jobs = 64
             # outputs = Parallel(n_jobs=n_jobs, backend="loky", pre_dispatch=n_jobs)(
             #     delayed(_run_one)(i) for i in range(len(x))
             # )
 
-        # Filter out failed results
-        results, valid_idx = [], []
-        for out in outputs:
-            if out is not None:
-                idx, result = out
-                results.append(result)
-                valid_idx.append(idx)
-
         successful = len(results)
         self.logger.info(
             "Successfully completed %d/%d simulations (%.1f%%)",
             successful,
-            len(x),
-            (successful / len(x) * 100 if len(x) > 0 else 0.0),
+            total,
+            (successful / total * 100 if total > 0 else 0.0),
         )
 
         # Handle no simulation results
