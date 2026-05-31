@@ -503,6 +503,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self._wave_artifacts_dir = self.run_dir
         self._last_wave_train_points: TensorLike | None = None
         self._last_rejected_simulation_points: TensorLike | None = None
+        self._generate_samples_artifact_idx = 0
 
         # Save names and indices of parameters to calibrate
         self.calibration_params = calibration_params or list(
@@ -582,6 +583,38 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 os.path.join(self._wave_artifacts_dir, f"train_points_wave_{wave_number}.npy"),
                 self._to_numpy(self._last_wave_train_points),
             )
+
+    def _save_emulator_prediction_artifacts(
+        self,
+        test_x: TensorLike,
+        mean_tensor: TensorLike,
+        output_names: list[str],
+    ) -> None:
+        if not self._save_wave_artifacts:
+            return
+
+        wave_number = self._wave_number()
+        if wave_number is None:
+            return
+
+        self._generate_samples_artifact_idx += 1
+        attempt_number = self._generate_samples_artifact_idx
+
+        os.makedirs(self._wave_artifacts_dir, exist_ok=True)
+        suffix = f"wave_{wave_number}_attempt_{attempt_number}"
+
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"emulator_test_x_pre_filter_{suffix}.npy"),
+            self._to_numpy(test_x),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"emulator_mean_predictions_pre_filter_{suffix}.npy"),
+            self._to_numpy(mean_tensor),
+        )
+        np.save(
+            os.path.join(self._wave_artifacts_dir, f"emulator_output_names_{suffix}.npy"),
+            np.asarray(output_names),
+        )
 
     def _estimate_ratio_interval_probability(
         self,
@@ -1039,6 +1072,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in output_names], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in output_names], dim=1)
 
+        self._save_emulator_prediction_artifacts(test_x, mean_tensor, output_names)
+
         get_reusable_executor().shutdown(wait=True)
 
         # assert adjusted_var_tensor is not None
@@ -1362,6 +1397,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         )
         logger.debug(msg)
         self._last_wave_train_points = None
+        self._generate_samples_artifact_idx = 0
 
         test_parameters_list, impl_scores_list, nroy_parameters_list = (
             [],
