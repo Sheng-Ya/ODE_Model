@@ -22,7 +22,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 80000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 60 # Maximum time limit to avoid infinite loops
+max_time = 450 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -521,15 +521,10 @@ def simulate():
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
+    # RVEDP: last sample before ventricular activation rises each beat.
     phi_eps = 1e-8
     phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
-    P_rv_edp_idx = []
-    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
-        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
-        if candidates.size == 0:
-            raise ValueError("No ventricular phi rise found in RV filling window")
-        P_rv_edp_idx.append(candidates[0] - 1)
-    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
+    P_rv_edp_idx = phi_rise_idx[-10:] - 1
 
     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 

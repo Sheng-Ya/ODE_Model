@@ -30,10 +30,12 @@ target_values = np.arange(0, 10000, 10)
 
 time_saved = 0.005
 BUFFER_LIMIT = 80000
-CACHE_PATH = Path("Run_model_Paper_simulation_cache1.pkl")
+state = "rest"
+root = r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union\HM_Union\HM_Union_2_percent\MCMC_Union_50_29_05_logspline_copula_prior"
+CACHE_PATH = Path(rf"{root}\Run_model_Paper_simulation_cache1_{state}.pkl")
 CACHE_VERSION = 2
-ACTIVATION_ATRIAL_PV_OUTPUT = "Run_model_Paper_activation_atrial_pv.png"
-GAS_EXCHANGE_OUTPUT = "Run_model_Paper_gas_exchange.png"
+ACTIVATION_ATRIAL_PV_OUTPUT = rf"{root}\Run_model_Paper_activation_atrial_pv_{state}.png"
+GAS_EXCHANGE_OUTPUT = rf"{root}\Run_model_Paper_gas_exchange_{state}.png"
 ACTIVATION_HISTORY_POINTS = 4000
 ATRIAL_PV_HISTORY_POINTS = 10000
 GAS_EXCHANGE_WINDOW_SECONDS = 10.0
@@ -143,7 +145,12 @@ TARGET_MEAN_LABELS = {
 }
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 200 # Maximum time limit to avoid infinite loops
+
+if state == "rest":
+    max_time = 150 # Maximum time limit to avoid infinite loops
+else:
+    max_time = 450
+
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -649,16 +656,10 @@ def simulate():
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
-    # RVEDP: last sample before ventricular activation rises in the filling window.
+    # RVEDP: last sample before ventricular activation rises each beat.
     phi_eps = 1e-8
     phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
-    P_rv_edp_idx = []
-    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
-        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
-        if candidates.size == 0:
-            raise ValueError("No ventricular phi rise found in RV filling window")
-        P_rv_edp_idx.append(candidates[0] - 1)
-    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
+    P_rv_edp_idx = phi_rise_idx[-10:] - 1
 
     HR = np.concatenate((Next_Conditions["HR_store"][i_buffer:], Next_Conditions["HR_store"][:i_buffer]))
 
@@ -1221,7 +1222,7 @@ def _collect_results_plot_data(conditions, buffer_limit):
         "V_lv_store", "V_rv_store", "P_lv_store", "P_rv_store", "V_la_store",
         "V_ra_store", "P_la_store", "P_ra_store", "theta_ao_store",
         "theta_po_store", "theta_mi_store", "theta_tr_store", "phi_atr_store",
-        "tidal_store", "VAflow_store", "t1_store", "t2_store", "Q_pp_store",
+        "phi_store", "tidal_store", "VAflow_store", "t1_store", "t2_store", "Q_pp_store",
         "Pa_O2_every_store", "Pa_CO2_every_store", "dP_lv_dt_store",
         "dP_rv_dt_store",
     ]
@@ -1254,16 +1255,10 @@ def _collect_results_plot_data(conditions, buffer_limit):
 
     P_sa_max_idx = _window_indices(P_sa, pairs_ao, np.argmax)
     P_rv_max_idx = _window_indices(P_rv, pairs_po, np.argmax)
-    # RVEDP: last sample before ventricular activation rises in the filling window.
+    # RVEDP: last sample before ventricular activation rises each beat.
     phi_eps = 1e-8
     phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
-    P_rv_edp_idx = []
-    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
-        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
-        if candidates.size == 0:
-            raise ValueError("No ventricular phi rise found in RV filling window")
-        P_rv_edp_idx.append(candidates[0] - 1)
-    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
+    P_rv_edp_idx = phi_rise_idx[-10:] - 1
 
     atrial_rise_windows = _last_complete_pairs(_rising_windows(phi_atr))
     P_la_max_idx = _window_indices(P_la, atrial_rise_windows, np.argmax)
@@ -1512,7 +1507,7 @@ def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
         _style_journal_axis(axis, secondary_y=True)
     _add_panel_letters(axes)
 
-    fig.savefig("Run_model_Paper_results_targets.png", dpi=600, bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(rf"{root}\Run_model_Paper_results_targets_{state}.png", dpi=600, bbox_inches="tight", pad_inches=0.35)
     plt.close(fig)
 
 

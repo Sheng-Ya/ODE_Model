@@ -480,15 +480,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
 
+    # RVEDP: last sample before ventricular activation rises each beat.
     phi_eps = 1e-8
     phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
-    P_rv_edp_idx = []
-    for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:]):
-        candidates = phi_rise_idx[(phi_rise_idx > c) & (phi_rise_idx < o_next)]
-        if candidates.size == 0:
-            raise ValueError("No ventricular phi rise found in RV filling window")
-        P_rv_edp_idx.append(candidates[0] - 1)
-    P_rv_edp_idx = np.array(P_rv_edp_idx, dtype=int)
+    P_rv_edp_idx = phi_rise_idx[-10:] - 1
 
     # Get past 10 HR
     HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
@@ -949,7 +944,7 @@ if __name__ == "__main__":
     # shape: (B * (P + 1), P) where B is the number of base points chosen in each parameter range P
     # X = finite_diff.sample(sp, 500)
     # np.save("DGSM_500_X_rest_20_14_04_V_tot.npy", X)
-    X = np.load("DGSM_500_X_rest_20_22_05.npy")[273*375:273*450,:]
+    X = np.load("DGSM_500_X_rest_20_22_05.npy")
     # A = np.load(r"X:\home\project\Result_task_20_00.npy")
 
 
@@ -959,4 +954,4 @@ if __name__ == "__main__":
     # print(AA)
 
     Result = parallel_simulations(param_samples, n_jobs = 64)
-    np.save(f'DGSM_Result_rest_20_22_05_375_450.npy', Result)
+    np.save(f'DGSM_Result_rest_20_22_05.npy', Result)

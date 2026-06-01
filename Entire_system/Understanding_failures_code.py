@@ -405,6 +405,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
+    phi = np.concatenate((local_updates["phi_store"][i_buffer:], local_updates["phi_store"][:i_buffer]))
 
     dphi = np.diff(phi_atr, prepend=phi_atr[0])
     is_rising = dphi > 0
@@ -445,7 +446,10 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
-    P_rv_min_idx = np.array([c + np.argmin(P_rv[c:o_next]) for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])])
+    # RVEDP: last sample before ventricular activation rises each beat.
+    phi_eps = 1e-8
+    phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
+    P_rv_edp_idx = phi_rise_idx[-10:] - 1
 
     # Get past 10 HR
     HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
@@ -517,13 +521,13 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     dP_rv_dt_store = np.concatenate((local_updates["dP_rv_dt_store"][i_buffer:], local_updates["dP_rv_dt_store"][:i_buffer]))
     dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
-    # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
+    # print(np.mean(P_sa[open_idx1]), np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]), np.mean(P_la[P_la_descent1_idx]), Vol_percentage_change)
 
     IC_current = ODE_solution.y[:, -1]
 
     return ([np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
             np.mean(V_lv[pairs_ao[:, 0]]), np.mean(V_lv[pairs_ao[:, 1]]), np.mean(V_rv[pairs_po[:, 0]]), np.mean(V_rv[pairs_po[:, 1]]),
-            np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_min_idx]),
+            np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]),
             np.mean(V_ra[pairs_tr[:, 1]]), np.mean(V_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent1_idx]),
             np.mean(P_ra[P_ra_max_idx]), np.mean(P_ra[pairs_tr[:, 0]]), np.mean(P_ra[P_ra_descent2_idx]),
             np.mean(V_la[pairs_mi[:, 1]]), np.mean(V_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent1_idx]),
