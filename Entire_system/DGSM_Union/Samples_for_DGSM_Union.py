@@ -22,10 +22,15 @@ target_values = np.arange(0, 10000, 10)
 BUFFER_LIMIT = 80000
 
 max_time = 60 # Maximum time limit to avoid infinite loops
+RAW_OUTPUT_DIM = 31
+UNION_OUTPUT_DIM = RAW_OUTPUT_DIM * 2
+CONVERGENCE_TOLERANCE = 0.03
+MAX_CONVERGENCE_ATTEMPTS = 5
+MIN_MEASUREMENT_DURATION = 60
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
-def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2):
+def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2, exercise_start_time):
 
     i = Initial_Conditions_dict["i"].item()
     actual_index = i % BUFFER_LIMIT
@@ -53,7 +58,7 @@ def combined_system(t, Initial_Conditions_numpy, Initial_Conditions_dict, num_ga
     resp_contr_state = Initial_Conditions_numpy[:idx_resp_contr]
 
     # Cardiovascular dynamics (look at separate systems by just commenting out other states, and changing IC_overall, d_combined)
-    derivatives_all = model_derivatives(t, resp_contr_state, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2)
+    derivatives_all = model_derivatives(t, resp_contr_state, Initial_Conditions_dict, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2, exercise_start_time)
     all_time[(i - num_removed) % BUFFER_LIMIT] = t
     Initial_Conditions_dict["i"][0] = i - num_removed + 1
     Initial_Conditions_dict["j"][0] = Initial_Conditions_dict["j"].item() - num_removed + 1
@@ -97,7 +102,7 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     bounds = [(0.4, 3), (0.4, 6)]  # [t1, t2]
     tolerance = 0.0001
 
-    VAflow_vals = np.linspace(0.01, 1.6, 200)
+    VAflow_vals = np.linspace(0.02, 1.6, 200)
     VAflow_repeated = np.repeat(VAflow_vals, 3)
 
     VD = GV_dead * VAflow_repeated + V0_dead
@@ -131,7 +136,61 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
-def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=None, breath_coef=None):
+
+def zero_state_result():
+    return [0.0] * RAW_OUTPUT_DIM
+
+
+def zero_union_result():
+    return [0.0] * UNION_OUTPUT_DIM
+
+
+def ordered_store(storage, key):
+    i_buffer = storage["i"].item() % BUFFER_LIMIT
+    return np.concatenate((storage[key][i_buffer:], storage[key][:i_buffer]))
+
+
+def last_distinct_values(values, n=10):
+    values = values[np.isfinite(values)]
+    distinct = []
+    previous = None
+    for value in values[::-1]:
+        if previous is None or value != previous:
+            distinct.append(float(value))
+            previous = value
+            if len(distinct) == n:
+                break
+    return np.asarray(distinct, dtype=float)
+
+
+def has_converged(storage):
+    hr_segments = last_distinct_values(ordered_store(storage, "HR_store"))
+    return hr_segments.size >= 2 and np.ptp(hr_segments) < CONVERGENCE_TOLERANCE
+
+
+def is_failed_state_result(result):
+    result = np.asarray(result, dtype=float)
+    return (
+        result.size != RAW_OUTPUT_DIM
+        or not np.isfinite(result).all()
+        or np.all(result == 0.0)
+    )
+
+
+def copy_storage(storage):
+    return {key: value.copy() for key, value in storage.items()}
+
+
+def simulate_cpu(
+    Current_Parameters,
+    local_updates,
+    old_parameters,
+    IC_initial=None,
+    state="Rest",
+    attempt=0,
+    breath_coef=None,
+    exercise_start_time=None,
+):
     # local_updates = {key: copy.deepcopy(value) for key, value in storage.items()}
     i = local_updates["i"].item()
     latest_nonzero_index = (i - 1) % BUFFER_LIMIT
@@ -140,15 +199,20 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
     if IC_initial is None:
         IC_current = IC_overall.copy()
         t_span = [0, max_time]
-    elif latest_nonzero_value < 119:
+        exercise_start_time = np.inf
+    elif state == "Exercise" and attempt == 0:
         IC_current = IC_initial.copy()
-        # rest (MUST CHANGE)
-        # t_span = [max_time, max_time + 60]
-        # exercise
-        t_span = [max_time, max_time + 180]
+        t_span = [latest_nonzero_value, latest_nonzero_value + 180]
+        if exercise_start_time is None:
+            exercise_start_time = latest_nonzero_value
     else:
         IC_current = IC_initial.copy()
         t_span = [latest_nonzero_value, latest_nonzero_value + 60]
+        if state == "Exercise":
+            if exercise_start_time is None:
+                exercise_start_time = latest_nonzero_value
+        else:
+            exercise_start_time = np.inf
 
     # Cardio parameters
     (A_im, T_im, Tc, g_thor, P_thormax_n, P_thormin_n, VT_n, C_pa, C_pp, C_pv, L_pa,
@@ -270,7 +334,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         method="RK23",
         rtol=1e-3,
         atol=1e-6,
-        args=(local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2)
+        args=(local_updates, num_gas, num_cardio, num_cardio_control, num_resp_control, Input_Parameters, cs_t1, cs_t2, knots_1, knots_2, exercise_start_time)
     )
 
 
@@ -278,7 +342,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
         # Integration failed or early termination
         print("fail")
         print(Input_Parameters[10:15])
-        return [0.0]*31, None, None, None
+        return zero_state_result(), None, None, None
 
     i_buffer = local_updates["i"].item() % BUFFER_LIMIT
 
@@ -310,7 +374,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx1.size == 0 or close_idx1.size == 0:
         print("ao fail")
-        return [0.0] * 31, None, None, None
+        return zero_state_result(), None, None, None
 
     is_open_po = theta_po > theta_min
     open_idx2 = []
@@ -328,7 +392,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx2.size == 0 or close_idx2.size == 0:
         print("po fail")
-        return [0.0]*31, None, None, None
+        return zero_state_result(), None, None, None
 
     is_open_mi = theta_mi > theta_min
     open_idx3 = []
@@ -346,7 +410,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx3.size == 0 or close_idx3.size == 0:
         print("mi fail")
-        return [0.0]*31, None, None, None
+        return zero_state_result(), None, None, None
 
     is_open_tr = theta_tr > theta_min
     open_idx4 = []
@@ -364,7 +428,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     if open_idx4.size == 0 or close_idx4.size == 0:
         print("tr fail")
-        return [0.0]*31, None, None, None
+        return zero_state_result(), None, None, None
 
     pairs_ao = np.array([
         (o, close_idx1[(close_idx1 > o) & (close_idx1 < o_next)][-1])
@@ -393,6 +457,7 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((local_updates["phi_atr_store"][i_buffer:], local_updates["phi_atr_store"][:i_buffer]))
+    phi = np.concatenate((local_updates["phi_store"][i_buffer:], local_updates["phi_store"][:i_buffer]))
 
     dphi = np.diff(phi_atr, prepend=phi_atr[0])
     is_rising = dphi > 0
@@ -433,12 +498,11 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 
     P_rv = np.concatenate((local_updates["P_rv_store"][i_buffer:], local_updates["P_rv_store"][:i_buffer]))
     P_rv_max_idx = np.array([o + np.argmax(P_rv[o:c]) for o, c in pairs_po])
-    # New RVEDP definition: P_rv at V_rv peak within each filling window (pulmonic-close -> next pulmonic-open).
-    # V_rv peaks at end of diastole before phi rises, so this is the strict pre-QRS RVEDP.
-    P_rv_edp_idx = np.array([
-        c + np.argmax(V_rv[c:o_next])
-        for (_, c), (o_next, _) in zip(pairs_po[:-1], pairs_po[1:])
-    ], dtype=int)
+    # RVEDP: last sample before ventricular activation rises in the filling window.
+    # RVEDP: last sample before ventricular activation rises each beat.
+    phi_eps = 1e-8
+    phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
+    P_rv_edp_idx = phi_rise_idx[-10:] - 1
 
     # Get past 10 HR
     HR = np.concatenate((local_updates["HR_store"][i_buffer:], local_updates["HR_store"][:i_buffer]))
@@ -531,26 +595,104 @@ def simulate_cpu(Current_Parameters, local_updates,  old_parameters, IC_initial=
 def timeout_handler(signum, frame):
     raise TimeoutError("Simulation timeout")
 
-def safe_simulate_cpu(params, storage, old_parameters, timeout=200, IC_initial=None, breath_coef=None):
+def safe_simulate_cpu(
+    params,
+    storage,
+    old_parameters,
+    timeout=200,
+    IC_initial=None,
+    state="Rest",
+    attempt=0,
+    breath_coef=None,
+    exercise_start_time=None,
+):
     try:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
-        result = simulate_cpu(params, storage, old_parameters, IC_initial, breath_coef)
-        signal.alarm(0)  # Cancel timeout
+        use_alarm = hasattr(signal, "SIGALRM") and hasattr(signal, "alarm")
+        if use_alarm:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+        result = simulate_cpu(
+            params, storage, old_parameters, IC_initial, state, attempt, breath_coef, exercise_start_time
+        )
+        if use_alarm:
+            signal.alarm(0)  # Cancel timeout
         return result
-    except Exception:
-        signal.alarm(0)  # Cancel timeout
-        print("too slow")
-        return ([10000]*31, None, None, None)
+    except Exception as exc:
+        if hasattr(signal, "alarm"):
+            signal.alarm(0)  # Cancel timeout
+        print(f"simulation failed: {exc}")
+        return zero_state_result(), None, None, None
+
+
+def run_state_to_convergence(
+    params,
+    storage,
+    old_parameters,
+    IC_final=None,
+    state="Rest",
+    breath_coef=None,
+    exercise_start_time=None,
+    use_timeout=True,
+    min_duration=MIN_MEASUREMENT_DURATION,
+):
+    result = zero_state_result()
+    converged = False
+    if IC_final is None:
+        state_start_time = 0.0
+    else:
+        state_start_index = (storage["i"].item() - 1) % BUFFER_LIMIT
+        state_start_time = storage["all_time"][state_start_index]
+
+    for attempt in range(MAX_CONVERGENCE_ATTEMPTS):
+        if use_timeout:
+            result, IC_final, storage, breath_coef = safe_simulate_cpu(
+                params,
+                storage,
+                old_parameters,
+                IC_initial=IC_final,
+                state=state,
+                attempt=attempt,
+                breath_coef=breath_coef,
+                exercise_start_time=exercise_start_time,
+            )
+        else:
+            result, IC_final, storage, breath_coef = simulate_cpu(
+                params,
+                storage,
+                old_parameters,
+                IC_initial=IC_final,
+                state=state,
+                attempt=attempt,
+                breath_coef=breath_coef,
+                exercise_start_time=exercise_start_time,
+            )
+
+        if storage is None or IC_final is None or is_failed_state_result(result):
+            return zero_state_result(), None, None, None, False
+
+        latest_nonzero_index = (storage["i"].item() - 1) % BUFFER_LIMIT
+        latest_nonzero_value = storage["all_time"][latest_nonzero_index]
+        state_elapsed = latest_nonzero_value - state_start_time
+
+        if has_converged(storage) and state_elapsed >= min_duration:
+            converged = True
+            break
+
+    return result, IC_final, storage, breath_coef, converged
+
 
 def run_basepoint(base_sample, old_Parameters):
     storage_copy = make_fresh_storage()
 
     try:
-        # run all basepoints even if slow
-        base_result, IC_final, storage_final, breath_coef = simulate_cpu(
-            base_sample, storage_copy, old_Parameters
+        # Run basepoints to rest convergence; perturbations warm-start from this state.
+        base_result, IC_final, storage_final, breath_coef, rest_converged = run_state_to_convergence(
+            base_sample,
+            storage_copy,
+            old_Parameters,
+            state="Rest",
+            use_timeout=False,
         )
 
         minimise_coef = [
@@ -560,7 +702,7 @@ def run_basepoint(base_sample, old_Parameters):
             base_sample["R_rs"],
         ]
 
-        if base_result[0] == 0:
+        if is_failed_state_result(base_result):
             print("fail", dict(list(base_sample.items())[:10]))
             return None
 
@@ -575,7 +717,7 @@ def run_basepoint(base_sample, old_Parameters):
         print(f"[BASEPOINT EXCEPTION] idx={base_sample}")
         return None
 
-def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_04_final.npy'):
+def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_union.npy'):
     results_all = []
 
     if os.path.exists(save_path):
@@ -595,7 +737,7 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_
         base = base_results[i]
 
         if base is None: # base failed → whole block invalid
-            results_all.extend(np.zeros((block_size, 31)))
+            results_all.extend(np.zeros((block_size, UNION_OUTPUT_DIM)))
             print("block_failed")
             np.save(save_path, np.array(results_all))
             continue
@@ -607,9 +749,16 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_
         t0 = time.time()
         results_perturbations = Parallel(n_jobs=n_jobs)(delayed(run_simulation)(params,
         base["storage_final"], Old_Parameters, base["IC_final"], base["breath_coef"], base["minimise_coef"]) for params in block)
-        print(f"Block {i}/{len(param_blocks)}: {time.time() - t0:.1f}s")
+        elapsed = time.time() - t0
+        rest_nonconverged = sum(not res["rest_converged"] for res in results_perturbations)
+        exercise_nonconverged = sum(not res["exercise_converged"] for res in results_perturbations)
+        print(
+            f"Block {i}/{len(param_blocks)}: {elapsed:.1f}s | "
+            f"Rest non-converged: {rest_nonconverged}/{len(block)} | "
+            f"Exercise non-converged: {exercise_nonconverged}/{len(block)}"
+        )
 
-        results_block = [res[0] for res in results_perturbations]
+        results_block = [res["result"] for res in results_perturbations]
         results_all.extend(results_block)
 
         # Save chunk incrementally (appending)
@@ -623,44 +772,55 @@ def parallel_simulations(param_samples, n_jobs, save_path='Result_DGSM_delay_14_
 
 
 def run_simulation(params, storage_final, Old_Parameters, IC_final, breath_coef, minimise_coef):
-    storage_final = {key: value.copy() for key, value in storage_final.items()}
-    # Extract next params
+    storage_final = copy_storage(storage_final)
+    IC_final = IC_final.copy()
+
+    # If the perturbation changes breathing-optimiser inputs, recompute the
+    # breathing spline before reconverging at rest.
     next_minimise_coef = [params["GV_dead"], params["V0_dead"], params["E_rs"], params["R_rs"]]
+    local_breath_coef = breath_coef if next_minimise_coef == minimise_coef else None
 
-    # If coefficients differ, don't reuse breath_coef
-    if next_minimise_coef != minimise_coef:
-        for attempt in range(5):
-            result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final)
+    result_rest, IC_final, storage_final, local_breath_coef, rest_converged = run_state_to_convergence(
+        params,
+        storage_final,
+        Old_Parameters,
+        IC_final=IC_final,
+        state="Rest",
+        breath_coef=local_breath_coef,
+    )
 
-            if storage_final is None:
-                return ([0.0] * 31, None, None, None)
+    if storage_final is None or IC_final is None or is_failed_state_result(result_rest):
+        return {
+            "result": zero_union_result(),
+            "rest_converged": False,
+            "exercise_converged": False,
+        }
 
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
+    latest_nonzero_index = (storage_final["i"].item() - 1) % BUFFER_LIMIT
+    exercise_start_time = storage_final["all_time"][latest_nonzero_index]
 
-            if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
-        print(f"Not converged")
+    result_exercise, IC_final, storage_final, local_breath_coef, exercise_converged = run_state_to_convergence(
+        params,
+        storage_final,
+        Old_Parameters,
+        IC_final=IC_final,
+        state="Exercise",
+        breath_coef=local_breath_coef,
+        exercise_start_time=exercise_start_time,
+    )
 
-        return result, IC_final, storage_final, breath_coef
-    else:
-        for attempt in range(5):
-            result, IC_final, storage_final, breath_coef = safe_simulate_cpu(params, storage_final, Old_Parameters, IC_initial=IC_final, breath_coef=breath_coef)
+    if storage_final is None or IC_final is None or is_failed_state_result(result_exercise):
+        return {
+            "result": zero_union_result(),
+            "rest_converged": rest_converged,
+            "exercise_converged": False,
+        }
 
-            if storage_final is None:
-                return ([0.0] * 31, None, None, None)
-
-            i_buffer = storage_final["i"].item() % BUFFER_LIMIT
-            HR = np.concatenate((storage_final["HR_store"][i_buffer:], storage_final["HR_store"][:i_buffer]))
-
-            if (max(HR) - min(HR)) < 0.03:
-                return result, IC_final, storage_final, breath_coef
-
-        latest_nonzero_index = i_buffer - 1
-        latest_nonzero_value = storage_final["all_time"][latest_nonzero_index]
-        print(f"Not converged: {max(HR) - min(HR)}, {latest_nonzero_value}")
-
-        return result, IC_final, storage_final, breath_coef
+    return {
+        "result": list(result_rest) + list(result_exercise),
+        "rest_converged": rest_converged,
+        "exercise_converged": exercise_converged,
+    }
 
 
 
@@ -844,8 +1004,14 @@ if __name__ == "__main__":
 
     # DGSM uses finite differences sampling since it is a derivative based method
     # X = finite_diff.sample(sp, 500)
-    # np.save("DGSM_500_X_exercise_20_11_05_constants.npy", X)
-    X = np.load("DGSM_500_X_rest_exercise_20_27_05.npy")
+    # np.save("DGSM_500_X_union_50_27_05.npy", X)
+    X = np.load("DGSM_500_X_union_50_27_05.npy")[:320*273]
+
+    # param_samples = [dict(zip(param_keys, row)) for row in X]
+    # print(f"Number of samples created: {len(X)}")
+
+    # Result = parallel_simulations(param_samples, n_jobs=64)
+    # np.save(f'DGSM_500_Result_union_50_27_05_from_240_300.npy', Result)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-id", type=int, required=True)
@@ -864,5 +1030,5 @@ if __name__ == "__main__":
     param_samples = [dict(zip(param_keys, row)) for row in X]
     print(f"Number of samples created: {len(X)}")
 
-    result_path = f'Result_task_{task_id:02d}_exercise.npy'
+    result_path = f'Result_task_{task_id:02d}_union.npy'
     Result = parallel_simulations(param_samples, n_jobs=args.n_jobs, save_path=result_path)

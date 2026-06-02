@@ -36,6 +36,8 @@ import json
 import argparse
 import subprocess
 import warnings
+import re
+import time
 import joblib
 import numpy as np
 import torch
@@ -75,10 +77,31 @@ _parser.add_argument("--aggregate-only", action="store_true")
 _parser.add_argument("--n-chains", type=int, default=None)
 _parser.add_argument("--sequential", action="store_true")
 _parser.add_argument(
+    "--hm-artifacts-dir",
+    default=None,
+    help="Directory containing union HM artifacts; default is the launch directory.",
+)
+_parser.add_argument(
+    "--emulator-dir",
+    default=None,
+    help="Directory containing union GP emulators; default is HM artifacts dir/Emulator_union_all_wave.",
+)
+_parser.add_argument(
+    "--run-dir",
+    default=None,
+    help="Directory for MCMC outputs/logs; default is launch directory/MCMC_Union_...",
+)
+_parser.add_argument(
     "--threads-per-chain",
     type=int,
     default=None,
-    help="CPU threads assigned to each parallel chain worker; default is cpu_count // n_chains.",
+    help="CPU threads assigned to each chain worker; overrides scheduler-aware default.",
+)
+_parser.add_argument(
+    "--max-threads-per-chain",
+    type=int,
+    default=int(os.environ.get("MCMC_MAX_THREADS_PER_CHAIN", "64")),
+    help="Cap automatic per-chain thread count; set 0 to disable. Default: 16.",
 )
 _args, _ = _parser.parse_known_args()
 CHAIN_ID       = _args.chain_id
@@ -95,13 +118,37 @@ torch.manual_seed(RANDOM_SEED)
 pyro.set_rng_seed(RANDOM_SEED)
 
 PERCENT      = 50                        # param range +/-% used in HM # change
-root = "." # change
-EMULATOR_DIR = f"Emulator_union_wave"     # GP emulators from last refitted wave # change
-out_dir = f"MCMC_Union_{PERCENT}_22_05_logspline_copula_prior"
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LAUNCH_DIR = os.getcwd()
+
+
+def _resolve_path(path, base_dir=LAUNCH_DIR):
+    if os.path.isabs(path):
+        return os.path.abspath(path)
+    return os.path.abspath(os.path.join(base_dir, path))
+
+
+HM_ARTIFACTS_DIR = (
+    _resolve_path(_args.hm_artifacts_dir)
+    if _args.hm_artifacts_dir
+    else os.path.abspath(LAUNCH_DIR)
+)
+root = HM_ARTIFACTS_DIR # change
+EMULATOR_DIR = (
+    _resolve_path(_args.emulator_dir, HM_ARTIFACTS_DIR)
+    if _args.emulator_dir
+    else os.path.join(HM_ARTIFACTS_DIR, "Emulator_union_all_initial")
+)     # GP emulators from last refitted wave # change
+out_dir = (
+    _resolve_path(_args.run_dir, LAUNCH_DIR)
+    if _args.run_dir
+    else os.path.join(LAUNCH_DIR, f"MCMC_Union_{PERCENT}_30_05_uniform_prior")
+)
 os.makedirs(out_dir, exist_ok=True)
 
 
-USE_COPULA_PRIOR   = True          # False -> uniform box prior
+USE_COPULA_PRIOR   = True         # False -> uniform box prior
 KDE_SUBSAMPLE      = 5000          # subsample size per-axis KDE eval at MCMC
 KDE_BANDWIDTH      = "silverman"   # "silverman" | "scott" | float
 CORR_SHRINK        = 0.0           # linear shrinkage of R toward identity
@@ -146,16 +193,78 @@ if _args.threads_per_chain is not None and _args.threads_per_chain < 1:
     raise ValueError(
         f"--threads-per-chain must be >= 1, got {_args.threads_per_chain}"
     )
+if _args.max_threads_per_chain is not None and _args.max_threads_per_chain < 0:
+    raise ValueError(
+        f"--max-threads-per-chain must be >= 0, got {_args.max_threads_per_chain}"
+    )
+
+
+def _first_int_from_env_value(value):
+    if not value:
+        return None
+    match = re.search(r"\d+", str(value))
+    return int(match.group(0)) if match else None
+
+
+def _available_cpu_count():
+    """Best-effort CPU count that respects scheduler/affinity limits."""
+    candidates = []
+    for name in (
+        "SLURM_CPUS_PER_TASK",
+        "SLURM_CPUS_ON_NODE",
+        "SLURM_JOB_CPUS_PER_NODE",
+        "PBS_NP",
+        "NSLOTS",
+    ):
+        value = _first_int_from_env_value(os.environ.get(name))
+        if value and value > 0:
+            candidates.append(value)
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            candidates.append(len(os.sched_getaffinity(0)))
+        except Exception:
+            pass
+    candidates.append(os.cpu_count() or multiprocessing.cpu_count() or 1)
+    return max(1, min(c for c in candidates if c and c > 0))
+
+
+def _auto_threads_per_worker(active_workers):
+    threads = max(1, _available_cpu_count() // max(active_workers, 1))
+    max_threads = _args.max_threads_per_chain
+    if max_threads:
+        threads = min(threads, max_threads)
+    return threads
+
+
+def _apply_local_thread_limits(active_workers):
+    threads = _args.threads_per_chain
+    if threads is None:
+        env_threads = _first_int_from_env_value(os.environ.get("TORCH_NUM_THREADS"))
+        threads = env_threads or _auto_threads_per_worker(active_workers)
+        if env_threads and _args.max_threads_per_chain:
+            threads = min(threads, _args.max_threads_per_chain)
+
+    os.environ["OMP_NUM_THREADS"] = str(threads)
+    os.environ["MKL_NUM_THREADS"] = str(threads)
+    os.environ["OPENBLAS_NUM_THREADS"] = str(threads)
+    os.environ["NUMEXPR_NUM_THREADS"] = str(threads)
+    os.environ["VECLIB_MAXIMUM_THREADS"] = str(threads)
+    os.environ["TORCH_NUM_THREADS"] = str(threads)
+    os.environ["LOKY_MAX_CPU_COUNT"] = str(threads)
+
+    try:
+        torch.set_num_threads(threads)
+        torch.set_num_interop_threads(1)
+    except RuntimeError:
+        torch.set_num_threads(threads)
+    return threads
 
 
 def _parallel_worker_env(n_chains, threads_per_chain):
     """Environment for concurrent chain subprocesses on Linux/HPC nodes."""
     env = os.environ.copy()
     if threads_per_chain is None:
-        threads_per_chain = max(1, (os.cpu_count() or n_chains) // max(n_chains, 1))
-        override = False
-    else:
-        override = True
+        threads_per_chain = _auto_threads_per_worker(n_chains)
 
     thread_vars = (
         "OMP_NUM_THREADS",
@@ -167,15 +276,20 @@ def _parallel_worker_env(n_chains, threads_per_chain):
         "LOKY_MAX_CPU_COUNT",
     )
     for name in thread_vars:
-        if override:
-            env[name] = str(threads_per_chain)
-        else:
-            env.setdefault(name, str(threads_per_chain))
+        env[name] = str(threads_per_chain)
     return env, threads_per_chain
 
 
 def _mcmc_driver_args():
-    return []
+    args = [
+        "--hm-artifacts-dir", HM_ARTIFACTS_DIR,
+        "--emulator-dir", EMULATOR_DIR,
+        "--run-dir", out_dir,
+        "--max-threads-per-chain", str(_args.max_threads_per_chain),
+    ]
+    if _args.threads_per_chain is not None:
+        args.extend(["--threads-per-chain", str(_args.threads_per_chain)])
+    return args
 
 
 def _run_parallel_chains_and_aggregate():
@@ -280,6 +394,8 @@ if (
 
 CHAIN_WORKER = CHAIN_ID >= 0
 WRITE_SHARED_ARTIFACTS = not CHAIN_WORKER
+ACTIVE_WORKERS = 1 if (CHAIN_WORKER or _args.sequential or AGGREGATE_ONLY) else N_CHAINS
+THREADS_PER_CHAIN_EFFECTIVE = _apply_local_thread_limits(ACTIVE_WORKERS)
 
 # Atrial contraction is enforced via the active-emptying fraction
 #   r = (V_pre_contraction - V_min) / (V_max - V_min)
@@ -1422,26 +1538,22 @@ EXERCISE_RA_PRE_DISPLAY_MEAN, EXERCISE_RA_PRE_DISPLAY_STD = _propagated_vpre_dis
 # ================================================================
 subset_vars_set = {
     # Rest_only
-    'beta2', 'C_jp', 'Cvam_O2_n', 'Emax_la', 'f_ab_max', 'fab_o',
-    'fes_inf', 'fes_min', 'fev_inf', 'Io_met', 'Io_sv', 'K2',
-    'k_ab', 'kcc_sv', 'kes', 'kmet', 'Kv_mi', 'Kv_po', 'Kv_tr',
-    'MO2_bp', 'P0_ra', 'P_n', 'rise_time_atr', 'theta_svn',
-    'Vu_amv0', 'Vu_bv', 'Wb_sh', 'Wb_sv',
+    "Emax_la", "f_ab_max", "fes_inf", "fes_min", "Io_sv", "K2", "kcc_sv",
+    "kes", "P_n", "R_pp", "rise_time_atr", "Wb_sh",
 
     # Exercise Only
-    'C_pv', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GV_dead',
-    'GV_sv', 'Io_sh', 'KcCO2', 'KcMRV', 'P_n_max', 'phi_max',
-    'R_amp0', 'R_po', 'tauMR', 'VA_rest', 'Wp_v', 'Yv_max', 'C_pa',
+    "C_pv", "E_rs", "G_ap", "GEmax_lv", "GEmax_rv", "GR_amp", "GT_s",
+    "GV_sv", "KcCO2", "P_n_max", "phi_max", "Rvc_n", "VA_rest", "Wp_v",
+    "Yv_max",
 
     # Overlap
-    'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_sv', 'E_rs',
-    'Emax_lv0', 'Emax_ra', 'Emax_rv0', 'fall_time_ven',
-    'fes_o', 'fev_o', 'GT_s', 'GT_v', 'KE_la', 'KE_lv',
-    'KE_ra', 'KE_rv', 'l', 'P0_la', 'P0_lv', 'P0_rv',
-    'PaCO2_n', 'r', 'R_pa', 'R_pp', 'R_rs', 'R_sa',
-    'rise_time_ven', 'Rvc_n', 'T0', 'V0_dead', 'V_nominal',
-    'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_ra',
-    'Vu_rv', 'Vu_sv0'
+    "a2", "ahead1", "C2", "C_O2_param1", "C_O2_param2", "C_sv", "Emax_lv0",
+    "Emax_ra", "Emax_rv0", "fab_o", "fes_o", "fev_inf", "fev_o", "GT_v",
+    "KE_la", "KE_lv", "KE_ra", "KE_rv", "l", "MO2_bp", "P0_la", "P0_lv",
+    "P0_rv", "PaCO2_n", "PAMO2_nominal", "r", "R_po", "R_rs", "R_sa",
+    "R_tr", "rise_time_ven", "s", "scale_param1", "scale_param4", "T0",
+    "theta_po_max", "theta_tr_max", "V0_dead", "V_nominal", "V_scale",
+    "Vu_ev0", "Vu_jp", "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Vu_sv0",
 }
 
 
@@ -1454,14 +1566,18 @@ subset_vars_set = {
 print("=" * 60)
 print("STEP 1 -- Loading history matching results")
 print("=" * 60)
+print(f"  HM artifacts dir: {HM_ARTIFACTS_DIR}")
+print(f"  Emulator dir: {EMULATOR_DIR}")
+print(f"  Run dir: {out_dir}")
+print(f"  CPU threads per active chain/process: {THREADS_PER_CHAIN_EFFECTIVE}")
 
 nroy_points_np = np.load(
     _first_existing_path(
         [
-            f"NROY_Points_rest_union_{PERCENT}.npy",
-            f"NROY_Points_union_{PERCENT}.npy",
-            f"NROY_Points_rest_union_{PERCENT}.npy",
-            f"NROY_Points_union_{PERCENT}.npy",
+            os.path.join(HM_ARTIFACTS_DIR, f"NROY_Points_union_all_{PERCENT}.npy"),
+            # f"NROY_Points_union_{PERCENT}.npy",
+            # f"NROY_Points_rest_union_{PERCENT}.npy",
+            # f"NROY_Points_union_{PERCENT}.npy",
         ],
         "union NROY points",
     )
@@ -1469,10 +1585,10 @@ nroy_points_np = np.load(
 nroy_params_dict = np.load(
     _first_existing_path(
         [
-            f"NROY_Params_rest_union_{PERCENT}.npy",
-            f"NROY_Params_union_{PERCENT}.npy",
-            f"NROY_Params_rest_union_{PERCENT}.npy",
-            f"NROY_Params_union_{PERCENT}.npy",
+            os.path.join(HM_ARTIFACTS_DIR, f"NROY_Params_union_all_{PERCENT}.npy"),
+            # f"NROY_Params_union_{PERCENT}.npy",
+            # f"NROY_Params_rest_union_{PERCENT}.npy",
+            # f"NROY_Params_union_{PERCENT}.npy",
         ],
         "union NROY parameter bounds",
     ),
@@ -1789,10 +1905,13 @@ with torch.no_grad():
 
 # Verify gradient is finite at the initial point
 z_grad = z_test.clone().requires_grad_(True)
+grad_t0 = time.perf_counter()
 pe_grad = potential_fn({"theta": z_grad})
 grad_check = torch.autograd.grad(pe_grad, z_grad)[0]
+grad_seconds = time.perf_counter() - grad_t0
 print(f"  Initial gradient: finite={grad_check.isfinite().all().item()}, "
-      f"norm={grad_check.norm().item():.4f}")
+      f"norm={grad_check.norm().item():.4f}, "
+      f"potential+grad time={grad_seconds:.3f}s")
 assert grad_check.isfinite().all(), "Gradient has NaN/Inf at initial point"
 
 # ---------- Multi-chain NUTS (parallel driver / sequential / array-task / aggregate) ----------
@@ -2086,7 +2205,12 @@ config = {
     "n_chains":        N_CHAINS,
     "target_accept":   TARGET_ACCEPT,
     "max_tree_depth":  MAX_TREE_DEPTH,
+    "hm_artifacts_dir": HM_ARTIFACTS_DIR,
     "emulator_dir":    EMULATOR_DIR,
+    "run_dir":         out_dir,
+    "threads_per_chain": THREADS_PER_CHAIN_EFFECTIVE,
+    "max_threads_per_chain": _args.max_threads_per_chain,
+    "available_cpu_count": _available_cpu_count(),
     "percent":         PERCENT,
     # "knn_k":           KNN_K,
     "n_pred_check":    N_PRED_CHECK,

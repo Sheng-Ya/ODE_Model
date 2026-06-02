@@ -8,36 +8,13 @@ import numpy as np
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-
-def _propagated_vpre_display_stats(vmin_mean, vmin_var, vmax_mean, vmax_var,
-                                   f_mean, f_var):
-    """Display-only mean/std for V_pre = V_min + f * (V_max - V_min).
-
-    This mirrors the zero-cross-covariance assumption used by the MCMC
-    observation model: V_min, V_max and the active-emptying fraction f are
-    treated as independent when constructing the display normalisation.
-    """
-    delta_mean = float(vmax_mean) - float(vmin_mean)
-    f_mean = float(f_mean)
-    f_var = float(f_var)
-
-    vpre_mean = float(vmin_mean) + f_mean * delta_mean
-    ef2 = f_mean ** 2 + f_var
-    e1mf2 = (1.0 - f_mean) ** 2 + f_var
-    vpre_var = (
-        e1mf2 * float(vmin_var)
-        + ef2 * float(vmax_var)
-        + f_var * delta_mean ** 2
-    )
-    return vpre_mean, math.sqrt(max(vpre_var, 0.0))
-
-
-ATRIAL_RATIO_BOUNDS = (0.20, 0.30)
-ATRIAL_INTERVAL_PROB_FLOOR = 1e-12
-ATRIAL_RATIO_DISPLAY_MEAN = 0.5 * (ATRIAL_RATIO_BOUNDS[0] + ATRIAL_RATIO_BOUNDS[1])
-ATRIAL_RATIO_DISPLAY_STD = 0.5 * (ATRIAL_RATIO_BOUNDS[1] - ATRIAL_RATIO_BOUNDS[0])
-ATRIAL_RATIO_DISPLAY_VAR = ATRIAL_RATIO_DISPLAY_STD ** 2
-ATRIAL_RATIO_TARGET = (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_VAR)
+# The GP outputs are trained on raw pre-LA/pre-RA contraction volumes. As in
+# MCMC_Union.py, the target is the derived active-emptying fraction:
+#   r = (V_pre_contraction - V_min) / (V_max - V_min)
+ATRIAL_RATIO_TARGET = (0.25, 0.0025)
+ATRIAL_RATIO_DISPLAY_MEAN = ATRIAL_RATIO_TARGET[0]
+ATRIAL_RATIO_DISPLAY_VAR = ATRIAL_RATIO_TARGET[1]
+ATRIAL_RATIO_DISPLAY_STD = math.sqrt(ATRIAL_RATIO_DISPLAY_VAR)
 
 observation = {
 # Rest
@@ -65,46 +42,11 @@ observation = {
 "Exercise_PaCO2": (38.4, 6.76)
 }
 
-REST_LA_PRE_DISPLAY_MEAN, REST_LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Rest_Min_LA_Volume"][0],
-    observation["Rest_Min_LA_Volume"][1],
-    observation["Rest_Max_LA_Volume"][0],
-    observation["Rest_Max_LA_Volume"][1],
-    observation["Rest_Pre_LA_Contraction_Volume"][0],
-    observation["Rest_Pre_LA_Contraction_Volume"][1],
-)
-REST_RA_PRE_DISPLAY_MEAN, REST_RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Rest_Min_RA_Volume"][0],
-    observation["Rest_Min_RA_Volume"][1],
-    observation["Rest_Max_RA_Volume"][0],
-    observation["Rest_Max_RA_Volume"][1],
-    observation["Rest_Pre_RA_Contraction_Volume"][0],
-    observation["Rest_Pre_RA_Contraction_Volume"][1],
-)
-
-EXERCISE_LA_PRE_DISPLAY_MEAN, EXERCISE_LA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Exercise_Min_LA_Volume"][0],
-    observation["Exercise_Min_LA_Volume"][1],
-    observation["Exercise_Max_LA_Volume"][0],
-    observation["Exercise_Max_LA_Volume"][1],
-    observation["Exercise_Pre_LA_Contraction_Volume"][0],
-    observation["Exercise_Pre_LA_Contraction_Volume"][1],
-)
-EXERCISE_RA_PRE_DISPLAY_MEAN, EXERCISE_RA_PRE_DISPLAY_STD = _propagated_vpre_display_stats(
-    observation["Exercise_Min_RA_Volume"][0],
-    observation["Exercise_Min_RA_Volume"][1],
-    observation["Exercise_Max_RA_Volume"][0],
-    observation["Exercise_Max_RA_Volume"][1],
-    observation["Exercise_Pre_RA_Contraction_Volume"][0],
-    observation["Exercise_Pre_RA_Contraction_Volume"][1],
-)
-
-
 ATRIAL_DISPLAY_STATS = {
-    "Rest_LA": (REST_LA_PRE_DISPLAY_MEAN, REST_LA_PRE_DISPLAY_STD, "REST LA\nPre-A\nFraction"),
-    "Rest_RA": (REST_RA_PRE_DISPLAY_MEAN, REST_RA_PRE_DISPLAY_STD, "REST RA\nPre-A\nFraction"),
-    "Exercise_LA": (EXERCISE_LA_PRE_DISPLAY_MEAN, EXERCISE_LA_PRE_DISPLAY_STD, "EXERCISE LA\nPre-A\nFraction"),
-    "Exercise_RA": (EXERCISE_RA_PRE_DISPLAY_MEAN, EXERCISE_RA_PRE_DISPLAY_STD, "EXERCISE RA\nPre-A\nFraction"),
+    "Rest_LA": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_STD, "REST LA\nPre-A\nFraction"),
+    "Rest_RA": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_STD, "REST RA\nPre-A\nFraction"),
+    "Exercise_LA": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_STD, "EXERCISE LA\nPre-A\nFraction"),
+    "Exercise_RA": (ATRIAL_RATIO_DISPLAY_MEAN, ATRIAL_RATIO_DISPLAY_STD, "EXERCISE RA\nPre-A\nFraction"),
 }
 
 
@@ -182,7 +124,8 @@ def compute_map(run_dir, top_k=10):
 # ---------------------------------------------------------------------
 
 def _resolve_emulator_dir(run_dir, cfg):
-    emu_cfg = cfg.get("emulator_dir", "Emulator_union_all_wave") # change
+    # emu_cfg = cfg.get("emulator_dir", "Emulator_union_all_wave")
+    emu_cfg = cfg.get("emulator_dir", "Emulator_union_all_initial") # change
     if os.path.isabs(emu_cfg) and os.path.isdir(emu_cfg):
         return emu_cfg
     emu_leaf = os.path.basename(os.path.normpath(emu_cfg))
@@ -279,8 +222,8 @@ def _resolve_output_indices(output_names):
     for key, min_name, max_name, pre_name in group_specs:
         if min_name in name_to_idx and max_name in name_to_idx and pre_name in name_to_idx:
             display_mean, display_std, label = ATRIAL_DISPLAY_STATS.get(
-                key, (REST_LA_PRE_DISPLAY_MEAN if key == "LA" else REST_RA_PRE_DISPLAY_MEAN,
-                      REST_LA_PRE_DISPLAY_STD if key == "LA" else REST_RA_PRE_DISPLAY_STD,
+                key, (ATRIAL_RATIO_DISPLAY_MEAN,
+                      ATRIAL_RATIO_DISPLAY_STD,
                       "LA\nPre-A\nFraction" if key == "LA" else "RA\nPre-A\nFraction")
             )
             groups.append({
@@ -369,15 +312,31 @@ def _ratio_moments(mean_vec, cov):
     return ratio_mean, ratio_var
 
 
-def _normal_interval_log_prob(mean, var, lower, upper):
-    import torch
+def _convert_pre_outputs_to_ratios(matrix, output_indices, ratio_value_threshold=2.0):
+    if matrix is None or output_indices is None:
+        return matrix
 
-    sd = torch.sqrt(var.clamp(min=1e-12))
-    inv_scale = 1.0 / (math.sqrt(2.0) * sd)
-    upper_cdf = 0.5 * (1.0 + torch.erf((upper - mean) * inv_scale))
-    lower_cdf = 0.5 * (1.0 + torch.erf((lower - mean) * inv_scale))
-    probability = upper_cdf - lower_cdf
-    return torch.log(probability.clamp_min(ATRIAL_INTERVAL_PROB_FLOOR))
+    converted = np.asarray(matrix, dtype=np.float64).copy()
+    squeeze = False
+    if converted.ndim == 1:
+        converted = converted.reshape(1, -1)
+        squeeze = True
+    elif converted.ndim != 2:
+        return matrix
+
+    for group in output_indices.get("atrial_groups", []):
+        min_idx = group["min"]
+        max_idx = group["max"]
+        pre_idx = group["pre"]
+        pre_values = converted[:, pre_idx]
+        finite_pre = pre_values[np.isfinite(pre_values)]
+        if finite_pre.size and np.nanmedian(np.abs(finite_pre)) <= ratio_value_threshold:
+            continue
+
+        denom = _safe_ratio_denominator_np(converted[:, max_idx] - converted[:, min_idx])
+        converted[:, pre_idx] = (converted[:, pre_idx] - converted[:, min_idx]) / denom
+
+    return converted.reshape(-1) if squeeze else converted
 
 
 def _estimate_residual_corr(gp_caches, output_names):
@@ -544,7 +503,11 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
         target_z_obs = (mus - obs_means_t) / torch.sqrt(obs_vars_t.clamp(min=1e-10))
 
         atrial_groups = [] if output_indices is None else output_indices.get("atrial_groups", [])
-        if residual_corr is not None and atrial_groups:
+        if atrial_groups:
+            ratio_corr = residual_corr
+            if ratio_corr is None:
+                ratio_corr = torch.eye(mus.numel(), dtype=vars_.dtype, device=vars_.device)
+
             gaussian_mask = torch.ones_like(mus, dtype=torch.bool)
             atrial_idxs = [group["pre"] for group in atrial_groups]
             gaussian_mask[atrial_idxs] = False
@@ -557,12 +520,13 @@ def make_theta_space_objective(prior_lo, prior_hi, obs_means, obs_vars, gp_cache
                 idxs = (group["min"], group["max"], group["pre"])
                 ratio_mean, ratio_var = _ratio_moments(
                     mus[list(idxs)],
-                    _local_output_covariance(vars_, residual_corr, idxs),
+                    _local_output_covariance(vars_, ratio_corr, idxs),
                 )
                 pre_idx = group["pre"]
-                ratio_lower, ratio_upper = ATRIAL_RATIO_BOUNDS
-                ll = ll + _normal_interval_log_prob(
-                    ratio_mean, ratio_var, ratio_lower, ratio_upper
+                ratio_total_var = (obs_vars_t[pre_idx] + ratio_var).clamp(min=1e-10)
+                ll = ll - 0.5 * (
+                    (obs_means_t[pre_idx] - ratio_mean) ** 2 / ratio_total_var
+                    + torch.log(ratio_total_var)
                 )
                 target_z_obs[pre_idx] = 0.0
 
@@ -740,13 +704,16 @@ def _plot_vs_targets(run_dir, output_names,
     plot_matrix = None if pred_matrix is None else np.asarray(pred_matrix, dtype=np.float64).copy()
 
     atrial_groups = [] if output_indices is None else output_indices.get("atrial_groups", [])
+    if plot_matrix is not None and atrial_groups:
+        plot_matrix = _convert_pre_outputs_to_ratios(plot_matrix, output_indices)
+
     for group in atrial_groups:
         min_idx = group["min"]
         max_idx = group["max"]
         pre_idx = group["pre"]
 
-        plot_obs_means[pre_idx] = ATRIAL_RATIO_DISPLAY_MEAN
-        plot_obs_stds[pre_idx] = ATRIAL_RATIO_DISPLAY_STD
+        plot_obs_means[pre_idx] = group["display_mean"]
+        plot_obs_stds[pre_idx] = group["display_std"]
         short_names[pre_idx] = group["label"]
 
         sampled_plot_mu[pre_idx], sampled_plot_sd[pre_idx] = _ratio_mean_sd_from_outputs(
@@ -862,7 +829,8 @@ def main():
     p.add_argument(
         "run_dir",
         nargs="?",
-        default=os.path.join("MCMC_Union_50_29_05_logspline_copula_prior"), # change
+        # default=os.path.join("MCMC_Union_50_29_05_logspline_copula_prior"),
+        default=os.path.join("MCMC_Union_50_30_05_uniform_prior"),  # change
         help="Path to a MCMC_Union_* output directory.",
     )
     p.add_argument("--top-k", type=int, default=10, help="How many top posterior draws to rank.")
