@@ -61,14 +61,10 @@ from Simulator_Union import Simulator
 logger = logging.getLogger("autoemulate")
 
 INITIAL_EMULATOR_DIR = "Emulator_union_initial"
-WAVE_EMULATOR_DIR = "Emulator_union_wave"
+WAVE_EMULATOR_DIR = "Emulator_union_wave_three_start_separate"
 NROY_SAMPLES_PATH = "nroy_samples_union.pt"
 LAST_WAVE_PATH = "last_wave_union.pt"
 EMULATOR_TRAIN_N_JOBS = 64
-ATRIAL_MARGIN_OUTPUT_NAME = "Exercise_Atrial_Volume_Signed_Margin"
-ATRIAL_MARGIN_TRAIN_X_PATH = "X_train_exercise_atrial_margin.pt"
-ATRIAL_MARGIN_TRAIN_Y_PATH = "Y_train_exercise_atrial_margin.pt"
-DEFAULT_ATRIAL_MARGIN_CLIP_BOUNDS = (-20.0, 80.0)
 
 RAW_OUTPUT_NAMES_PER_STATE = [
     "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
@@ -110,31 +106,6 @@ EMULATOR_OUTPUT_NAMES = [
 ]
 
 EMULATOR_OUTPUT_INDEX = {name: idx for idx, name in enumerate(EMULATOR_OUTPUT_NAMES)}
-REST_ATRIAL_VOLUME_COLUMNS = [
-    EMULATOR_OUTPUT_INDEX[name]
-    for name in [
-        "Rest_Min_RA_Volume",
-        "Rest_Max_RA_Volume",
-        "Rest_Min_LA_Volume",
-        "Rest_Max_LA_Volume",
-        "Rest_Pre_LA_Contraction_Volume",
-        "Rest_Pre_RA_Contraction_Volume",
-    ]
-]
-EXERCISE_ATRIAL_VOLUME_COLUMNS = [
-    EMULATOR_OUTPUT_INDEX[name]
-    for name in [
-        "Exercise_Min_RA_Volume",
-        "Exercise_Max_RA_Volume",
-        "Exercise_Min_LA_Volume",
-        "Exercise_Max_LA_Volume",
-        "Exercise_Pre_LA_Contraction_Volume",
-        "Exercise_Pre_RA_Contraction_Volume",
-    ]
-]
-ATRIAL_VOLUME_COLUMNS = REST_ATRIAL_VOLUME_COLUMNS + EXERCISE_ATRIAL_VOLUME_COLUMNS
-
-
 class HistoryMatching(TorchDeviceMixin):
     r"""
     History Matching class for model calibration.
@@ -350,18 +321,6 @@ class HistoryMatching(TorchDeviceMixin):
         return torch.where(denominator.abs() < eps, signed_eps, denominator)
 
     @staticmethod
-    def _probability_greater_than(
-        mean: TensorLike,
-        var: TensorLike,
-        lower_bound: TensorLike | float,
-    ) -> TensorLike:
-        if not torch.is_tensor(lower_bound):
-            lower_bound = torch.full_like(mean, float(lower_bound))
-        sd = torch.sqrt(torch.clamp(var, min=1e-12))
-        z = (mean - lower_bound.to(device=mean.device, dtype=mean.dtype)) / (sd * math.sqrt(2.0))
-        return 0.5 * (1.0 + torch.erf(z))
-
-    @staticmethod
     def generate_param_bounds(
         nroy_x: TensorLike,
         buffer_ratio: float = 0.05,
@@ -429,12 +388,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
         train_x: TensorLike | None = None,
         train_y: TensorLike | None = None,
         calibration_params: list[str] | None = None,
+        rest_calibration_params: list[str] | None = None,
+        exercise_calibration_params: list[str] | None = None,
         atrial_ratio_bounds: tuple[float, float] | None = None,
         atrial_ratio_min_probability: float = 0.0,
         atrial_ratio_mc_samples: int = 128,
-        atrial_volume_min_probability: float = 0.0,
-        atrial_margin_min_probability: float = 0.0,
-        atrial_margin_clip_bounds: tuple[float, float] = DEFAULT_ATRIAL_MARGIN_CLIP_BOUNDS,
         device: DeviceLike | None = None,
         random_seed: int | None = None,
         log_level: str = "debug",
@@ -477,13 +435,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
             Minimum predictive probability required for the ratio to lie in range.
         atrial_ratio_mc_samples: int
             Monte Carlo samples used to propagate emulator uncertainty to the ratio.
-        atrial_volume_min_probability: float
-            Minimum predictive probability that atrial volume constraints are valid.
-        atrial_margin_min_probability: float
-            Minimum predictive probability that the clipped signed exercise atrial
-            volume margin is greater than zero.
-        atrial_margin_clip_bounds: tuple[float, float]
-            Lower/upper clipping bounds for the signed exercise atrial margin.
         device: DeviceLike | None
             The device to use. If None, the default torch device is returned.
         random_seed: int | None
@@ -523,32 +474,56 @@ class HistoryMatchingWorkflow(HistoryMatching):
         self._wave_artifacts_dir = "."
         self._last_wave_train_points: TensorLike | None = None
 
-        # Save names and indices of parameters to calibrate
-        self.calibration_params = calibration_params or list(
-            simulator.parameters_range.keys()
-        )
+        # Save names and indices of parameters to calibrate.
+        # If rest/exercise subsets are provided, each emulator output only sees its
+        # relevant parameter subset (rest-only + overlap for rest outputs,
+        # exercise-only + overlap for exercise outputs). The joint `calibration_params`
+        # is set to the union and is what NROY tracking / cloud sampling / plotting use.
+        sim_param_names = list(simulator.parameters_range.keys())
+        if rest_calibration_params is not None and exercise_calibration_params is not None:
+            rest_set = set(rest_calibration_params)
+            exer_set = set(exercise_calibration_params)
+            union_set = rest_set | exer_set
+            self.rest_calibration_params = [n for n in sim_param_names if n in rest_set]
+            self.exercise_calibration_params = [n for n in sim_param_names if n in exer_set]
+            self.calibration_params = [n for n in sim_param_names if n in union_set]
+        else:
+            self.calibration_params = calibration_params or list(sim_param_names)
+            self.rest_calibration_params = list(self.calibration_params)
+            self.exercise_calibration_params = list(self.calibration_params)
+
         self.parameter_idx = [
             self.simulator.get_parameter_idx(param) for param in self.calibration_params
+        ]
+        self.rest_parameter_idx = [
+            self.simulator.get_parameter_idx(param) for param in self.rest_calibration_params
+        ]
+        self.exercise_parameter_idx = [
+            self.simulator.get_parameter_idx(param) for param in self.exercise_calibration_params
         ]
         # Derived atrial ratio is enforced as an interval constraint, not a point target.
         self.atrial_ratio_bounds = atrial_ratio_bounds
         self.atrial_ratio_min_probability = atrial_ratio_min_probability
         self.atrial_ratio_mc_samples = atrial_ratio_mc_samples
-        self.atrial_volume_min_probability = atrial_volume_min_probability
-        self.atrial_margin_min_probability = atrial_margin_min_probability
-        self.atrial_margin_clip_bounds = atrial_margin_clip_bounds
-        self.vu_la_param_idx = self.simulator.get_parameter_idx("Vu_la")
-        self.vu_ra_param_idx = self.simulator.get_parameter_idx("Vu_ra")
-        self.margin_train_x = torch.empty((0, self.simulator.in_dim), device=self.device)
-        self.margin_train_y = torch.empty((0, 1), device=self.device)
-        self._last_margin_train_x: TensorLike | None = None
-        self._last_margin_train_y: TensorLike | None = None
 
     @staticmethod
     def _to_numpy(array: TensorLike | np.ndarray) -> np.ndarray:
         if torch.is_tensor(array):
             return array.detach().cpu().numpy()
         return np.asarray(array)
+
+    def _param_idx_for_output(self, output_name: str) -> list[int]:
+        """Simulator-space parameter indices feeding `output_name`'s emulator.
+
+        Rest_* outputs use rest-only+overlap params; Exercise_* outputs use
+        exercise-only+overlap. When rest/exercise subsets weren't supplied,
+        both fall back to the joint `calibration_params` (legacy behavior).
+        """
+        if output_name.startswith("Rest_"):
+            return self.rest_parameter_idx
+        if output_name.startswith("Exercise_"):
+            return self.exercise_parameter_idx
+        return self.parameter_idx
 
     def _wave_number(self) -> int | None:
         if self._current_wave_idx is None:
@@ -625,170 +600,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
         in_band = (max_draws > min_draws) & (ratio >= lower) & (ratio <= upper)
         return in_band.float().mean(dim=1)
 
-    def _exercise_atrial_margin(self, x: TensorLike, y: TensorLike) -> TensorLike:
-        """Positive means exercise atrial volumes stay above unstressed volume."""
-        if y.numel() == 0:
-            return torch.empty((0,), device=self.device)
-
-        exercise_min_ra = EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]
-        exercise_min_la = EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]
-        exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
-        exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
-
-        vu_la = x[:, self.vu_la_param_idx].to(device=y.device, dtype=y.dtype)
-        vu_ra = x[:, self.vu_ra_param_idx].to(device=y.device, dtype=y.dtype)
-        margins = torch.stack(
-            [
-                y[:, exercise_min_la] - vu_la,
-                y[:, exercise_pre_la] - vu_la,
-                y[:, exercise_min_ra] - vu_ra,
-                y[:, exercise_pre_ra] - vu_ra,
-            ],
-            dim=1,
-        )
-        return margins.min(dim=1).values
-
-    def _clipped_exercise_atrial_margin(self, x: TensorLike, y: TensorLike) -> TensorLike:
-        lower, upper = self.atrial_margin_clip_bounds
-        margin = self._exercise_atrial_margin(x, y)
-        return margin.clamp(min=float(lower), max=float(upper)).reshape(-1, 1)
-
-    def _valid_physiologic_output_mask(self, x: TensorLike, y: TensorLike) -> TensorLike:
-        if y.numel() == 0:
-            return torch.empty((0,), dtype=torch.bool, device=self.device)
-
-        atrial_cols = [col for col in ATRIAL_VOLUME_COLUMNS if col < y.shape[1]]
-        atrial_positive = torch.ones(y.shape[0], dtype=torch.bool, device=y.device)
-        if atrial_cols:
-            atrial_positive = (y[:, atrial_cols] > 0).all(dim=1)
-
-        return atrial_positive & (self._exercise_atrial_margin(x, y) > 0)
-
-    def _capture_margin_training_data(self, x: TensorLike, y: TensorLike) -> None:
-        if x.numel() == 0 or y.numel() == 0:
-            self._last_margin_train_x = torch.empty((0, self.simulator.in_dim), device=self.device)
-            self._last_margin_train_y = torch.empty((0, 1), device=self.device)
-            return
-
-        margin_y = self._clipped_exercise_atrial_margin(x, y)
-        finite_mask = torch.isfinite(x).all(dim=1) & torch.isfinite(margin_y).all(dim=1)
-        self._last_margin_train_x = x[finite_mask]
-        self._last_margin_train_y = margin_y[finite_mask]
-
-    def _append_last_margin_training_data(self) -> None:
-        if self._last_margin_train_x is None or self._last_margin_train_y is None:
-            return
-        if self._last_margin_train_x.shape[0] == 0:
-            return
-
-        last_x = self._last_margin_train_x.to(self.device)
-        last_y = self._last_margin_train_y.to(self.device)
-        if self.margin_train_x.shape[0] == 0:
-            self.margin_train_x = last_x
-            self.margin_train_y = last_y
-            return
-
-        self.margin_train_x = torch.cat([self.margin_train_x.to(dtype=last_x.dtype), last_x], dim=0)
-        self.margin_train_y = torch.cat([self.margin_train_y.to(dtype=last_y.dtype), last_y], dim=0)
-
-    def _load_saved_margin_training_data(self) -> None:
-        if self.margin_train_x.shape[0] > 0:
-            return
-        if not (os.path.exists(ATRIAL_MARGIN_TRAIN_X_PATH) and os.path.exists(ATRIAL_MARGIN_TRAIN_Y_PATH)):
-            return
-
-        self.margin_train_x = torch.load(ATRIAL_MARGIN_TRAIN_X_PATH, map_location="cpu").to(self.device)
-        self.margin_train_y = torch.load(ATRIAL_MARGIN_TRAIN_Y_PATH, map_location="cpu").to(self.device)
-
-    def _fit_and_save_margin_emulator(
-        self,
-        root_dir: str,
-        snapshot_root: str | None = None,
-    ) -> None:
-        self._load_saved_margin_training_data()
-        x_all = self.margin_train_x
-        y_all = self.margin_train_y
-
-        if x_all.shape[0] < 3:
-            warnings.warn(
-                "Not enough signed atrial margin rows to train the margin emulator.",
-                stacklevel=2,
-            )
-            return
-
-        finite_mask = torch.isfinite(x_all).all(dim=1) & torch.isfinite(y_all).all(dim=1)
-        x_fit = x_all[finite_mask][:, self.parameter_idx]
-        y_fit = y_all[finite_mask]
-        n = x_fit.shape[0]
-        if n < 3:
-            warnings.warn(
-                "Not enough finite signed atrial margin rows to train the margin emulator.",
-                stacklevel=2,
-            )
-            return
-
-        torch.save(x_all.detach().cpu(), ATRIAL_MARGIN_TRAIN_X_PATH)
-        torch.save(y_all.detach().cpu(), ATRIAL_MARGIN_TRAIN_Y_PATH)
-
-        g = torch.Generator(device=x_fit.device)
-        g.manual_seed(42)
-        perm = torch.randperm(n, generator=g, device=x_fit.device)
-        n_test = max(1, int(round(0.2 * n)))
-        if n_test >= n:
-            n_test = n - 1
-
-        x_train, y_train = x_fit[perm[n_test:]], y_fit[perm[n_test:]]
-        x_test, y_test = x_fit[perm[:n_test]], y_fit[perm[:n_test]]
-
-        emulator = TransformedEmulator(
-            x_train.float(),
-            y_train.float(),
-            model=get_emulator_class(self.result.model_name),
-            x_transforms=self.result.x_transforms,
-            y_transforms=self.result.y_transforms,
-            device=self.device,
-            **self.result.params,
-        )
-        emulator.fit(x_train, y_train)
-
-        (r2_mean, r2_std), (rmse_mean, rmse_std) = bootstrap(
-            emulator,
-            x_test.float(),
-            y_test.float(),
-            n_bootstraps=100,
-            device=self.device,
-        )
-        print(
-            f"{ATRIAL_MARGIN_OUTPUT_NAME} R2 test: {r2_mean:.4f} "
-            f"(+/-{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (+/-{rmse_std:.4f})"
-        )
-
-        parent = os.path.join(root_dir, ATRIAL_MARGIN_OUTPUT_NAME)
-        os.makedirs(parent, exist_ok=True)
-        with torch.no_grad():
-            y_test_emulator_mean, y_test_emulator_variance = emulator.predict_mean_and_variance(
-                x_test.float()
-            )
-
-        numpy_artifacts = {
-            "x_train.npy": x_train,
-            "y_train.npy": y_train,
-            "x_test.npy": x_test,
-            "y_test.npy": y_test,
-            "y_test_emulator_mean.npy": y_test_emulator_mean,
-            "y_test_emulator_variance.npy": y_test_emulator_variance,
-        }
-        for filename, array in numpy_artifacts.items():
-            np.save(os.path.join(parent, filename), array.detach().cpu().numpy())
-
-        model_filename = f"GaussianProcessMatern32_{ATRIAL_MARGIN_OUTPUT_NAME}_best.joblib"
-        joblib.dump(emulator, os.path.join(parent, model_filename))
-        if snapshot_root is not None:
-            snapshot_parent = os.path.join(snapshot_root, ATRIAL_MARGIN_OUTPUT_NAME)
-            os.makedirs(snapshot_parent, exist_ok=True)
-            for filename, array in numpy_artifacts.items():
-                np.save(os.path.join(snapshot_parent, filename), array.detach().cpu().numpy())
-            joblib.dump(emulator, os.path.join(snapshot_parent, model_filename))
 
     def _is_within_bounds(
         self, sample: TensorLike, bounds_dict: dict[str, tuple[float, float]]
@@ -983,11 +794,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
         samples = self.simulator.sample_inputs(n_simulations).to(self.device)
 
         x, y = [], []
-        self.margin_train_x = torch.empty((0, self.simulator.in_dim), device=self.device)
-        self.margin_train_y = torch.empty((0, 1), device=self.device)
         for chunk in samples.split(2048):
             x_chunk, y_chunk = self.simulate(chunk)
-            self._append_last_margin_training_data()
             if x_chunk.shape[0] > 0:
                 x.append(x_chunk)
                 y.append(y_chunk)
@@ -1050,17 +858,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
             os.makedirs(parent, exist_ok=True)
             path1 = os.path.join(parent, f"GaussianProcessMatern32_{target_name}_best.joblib")
             joblib.dump(emulator, path1)
-            print(f"  Saved to {path1}")
+            # print(f"  Saved to {path1}")
             return target_name
 
         Parallel(n_jobs=EMULATOR_TRAIN_N_JOBS)(
             delayed(fit_one_initial_output)(
-                j, target_name, self.train_x, self.train_y, self.parameter_idx, self.result, self.device
+                j, target_name, self.train_x, self.train_y,
+                self._param_idx_for_output(target_name), self.result, self.device,
             )
             for j, target_name in enumerate(output_names_full)
         )
         get_reusable_executor().shutdown(wait=True)
-        self._fit_and_save_margin_emulator(INITIAL_EMULATOR_DIR)
 
         torch.save(x, "X_train.pt")
         torch.save(y, "Y_train.pt")
@@ -1164,66 +972,36 @@ class HistoryMatchingWorkflow(HistoryMatching):
             path1 = os.path.join(parent, folder, f"GaussianProcessMatern32_{name}_best.joblib")
             models[name] = joblib.load(path1)
 
-        means = {}
-        variances = {}
-
-        for name in EMULATOR_OUTPUT_NAMES:
-            target_emulator = models[name]
-
-            with torch.no_grad():
-                means[name], variances[name] = target_emulator.predict_mean_and_variance(
-                    test_x[:, self.parameter_idx]
-                )
-            # means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
-
-        atrial_margin_probability = torch.ones(test_x.shape[0], dtype=torch.float32, device=self.device)
-        atrial_margin_mean = None
-        atrial_margin_var = None
-        if self.atrial_margin_min_probability > 0:
-            margin_path = os.path.join(
-                parent,
-                ATRIAL_MARGIN_OUTPUT_NAME,
-                f"GaussianProcessMatern32_{ATRIAL_MARGIN_OUTPUT_NAME}_best.joblib",
-            )
-            if not os.path.exists(margin_path):
-                raise FileNotFoundError(
-                    f"Missing clipped signed-margin emulator at {margin_path}. "
-                    "Run pre_wave_train_emulators() again so the initial margin "
-                    "emulator is trained before running waves."
-                )
-            margin_emulator = joblib.load(margin_path)
-            with torch.no_grad():
-                atrial_margin_mean, atrial_margin_var = margin_emulator.predict_mean_and_variance(
-                    test_x[:, self.parameter_idx]
-                )
-            atrial_margin_probability = self._probability_greater_than(
-                atrial_margin_mean.reshape(-1),
-                atrial_margin_var.reshape(-1),
-                0.0,
-            )
-
-
+        # means = {}
+        # variances = {}
         #
-        # n_jobs = len(output_names)
-        # def predict_one_output(name, X):
+        # for name in EMULATOR_OUTPUT_NAMES:
         #     target_emulator = models[name]
         #
-        #     mean, var = target_emulator.predict_mean_and_variance(X)
-        #     return name, mean, var
-        #
-        # results = Parallel(n_jobs=n_jobs)(
-        #     delayed(predict_one_output)(name, test_x[:, self.parameter_idx]) for name in output_names)
-        #
-        # means = {name: mean for name, mean, var in results}
-        # variances = {name: var for name, mean, var in results}
+        #     with torch.no_grad():
+        #         means[name], variances[name] = target_emulator.predict_mean_and_variance(
+        #             test_x[:, self.parameter_idx]
+        #         )
+        #     # means[name], variances[name] = target_emulator.predict_mean_and_variance(test_x[:, self.parameter_idx])
+
+            #
+        n_jobs = len(EMULATOR_OUTPUT_NAMES)
+        def predict_one_output(name, X):
+            target_emulator = models[name]
+
+            mean, var = target_emulator.predict_mean_and_variance(X)
+            return name, mean, var
+
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(predict_one_output)(name, test_x[:, self._param_idx_for_output(name)])
+            for name in EMULATOR_OUTPUT_NAMES
+        )
+
+        means = {name: mean for name, mean, var in results}
+        variances = {name: var for name, mean, var in results}
 
         mean_tensor = torch.cat([means[name].reshape(-1, 1) for name in EMULATOR_OUTPUT_NAMES], dim=1)
         var_tensor = torch.cat([variances[name].reshape(-1, 1) for name in EMULATOR_OUTPUT_NAMES], dim=1)
-        atrial_margin_probability = atrial_margin_probability.to(
-            device=mean_tensor.device, dtype=mean_tensor.dtype
-        )
-        if atrial_margin_mean is not None:
-            atrial_margin_mean = atrial_margin_mean.to(device=mean_tensor.device, dtype=mean_tensor.dtype)
 
         get_reusable_executor().shutdown(wait=True)
 
@@ -1272,32 +1050,6 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 mean_tensor.shape[0], dtype=torch.bool, device=mean_tensor.device
             )
 
-        # # Filter non-physiological emulator predictions before NROY selection.
-        # # Require high predictive probability that min atrial volumes are positive.
-        # min_volume_positive_probability = 0.67
-        #
-        # def probability_greater_than_zero(mean, var):
-        #     sd = torch.sqrt(torch.clamp(var, min=1e-12))
-        #     z = mean / (sd * math.sqrt(2.0))
-        #     return 0.5 * (1.0 + torch.erf(z))
-        #
-        # phys_mask = (
-        #     (probability_greater_than_zero(mean_tensor[:, 13], var_tensor[:, 13]) >= min_volume_positive_probability)
-        #     & (probability_greater_than_zero(mean_tensor[:, 9], var_tensor[:, 9]) >= min_volume_positive_probability)
-        #     & (mean_tensor[:, 10] > mean_tensor[:, 9])
-        #     & (mean_tensor[:, 14] > mean_tensor[:, 13])
-        #     & (probability_greater_than_zero(mean_tensor[:, 38], var_tensor[:, 38]) >= min_volume_positive_probability)
-        #     & (probability_greater_than_zero(mean_tensor[:, 34], var_tensor[:, 34]) >= min_volume_positive_probability)
-        #     & (mean_tensor[:, 35] > mean_tensor[:, 34])
-        #     & (mean_tensor[:, 39] > mean_tensor[:, 38])
-        #     & atrial_ratio_mask
-        #     & atrial_ratio_mask_exercise
-        # )
-        # test_x = test_x[phys_mask]
-        # mean_tensor = mean_tensor[phys_mask]
-        # impl_scores = impl_scores[phys_mask]
-
-
         rest_min_ra = EMULATOR_OUTPUT_INDEX["Rest_Min_RA_Volume"]
         rest_max_ra = EMULATOR_OUTPUT_INDEX["Rest_Max_RA_Volume"]
         rest_min_la = EMULATOR_OUTPUT_INDEX["Rest_Min_LA_Volume"]
@@ -1311,32 +1063,23 @@ class HistoryMatchingWorkflow(HistoryMatching):
         exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
         exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
 
-        atrial_volume_probability = self.atrial_volume_min_probability
-
-        def atrial_volume_ok(column, lower_bound):
-            if atrial_volume_probability > 0:
-                return (
-                    self._probability_greater_than(
-                        mean_tensor[:, column],
-                        var_tensor[:, column],
-                        lower_bound,
-                    )
-                    >= atrial_volume_probability
-                )
-            return mean_tensor[:, column] > lower_bound
-
         phys_mask = (
-            atrial_volume_ok(rest_min_la, 0.0)
-            & atrial_volume_ok(rest_min_ra, 0.0)
-            & atrial_volume_ok(rest_pre_la, 0.0)
-            & atrial_volume_ok(rest_pre_ra, 0.0)
-            & (mean_tensor[:, rest_max_ra] > mean_tensor[:, rest_min_ra])
-            & (mean_tensor[:, rest_max_la] > mean_tensor[:, rest_min_la])
-            & (mean_tensor[:, exercise_max_ra] > mean_tensor[:, exercise_min_ra])
-            & (mean_tensor[:, exercise_max_la] > mean_tensor[:, exercise_min_la])
-            & (atrial_margin_probability >= self.atrial_margin_min_probability)
-            & atrial_ratio_mask
-            & atrial_ratio_mask_exercise
+                (mean_tensor[:, rest_min_la] > 0.0)
+                & (mean_tensor[:, rest_min_ra] > 0.0)
+                & (mean_tensor[:, rest_pre_la] > 0.0)
+                & (mean_tensor[:, rest_pre_ra] > 0.0)
+                & (mean_tensor[:, exercise_min_la] > 10.0)
+                & (mean_tensor[:, exercise_min_ra] > 10.0)
+                & (mean_tensor[:, rest_max_ra] > mean_tensor[:, rest_min_ra])
+                & (mean_tensor[:, rest_max_la] > mean_tensor[:, rest_min_la])
+                & (mean_tensor[:, exercise_max_ra] > mean_tensor[:, exercise_pre_ra])
+                & (mean_tensor[:, exercise_max_la] > mean_tensor[:, exercise_pre_la])
+                & (mean_tensor[:, rest_pre_la] > mean_tensor[:, rest_min_la])
+                & (mean_tensor[:, rest_pre_ra] > mean_tensor[:, rest_min_ra])
+                & (mean_tensor[:, exercise_pre_la] > mean_tensor[:, exercise_min_la])
+                & (mean_tensor[:, exercise_pre_ra] > mean_tensor[:, exercise_min_ra])
+                & atrial_ratio_mask
+                & atrial_ratio_mask_exercise
         )
 
         impl_scores[~phys_mask] = 4
@@ -1355,17 +1098,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
             print(f"min predicted Exercise_Min_LA_Volume where NROY:", min_exercise_la.item())
             print(f"min predicted Exercise_Pre_RA_Contraction_Volume where NROY:", min_exercise_pre_ra.item())
             print(f"min predicted Exercise_Pre_LA_Contraction_Volume where NROY:", min_exercise_pre_la.item())
-            if atrial_margin_mean is not None:
-                min_margin = atrial_margin_mean.reshape(-1)[mask].min()
-                min_margin_prob = atrial_margin_probability[mask].min()
-                print(f"min predicted clipped exercise atrial margin where NROY:", min_margin.item())
-                print(f"min exercise atrial margin probability where NROY:", min_margin_prob.item())
         else:
             print(f"No NROY samples found below threshold {self.threshold}.")
 
         return test_x, impl_scores
 
-    def sample_tensor(self, n: int, x: TensorLike) -> TensorLike:
+    def sample_tensor(
+        self,
+        n: int,
+        x: TensorLike,
+        return_indices: bool = False,
+    ) -> TensorLike | tuple[TensorLike, TensorLike]:
         """
         Randomly sample `n` rows from `x`.
 
@@ -1375,6 +1118,8 @@ class HistoryMatchingWorkflow(HistoryMatching):
             The number of samples to draw.
         x: TensorLike
             The tensor to sample from.
+        return_indices: bool
+            Whether to also return sampled row indices from `x`.
 
         Returns
         -------
@@ -1386,8 +1131,22 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 f"Number of tensor rows {x.shape[0]} is less than {n} samples.",
                 stacklevel=2,
             )
-        idx = torch.randperm(x.shape[0], device=self.device)[:n]
-        return x[idx]
+        idx = torch.randperm(x.shape[0], device=x.device)[:n]
+        samples = x[idx]
+        if return_indices:
+            return samples, idx
+        return samples
+
+    @staticmethod
+    def _row_membership_mask(rows: TensorLike, reference_rows: TensorLike) -> TensorLike:
+        """Return a mask showing which rows occur in reference_rows."""
+        mask = torch.zeros(rows.shape[0], dtype=torch.bool, device=rows.device)
+        if rows.shape[0] == 0 or reference_rows.shape[0] == 0:
+            return mask
+        for start in range(0, reference_rows.shape[0], 64):
+            ref_chunk = reference_rows[start:start + 64].to(rows.device)
+            mask |= (rows[:, None, :] == ref_chunk[None, :, :]).all(dim=2).any(dim=1)
+        return mask
 
     def simulate(self, x: TensorLike) -> tuple[TensorLike, TensorLike]:
         """
@@ -1403,19 +1162,20 @@ class HistoryMatchingWorkflow(HistoryMatching):
         tuple[TensorLike, TensorLike]
             Tensors of succesfully simulated input parameters and predictions.
         """
+        requested_n = x.shape[0]
         # if simulation fails, returned y and x have fewer rows than input x
         y, x = self.simulator.forward_batch(x)
         get_reusable_executor().shutdown(wait=True)
 
         y = y.to(self.device)
         x = x.to(self.device)
+        print(f"simulate: {x.shape[0]}/{requested_n} samples left after simulator success filter")
 
         if y.numel() == 0:
             empty_y = torch.empty((0, len(EMULATOR_OUTPUT_NAMES)), device=self.device)
             self.train_x = x
             self.train_y = empty_y
-            self._last_margin_train_x = torch.empty((0, self.simulator.in_dim), device=self.device)
-            self._last_margin_train_y = torch.empty((0, 1), device=self.device)
+            print("simulate: 0 samples left after all filters")
             return x, empty_y
 
         expected_raw_outputs = len(RAW_SIMULATION_OUTPUT_NAMES)
@@ -1435,69 +1195,58 @@ class HistoryMatchingWorkflow(HistoryMatching):
         finite_mask = torch.isfinite(y).all(dim=1)
         x = x[finite_mask]
         y = y[finite_mask]
-        preserve_atrial_invalid_rows = torch.zeros(y.shape[0], dtype=torch.bool, device=self.device)
-        if y.shape[1] > max(EXERCISE_ATRIAL_VOLUME_COLUMNS):
-            exercise_min_ra = EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]
-            exercise_min_la = EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]
-            exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
-            exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
-            vu_la = x[:, self.vu_la_param_idx].to(device=y.device, dtype=y.dtype)
-            vu_ra = x[:, self.vu_ra_param_idx].to(device=y.device, dtype=y.dtype)
-            preserve_atrial_invalid_rows = (
-                (y[:, ATRIAL_VOLUME_COLUMNS] <= 0).any(dim=1)
-                | (y[:, exercise_min_la] <= vu_la)
-                | (y[:, exercise_pre_la] <= vu_la)
-                | (y[:, exercise_min_ra] <= vu_ra)
-                | (y[:, exercise_pre_ra] <= vu_ra)
-            )
+        print(f"simulate: {x.shape[0]} samples left after finite filter")
+        if y.shape[0] == 0:
+            self.train_y = y
+            self.train_x = x
+            print("simulate: 0 samples left after all filters")
+            return x, y
+
+        rest_min_ra = EMULATOR_OUTPUT_INDEX["Rest_Min_RA_Volume"]
+        rest_max_ra = EMULATOR_OUTPUT_INDEX["Rest_Max_RA_Volume"]
+        rest_min_la = EMULATOR_OUTPUT_INDEX["Rest_Min_LA_Volume"]
+        rest_max_la = EMULATOR_OUTPUT_INDEX["Rest_Max_LA_Volume"]
+        rest_pre_la = EMULATOR_OUTPUT_INDEX["Rest_Pre_LA_Contraction_Volume"]
+        rest_pre_ra = EMULATOR_OUTPUT_INDEX["Rest_Pre_RA_Contraction_Volume"]
+        exercise_min_ra = EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]
+        exercise_max_ra = EMULATOR_OUTPUT_INDEX["Exercise_Max_RA_Volume"]
+        exercise_min_la = EMULATOR_OUTPUT_INDEX["Exercise_Min_LA_Volume"]
+        exercise_max_la = EMULATOR_OUTPUT_INDEX["Exercise_Max_LA_Volume"]
+        exercise_pre_la = EMULATOR_OUTPUT_INDEX["Exercise_Pre_LA_Contraction_Volume"]
+        exercise_pre_ra = EMULATOR_OUTPUT_INDEX["Exercise_Pre_RA_Contraction_Volume"]
+
+        phys_mask = (
+                (y[:, rest_min_la] > 0.0)
+                & (y[:, rest_min_ra] > 0.0)
+                & (y[:, rest_pre_la] > 0.0)
+                & (y[:, rest_pre_ra] > 0.0)
+                & (y[:, exercise_min_la] > 10.0)
+                & (y[:, exercise_min_ra] > 10.0)
+                & (y[:, rest_max_ra] > y[:, rest_min_ra])
+                & (y[:, rest_max_la] > y[:, rest_min_la])
+                & (y[:, exercise_max_ra] > y[:, exercise_pre_ra])
+                & (y[:, exercise_max_la] > y[:, exercise_pre_la])
+                & (y[:, rest_pre_la] > y[:, rest_min_la])
+                & (y[:, rest_pre_ra] > y[:, rest_min_ra])
+                & (y[:, exercise_pre_la] > y[:, exercise_min_la])
+                & (y[:, exercise_pre_ra] > y[:, exercise_min_ra])
+        )
+
+        y = y[phys_mask]
+        x = x[phys_mask]
+        print(f"simulate: {x.shape[0]} samples left after physiology filter")
+        if y.shape[0] == 0:
+            self.train_y = y
+            self.train_x = x
+            print("simulate: 0 samples left after all filters")
+            return x, y
 
         # 3-sigma outlier filter (columnwise)
-        if y.shape[0] > 2:
-            col_mean = y.mean(dim=0)
-            col_std = y.std(dim=0, unbiased=False)
-            within = torch.ones_like(y, dtype=torch.bool)
-            outlier_filter_cols = torch.ones(y.shape[1], dtype=torch.bool, device=self.device)
-            atrial_cols = [col for col in ATRIAL_VOLUME_COLUMNS if col < y.shape[1]]
-            if atrial_cols:
-                outlier_filter_cols[torch.tensor(atrial_cols, device=self.device)] = False
-            varying_cols = (col_std > 0) & outlier_filter_cols
-            within[:, varying_cols] = (
-                (y[:, varying_cols] >= (col_mean[varying_cols] - 3 * col_std[varying_cols]))
-                & (y[:, varying_cols] <= (col_mean[varying_cols] + 3 * col_std[varying_cols]))
-            )
-            row_mask = within.all(dim=1) | preserve_atrial_invalid_rows
-            x = x[row_mask, :]
-            y = y[row_mask, :]
-
-        # Keep invalid atrial outcomes as clipped signed-margin labels, but do not
-        # train the ordinary physiologic output emulators on those raw bad volumes.
-        self._capture_margin_training_data(x, y)
-        valid_output_mask = self._valid_physiologic_output_mask(x, y)
-
-        if self.nroy_samples is not None:
-            remove_from_nroy = x[~valid_output_mask]
-            if remove_from_nroy.shape[0] > 0:
-                nroy_device = self.nroy_samples.device
-                keep_nroy_mask = torch.ones(
-                    self.nroy_samples.shape[0], dtype=torch.bool, device=nroy_device
-                )
-                for rejected in remove_from_nroy:
-                    rejected = rejected.to(nroy_device)
-                    matches = torch.where(
-                        keep_nroy_mask & torch.all(self.nroy_samples == rejected, dim=1)
-                    )[0]
-                    if matches.numel() > 0:
-                        keep_nroy_mask[matches] = False
-                self.nroy_samples = self.nroy_samples[keep_nroy_mask]
-
-        if not bool(valid_output_mask.all()):
-            n_invalid = int((~valid_output_mask).sum().item())
-            print(
-                f"Kept {n_invalid} atrial-invalid simulation(s) for the clipped "
-                "signed-margin emulator and excluded them from physiologic output training."
-            )
-            x = x[valid_output_mask, :]
-            y = y[valid_output_mask, :]
+        col_mean = y.mean(dim=0)
+        col_std = y.std(dim=0, unbiased=False)
+        within = (y >= (col_mean - 3 * col_std)) & (y <= (col_mean + 3 * col_std))
+        row_mask = within.all(axis=1)
+        print(f"simulate: {(~row_mask).sum()} samples would be removed by 3-sigma filter")
 
         self.train_y = y
         self.train_x = x
@@ -1658,7 +1407,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # # Next time that call run(), will sample using these NROY points
         self.nroy_samples = torch.cat(nroy_parameters_list, 0)
-        nroy_simulation_samples = self.sample_tensor(n_simulations, self.nroy_samples)
+        nroy_simulation_samples, nroy_simulation_idx = self.sample_tensor(
+            n_simulations,
+            self.nroy_samples,
+            return_indices=True,
+        )
         print(f"Training simulations: {nroy_simulation_samples.shape[0]} NROY samples")
         # nroy_params = torch.cat(nroy_parameters_list, dim=0)
         #
@@ -1683,10 +1436,28 @@ class HistoryMatchingWorkflow(HistoryMatching):
 
         # Make predictions using simulator (this updates self.x_train and self.y_train)
         x, y = self.simulate(nroy_simulation_samples)
-        self._load_saved_margin_training_data()
-        self._append_last_margin_training_data()
         if x.shape[0] == 0 or y.shape[0] == 0:
             raise RuntimeError("No valid simulated union targets were produced for emulator training.")
+
+        valid_sample_mask = self._row_membership_mask(nroy_simulation_samples, x)
+        rejected_sample_idx = nroy_simulation_idx[~valid_sample_mask]
+        if rejected_sample_idx.numel() > 0:
+            keep_nroy_mask = torch.ones(
+                self.nroy_samples.shape[0], dtype=torch.bool, device=self.nroy_samples.device
+            )
+            keep_nroy_mask[rejected_sample_idx] = False
+            before_prune = self.nroy_samples.shape[0]
+            self.nroy_samples = self.nroy_samples[keep_nroy_mask]
+            print(
+                f"Removed {rejected_sample_idx.numel()} simulated NROY sample(s) "
+                f"that failed post-simulation filters; "
+                f"{self.nroy_samples.shape[0]}/{before_prune} NROY seed samples remain."
+            )
+        else:
+            print(
+                f"Removed 0 simulated NROY sample(s) after post-simulation filters; "
+                f"{self.nroy_samples.shape[0]} NROY seed samples remain."
+            )
 
         min_rest_la = y[:, EMULATOR_OUTPUT_INDEX["Rest_Min_LA_Volume"]].min()
         min_exercise_ra = y[:, EMULATOR_OUTPUT_INDEX["Exercise_Min_RA_Volume"]].min()
@@ -1746,7 +1517,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         output_names_full = EMULATOR_OUTPUT_NAMES
         wave_number = self._wave_number()
         snapshot_root = (
-            os.path.join(self._wave_artifacts_dir, f"Emulator_wave_{wave_number}")
+            os.path.join(self._wave_artifacts_dir, f"Emulator_wave_{wave_number}_three_start")
             if self._save_wave_artifacts and wave_number is not None
             else None
         )
@@ -1782,7 +1553,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
                 device=device,
             )
 
-            print(f"R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
+            print(f"{target_name}: R² test: {r2_mean:.4f} (±{r2_std:.4f}) | RMSE test: {rmse_mean:.4f} (±{rmse_std:.4f})")
 
             # save
             parent = os.path.join(WAVE_EMULATOR_DIR, target_name)
@@ -1819,11 +1590,13 @@ class HistoryMatchingWorkflow(HistoryMatching):
             return target_name, emulator
 
         results = Parallel(n_jobs=EMULATOR_TRAIN_N_JOBS)(
-            delayed(fit_one_output)(j, target_name, x, y, self.parameter_idx, self.result, self.device)
+            delayed(fit_one_output)(
+                j, target_name, x, y,
+                self._param_idx_for_output(target_name), self.result, self.device,
+            )
             for j, target_name in enumerate(output_names_full)
         )
         get_reusable_executor().shutdown(wait=True)
-        self._fit_and_save_margin_emulator(WAVE_EMULATOR_DIR, snapshot_root=snapshot_root)
         # for j, target_name in enumerate(output_names_full):
         #     # Optionally refit the emulator using the most recent simulations or all data
         #     if refit_emulator:
@@ -1923,10 +1696,11 @@ class HistoryMatchingWorkflow(HistoryMatching):
             # 0th wave had 155173
             # if i == 0: # 110599
             #     self.threshold = 3.5 # change
-            if i == 1:  # 154081
-                self.threshold = 3.5
-            if i > 1: # 154081
-                self.threshold = 3.0
+            # if i == 1:  # 154081
+            #     self.threshold = 3.5
+            if i > 0: # 154081
+                # self.threshold = 3.0
+                n_test_samples = 200000
 
             # if i == 1: # 110599
             #     self.threshold = 1.5

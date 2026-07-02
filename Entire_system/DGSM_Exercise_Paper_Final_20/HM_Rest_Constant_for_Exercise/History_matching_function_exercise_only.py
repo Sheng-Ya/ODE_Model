@@ -1210,6 +1210,17 @@ class HistoryMatchingWorkflow(HistoryMatching):
         y = y.to(self.device)
         x = x.to(self.device)
 
+        # Drop output columns
+        cols_to_drop = torch.tensor([11, 14, 17, 20, 27, 30], device=self.device)
+        keep_mask = torch.ones(y.shape[1], dtype=torch.bool, device=self.device)
+        keep_mask[cols_to_drop] = False
+        y = y[:, keep_mask]
+
+        # Remove non-finite rows first
+        finite_mask = torch.isfinite(y).all(dim=1)
+        x = x[finite_mask]
+        y = y[finite_mask]
+
         # if self._current_wave_idx > 1:
         #     obs_means = self.obs_means.to(device=y.device, dtype=y.dtype)
         #     obs_stds = torch.sqrt(torch.clamp(

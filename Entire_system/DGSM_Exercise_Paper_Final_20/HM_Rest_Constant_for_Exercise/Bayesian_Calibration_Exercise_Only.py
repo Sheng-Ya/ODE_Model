@@ -490,6 +490,70 @@ observation = {"Heart Rate": (2.58, 0.12), "Systolic Pressure": (165, 529), "Dia
 # BAYESIAN CALIBRATION
 # ----------------------------
 if __name__ == "__main__":
+    # import torch
+    # import seaborn as sns
+    # import matplotlib.pyplot as plt
+    #
+    # A = torch.load(
+    #     r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Exercise_Paper\HM_try\run_20260521_041557\Y_train.pt")
+    #
+    #
+    # phys_mask = (
+    #         (A[:, 13] > 0)
+    #         & (A[:, 9] > 0)
+    #         & (A[:, 10] > A[:, 9])
+    #         & (A[:, 14] > A[:, 13]))
+    #
+    # A = A[phys_mask]
+    #
+    # x = A[:, 0].cpu().numpy()
+    #
+    #
+    # plt.figure(figsize=(4, 3))
+    # sns.kdeplot(x, fill=True, linewidth=1.2)
+    # plt.xlabel("Y_train[:, 0]")
+    # plt.ylabel("Density")
+    # plt.tight_layout()
+    # plt.show()
+
+    import torch
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    A = torch.load(
+        r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union\HM_Union\HM_Union_3std_target\y_train_before_target_filter.pt")
+    AA = torch.load(
+        r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union\HM_Union\HM_Union_3std_target\x_train_before_target_filter.pt")
+
+    phys_mask = (
+            (A[:, 13] > 0)
+            & (A[:, 9] > 0)
+            & (A[:, 10] > A[:, 9])
+            & (A[:, 14] > A[:, 13])
+            & (A[:, 0] > 1.54))
+
+    A = A[phys_mask]
+    AA = AA[phys_mask]
+    AAA = A[:, 17] - A[:, 13]
+
+    params_one_line = ", ".join(
+        f'"{name}": {float(value):.12g}'
+        for name, value in zip(sp["names"], AA[0].detach().cpu().tolist())
+    )
+    print(f"Parameters = {{ {params_one_line} }}")
+
+    x = A[:, 9].cpu().numpy()
+    # x = AAA.cpu().numpy()
+    print(len(x))
+
+    plt.figure(figsize=(4, 3))
+    sns.kdeplot(x, fill=True, linewidth=1.2)
+    plt.xlabel("Y_train[:, 0]")
+    plt.ylabel("Density")
+    plt.tight_layout()
+    plt.show()
+
+
     hm_run_dir = create_hm_run_dir()
     print(f"HM artifacts will be written to: {hm_run_dir}")
 
@@ -514,7 +578,7 @@ if __name__ == "__main__":
     wave_simulations = env_int("HM_WAVE_SIMULATIONS", 6000)
     size = env_int("HM_TEST_SAMPLES", 400000)
 
-    hmw.pre_wave_train_emulators(n_simulations=pre_wave_simulations, refit_on_all_data=False)
+    # hmw.pre_wave_train_emulators(n_simulations=pre_wave_simulations, refit_on_all_data=False)
     # A = torch.load(r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Exercise_Paper\HM_third_improved_LHCS_no_neg\last_wave.pt")
     _ = hmw.run_waves(
         n_waves=4,

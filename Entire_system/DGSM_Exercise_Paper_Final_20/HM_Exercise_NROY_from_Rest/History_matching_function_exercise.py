@@ -1178,7 +1178,7 @@ class HistoryMatchingWorkflow(HistoryMatching):
         get_reusable_executor().shutdown(wait=True)
 
         print("=" * 60)
-        print(f"PRE-WAVE: All emulators trained and saved to {"Emulator_exercise"}/")
+        print(f"PRE-WAVE: All emulators trained and saved to Emulator_exercise/")
         print("=" * 60)
 
 

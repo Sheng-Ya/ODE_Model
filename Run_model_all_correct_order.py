@@ -22,7 +22,7 @@ time_saved = 0.005
 BUFFER_LIMIT = 80000
 
 min_time = 10 # Minimum time in seconds before checking
-max_time = 450 # Maximum time limit to avoid infinite loops
+max_time = 60 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
 
 # First iteration
@@ -168,16 +168,16 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     tolerance = 0.0001
 
     VAflow_vals = np.linspace(0.01, 1.6, 200)
-    VAflow_repeated = np.repeat(VAflow_vals, 3)
+    # VAflow_repeated = np.repeat(VAflow_vals, 3)
 
-    VD = GV_dead * VAflow_repeated + V0_dead
+    VD = GV_dead * VAflow_vals + V0_dead
 
     optimal_t1 = []
     optimal_t2 = []
     initial_guess = [t1, t2]
     required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
 
-    for idx, VAflow in enumerate(VAflow_repeated):
+    for idx, VAflow in enumerate(VAflow_vals):
         VD_volume = VD[idx]
 
         res = minimize(objective, x0= np.array(initial_guess[-2:]),
@@ -189,20 +189,20 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
 
     # Convert to arrays for indexing
-    VAflow_clean = np.array(VAflow_repeated)
+    # VAflow_clean = np.array(VAflow_vals)
     t1_clean = np.array(optimal_t1)
     t2_clean = np.array(optimal_t2)
 
-    t1_mean = np.array([np.nanmean(t1_clean[VAflow_clean == v]) for v in VAflow_vals])
-    t2_mean = np.array([np.nanmean(t2_clean[VAflow_clean == v]) for v in VAflow_vals])
+    # t1_mean = np.array([np.nanmean(t1_clean[VAflow_clean == v]) for v in VAflow_vals])
+    # t2_mean = np.array([np.nanmean(t2_clean[VAflow_clean == v]) for v in VAflow_vals])
 
-    cs_t1 = CubicSpline(VAflow_vals, t1_mean, bc_type="natural")
-    cs_t2 = CubicSpline(VAflow_vals, t2_mean, bc_type="natural")
+    cs_t1 = CubicSpline(VAflow_vals, t1_clean, bc_type="natural")
+    cs_t2 = CubicSpline(VAflow_vals, t2_clean, bc_type="natural")
 
     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
 
-def simulate():
+def simulate(plot_P_peri_maxima=False, plot_atrial_pv_direction=False, plot_extraction=False):
     # Initial setup
     IC_current = IC_overall.copy()
 
@@ -356,10 +356,10 @@ def simulate():
 
     dtb = np.diff(time_since_beat_store)
     dtr = np.diff(finish_breath_time)
-    beat_idx = np.where(dtb > 0)[0] + 1
-    breath_idx = np.where(dtr > 0)[0] + 1
-    beat_idx = beat_idx[-1]
-    breath_idx = breath_idx[-1]
+    cardiac_cycle_start_idx = np.where(dtb > 0)[0] + 1
+    breath_cycle_start_idx = np.where(dtr > 0)[0] + 1
+    beat_idx = cardiac_cycle_start_idx[-1]
+    breath_idx = breath_cycle_start_idx[-1]
     last_beat_t = all_time[beat_idx]
     last_breath_t = all_time[breath_idx]
 
@@ -468,6 +468,44 @@ def simulate():
     pairs_po = pairs_po[-10:]
     pairs_mi = pairs_mi[-10:]
     pairs_tr = pairs_tr[-10:]
+
+    # P_peri
+    P_peri = np.concatenate((Next_Conditions["P_peri_store"][i_buffer:], Next_Conditions["P_peri_store"][:i_buffer]))
+    P_peri_cycle_idx = cardiac_cycle_start_idx[-11:]
+    P_peri_cycle_max_idx = np.array([b0 + np.argmax(P_peri[b0:b1]) for b0, b1 in zip(P_peri_cycle_idx[:-1], P_peri_cycle_idx[1:])])
+    P_peri_cycle_max = P_peri[P_peri_cycle_max_idx]
+    mean_max_P_peri = np.mean(P_peri_cycle_max)
+
+    if plot_P_peri_maxima:
+        plot_start = P_peri_cycle_idx[0]
+        plot_end = P_peri_cycle_idx[-1]
+
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(all_time[plot_start:plot_end], P_peri[plot_start:plot_end], label="P_peri", color="k")
+        ax.scatter(
+            all_time[P_peri_cycle_max_idx],
+            P_peri_cycle_max,
+            color="red",
+            marker="x",
+            s=70,
+            zorder=5,
+            label="Cycle maxima used",
+        )
+        for idx in P_peri_cycle_idx:
+            ax.axvline(all_time[idx], color="0.7", linewidth=0.8, alpha=0.5)
+        ax.axhline(
+            mean_max_P_peri,
+            color="tab:blue",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"Mean max P_peri = {mean_max_P_peri:.3f}",
+        )
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("P_peri")
+        ax.set_title("P_peri maxima used for last 10-cycle average")
+        ax.legend()
+        plt.tight_layout()
+        plt.show()
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
@@ -606,14 +644,14 @@ def simulate():
           np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
           np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
           np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
-          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
+          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, mean_max_P_peri, sep=", ")
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]),
             np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]),
-            IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
+            mean_max_P_peri, IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
 
 
 if __name__ == "__main__":
@@ -772,24 +810,24 @@ if __name__ == "__main__":
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v"][:index], label="Vagal firing", color="c")
 
     ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["f_v_delay02"][:index], label="Delay Vagal firing", color="b")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change", color="k")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
-    ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Tv_change"][:index], label="Tv_change", color="k")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Tv"][:index], label="sigma_Tv", color="c")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
+    # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Firing rate (spikes/s)")
     ax1.tick_params(axis='y', labelcolor="k")
     ax1.legend(loc="upper left")
-    ax1.grid(True)
     # # plt.show()
     ax2 = ax1.twinx()
     #
     # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["Ts_change"][:index], label="Ts_change", color='g')
     # ax1.plot(Next_Conditions["time_history"][:index], Next_Conditions["theta_sh"][:index], label="theta_sh", color="m")
-    ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["HR_check"][:index], label="HR", color="k")
+    ax2.plot(Next_Conditions["time_history"][:index], 60*Next_Conditions["HR_check"][:index], label="HR", color="k")
     # # ax2.plot(Next_Conditions["time_history"][:index], Next_Conditions["sigma_Ts"][:index], label="sigma_Ts", color="y")
     #
+    ax2.set_ylabel("Heart Rate (BPM)")
     ax2.tick_params(axis='y', labelcolor="k")
     ax2.legend(loc="upper right")
     plt.show()

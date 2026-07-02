@@ -1042,9 +1042,9 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
     #     MRCO2 = 0.6 / 60 - MRBCO2
     #     MRO2 = 0.65 / 60 - MRBO2
     #
-    # if 60 < t:
-    #     MRCO2 = 1.2 / 60 - MRBCO2
-    #     MRO2 = 1.2 / 60 - MRBO2
+    if 150 < t:
+        MRCO2 = 1.2 / 60 - MRBCO2
+        MRO2 = 1.2 / 60 - MRBO2
 
     # if 200 < t:
     #     MRCO2 = 1 / 60 - MRBCO2
@@ -1362,7 +1362,7 @@ def njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Para
             P_bv, R_bv, Q_ev, R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2_Emax_rv, f_v_delay0_2, sigma_Ts,
             sigma_Tv, CaO2, CvO2, CaCO2, CvCO2, PvtCO2, PvtO2, QT, Pa_O2_art_target_every, Pa_CO2_art_target_every, BF, TI, VT, VE_flow, dV_dt,
             CTO2, CvtO2, MRTO2, CvbO2, P_n_current, V, VD, VAflow, theta_ao, theta_tr, theta_mi, theta_po, Q_bv, Q_hv, Q_rmv, Q_sv,
-            AR_mi, AR_tr, AAA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt, # v_r, x_r
+            AR_mi, AR_tr, AAA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt,P_peri, # v_r, x_r
             )
 
 
@@ -1445,7 +1445,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
      P_pa, P_pp, P_pv, P_thor, P_vc, Qi_lv, Qi_rv, phi, phi_atr, P_amv, P_ev, AA, Q_vc, Q_amv, V_sa, P_bv, R_bv, Q_ev,
      R_ep, R_amp, R_rmp, R_sp, R_bp, R_hp, I, f_ab, f_sh_delay2, f_v_delay0_2, sigma_Ts, sigma_Tv, CaO2, CvO2, CaCO2,
      CvCO2, PvtCO2, PvtO2, QT, Pa_O2_art_target_every, Pa_CO2_art_target_every, BF, TI, VT, VE_flow, dV_dt, CTO2, CvtO2, MRTO2, CvbO2,
-     P_n_current, V, VD, VAflow, theta_ao, theta_tr, theta_mi, theta_po, Q_bv, Q_hv, Q_rmv, Q_sv, AR_mi, AR_tr, AAA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt #, v_r, x_r
+     P_n_current, V, VD, VAflow, theta_ao, theta_tr, theta_mi, theta_po, Q_bv, Q_hv, Q_rmv, Q_sv, AR_mi, AR_tr, AAA, V_ev, V_sv, V_rmv, V_amv, dP_rv_dt, dP_lv_dt, P_peri, #, v_r, x_r
 
 
      ) = njit_compatible(t, state, num_removed, i, BUFFER_LIMIT, all_time, Input_Parameters, HR_store, time_since_beat_store, HR_every_store, Vu_ev_every_store,
@@ -1472,14 +1472,14 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
 
                 # Needed in cardio controller
                 "prev_flat_bit_store", "t1_store", "t2_store", "P_lv_store", "phi_atr_store", "phi_store", "tidal_store",
-                "VAflow_store", "Q_pp_store", "dP_rv_dt_store", "dP_lv_dt_store"],
+                "VAflow_store", "Q_pp_store", "dP_rv_dt_store", "dP_lv_dt_store", "P_peri_store"],
 
             [time_since_beat,
              HR, Vu_ev, Vu_sv, Vu_rmv, Vu_amv,
              Emax_lv, Emax_rv, f_sp, f_sh, f_v, f_sv, phi_met, HR_every, Vu_ev_every, Vu_sv_every,
              Vu_rmv_every, Vu_amv_every, Emax_lv_every, Emax_rv_every, theta_ao, theta_po, theta_mi, theta_tr, P_sa, VT_lv, VT_rv, P_rv,
              P_la, VT_la, VT_ra, P_ra,
-             prev_flat_bit, t1, t2, P_lv, phi_atr, phi, V, VAflow, Q_pp, dP_rv_dt, dP_lv_dt]
+             prev_flat_bit, t1, t2, P_lv, phi_atr, phi, V, VAflow, Q_pp, dP_rv_dt, dP_lv_dt, P_peri]
     ):
         updates[key][((i - num_removed) % BUFFER_LIMIT)] = new_value
 

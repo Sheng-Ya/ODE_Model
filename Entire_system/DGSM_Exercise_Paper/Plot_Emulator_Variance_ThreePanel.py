@@ -76,50 +76,71 @@ sp = ProblemSpec({
 })
 
 subset_vars_set = {
-    "a2", "ahead1", "beta2", "C2", "C_jp", "C_O2_param1", "C_sv", "Cvam_O2_n", "E_rs", "Emax_la",
-    "Emax_lv0", "Emax_ra", "Emax_rv0", "f_ab_max", "fab_o", "fall_time_ven", "fes_inf", "fes_min",
-    "fes_o", "fev_inf", "fev_o", "GT_s", "GT_v", "Io_met", "Io_sv", "K2", "k_ab", "kcc_sv", "KE_la",
-    "KE_lv", "KE_ra", "KE_rv", "kes", "kmet", "Kv_mi", "Kv_po", "Kv_tr", "l", "MO2_bp", "P0_la", "P0_lv",
-    "P0_ra", "P0_rv", "P_n", "PaCO2_n", "r", "R_pa", "R_pp", "R_rs", "R_sa", "rise_time_atr",
-    "rise_time_ven", "Rvc_n", "T0", "theta_svn", "V0_dead", "V_nominal", "V_scale", "Vu_amv0", "Vu_bv",
-    "Vu_ev0", "Vu_jp", "Vu_la", "Vu_lv", "Vu_ra", "Vu_rv", "Vu_sv0", "Wb_sh", "Wb_sv",
+    # overlap
+    'a2', 'ahead1', 'C2', 'C_O2_param1', 'C_O2_param2', 'C_sv', 'Emax_lv0', 'Emax_rv0', 'fes_o', 'fev_inf', 'fev_o',
+    'GT_v', 'KE_la', 'KE_lv', 'KE_ra', 'KE_rv', 'l', 'MO2_bp', 'P0_la', 'P0_lv', 'P0_rv', 'PaCO2_n', 'PAMO2_nominal',
+    'r', 'R_po', 'R_sa', 'R_tr', 'rise_time_ven', 'Rvc_n', 's', 'scale_param1', 'scale_param4', 'T0', 'theta_po_max',
+    'V0_dead', 'V_nominal', 'V_scale', 'Vu_ev0', 'Vu_jp', 'Vu_la', 'Vu_lv', 'Vu_rv', 'Vu_sv0',
+
+    # Only in Rest
+    'Emax_la', 'f_ab_max', 'fab_o', 'fes_inf', 'fes_min', 'Io_sv', 'kcc_sv', 'kes', 'P_n', 'R_pp', 'Vu_ra', 'Wb_sh',
+
+    # Only in Exercise
+    'C_pv', 'Cvb_O2_n', 'E_rs', 'G_ap', 'GEmax_lv', 'GEmax_rv', 'GR_amp', 'GT_s', 'GV_sv', 'KcCO2', 'P_n_max',
+    'phi_max', 'theta_tr_max', 'VA_rest', 'Wp_v', 'Yv_max',
 }
+
 subset_vars = [name for name in sp["names"] if name in subset_vars_set]
 parameter_idx = [sp["names"].index(name) for name in subset_vars]
 
 output_names = [
-    "LA_Contraction_Volume_diff", "RA_Contraction_Volume_diff",
-    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV",
-    "ESV", "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure",
-    "Min_RV_Pressure", "Min_RA_Volume", "Max_RA_Volume", "Max_RA_Pressure_Atrial_contraction",
-    "Max_RA_Pressure_Tricuspid_Opening", "Min_LA_Volume", "Max_LA_Volume", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "LV_Pressure_Deriv",
-    "RV_Pressure_Deriv", "Tidal_Volume", "Minute_Ventilation", "PaO2", "PaCO2",
+    "Rest_Heart_Rate", "Rest_Systolic_Pressure", "Rest_Diastolic_Pressure", "Rest_EDV", "Rest_ESV",
+    "Rest_Max_RV_Volume", "Rest_Min_RV_Volume", "Rest_Max_RV_Pressure", "Rest_Min_RV_Pressure",
+    "Rest_Min_RA_Volume", "Rest_Max_RA_Volume", "Rest_Max_RA_Pressure_Atrial_contraction",
+    "Rest_Max_RA_Pressure_Tricuspid_Opening", "Rest_Min_LA_Volume", "Rest_Max_LA_Volume",
+    "Rest_Max_LA_Pressure_Atrial_contraction", "Rest_Max_LA_Pressure_Mitral_Opening",
+    "Rest_Pre_LA_Contraction_Volume", "Rest_Pre_RA_Contraction_Volume", "Rest_LV_Pressure_Deriv",
+    "Rest_RV_Pressure_Deriv", "Rest_Tidal_Volume", "Rest_Minute_Ventilation", "Rest_PaO2", "Rest_PaCO2",
+
+    "Exercise_Heart_Rate", "Exercise_Systolic_Pressure", "Exercise_Diastolic_Pressure", "Exercise_EDV",
+    "Exercise_ESV", "Exercise_Max_RV_Volume", "Exercise_Min_RV_Volume", "Exercise_Max_RV_Pressure",
+    "Exercise_Min_RV_Pressure", "Exercise_Min_RA_Volume", "Exercise_Max_RA_Volume",
+    "Exercise_Max_RA_Pressure_Atrial_contraction", "Exercise_Max_RA_Pressure_Tricuspid_Opening",
+    "Exercise_Min_LA_Volume", "Exercise_Max_LA_Volume", "Exercise_Max_LA_Pressure_Atrial_contraction",
+    "Exercise_Max_LA_Pressure_Mitral_Opening", "Exercise_Pre_LA_Contraction_Volume",
+    "Exercise_Pre_RA_Contraction_Volume", "Exercise_LV_Pressure_Deriv", "Exercise_RV_Pressure_Deriv",
+    "Exercise_Tidal_Volume", "Exercise_Minute_Ventilation", "Exercise_PaO2", "Exercise_PaCO2",
 ]
 
 observation = {
-    "Heart_Rate": (1.23, 0.05), "Systolic_Pressure": (123, 324),
-    "Diastolic_Pressure": (76.7, 65.61), "EDV": (152.1, 767.29),
-    "ESV": (62.3, 243.36), "Max_RV_Volume": (151.9, 1004.89),
-    "Min_RV_Volume": (64.4, 299.29), "Max_RV_Pressure": (22.5, 56.25),
-    "Min_RV_Pressure": (4.0, 9.0), "Min_RA_Volume": (45.7, 125.44), "Max_RA_Volume": (92.4, 380.25),
-    "Max_RA_Pressure_Atrial_contraction": (8.0, 9.0),
-    "Max_RA_Pressure_Tricuspid_Opening": (5.0, 9.0),
-    "Min_LA_Volume": (30.6, 84.64), "Max_LA_Volume": (68.3, 306.25),
-    "Max_LA_Pressure_Atrial_contraction": (13.0, 9.0),
-    "Max_LA_Pressure_Mitral_Opening": (12.0, 9.0),
+    # Rest
+"Rest Heart Rate": (1.23, 0.05), "Rest Systolic Pressure": (123, 324), "Rest Diastolic Pressure": (76.7, 65.61),
+"Rest EDV": (152.1, 767.29), "Rest ESV": (62.3, 243.36), "Rest Max RV Volume": (151.9, 1004.89),
+"Rest Min RV Volume": (64.4, 299.29), "Rest Max RV Pressure": (22.5, 56.25), "Rest Min RV Pressure": (4.0, 9.0),
+"Rest Min RA Volume": (45.7, 125.44), "Rest Max RA Volume": (92.4, 380.25), "Rest Max RA Pressure Atrial contraction": (8.0, 9.0),
+"Rest Max RA Pressure Tricuspid Opening": (5.0, 9.0), "Rest Min LA Volume": (30.6, 84.64), "Rest Max LA Volume": (68.3, 306.25),
+"Rest Max LA Pressure Atrial contraction": (13.0, 9.0), "Rest Max LA Pressure Mitral Opening": (12.0, 9.0), "Rest Pre-LA Contraction Volume": (40.0, 67.24),
+"Rest Pre-RA Contraction Volume": (57.4, 96.04), "Rest LV Pressure Deriv": (1461.0, 146689.0), "Rest RV Pressure Deriv": (271.0, 3025.0),
+"Rest Tidal Volume": (0.850, 0.16), "Rest Minute Ventilation": (11.4, 15.21), "Rest PaO2": (102.3, 125.44),
+"Rest PaCO2": (35.5, 24.01),
+
     # Exact propagated pre-A moments implied by
     #   V_pre = V_min + f * (V_max - V_min),  f ~ N(0.25, 0.0025)
-    "LA_Contraction_Volume_diff": (40.025, 67.253867386),
-    "RA_Contraction_Volume_diff": (57.375, 95.071688266),
-    "LV_Pressure_Deriv": (1461.0, 146689.0),
-    "RV_Pressure_Deriv": (271.0, 3025.0),
-    "Tidal_Volume": (0.850, 0.16),
-    "Minute_Ventilation": (11.4, 15.21),
-    "PaO2": (102.3, 125.44), "PaCO2": (35.5, 24.01),
+
+# Exercise
+"Exercise Heart Rate": (2.58, 0.12), "Exercise Systolic Pressure": (165, 529), "Exercise Diastolic Pressure": (76.4, 82.81),
+"Exercise EDV": (145.5, 681.21), "Exercise ESV": (45.5, 75.69), "Exercise Max RV Volume": (139.4, 681.21),
+"Exercise Min RV Volume": (40.3, 112.36), "Exercise Max RV Pressure": (29.5, 56.25), "Exercise Min RV Pressure": (9.9, 31.36),
+"Exercise Min RA Volume": (27.9, 25.0), "Exercise Max RA Volume": (77.3, 342.25), "Exercise Max RA Pressure Atrial contraction": (12, 16),
+"Exercise Max RA Pressure Tricuspid Opening": (11, 16), "Exercise Min LA Volume": (23.0, 94.09), "Exercise Max LA Volume": (66.3, 388.09),
+"Exercise Max LA Pressure Atrial contraction": (19, 49), "Exercise Max LA Pressure Mitral Opening": (19, 64), "Exercise Pre-LA Contraction Volume": (33.8, 77.4),
+"Exercise Pre-RA Contraction Volume": (40.3, 36.0), "Exercise LV Pressure Deriv": (1750, 272484), "Exercise RV Pressure Deriv": (713, 12100),
+"Exercise Tidal Volume": (2.22, 0.4096), "Exercise Minute Ventilation": (62.6, 320.41), "Exercise PaO2": (97.2, 36.0),
+"Exercise PaCO2": (38.4, 6.76)
 }
 
 
+# needs to be edited
 DEFAULT_TARGET_NAME_MAP = {
     "Systolic Pressure": "LV Systolic Pressure",
     "Diastolic Pressure": "LV Diastolic Pressure",
@@ -133,13 +154,13 @@ DEFAULT_TARGET_NAME_MAP = {
     "Max RA Pressure Tricuspid Opening": "Max RA Pressure V Wave",
     "Max LA Pressure Atrial contraction": "Max LA Pressure A Wave",
     "Max LA Pressure Mitral Opening": "Max LA Pressure V Wave",
-    "LA Contraction Volume diff": "LA Pre-Atrial Contraction Volume",
-    "RA Contraction Volume diff": "RA Pre-Atrial Contraction Volume",
     "LV Pressure Deriv": "Max LV Pressure Derivative",
     "RV Pressure Deriv": "Max RV Pressure Derivative",
     "PaO2": r"PaO$_2$",
     "PaCO2": r"PaCO$_2$",
 }
+
+# needs more
 STAGE_COLORS = [
     "#BBA3D6",
     "#9DB8D8",
@@ -150,7 +171,7 @@ STAGE_COLORS = [
 
 MODEL_NAME = "GaussianProcessMatern32"
 FLAG_THRESHOLD = 0.1
-RAW_EMULATOR_DIR = "Emulator_Paper_same_1000"
+RAW_EMULATOR_DIR = "Emulator_union_all_initial"
 
 def unwrap_emulator(obj):
     if hasattr(obj, "predict_mean_and_variance"):
@@ -444,7 +465,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--artifacts-dir",
-        default="HM_Rest_4",
+        default="HM_MCMC",
         help="Directory containing test_params_wave_k.npy, nroy_mask_wave_k.npy, and Emulator_wave_k snapshots.",
     )
     parser.add_argument(
