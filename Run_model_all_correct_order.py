@@ -704,7 +704,7 @@ if __name__ == "__main__":
     # lp.add_function(model_derivatives)
     # lp.enable()
     # solution1, HR1, Psys1, Pdia1, save_IC1, save_Next1, t_full1, y_full1 = simulate()
-    solution, HR, Psys, Pdia, EDV, ESV, V_rv_max, V_rv_min, P_rv_max, P_rv_min, save_IC, save_Next, t_full, y_full = simulate()
+    solution, HR, Psys, Pdia, EDV, ESV, V_rv_max, V_rv_min, P_rv_max, P_rv_min, mean_P_peri, save_IC, save_Next, t_full, y_full = simulate()
     print("ODE Status:", solution.status)
     print("ODE Message:", solution.message)
 

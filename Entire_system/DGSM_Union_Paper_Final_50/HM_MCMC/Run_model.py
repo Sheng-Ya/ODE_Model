@@ -42,8 +42,8 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
-DEFAULT_RUN_NAME = "MCMC_Union_50_09_06_copula_prior"
-DEFAULT_SIMULATION_TXT = "Rest_exercise_refined_simulation_HM.txt"
+DEFAULT_RUN_NAME = "MCMC_Union_50_02_07_copula_prior"
+DEFAULT_SIMULATION_TXT = "Rest_exercise_refined_simulation_HM_02-07.txt"
 DEFAULT_OUTPUT_FOLDER = "Target_Trace"
 DEFAULT_CACHE_NAME = "Run_model_simulation_cache.pkl"
 CACHE_VERSION = 1
@@ -291,8 +291,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "MCMC run directory containing refined MAP outputs. Defaults to "
-            "./MCMC_Union_50_09_06_copula_prior beside this script."
+            "MCMC run directory containing refined MAP outputs."
         ),
     )
     parser.add_argument(
