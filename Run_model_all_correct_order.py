@@ -500,10 +500,10 @@ def simulate():
     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
     P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
 
-    # change
-    # systolic pressure
+    # Mean pulmonary artery pressure over the last 10 complete beats.
+    last_10_cycle_idx = cardiac_cycle_start_idx[-11:]
     P_pa = np.concatenate((Next_Conditions["P_pa_store"][i_buffer:], Next_Conditions["P_pa_store"][:i_buffer]))
-    P_pa_max_idx = np.array([o + np.argmax(P_pa[o:c]) for o, c in pairs_po])
+    mean_P_pa = np.mean([np.mean(P_pa[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
 
     P_la = np.concatenate((Next_Conditions["P_la_store"][i_buffer:], Next_Conditions["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
@@ -591,9 +591,12 @@ def simulate():
     VDflow = (1 / (t1[-1] + t2[-1])) * VD
     Minute_Ventilation = (VAflow[-1] + VDflow) * 60
 
-    cardiac_output = np.mean(Next_Conditions["Q_pp_store"])
-    Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
-    Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
+    Q_pp = np.concatenate((Next_Conditions["Q_pp_store"][i_buffer:], Next_Conditions["Q_pp_store"][:i_buffer]))
+    Pa_O2_every = np.concatenate((Next_Conditions["Pa_O2_every_store"][i_buffer:], Next_Conditions["Pa_O2_every_store"][:i_buffer]))
+    Pa_CO2_every = np.concatenate((Next_Conditions["Pa_CO2_every_store"][i_buffer:], Next_Conditions["Pa_CO2_every_store"][:i_buffer]))
+    cardiac_output = np.mean([np.mean(Q_pp[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
+    Pa_O2 = np.mean([np.mean(Pa_O2_every[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
+    Pa_CO2 = np.mean([np.mean(Pa_CO2_every[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
 
     Total_Volume = V_ra + V_rv + V_lv + V_la
 
@@ -618,7 +621,7 @@ def simulate():
           np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
           np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
           np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
-          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, mean_max_P_peri, np.mean(P_pa[P_pa_max_idx]), sep=", ")
+          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, mean_max_P_peri, mean_P_pa, sep=", ")
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
@@ -1141,9 +1144,6 @@ if __name__ == "__main__":
 
     ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi_atr"][index-80000:index], label="phi_atr")
     ax1.plot(Next_Conditions["time_history"][index-80000:index], Next_Conditions["phi"][index-80000:index], label="phi")
-
-    ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["AA"][index - 80000:index],
-             label="P_peri", color="k")
     ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["theta_tr"][index - 80000:index],
              label="Tricuspid")  #
     ax1.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["theta_po"][index - 80000:index],
@@ -1158,6 +1158,8 @@ if __name__ == "__main__":
     ax2 = ax1.twinx()
     ax2.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["P_rv"][index - 80000:index],
              label="P_rv", color="y")
+    ax2.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["P_pa"][index - 80000:index],
+             label="P_pa", color="k")
     ax2.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["P_vc"][index - 80000:index],
              label="P_vc", color="c")
     ax2.plot(Next_Conditions["time_history"][index - 80000:index], Next_Conditions["P_ra"][index - 80000:index],
