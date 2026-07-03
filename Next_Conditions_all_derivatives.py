@@ -49,6 +49,9 @@ Next_Conditions = {
 
     "P_peri_store": np.array([0.0] * 80000),
     "P_sa_store": np.array([0.0] * 80000),
+    # change
+    "P_pa_store": np.array([0.0] * 80000),
+
     "V_lv_store": np.array([0.0] * 80000),
     "V_rv_store": np.array([0.0] * 80000),
     "P_rv_store": np.array([0.0] * 80000),

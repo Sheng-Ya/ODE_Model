@@ -202,7 +202,7 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
 
-def simulate(plot_P_peri_maxima=False, plot_atrial_pv_direction=False, plot_extraction=False):
+def simulate():
     # Initial setup
     IC_current = IC_overall.copy()
 
@@ -476,37 +476,6 @@ def simulate(plot_P_peri_maxima=False, plot_atrial_pv_direction=False, plot_extr
     P_peri_cycle_max = P_peri[P_peri_cycle_max_idx]
     mean_max_P_peri = np.mean(P_peri_cycle_max)
 
-    if plot_P_peri_maxima:
-        plot_start = P_peri_cycle_idx[0]
-        plot_end = P_peri_cycle_idx[-1]
-
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.plot(all_time[plot_start:plot_end], P_peri[plot_start:plot_end], label="P_peri", color="k")
-        ax.scatter(
-            all_time[P_peri_cycle_max_idx],
-            P_peri_cycle_max,
-            color="red",
-            marker="x",
-            s=70,
-            zorder=5,
-            label="Cycle maxima used",
-        )
-        for idx in P_peri_cycle_idx:
-            ax.axvline(all_time[idx], color="0.7", linewidth=0.8, alpha=0.5)
-        ax.axhline(
-            mean_max_P_peri,
-            color="tab:blue",
-            linestyle="--",
-            linewidth=1.5,
-            label=f"Mean max P_peri = {mean_max_P_peri:.3f}",
-        )
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("P_peri")
-        ax.set_title("P_peri maxima used for last 10-cycle average")
-        ax.legend()
-        plt.tight_layout()
-        plt.show()
-
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
     phi = np.concatenate((Next_Conditions["phi_store"][i_buffer:], Next_Conditions["phi_store"][:i_buffer]))
@@ -530,6 +499,11 @@ def simulate(plot_P_peri_maxima=False, plot_atrial_pv_direction=False, plot_extr
     # systolic pressure
     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
     P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
+
+    # change
+    # systolic pressure
+    P_pa = np.concatenate((Next_Conditions["P_pa_store"][i_buffer:], Next_Conditions["P_pa_store"][:i_buffer]))
+    P_pa_max_idx = np.array([o + np.argmax(P_pa[o:c]) for o, c in pairs_po])
 
     P_la = np.concatenate((Next_Conditions["P_la_store"][i_buffer:], Next_Conditions["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
@@ -644,7 +618,7 @@ def simulate(plot_P_peri_maxima=False, plot_atrial_pv_direction=False, plot_extr
           np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
           np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
           np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
-          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, mean_max_P_peri, sep=", ")
+          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, mean_max_P_peri, np.mean(P_pa[P_pa_max_idx]), sep=", ")
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
@@ -959,6 +933,7 @@ if __name__ == "__main__":
     # ax1.legend(loc="upper left")
     # plt.show()
 
+    i = Next_Conditions["i"].item() % BUFFER_LIMIT
     Q_pp = np.concatenate((Next_Conditions["Q_pp_store"][i:], Next_Conditions["Q_pp_store"][:i]))
     time_since_beat = np.concatenate((Next_Conditions["time_since_beat_store"][i:], Next_Conditions["time_since_beat_store"][:i]))
 
