@@ -669,20 +669,20 @@ def plot_union_refined_map_with_simulation(
         zorder=1,
     )
 
-    ax.errorbar(
-        x_pos - 0.10,
-        sampled_res,
-        yerr=sampled_err,
-        fmt="D",
-        color=SAMPLED_MAP_COLOR,
-        markersize=4.9,
-        markeredgecolor=SAMPLED_MAP_EDGE_COLOR,
-        markeredgewidth=0.65,
-        elinewidth=0.9,
-        ecolor=SAMPLED_MAP_COLOR,
-        capsize=2.0,
-        zorder=5,
-    )
+    # ax.errorbar(
+    #     x_pos - 0.10,
+    #     sampled_res,
+    #     yerr=sampled_err,
+    #     fmt="D",
+    #     color=SAMPLED_MAP_COLOR,
+    #     markersize=4.9,
+    #     markeredgecolor=SAMPLED_MAP_EDGE_COLOR,
+    #     markeredgewidth=0.65,
+    #     elinewidth=0.9,
+    #     ecolor=SAMPLED_MAP_COLOR,
+    #     capsize=2.0,
+    #     zorder=5,
+    # )
     ax.errorbar(
         x_pos + 0.10,
         refined_res,
@@ -719,7 +719,7 @@ def plot_union_refined_map_with_simulation(
         fontsize=8,
     )
     ax.set_ylabel(r"Residual / $\sigma_{\mathrm{obs}}$")
-    ax.set_title("Union refined MAP residuals")
+    ax.set_title("Without $V_{tot}$ calibration")
     ax.set_ylim(ymin, ymax)
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.8, alpha=0.55, zorder=0)
     ax.tick_params(axis="both", which="major", width=1.0, length=4, colors=TEXT_COLOR)
@@ -751,17 +751,17 @@ def plot_union_refined_map_with_simulation(
             alpha=0.55,
             label=r"Target $\pm$ 3 SD",
         ),
-        Line2D(
-            [0],
-            [0],
-            marker="D",
-            color=SAMPLED_MAP_COLOR,
-            markerfacecolor=SAMPLED_MAP_COLOR,
-            markeredgecolor=SAMPLED_MAP_EDGE_COLOR,
-            linewidth=0,
-            markersize=5.8,
-            label="Sampled MAP emulator",
-        ),
+        # Line2D(
+        #     [0],
+        #     [0],
+        #     marker="D",
+        #     color=SAMPLED_MAP_COLOR,
+        #     markerfacecolor=SAMPLED_MAP_COLOR,
+        #     markeredgecolor=SAMPLED_MAP_EDGE_COLOR,
+        #     linewidth=0,
+        #     markersize=5.8,
+        #     label="Sampled MAP emulator",
+        # ),
         Line2D(
             [0],
             [0],
@@ -793,7 +793,7 @@ def plot_union_refined_map_with_simulation(
         handles=legend_handles,
         loc="upper center",
         bbox_to_anchor=(0.5, 1.22),
-        ncol=4,
+        ncol=6,
         frameon=False,
     )
 

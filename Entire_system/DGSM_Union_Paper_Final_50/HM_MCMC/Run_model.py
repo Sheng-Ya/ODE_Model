@@ -124,7 +124,7 @@ ACTIVATION_HISTORY_POINTS = 4000
 ATRIAL_PV_HISTORY_POINTS = 10000
 GAS_EXCHANGE_WINDOW_SECONDS = 10.0
 RESULTS_OVERVIEW_WINDOW_SECONDS = 10.0
-RESULTS_ATRIAL_DETAIL_WINDOW_SECONDS = 3.5
+RESULTS_ATRIAL_DETAIL_WINDOW_SECONDS = 2.5
 HEART_RATE_PLOT_SCALE = 60.0
 SOLID_LINEWIDTH = 1.8
 TARGET_LINEWIDTH = 1.4
@@ -883,7 +883,7 @@ def _atrial_targets_legend(ax: Any, pressure_ax: Any) -> None:
             volume_labels,
             loc="lower center",
             bbox_to_anchor=(0.5, 1.12),
-            ncol=max(1, min(len(volume_handles), 3)),
+            ncol=max(1, min(len(volume_handles), 4)),
             frameon=False,
             fontsize=SUBPLOT_LEGEND_FONT_SIZE,
             handlelength=1.8,
@@ -898,7 +898,7 @@ def _atrial_targets_legend(ax: Any, pressure_ax: Any) -> None:
             pressure_labels,
             loc="lower center",
             bbox_to_anchor=(0.5, 1.02),
-            ncol=max(1, min(len(pressure_handles), 3)),
+            ncol=max(1, min(len(pressure_handles), 4)),
             frameon=False,
             fontsize=SUBPLOT_LEGEND_FONT_SIZE,
             handlelength=1.8,
@@ -1074,9 +1074,10 @@ def write_result_targets_plot(
     ax_p = ax.twinx()
     secondary_axes.append(ax_p)
     ax_p.plot(t_plot, traces["P_ra_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{RA}}$")
+    # ax_p.plot(t_plot, traces["P_rv_store"][plot_slice], color=colors["lavender_dark"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{RV}}$")
     _horizontal_target(ax_p, _target(targets, "Max_RA_Pressure_Atrial_contraction"), TARGET_LABELS["Max_RA_Pressure_Atrial_contraction"], colors["blue_dark"])
     _horizontal_target(ax_p, _target(targets, "Max_RA_Pressure_Tricuspid_Opening"), TARGET_LABELS["Max_RA_Pressure_Tricuspid_Opening"], colors["teal_light"])
-    ax_p.set_ylabel(r"$P_{\mathrm{RA}}$ (mmHg)")
+    ax_p.set_ylabel(r"$P (mmHg)")
     _atrial_targets_legend(ax, ax_p)
     atrial_axes.append(ax)
 
@@ -1090,6 +1091,7 @@ def write_result_targets_plot(
     ax_p = ax.twinx()
     secondary_axes.append(ax_p)
     ax_p.plot(t_plot, traces["P_la_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{LA}}$")
+    # ax_p.plot(t_plot, traces["P_lv_store"][plot_slice], color=colors["lavender_dark"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{LV}}$")
     _horizontal_target(ax_p, _target(targets, "Max_LA_Pressure_Atrial_contraction"), TARGET_LABELS["Max_LA_Pressure_Atrial_contraction"], colors["blue_dark"])
     _horizontal_target(ax_p, _target(targets, "Max_LA_Pressure_Mitral_Opening"), TARGET_LABELS["Max_LA_Pressure_Mitral_Opening"], colors["teal_light"])
     ax_p.set_ylabel(r"$P_{\mathrm{LA}}$ (mmHg)")
@@ -1284,16 +1286,16 @@ def write_run_model_paper_style_plots(
                     state,
                 ),
             ),
-            (
-                "activation_atrial_pv",
-                output_dir / f"Run_model_Paper_activation_atrial_pv_{state_name}.png",
-                lambda path, store=storage: write_activation_atrial_pv_plot(path, store, buffer_limit),
-            ),
-            (
-                "gas_exchange",
-                output_dir / f"Run_model_Paper_gas_exchange_{state_name}.png",
-                lambda path, store=storage: write_gas_exchange_plot(path, store, buffer_limit),
-            ),
+            # (
+            #     "activation_atrial_pv",
+            #     output_dir / f"Run_model_Paper_activation_atrial_pv_{state_name}.png",
+            #     lambda path, store=storage: write_activation_atrial_pv_plot(path, store, buffer_limit),
+            # ),
+            # (
+            #     "gas_exchange",
+            #     output_dir / f"Run_model_Paper_gas_exchange_{state_name}.png",
+            #     lambda path, store=storage: write_gas_exchange_plot(path, store, buffer_limit),
+            # ),
         ]
         for plot_name, path, writer in plot_specs:
             try:

@@ -6,17 +6,18 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import matplotlib.transforms as mtransforms
 import numpy as np
 
 
-DEFAULT_FILE_B = Path(
-    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_90\DGSM_90_Rest.txt"
-)
 DEFAULT_FILE_A = Path(
-    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Rest_Paper\DGSM_50_tidal.txt"
+    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union_Paper_Final_20\DGSM_20_Union_2_percent.txt"
+)
+DEFAULT_FILE_B = Path(
+    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union_Paper_Final_50\DGSM_Union_2_percent.txt"
 )
 DEFAULT_OUTPUT_PREFIX = Path(
-    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_90\dgsm_target_overlap_50_vs_90"
+    r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union_Paper_Final_20\dgsm_target_overlap_20_vs_50"
 )
 
 OUTPUT_HEADER = re.compile(r"^Output:\s*(.+)$")
@@ -95,9 +96,9 @@ def get_selected_outputs(output_params_a, output_params_b, include_targets="comm
 
 def build_rows(output_params_a, output_params_b, include_targets="common"):
     outputs = get_selected_outputs(output_params_a, output_params_b, include_targets=include_targets)
-    union_a = set()
+    union_b = set()
     for output in outputs:
-        union_a.update(output_params_a.get(output, set()))
+        union_b.update(output_params_b.get(output, set()))
     rows = []
 
     for output in outputs:
@@ -106,8 +107,8 @@ def build_rows(output_params_a, output_params_b, include_targets="common"):
         shared = params_a & params_b
         only_a = params_a - params_b
         only_b = params_b - params_a
-        only_b_in_union_a = {param for param in only_b if param in union_a}
-        only_b_new_global = only_b - only_b_in_union_a
+        only_a_in_union_b = {param for param in only_a if param in union_b}
+        only_a_new_global = only_a - only_a_in_union_b
         union = params_a | params_b
 
         rows.append(
@@ -118,8 +119,8 @@ def build_rows(output_params_a, output_params_b, include_targets="common"):
                 "shared": len(shared),
                 "only_a": len(only_a),
                 "only_b": len(only_b),
-                "only_b_in_union_a": len(only_b_in_union_a),
-                "only_b_new_global": len(only_b_new_global),
+                "only_a_in_union_b": len(only_a_in_union_b),
+                "only_a_new_global": len(only_a_new_global),
                 "union": len(union),
                 "jaccard": len(shared) / len(union) if union else np.nan,
                 "retention_a_in_b": len(shared) / len(params_a) if params_a else np.nan,
@@ -159,27 +160,32 @@ def build_overall_summary(output_params_a, output_params_b, include_targets="com
 
 
 def build_new_parameter_contribution_data(
-    output_params_a,
-    output_params_b,
-    output_details_b,
+    reference_output_params,
+    extra_output_params,
+    extra_output_details,
     rows,
     include_targets="common",
 ):
-    outputs = get_selected_outputs(output_params_a, output_params_b, include_targets=include_targets)
-    params_a = set()
-    params_b = set()
+    """Quantify DGSM from parameters in ``extra`` but absent from ``reference``."""
+    outputs = get_selected_outputs(
+        reference_output_params,
+        extra_output_params,
+        include_targets=include_targets,
+    )
+    reference_params = set()
+    extra_params = set()
 
     for output in outputs:
-        params_a.update(output_params_a.get(output, set()))
-        params_b.update(output_params_b.get(output, set()))
+        reference_params.update(reference_output_params.get(output, set()))
+        extra_params.update(extra_output_params.get(output, set()))
 
-    new_params = sorted(params_b - params_a)
+    new_params = sorted(extra_params - reference_params)
     parameter_totals = {param: 0.0 for param in new_params}
     target_rows = []
 
     for row in rows:
         target = row["target"]
-        detail = output_details_b.get(target, {})
+        detail = extra_output_details.get(target, {})
         contributions = {}
         for param in new_params:
             pct = detail.get(param, {}).get("pct")
@@ -219,7 +225,7 @@ def sort_rows_by_added_contribution(rows, contribution_data):
 
 def add_count_labels(ax, y, left, values, color):
     for ypos, xstart, value in zip(y, left, values):
-        if value < 2:
+        if value <= 0:
             continue
         ax.text(
             xstart + value / 2,
@@ -227,20 +233,38 @@ def add_count_labels(ax, y, left, values, color):
             f"{value}",
             ha="center",
             va="center",
-            fontsize=8,
+            fontsize=10,
             color=color,
             fontweight="bold",
         )
 
 
+def add_panel_label(ax, label: str, x: float, y: float, transform, va: str = "bottom"):
+    ax.text(
+        x,
+        y,
+        label,
+        transform=transform,
+        ha="left",
+        va=va,
+        fontsize=15,
+        fontweight="bold",
+        color="#111827",
+        clip_on=False,
+    )
+
+
 def make_figure(rows, overall_summary, contribution_data, label_a, label_b, output_png: Path):
-    targets = [wrap_label(row["target"]) for row in rows]
+    # targets = [wrap_label(row["target"]) for row in rows]
+    targets = [row["target"] for row in rows]
     shared = np.array([row["shared"] for row in rows])
-    only_a = np.array([row["only_a"] for row in rows])
-    only_b_in_union_a = np.array([row["only_b_in_union_a"] for row in rows])
-    only_b_new_global = np.array([row["only_b_new_global"] for row in rows])
+    only_b = np.array([row["only_b"] for row in rows])
+    only_a_in_union_b = np.array([row["only_a_in_union_b"] for row in rows])
+    only_a_new_global = np.array([row["only_a_new_global"] for row in rows])
 
     y = np.arange(len(rows))
+    left_bar_height = 0.86
+    right_bar_height = 0.77
 
     plt.rcParams.update(
         {
@@ -269,9 +293,9 @@ def make_figure(rows, overall_summary, contribution_data, label_a, label_b, outp
     ax_right = fig.add_subplot(grid[1, 1], sharey=ax_left)
 
     shared_color = "#CDB8E5"
-    a_only_color = "#AFC8E8"
-    b_only_existing_color = "#8fcad4"
-    b_only_new_color = "#E89A9A"
+    a_only_existing_color = "#8fcad4"
+    a_only_new_color = "#AFC8E8"
+    b_only_color = "#E89A9A"
 
     overall_shared = np.array([overall_summary["shared"]])
     overall_only_a = np.array([overall_summary["only_a"]])
@@ -280,12 +304,18 @@ def make_figure(rows, overall_summary, contribution_data, label_a, label_b, outp
     overall_y = np.array([0])
 
     ax_top.barh(overall_y, overall_shared, color=shared_color, height=0.36)
-    ax_top.barh(overall_y, overall_only_a, left=overall_shared, color=a_only_color, height=0.36)
-    ax_top.barh(overall_y, overall_only_b, left=overall_shared + overall_only_a, color=b_only_new_color, height=0.36)
+    ax_top.barh(overall_y, overall_only_b, left=overall_shared, color=b_only_color, height=0.36)
+    ax_top.barh(
+        overall_y,
+        overall_only_a,
+        left=overall_shared + overall_only_b,
+        color=a_only_new_color,
+        height=0.36,
+    )
 
     add_count_labels(ax_top, overall_y, np.zeros_like(overall_shared), overall_shared, "#333333")
-    add_count_labels(ax_top, overall_y, overall_shared, overall_only_a, "#333333")
-    add_count_labels(ax_top, overall_y, overall_shared + overall_only_a, overall_only_b, "#333333")
+    add_count_labels(ax_top, overall_y, overall_shared, overall_only_b, "#333333")
+    add_count_labels(ax_top, overall_y, overall_shared + overall_only_b, overall_only_a, "#333333")
 
     ax_top.text(
         overall_union + 1.0,
@@ -295,7 +325,7 @@ def make_figure(rows, overall_summary, contribution_data, label_a, label_b, outp
             "|A ∩ B| / |A ∪ B|"
         ),
         va="center",
-        fontsize=9,
+        fontsize=11,
         color="#475569",
     )
 
@@ -307,29 +337,29 @@ def make_figure(rows, overall_summary, contribution_data, label_a, label_b, outp
     ax_top.set_xlim(0, overall_union + 12)
     ax_top.set_ylim(-0.35, 0.35)
 
-    ax_left.barh(y, shared, color=shared_color, height=0.72, label="Shared")
-    ax_left.barh(y, only_a, left=shared, color=a_only_color, height=0.72, label=f"Unique to {label_a}")
+    ax_left.barh(y, shared, color=shared_color, height=left_bar_height, label="Shared")
+    ax_left.barh(y, only_b, left=shared, color=b_only_color, height=left_bar_height, label=f"Unique to {label_b}")
     ax_left.barh(
         y,
-        only_b_in_union_a,
-        left=shared + only_a,
-        color=b_only_existing_color,
-        height=0.72,
-        label=f"Unique to {label_b}, but in {label_a} union",
+        only_a_in_union_b,
+        left=shared + only_b,
+        color=a_only_existing_color,
+        height=left_bar_height,
+        label=f"Unique to {label_a}, but in {label_b} union",
     )
     ax_left.barh(
         y,
-        only_b_new_global,
-        left=shared + only_a + only_b_in_union_a,
-        color=b_only_new_color,
-        height=0.72,
-        label=f"Unique to {label_b}",
+        only_a_new_global,
+        left=shared + only_b + only_a_in_union_b,
+        color=a_only_new_color,
+        height=left_bar_height,
+        label=f"Unique to {label_a}",
     )
 
     add_count_labels(ax_left, y, np.zeros_like(shared), shared, "#333333")
-    add_count_labels(ax_left, y, shared, only_a, "#333333")
-    add_count_labels(ax_left, y, shared + only_a, only_b_in_union_a, "#333333")
-    add_count_labels(ax_left, y, shared + only_a + only_b_in_union_a, only_b_new_global, "#333333")
+    add_count_labels(ax_left, y, shared, only_b, "#333333")
+    add_count_labels(ax_left, y, shared + only_b, only_a_in_union_b, "#333333")
+    add_count_labels(ax_left, y, shared + only_b + only_a_in_union_b, only_a_new_global, "#333333")
 
     ax_left.set_yticks(y)
     ax_left.set_yticklabels(targets)
@@ -337,17 +367,24 @@ def make_figure(rows, overall_summary, contribution_data, label_a, label_b, outp
     ax_left.set_xlabel("Number of sensitive parameters")
     ax_left.grid(axis="x", color="#e5e7eb", linewidth=0.8)
     ax_left.set_axisbelow(True)
-    ax_left.legend(frameon=False, loc="upper right")
+    ax_left.legend(
+        frameon=False,
+        loc="lower left",
+        bbox_to_anchor=(0, 1.01),
+        ncol=2,
+        fontsize=11,
+        borderaxespad=0,
+    )
 
     contribution_rows = contribution_data["target_rows"]
     contribution_sums = np.array([item["sum_pct"] for item in contribution_rows])
     background = np.full(len(contribution_rows), 100.0)
 
-    ax_right.barh(y, background, color="#e5e7eb", height=0.54, label="Total DGSM (normalised)")
+    ax_right.barh(y, background, color="#e5e7eb", height=right_bar_height, label="Total DGSM (normalised)")
 
-    # Monochrome palette for the +/-50%-only DGSM contributions in panel C.
-    light_rose = np.array(mcolors.to_rgb("#F8DCDC"))
-    dark_rose = np.array(mcolors.to_rgb("#C96A6A"))
+    # Blue matches the +/-20%-only encoding used in the target-overlap panel.
+    light_blue = np.array(mcolors.to_rgb("#DCE8F7"))
+    dark_blue = np.array(mcolors.to_rgb("#5B8FC9"))
     positive_widths = []
     for item in contribution_rows:
         positive_widths.extend([value for value in item["contributions"].values() if value > 0])
@@ -362,37 +399,71 @@ def make_figure(rows, overall_summary, contribution_data, label_a, label_b, outp
                 t = np.clip((width - min_width) / (max_width - min_width), 0.0, 1.0)
             else:
                 t = 0.5
-            color = mcolors.to_hex(light_rose * (1 - t) + dark_rose * t)
+            color = mcolors.to_hex(light_blue * (1 - t) + dark_blue * t)
             ax_right.barh(
                 ypos,
                 width,
                 left=left,
                 color=color,
-                height=0.54,
+                height=right_bar_height,
                 edgecolor="#4b5563",
                 linewidth=0.2,
             )
             left += width
 
-    for ypos, total in zip(y, contribution_sums):
+    for ypos, total, item in zip(y, contribution_sums, contribution_rows):
         if total > 0:
-            ax_right.text(total + 1.0, ypos, f"{total:.1f}%", va="center", fontsize=8, color="#475569")
+            ordered_params = [
+                param
+                for param, _ in sorted(
+                    item["contributions"].items(),
+                    key=lambda pair: (-pair[1], pair[0]),
+                )
+            ]
+            parameter_text = ", ".join(ordered_params)
+            ax_right.text(
+                total + 1.0,
+                ypos,
+                f"{total:.1f}%    {parameter_text}",
+                va="center",
+                fontsize=10,
+                color="#475569",
+            )
 
     ax_right.set_xlim(0, 100)
-    ax_right.set_xlabel("Normalised total DGSM (%)")
+    ax_right.set_xlabel("Normalised +/-20% total DGSM (%)")
     ax_right.grid(axis="x", color="#e5e7eb", linewidth=0.8)
     ax_right.set_axisbelow(True)
     ax_right.tick_params(axis="y", left=False, labelleft=False)
     ax_right.text(
         0.98,
         1.02,
-        "Darker rose = larger DGSM contribution",
+        "Blue = DGSM contribution from +/-20%-only parameters\n"
+        "Darker blue = larger contribution",
         transform=ax_right.transAxes,
         ha="right",
         va="bottom",
-        fontsize=8,
+        fontsize=10,
         color="#475569",
     )
+
+    # Clamp the shared y-axis to the first and last bar edges so there is no
+    # unused plotting area above or below the target rows.
+    ax_left.set_ylim(
+        y[-1] + left_bar_height / 2,
+        y[0] - left_bar_height / 2,
+    )
+
+    add_panel_label(
+        ax_top,
+        "A",
+        -0.22,
+        -0.01,
+        mtransforms.blended_transform_factory(ax_top.transAxes, ax_top.transData),
+        va="center",
+    )
+    add_panel_label(ax_left, "B", -0.4, 1.027, ax_left.transAxes)
+    add_panel_label(ax_right, "C", -0.16, 1.027, ax_right.transAxes)
 
     # legend_handles = [plt.Rectangle((0, 0), 1, 1, color="#e5e7eb", ec="none")]
     # legend_labels = ["Total DGSM (normalised)"]
@@ -442,21 +513,25 @@ def main():
     name_map = {} if args.disable_default_name_map else DEFAULT_TARGET_NAME_MAP
     output_params_a = parse_sensitivity_file(args.file_a, name_map=name_map)
     output_params_b = parse_sensitivity_file(args.file_b, name_map=name_map)
-    output_details_b = parse_sensitivity_details(args.file_b, name_map=name_map)
+    output_details_a = parse_sensitivity_details(args.file_a, name_map=name_map)
     rows = build_rows(output_params_a, output_params_b, include_targets=args.include_targets)
     overall_summary = build_overall_summary(output_params_a, output_params_b, include_targets=args.include_targets)
+
+    # Panels A and B use A=+/-20% and B=+/-50%. Panel C intentionally asks
+    # the reverse set-difference question: what sensitivity is contributed by
+    # parameters found in the +/-20% union but absent from the +/-50% union?
     contribution_data = build_new_parameter_contribution_data(
-        output_params_a,
         output_params_b,
-        output_details_b,
+        output_params_a,
+        output_details_a,
         rows,
         include_targets=args.include_targets,
     )
     rows = sort_rows_by_added_contribution(rows, contribution_data)
     contribution_data = build_new_parameter_contribution_data(
-        output_params_a,
         output_params_b,
-        output_details_b,
+        output_params_a,
+        output_details_a,
         rows,
         include_targets=args.include_targets,
     )

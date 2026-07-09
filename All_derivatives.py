@@ -1532,7 +1532,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             "P_sp", "Q_sa", "Q_vc", "VT_amv",
             "Q_amv", "Q_pa", "V_sa", "P_bv", "R_bv",
             "Q_ev", "Q_bv", "Q_hv", "Q_rmv", "Q_sv", "VT_pa", "VT_pp", "VT_pv", "VT_sv", "VT_bv", "VT_hv", "VT_rmv",
-            "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr", "AR_mi", "AR_tr", "AA"], #, "v_r_store", "x_r_store"],
+            "VT_vc", "time_history", "theta_ao", "theta_po", "theta_mi", "theta_tr", "AR_mi", "AR_tr", "AA", "V_sv", "V_ev", "V_amv", "V_rmv"], #, "v_r_store", "x_r_store"],
 
         [  # Corresponding values
             P_sa, Q_bp, Q_hp, Q_rmp, Q_amp, Q_sp, Q_ep,
@@ -1543,7 +1543,7 @@ def model_derivatives(t, state, updates, num_removed, i, BUFFER_LIMIT, all_time,
             P_sp, Q_sa, Q_vc, VT_amv,
             Q_amv, Q_pa, V_sa, P_bv, R_bv,
             Q_ev, Q_bv, Q_hv, Q_rmv, Q_sv, VT_pa, VT_pp, VT_pv, VT_sv, VT_bv, VT_hv, VT_rmv,
-            VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr, AR_mi, AR_tr, AA]) #, v_r, x_r])
+            VT_vc, t, theta_ao, theta_po, theta_mi, theta_tr, AR_mi, AR_tr, AA, V_sv, V_ev, V_amv, V_rmv]) #, v_r, x_r])
 
     for key, value in keys_and_values:
         updates[key][updates["j"].item() - num_removed] = value

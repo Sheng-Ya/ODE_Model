@@ -4,23 +4,14 @@ from pathlib import Path
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import CubicSpline, interp1d
 from scipy.optimize import minimize
+from Resp_Control_Breath_Optimiser import objective
 from scipy.signal import find_peaks, savgol_filter
 # from line_profiler import LineProfiler
+from All_derivatives import model_derivatives
 from Entire_system.fixed_params import Parameters
 from check import Parameters as new_params
-
-try:
-    from Resp_Control_Breath_Optimiser import objective
-except ModuleNotFoundError:
-    objective = None
-
-try:
-    from All_derivatives import model_derivatives
-except ModuleNotFoundError:
-    model_derivatives = None
 
 from Initial_Conditions_after_running_again import Initial_Conditions
 from Next_Conditions_all_derivatives import Next_Conditions
@@ -30,128 +21,80 @@ target_values = np.arange(0, 10000, 10)
 
 time_saved = 0.005
 BUFFER_LIMIT = 80000
-state = "rest"
-root = r"C:\Users\vanes\Downloads\exercise_model\ODE_Exercise\Entire_system\DGSM_Union\HM_Union\HM_Union_2_percent\MCMC_Union_50_29_05_logspline_copula_prior"
-CACHE_PATH = Path(rf"{root}\Run_model_Paper_simulation_cache1_{state}.pkl")
-CACHE_VERSION = 2
-ACTIVATION_ATRIAL_PV_OUTPUT = rf"{root}\Run_model_Paper_activation_atrial_pv_{state}.png"
-GAS_EXCHANGE_OUTPUT = rf"{root}\Run_model_Paper_gas_exchange_{state}.png"
-ACTIVATION_HISTORY_POINTS = 4000
-ATRIAL_PV_HISTORY_POINTS = 10000
-GAS_EXCHANGE_WINDOW_SECONDS = 10.0
-RESULTS_OVERVIEW_WINDOW_SECONDS = 10.0
-RESULTS_ATRIAL_DETAIL_WINDOW_SECONDS = 3.5
 
-RESULT_OUTPUT_NAMES_FULL = [
-    "Heart_Rate", "Systolic_Pressure", "Diastolic_Pressure", "EDV", "ESV",
-    "Max_RV_Volume", "Min_RV_Volume", "Max_RV_Pressure", "Min_RV_Pressure",
-    "Min_RA_Volume", "Max_RA_Volume", "Min_RA_Pressure_A_descent",
-    "Max_RA_Pressure_Atrial_contraction", "Max_RA_Pressure_Tricuspid_Opening",
-    "Min_RA_Pressure_V_descent", "Min_LA_Volume", "Max_LA_Volume",
-    "Min_LA_Pressure_A_descent", "Max_LA_Pressure_Atrial_contraction",
-    "Max_LA_Pressure_Mitral_Opening", "Min_LA_Pressure_V_descent",
-    "LA_Volume_Before_Atrial_Contraction", "RA_Volume_Before_Atrial_Contraction",
-    "LV_Pressure_Deriv", "RV_Pressure_Deriv", "Tidal_Volume",
-    "Minute_Ventilation", "Cardiac_Output", "PaO2", "PaCO2",
-    "Pericardial_Volume_Percentage_Change",
-]
-RESULT_COLS_TO_DROP = [11, 14, 17, 20, 27, 30]
-STAGE_COLORS = [
-    "#BBA3D6",
-    "#9DB8D8",
-    "#7DB6C0",
-    "#D68484",
-]
-PLOT_COLORS = {
-    "solid_red": "#D68484",
-    "solid_blue": "#7DB6C0",
-    "lavender": STAGE_COLORS[0],
-    "blue": STAGE_COLORS[1],
-    "teal": STAGE_COLORS[2],
-    "rose": STAGE_COLORS[3],
-    "lavender_dark": "#8F78AB",
-    "blue_dark": "#789CC4",
-    "teal_dark": "#5D9FA8",
-    "rose_dark": "#B86A6A",
-    "lavender_light": "#C9B8DE",
-    "blue_light": "#B4CAE2",
-    "teal_light": "#9ACBD1",
-    "rose_light": "#E2A4A4",
-    "ink": "#4A4E57",
-}
-GAS_EXCHANGE_COLORS = [
-    "#B84E4E", "#E8A5A5",   # Pd_1  (red:    O2 dark, CO2 light)
-    "#C97A2C", "#F0BD7F",   # Pd_2  (amber)
-    "#4F8F5A", "#A5CFA8",   # Pd_3  (green)
-    "#3F6CAB", "#A0BEE0",   # Pd_4  (blue)
-    "#6B4A92", "#C5AED8",   # Pd_5  (purple)
-    "#5A4A3E", "#B59880",   # PA    (brown)
-]
-SOLID_LINEWIDTH = 1.8
-TARGET_LINEWIDTH = 1.4
-FOCUS_LINEWIDTH = 2.0
-HEART_RATE_PLOT_SCALE = 60.0
-SUBPLOT_LEGEND_FONT_SIZE = 11
-JOURNAL_RC_PARAMS = {
-    "font.family": "DejaVu Sans",
+SCRIPT_DIR = Path(__file__).resolve().parent
+RUN_CACHE_PATH = SCRIPT_DIR / "Run_model_Paper_cache.pkl"
+LOAD_RUN_CACHE = True
+SAVE_RUN_CACHE = True
+REFRESH_RUN_CACHE = False  # Set True when model parameters/ICs changed and the ODE must rerun.
+SIMULATION_RESULT_NAMES = (
+    "solution", "HR", "Psys", "Pdia", "EDV", "ESV", "V_rv_max", "V_rv_min",
+    "P_rv_max", "P_rv_min", "mean_P_peri", "save_IC", "save_Next", "t_full", "y_full",
+)
+PAPER_PLOT_RC = {
     "figure.facecolor": "white",
+    "figure.figsize": (6, 5.0),
     "axes.facecolor": "white",
-    "axes.edgecolor": "#555555",
-    "axes.labelcolor": "#303030",
-    "axes.linewidth": 1.1,
+    "axes.grid": False,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.labelcolor": "#4d4d4d",
+    "xtick.color": "#4d4d4d",
+    "ytick.color": "#4d4d4d",
+    "font.size": 13,
     "axes.labelsize": 13,
-    "xtick.color": "#303030",
-    "ytick.color": "#303030",
-    "xtick.labelsize": 11,
-    "ytick.labelsize": 11,
-    "legend.fontsize": SUBPLOT_LEGEND_FONT_SIZE,
-    "font.size": 12,
-    "savefig.dpi": 600,
-    "pdf.fonttype": 42,
-    "ps.fonttype": 42,
+    "legend.fontsize": 11,
+    "lines.linewidth": 2.0,
+    "mathtext.fontset": "dejavusans",
 }
-TARGET_LABELS = {
-    "Heart_Rate": "HR",
-    "Systolic_Pressure": r"$P_{\mathrm{sys,LV}}$",
-    "Diastolic_Pressure": r"$P_{\mathrm{dia,LV}}$",
-    "EDV": r"$V_{\mathrm{ED,LV}}$",
-    "ESV": r"$V_{\mathrm{ES,LV}}$",
-    "Max_RV_Volume": r"$V_{\mathrm{ED,RV}}$",
-    "Min_RV_Volume": r"$V_{\mathrm{ES,RV}}$",
-    "Max_RV_Pressure": r"$P_{\mathrm{sys,RV}}$",
-    "Min_RV_Pressure": r"$P_{\mathrm{dia,RV}}$",
-    "Min_RA_Volume": r"$V_{\min,\mathrm{RA}}$",
-    "Max_RA_Volume": r"$V_{\max,\mathrm{RA}}$",
-    "Max_RA_Pressure_Atrial_contraction": r"$P_{\max,A,\mathrm{RA}}$",
-    "Max_RA_Pressure_Tricuspid_Opening": r"$P_{\max,V,\mathrm{RA}}$",
-    "Min_LA_Volume": r"$V_{\min,\mathrm{LA}}$",
-    "Max_LA_Volume": r"$V_{\max,\mathrm{LA}}$",
-    "Max_LA_Pressure_Atrial_contraction": r"$P_{\max,A,\mathrm{LA}}$",
-    "Max_LA_Pressure_Mitral_Opening": r"$P_{\max,V,\mathrm{LA}}$",
-    "LA_Volume_Before_Atrial_Contraction": r"$V_{\mathrm{pre-A,LA}}$",
-    "RA_Volume_Before_Atrial_Contraction": r"$V_{\mathrm{pre-A,RA}}$",
-    "LV_Pressure_Deriv": r"$\max\,\mathrm{d}P_{\mathrm{LV}}/\mathrm{d}t$",
-    "RV_Pressure_Deriv": r"$\max\,\mathrm{d}P_{\mathrm{RV}}/\mathrm{d}t$",
-    "Tidal_Volume": "Inspired/Expired Volume",
-    "Minute_Ventilation": r"$\dot{V}_E$",
-    "PaO2": r"$P_{\mathrm{a}O_2}$",
-    "PaCO2": r"$P_{\mathrm{a}CO_2}$",
-}
-TARGET_MEAN_LABELS = {
-    "Heart_Rate": r"$\overline{\mathrm{HR}}$",
-    "PaO2": r"$\overline{P_{\mathrm{a}O_2}}$",
-    "PaCO2": r"$\overline{P_{\mathrm{a}CO_2}}$",
-    "Tidal_Volume": r"$V_T$",
+PAPER_COLORS = {
+    "red": "#E89A9A",
+    "pink": "#f2a6a6",
+    "orange": "#E8C88F",
+    "peach": "#ffbe7d",
+    "green": "#88C87E",
+    "teal": "#7DB6C0",
+    "blue": "#7F9ED6",
+    "light_blue": "#a6c8e6",
+    "purple": "#BBA3D6",
+    "lavender": "#c7a9e3",
+    "brown": "#6b5748",
+    "tan": "#c0a080",
 }
 
 min_time = 10 # Minimum time in seconds before checking
-
-if state == "rest":
-    max_time = 150 # Maximum time limit to avoid infinite loops
-else:
-    max_time = 450
-
+max_time = 400 # Maximum time limit to avoid infinite loops
 time_step = 200  # Chunk size per solve
+
+
+def style_paper_legend(legend):
+    if legend is None:
+        return None
+
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_edgecolor("#dddddd")
+    legend.get_frame().set_linewidth(1.0)
+    return legend
+
+
+def apply_paper_axis_style(ax, *, show_legend=True):
+    ax.set_facecolor("white")
+    ax.grid(False)
+
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color("#707070")
+        ax.spines[side].set_linewidth(1.4)
+
+    ax.tick_params(axis="both", colors="#4d4d4d", labelsize=13, width=1.2, length=4)
+    ax.xaxis.label.set_color("#333333")
+    ax.yaxis.label.set_color("#333333")
+
+    if not show_legend:
+        return None
+
+    return style_paper_legend(ax.legend(loc="best", frameon=True))
 
 # First iteration
 # get the first derivative and outputs from all the separated systems
@@ -215,10 +158,6 @@ required_gas_keys = ["Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "P
                      "PCSFCO2", "MRTO2", "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV"]
 IC_gas = np.array([Initial_Conditions[key] for key in required_gas_keys], dtype=float)
 num_gas = len(required_gas_keys)
-GAS_EXCHANGE_SKIPPED_LABELS = {
-    "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PCSFCO2", "MRTO2",
-    "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV",
-}
 
 # cardiovascular system
 required_cardio_keys = [ "VT_pa", "VT_pp", "VT_pv", "Q_pa", "VT_la", "VT_lv", "VT_ra", "VT_rv", "VT_sv", "VT_bv",
@@ -300,16 +239,16 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
     tolerance = 0.0001
 
     VAflow_vals = np.linspace(0.01, 1.6, 200)
-    VAflow_repeated = np.repeat(VAflow_vals, 3)
+    # VAflow_repeated = np.repeat(VAflow_vals, 3)
 
-    VD = GV_dead * VAflow_repeated + V0_dead
+    VD = GV_dead * VAflow_vals + V0_dead
 
     optimal_t1 = []
     optimal_t2 = []
     initial_guess = [t1, t2]
     required_params = [lambda1, lambda2, n, Pmax, Pmax_dot, E_rs, R_rs, P_ao]
 
-    for idx, VAflow in enumerate(VAflow_repeated):
+    for idx, VAflow in enumerate(VAflow_vals):
         VD_volume = VD[idx]
 
         res = minimize(objective, x0= np.array(initial_guess[-2:]),
@@ -321,23 +260,20 @@ def minimise_breathing(t1, t2, GV_dead, V0_dead, lambda1, lambda2, n, Pmax, Pmax
 
 
     # Convert to arrays for indexing
-    VAflow_clean = np.array(VAflow_repeated)
+    # VAflow_clean = np.array(VAflow_vals)
     t1_clean = np.array(optimal_t1)
     t2_clean = np.array(optimal_t2)
 
-    t1_mean = np.array([np.nanmean(t1_clean[VAflow_clean == v]) for v in VAflow_vals])
-    t2_mean = np.array([np.nanmean(t2_clean[VAflow_clean == v]) for v in VAflow_vals])
+    # t1_mean = np.array([np.nanmean(t1_clean[VAflow_clean == v]) for v in VAflow_vals])
+    # t2_mean = np.array([np.nanmean(t2_clean[VAflow_clean == v]) for v in VAflow_vals])
 
-    cs_t1 = CubicSpline(VAflow_vals, t1_mean, bc_type="natural")
-    cs_t2 = CubicSpline(VAflow_vals, t2_mean, bc_type="natural")
+    cs_t1 = CubicSpline(VAflow_vals, t1_clean, bc_type="natural")
+    cs_t2 = CubicSpline(VAflow_vals, t2_clean, bc_type="natural")
 
     return cs_t1.c, cs_t2.c, cs_t1.x, cs_t2.x
 
 
 def simulate():
-    if objective is None or model_derivatives is None:
-        raise ModuleNotFoundError("numba is required to rerun the ODE simulation; cached plotting can still be used.")
-
     # Initial setup
     IC_current = IC_overall.copy()
 
@@ -491,10 +427,10 @@ def simulate():
 
     dtb = np.diff(time_since_beat_store)
     dtr = np.diff(finish_breath_time)
-    beat_idx = np.where(dtb > 0)[0] + 1
-    breath_idx = np.where(dtr > 0)[0] + 1
-    beat_idx = beat_idx[-1]
-    breath_idx = breath_idx[-1]
+    cardiac_cycle_start_idx = np.where(dtb > 0)[0] + 1
+    breath_cycle_start_idx = np.where(dtr > 0)[0] + 1
+    beat_idx = cardiac_cycle_start_idx[-1]
+    breath_idx = breath_cycle_start_idx[-1]
     last_beat_t = all_time[beat_idx]
     last_breath_t = all_time[breath_idx]
 
@@ -599,10 +535,17 @@ def simulate():
         for o, o_next in zip(open_idx4[:-1], open_idx4[1:])
         if np.any((close_idx4 > o) & (close_idx4 < o_next))])
 
-    pairs_ao = pairs_ao[-11:-1]
-    pairs_po = pairs_po[-11:-1]
-    pairs_mi = pairs_mi[-11:-1]
-    pairs_tr = pairs_tr[-11:-1]
+    pairs_ao = pairs_ao[-10:]
+    pairs_po = pairs_po[-10:]
+    pairs_mi = pairs_mi[-10:]
+    pairs_tr = pairs_tr[-10:]
+
+    # P_peri
+    P_peri = np.concatenate((Next_Conditions["P_peri_store"][i_buffer:], Next_Conditions["P_peri_store"][:i_buffer]))
+    P_peri_cycle_idx = cardiac_cycle_start_idx[-11:]
+    P_peri_cycle_max_idx = np.array([b0 + np.argmax(P_peri[b0:b1]) for b0, b1 in zip(P_peri_cycle_idx[:-1], P_peri_cycle_idx[1:])])
+    P_peri_cycle_max = P_peri[P_peri_cycle_max_idx]
+    mean_max_P_peri = np.mean(P_peri_cycle_max)
 
     # Max pressure during atrial contraction takes the max p between phi_atr = 0 & 1
     phi_atr = np.concatenate((Next_Conditions["phi_atr_store"][i_buffer:], Next_Conditions["phi_atr_store"][:i_buffer]))
@@ -628,9 +571,14 @@ def simulate():
     P_sa = np.concatenate((Next_Conditions["P_sa_store"][i_buffer:], Next_Conditions["P_sa_store"][:i_buffer]))
     P_sa_max_idx = np.array([o + np.argmax(P_sa[o:c]) for o, c in pairs_ao])
 
+    # Mean pulmonary artery pressure over the last 10 complete beats.
+    last_10_cycle_idx = cardiac_cycle_start_idx[-11:]
+    P_pa = np.concatenate((Next_Conditions["P_pa_store"][i_buffer:], Next_Conditions["P_pa_store"][:i_buffer]))
+    mean_P_pa = np.mean([np.mean(P_pa[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
+
     P_la = np.concatenate((Next_Conditions["P_la_store"][i_buffer:], Next_Conditions["P_la_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_la_max_idx = np.array([s + np.argmax(P_la[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when mitral valve is open -> get second min la P
     P_la_descent2_idx = np.array([o + np.argmin(P_la[o:c]) for o, c in pairs_mi])
@@ -638,7 +586,7 @@ def simulate():
 
     P_ra = np.concatenate((Next_Conditions["P_ra_store"][i_buffer:], Next_Conditions["P_ra_store"][:i_buffer]))
     # max pressure at atrial contraction
-    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    P_ra_max_idx = np.array([s + np.argmax(P_ra[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     # period of V descent when tricuspid valve is open -> get second min la P
     P_ra_descent2_idx = np.array([o + np.argmin(P_ra[o:c]) for o, c in pairs_tr])
@@ -648,10 +596,10 @@ def simulate():
     peaks, _ = find_peaks(V_lv, distance=int(500), prominence=1)
     troughs, _ = find_peaks(-V_lv, distance=int(500), prominence=1)
 
-    last_10_troughs_V_lv = troughs[-11:-1]
+    last_10_troughs_V_lv = troughs[-10:]
     last_10_min_V_lv = V_lv[last_10_troughs_V_lv]
 
-    last_10_peaks_V_lv = peaks[-11:-1]
+    last_10_peaks_V_lv = peaks[-10:]
     last_10_max_V_lv = V_lv[last_10_peaks_V_lv]
 
     P_rv = np.concatenate((Next_Conditions["P_rv_store"][i_buffer:], Next_Conditions["P_rv_store"][:i_buffer]))
@@ -675,7 +623,7 @@ def simulate():
 
     # Find transitions: where phi_atr goes from 0 to >0
     starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
-    local_mins = starts[-11:-1]
+    local_mins = starts[-10:]
     last_10_b4_LA_atrial_contract = V_la[local_mins]
     last_10_b4_RA_atrial_contract = V_ra[local_mins]
 
@@ -683,8 +631,8 @@ def simulate():
     is_active = phi_atr > 0.0  # atrial contraction window
     edges = np.diff(is_active.astype(int))
 
-    start_idx = np.where(edges == 1)[0] + 1  # 0 â†’ active
-    end_idx = np.where(edges == -1)[0] + 1  # active â†’ 0
+    start_idx = np.where(edges == 1)[0] + 1  # 0 → active
+    end_idx = np.where(edges == -1)[0] + 1  # active → 0
 
     if len(start_idx) and len(end_idx) and end_idx[0] < start_idx[0]:
         end_idx = end_idx[1:]
@@ -694,10 +642,10 @@ def simulate():
     end_idx = end_idx[:n_pairs]
 
     dP_lv_dt_store = np.concatenate((Next_Conditions["dP_lv_dt_store"][i_buffer:], Next_Conditions["dP_lv_dt_store"][:i_buffer]))
-    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_lv_dt_idx = np.array([s + np.argmax(dP_lv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     dP_rv_dt_store = np.concatenate((Next_Conditions["dP_rv_dt_store"][i_buffer:], Next_Conditions["dP_rv_dt_store"][:i_buffer]))
-    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    dP_rv_dt_idx = np.array([s + np.argmax(dP_rv_dt_store[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     tidal = np.concatenate((Next_Conditions["tidal_store"][i_buffer:], Next_Conditions["tidal_store"][:i_buffer]))
 
@@ -714,14 +662,17 @@ def simulate():
     VDflow = (1 / (t1[-1] + t2[-1])) * VD
     Minute_Ventilation = (VAflow[-1] + VDflow) * 60
 
-    cardiac_output = np.mean(Next_Conditions["Q_pp_store"])
-    Pa_O2 = np.mean(Next_Conditions["Pa_O2_every_store"])
-    Pa_CO2 = np.mean(Next_Conditions["Pa_CO2_every_store"])
+    Q_pp = np.concatenate((Next_Conditions["Q_pp_store"][i_buffer:], Next_Conditions["Q_pp_store"][:i_buffer]))
+    Pa_O2_every = np.concatenate((Next_Conditions["Pa_O2_every_store"][i_buffer:], Next_Conditions["Pa_O2_every_store"][:i_buffer]))
+    Pa_CO2_every = np.concatenate((Next_Conditions["Pa_CO2_every_store"][i_buffer:], Next_Conditions["Pa_CO2_every_store"][:i_buffer]))
+    cardiac_output = np.mean([np.mean(Q_pp[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
+    Pa_O2 = np.mean([np.mean(Pa_O2_every[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
+    Pa_CO2 = np.mean([np.mean(Pa_CO2_every[b0:b1]) for b0, b1 in zip(last_10_cycle_idx[:-1], last_10_cycle_idx[1:])])
 
     Total_Volume = V_ra + V_rv + V_lv + V_la
 
-    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
-    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-11:-1]
+    Total_Vol_min_idx = np.array([s + np.argmin(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
+    Total_Vol_max_idx = np.array([s + np.argmax(Total_Volume[s:e]) for s, e in zip(start_idx, end_idx)])[-10:]
 
     mean_min_Total_Volume = np.mean(Total_Volume[Total_Vol_min_idx])
     mean_max_Total_Volume = np.mean(Total_Volume[Total_Vol_max_idx])
@@ -741,861 +692,277 @@ def simulate():
           np.mean(P_la[P_la_max_idx]), np.mean(P_la[pairs_mi[:, 0]]), np.mean(P_la[P_la_descent2_idx]),
           np.mean(last_10_b4_LA_atrial_contract), np.mean(last_10_b4_RA_atrial_contract),
           np.mean(dP_lv_dt_store[dP_lv_dt_idx]), np.mean(dP_rv_dt_store[dP_rv_dt_idx]), max_tidal,
-          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, sep=", ")
+          Minute_Ventilation, cardiac_output, Pa_O2, Pa_CO2, Vol_percentage_change, mean_max_P_peri, mean_P_pa, sep=", ")
 
 
     return (ODE_solution, np.mean(past_10_flat_segments), np.mean(P_sa[P_sa_max_idx]), np.mean(P_sa[open_idx1]),
             np.mean(last_10_max_V_lv), np.mean(last_10_min_V_lv), np.mean(V_rv[pairs_po[:, 0]]),
             np.mean(V_rv[pairs_po[:, 1]]),
             np.mean(P_rv[P_rv_max_idx]), np.mean(P_rv[P_rv_edp_idx]),
-            IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
+            mean_max_P_peri, IC_current, Next_Conditions, ODE_solution.t, ODE_solution.y)
 
 
-def _parameter_value(name):
-    return new_params[name] if name in new_params else Parameters[name]
-
-
-def _sorted_buffer(values, start_idx):
-    return np.concatenate((values[start_idx:], values[:start_idx]))
-
-
-def _tail_complete(values):
-    values = np.asarray(values)
-    return values[-11:-1] if values.shape[0] > 10 else values
-
-
-def _last_complete_pairs(pairs):
-    pairs = np.asarray(pairs, dtype=int)
-    if pairs.size == 0:
-        return np.empty((0, 2), dtype=int)
-    pairs = pairs.reshape((-1, 2))
-    return pairs[-11:-1] if pairs.shape[0] > 10 else pairs
-
-
-def _mean_values(values):
-    values = np.asarray(values, dtype=float)
-    values = values[np.isfinite(values)]
-    return float(np.nanmean(values)) if values.size else np.nan
-
-
-def _mean_at(values, indices):
-    indices = np.asarray(indices, dtype=int)
-    if indices.size == 0:
-        return np.nan
-    return _mean_values(np.asarray(values)[indices])
-
-
-def _window_indices(values, windows, reducer):
-    values = np.asarray(values)
-    indices = []
-    for start, end in np.asarray(windows, dtype=int).reshape((-1, 2)):
-        if end > start and start >= 0 and end <= values.size:
-            indices.append(start + int(reducer(values[start:end])))
-    return np.asarray(indices, dtype=int)
-
-
-def _valve_events(theta, theta_min, n_closed=50):
-    is_open = theta > theta_min
-    open_idx = []
-    for k in range(n_closed, len(theta)):
-        if is_open[k] and not np.any(is_open[k - n_closed:k]):
-            open_idx.append(k)
-    open_idx = np.asarray(open_idx, dtype=int)
-
-    is_closed = theta <= theta_min
-    close_idx = []
-    for k in range(n_closed, len(theta)):
-        if is_closed[k] and not np.any(is_closed[k - n_closed:k]):
-            close_idx.append(k)
-    close_idx = np.asarray(close_idx, dtype=int)
-
-    pairs = [
-        (open_now, close_idx[(close_idx > open_now) & (close_idx < open_next)][-1])
-        for open_now, open_next in zip(open_idx[:-1], open_idx[1:])
-        if np.any((close_idx > open_now) & (close_idx < open_next))
-    ]
-    return open_idx, close_idx, np.asarray(pairs, dtype=int).reshape((-1, 2)) if pairs else np.empty((0, 2), dtype=int)
-
-
-def _rising_windows(values):
-    d_values = np.diff(values, prepend=values[0])
-    is_rising = d_values > 0
-    edges = np.diff(is_rising.astype(int))
-    start_idx = np.where(edges == 1)[0] + 1
-    end_idx = np.where(edges == -1)[0] + 1
-    if end_idx.size and start_idx.size and end_idx[0] < start_idx[0]:
-        end_idx = end_idx[1:]
-    n_pairs = min(start_idx.size, end_idx.size)
-    return np.column_stack((start_idx[:n_pairs], end_idx[:n_pairs])) if n_pairs else np.empty((0, 2), dtype=int)
-
-
-def _active_windows(values):
-    is_active = values > 0.0
-    edges = np.diff(is_active.astype(int))
-    start_idx = np.where(edges == 1)[0] + 1
-    end_idx = np.where(edges == -1)[0] + 1
-    if end_idx.size and start_idx.size and end_idx[0] < start_idx[0]:
-        end_idx = end_idx[1:]
-    n_pairs = min(start_idx.size, end_idx.size)
-    return np.column_stack((start_idx[:n_pairs], end_idx[:n_pairs])) if n_pairs else np.empty((0, 2), dtype=int)
-
-
-def _horizontal_target(ax, value, label, color, linestyle=(0, (2, 2))):
-    if np.isfinite(value):
-        ax.axhline(value, linestyle=linestyle, linewidth=TARGET_LINEWIDTH, color=color, alpha=0.9, label=label)
-
-
-def _vertical_target(ax, value, label, color):
-    if np.isfinite(value):
-        ax.axvline(value, linestyle=(0, (2, 2)), linewidth=TARGET_LINEWIDTH, color=color, alpha=0.9, label=label)
-
-
-def _legend_above(ax, handles, labels):
-    if handles:
-        ax.legend(
-            handles,
-            labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 1.02),
-            ncol=len(handles),
-            frameon=False,
-            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
-            handlelength=1.8,
-            columnspacing=0.8,
-            handletextpad=0.4,
-            borderaxespad=0.0,
-        )
-
-
-def _combined_legend(ax, *other_axes):
-    handles, labels = ax.get_legend_handles_labels()
-    for other_ax in other_axes:
-        more_handles, more_labels = other_ax.get_legend_handles_labels()
-        handles.extend(more_handles)
-        labels.extend(more_labels)
-    _legend_above(ax, handles, labels)
-
-
-def _atrial_targets_legend(ax, pressure_ax):
-    volume_handles, volume_labels = ax.get_legend_handles_labels()
-    pressure_handles, pressure_labels = pressure_ax.get_legend_handles_labels()
-    if volume_handles:
-        volume_legend = ax.legend(
-            volume_handles,
-            volume_labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 1.12),
-            ncol=len(volume_handles),
-            frameon=False,
-            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
-            handlelength=1.8,
-            columnspacing=0.8,
-            handletextpad=0.4,
-            borderaxespad=0.0,
-        )
-        ax.add_artist(volume_legend)
-    if pressure_handles:
-        ax.legend(
-            pressure_handles,
-            pressure_labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 1.02),
-            ncol=len(pressure_handles),
-            frameon=False,
-            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
-            handlelength=1.8,
-            columnspacing=0.8,
-            handletextpad=0.4,
-            borderaxespad=0.0,
-        )
-
-
-def _ventricular_pv_legend(ax):
-    handles, labels = ax.get_legend_handles_labels()
-    top_handles, top_labels = handles[:4], labels[:4]
-    pressure_handles, pressure_labels = handles[4:8], labels[4:8]
-    if top_handles:
-        top_legend = ax.legend(
-            top_handles,
-            top_labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 1.12),
-            ncol=len(top_handles),
-            frameon=False,
-            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
-            handlelength=1.8,
-            columnspacing=0.8,
-            handletextpad=0.4,
-            borderaxespad=0.0,
-        )
-        ax.add_artist(top_legend)
-    if pressure_handles:
-        ax.legend(
-            pressure_handles,
-            pressure_labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 1.02),
-            ncol=len(pressure_handles),
-            frameon=False,
-            fontsize=SUBPLOT_LEGEND_FONT_SIZE,
-            handlelength=1.8,
-            columnspacing=0.8,
-            handletextpad=0.4,
-            borderaxespad=0.0,
-        )
-
-
-def _style_journal_axis(ax, secondary_y=False):
-    ax.set_axisbelow(True)
-    ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
-    ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
-    ax.tick_params(axis="both", which="major", width=1.0, length=4, colors="#303030")
-    ax.spines["top"].set_visible(False)
-    ax.spines["bottom"].set_color("#555555")
-    ax.spines["bottom"].set_linewidth(1.1)
-    if secondary_y:
-        ax.spines["left"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.spines["right"].set_visible(True)
-        ax.spines["right"].set_color("#555555")
-        ax.spines["right"].set_linewidth(1.1)
-        ax.tick_params(axis="x", bottom=False, labelbottom=False)
-    else:
-        ax.spines["left"].set_visible(True)
-        ax.spines["left"].set_color("#555555")
-        ax.spines["left"].set_linewidth(1.1)
-        ax.spines["right"].set_visible(False)
-    ax.grid(False)
-    ax.margins(y=0.08)
-
-
-def _add_panel_letters(axes):
-    for letter, ax in zip("ABCDEFGH", axes):
-        ax.text(
-            -0.16,
-            1.12,
-            letter,
-            transform=ax.transAxes,
-            ha="left",
-            va="bottom",
-            fontsize=18,
-            fontweight="bold",
-            color="#303030",
-            clip_on=False,
-            in_layout=False,
-            zorder=20,
-        )
-
-
-def _history_end_index(conditions):
-    time_history = np.asarray(conditions["time_history"], dtype=float)
-    valid_idx = np.flatnonzero(np.isfinite(time_history) & (time_history < 1e5))
-    if valid_idx.size == 0:
-        raise ValueError("No valid time_history values were available for plotting.")
-    latest_idx = valid_idx[int(np.argmax(time_history[valid_idx]))]
-    return int(latest_idx + 1)
-
-
-def _history_window(conditions, keys, end_index, n_points):
-    start_index = max(0, end_index - n_points)
-    arrays = [np.asarray(conditions[key], dtype=float)[start_index:end_index] for key in keys]
-    valid = np.ones(arrays[0].shape, dtype=bool)
-    for values in arrays:
-        valid &= np.isfinite(values) & (values < 1e5)
-    if not np.any(valid):
-        raise ValueError(f"No valid values were available in the requested history window: {keys}")
-    return [values[valid] for values in arrays]
-
-
-def _history_time_window(conditions, keys, seconds):
-    end_index = _history_end_index(conditions)
-    arrays = [np.asarray(conditions[key], dtype=float)[:end_index] for key in keys]
-    time = arrays[0]
-    valid = np.ones(time.shape, dtype=bool)
-    for values in arrays:
-        valid &= np.isfinite(values) & (values < 1e5)
-    if not np.any(valid):
-        raise ValueError(f"No valid values were available in the requested history window: {keys}")
-    end_time = float(np.nanmax(time[valid]))
-    valid &= time >= end_time - seconds
-    if not np.any(valid):
-        raise ValueError(f"No valid values were available in the last {seconds:g} seconds: {keys}")
-    return [values[valid] for values in arrays]
-
-
-def _activation_timing(values, time):
-    windows = _active_windows(values)
-    for start_idx, end_idx in windows[::-1]:
-        if end_idx - start_idx < 3:
-            continue
-        peak_idx = start_idx + int(np.argmax(values[start_idx:end_idx]))
-        if start_idx < peak_idx < end_idx - 1:
-            return time[start_idx], time[peak_idx], time[end_idx - 1]
-    return None
-
-
-def _gas_exchange_legend_label(label):
-    gas_labels = {
-        "O2": "O_2",
-        "CO2": "CO_2",
-    }
-    if label.startswith("Pd_"):
-        _, compartment, gas = label.split("_", 2)
-        return rf"$P_{{d,{compartment},{gas_labels.get(gas, gas)}}}$"
-    if label.startswith("PA_"):
-        gas = label.split("_", 1)[1]
-        return rf"$P_{{A,{gas_labels.get(gas, gas)}}}$"
-    return label
-
-
-def _gas_exchange_plot_keys():
-    return [label for label in required_gas_keys if label not in GAS_EXCHANGE_SKIPPED_LABELS]
-
-
-def _extract_gas_exchange_solution_data(solution):
-    if solution is None or not hasattr(solution, "t") or not hasattr(solution, "y"):
-        return None
-
-    time = np.asarray(solution.t, dtype=float)
-    state_variables = np.asarray(solution.y, dtype=float)
-    gas_offset = len(required_cardio_keys) + len(required_cardio_control_keys)
-    values = {}
-    for label in _gas_exchange_plot_keys():
-        gas_index = required_gas_keys.index(label)
-        state_index = gas_offset + gas_index
-        if state_index < state_variables.shape[0]:
-            values[label] = np.asarray(state_variables[state_index], dtype=float).copy()
-
-    if not values:
-        return None
-    return {"time": time.copy(), "values": values}
-
-
-def _plot_gas_exchange_values(ax, time, values_by_key, colors, window_seconds):
-    time = np.asarray(time, dtype=float)
-    valid_time = np.isfinite(time)
-    if not np.any(valid_time):
-        raise ValueError("No valid gas exchange time values were available for plotting.")
-
-    end_time = float(np.nanmax(time[valid_time]))
-    plot_mask = valid_time & (time >= end_time - window_seconds)
-    plotted_index = 0
-    for label in _gas_exchange_plot_keys():
-        if label not in values_by_key:
-            continue
-        values = np.asarray(values_by_key[label], dtype=float)
-        ax.plot(
-            time[plot_mask],
-            values[plot_mask],
-            color=colors[plotted_index % len(colors)],
-            linestyle="-",
-            linewidth=SOLID_LINEWIDTH,
-            label=_gas_exchange_legend_label(label),
-        )
-        plotted_index += 1
-
-    if plotted_index == 0:
-        raise ValueError("No gas exchange pressure values were available for plotting.")
-
-
-def plot_activation_atrial_pv_section(
-    conditions,
-    activation_points=ACTIVATION_HISTORY_POINTS,
-    pv_points=ATRIAL_PV_HISTORY_POINTS,
-    output_path=ACTIVATION_ATRIAL_PV_OUTPUT,
-):
-    end_index = _history_end_index(conditions)
-    time_activation, phi, phi_atr = _history_window(
-        conditions,
-        ["time_history", "phi", "phi_atr"],
-        end_index,
-        activation_points,
-    )
-    _, vt_ra, p_ra, vt_la, p_la = _history_window(
-        conditions,
-        ["time_history", "VT_ra", "P_ra", "VT_la", "P_la"],
-        end_index,
-        pv_points,
-    )
-
-    ventricle_color = PLOT_COLORS["teal"]
-    atrial_color = PLOT_COLORS["rose"]
-
-    plt.rcParams.update(JOURNAL_RC_PARAMS)
-    fig, axes = plt.subplots(2, 1, figsize=(6.2, 7.0), constrained_layout=True)
-    fig.set_constrained_layout_pads(w_pad=0.03, h_pad=0.05, hspace=0.08)
-
-    ax = axes[0]
-    ax.plot(time_activation, phi, color=ventricle_color, linewidth=FOCUS_LINEWIDTH, label="Ventricle Activation")
-    ax.plot(time_activation, phi_atr, color=atrial_color, linewidth=FOCUS_LINEWIDTH, label="Atrial Activation")
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Activation")
-    ax.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="#D5D5D5")
-
-    ax = axes[1]
-    ax.plot(vt_ra, p_ra, color=ventricle_color, linewidth=FOCUS_LINEWIDTH, label="RA")
-    ax.plot(vt_la, p_la, color=atrial_color, linewidth=FOCUS_LINEWIDTH, label="LA")
-    ax.set_xlabel("Volume (mL)")
-    ax.set_ylabel("Atrial Pressure (mmHg)")
-    ax.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="#D5D5D5")
-
-    for axis in axes:
-        _style_journal_axis(axis)
-
-    axes[0].set_ylim(0, 1.05)
-    axes[0].set_yticks(np.arange(0, 1.01, 0.25))
-
-    fig.align_ylabels(axes)
-    fig.savefig(output_path, dpi=600, bbox_inches="tight", pad_inches=0.12)
-    plt.close(fig)
-    print(f"Saved activation and atrial PV figure to {output_path}")
-
-
-def plot_gas_exchange_section(
-    conditions,
-    solution=None,
-    cached_gas_exchange=None,
-    window_seconds=GAS_EXCHANGE_WINDOW_SECONDS,
-    output_path=GAS_EXCHANGE_OUTPUT,
-):
-    colors = GAS_EXCHANGE_COLORS
-    plt.rcParams.update(JOURNAL_RC_PARAMS)
-    fig, ax = plt.subplots(figsize=(11.0, 5.4), constrained_layout=True)
-    fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.06)
-
-    solution_gas_exchange = _extract_gas_exchange_solution_data(solution)
-    if solution_gas_exchange is not None:
-        _plot_gas_exchange_values(
-            ax,
-            solution_gas_exchange["time"],
-            solution_gas_exchange["values"],
-            colors,
-            window_seconds,
-        )
-    elif cached_gas_exchange is not None:
-        _plot_gas_exchange_values(
-            ax,
-            cached_gas_exchange["time"],
-            cached_gas_exchange["values"],
-            colors,
-            window_seconds,
-        )
-    else:
-        plot_keys = [label for label in _gas_exchange_plot_keys() if label in conditions]
-        if not plot_keys:
-            raise ValueError("No cached gas exchange variables were available for plotting.")
-        arrays = _history_time_window(conditions, ["time_history", *plot_keys], window_seconds)
-        time, values_by_key = arrays[0], arrays[1:]
-        for i, (label, values) in enumerate(zip(plot_keys, values_by_key)):
-            ax.plot(
-                time,
-                values,
-                color=colors[i % len(colors)],
-                linestyle="-",
-                linewidth=SOLID_LINEWIDTH,
-                label=_gas_exchange_legend_label(label),
-            )
-
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("State Variables")
-    ax.set_title("Evolution of Gas Exchange State Variables")
-    ax.legend(
-        bbox_to_anchor=(1.02, 1),
-        loc="upper left",
-        frameon=True,
-        facecolor="white",
-        edgecolor="#D5D5D5",
-    )
-    _style_journal_axis(ax)
-    fig.savefig(output_path, dpi=600, bbox_inches="tight", pad_inches=0.12)
-    plt.close(fig)
-    print(f"Saved gas exchange figure to {output_path}")
-
-
-def _collect_results_plot_data(conditions, buffer_limit):
-    i_buffer = conditions["i"].item() % buffer_limit
-    sorted_times = _sorted_buffer(conditions["all_time"], i_buffer)
-    valid_time = np.isfinite(sorted_times) & (sorted_times < 1e5)
-
-    buffer_keys = [
-        "time_since_beat_store", "finish_breath_time", "HR_store", "P_sa_store",
-        "V_lv_store", "V_rv_store", "P_lv_store", "P_rv_store", "V_la_store",
-        "V_ra_store", "P_la_store", "P_ra_store", "theta_ao_store",
-        "theta_po_store", "theta_mi_store", "theta_tr_store", "phi_atr_store",
-        "phi_store", "tidal_store", "VAflow_store", "t1_store", "t2_store", "Q_pp_store",
-        "Pa_O2_every_store", "Pa_CO2_every_store", "dP_lv_dt_store",
-        "dP_rv_dt_store",
-    ]
-    traces = {"time": sorted_times[valid_time]}
-    for key in buffer_keys:
-        traces[key] = _sorted_buffer(conditions[key], i_buffer)[valid_time]
-
-    theta_min = _parameter_value("theta_min")
-    open_ao, _, pairs_ao = _valve_events(traces["theta_ao_store"], theta_min)
-    _, _, pairs_po = _valve_events(traces["theta_po_store"], theta_min)
-    _, _, pairs_mi = _valve_events(traces["theta_mi_store"], theta_min)
-    _, _, pairs_tr = _valve_events(traces["theta_tr_store"], theta_min)
-
-    open_ao = _tail_complete(open_ao)
-    pairs_ao = _last_complete_pairs(pairs_ao)
-    pairs_po = _last_complete_pairs(pairs_po)
-    pairs_mi = _last_complete_pairs(pairs_mi)
-    pairs_tr = _last_complete_pairs(pairs_tr)
-
-    P_sa = traces["P_sa_store"]
-    V_lv = traces["V_lv_store"]
-    V_rv = traces["V_rv_store"]
-    P_rv = traces["P_rv_store"]
-    V_ra = traces["V_ra_store"]
-    P_ra = traces["P_ra_store"]
-    V_la = traces["V_la_store"]
-    P_la = traces["P_la_store"]
-    phi_atr = traces["phi_atr_store"]
-    phi = traces["phi_store"]
-
-    P_sa_max_idx = _window_indices(P_sa, pairs_ao, np.argmax)
-    P_rv_max_idx = _window_indices(P_rv, pairs_po, np.argmax)
-    # RVEDP: last sample before ventricular activation rises each beat.
-    phi_eps = 1e-8
-    phi_rise_idx = np.where((phi[:-1] <= phi_eps) & (phi[1:] > phi_eps))[0] + 1
-    P_rv_edp_idx = phi_rise_idx[-10:] - 1
-
-    atrial_rise_windows = _last_complete_pairs(_rising_windows(phi_atr))
-    P_la_max_idx = _window_indices(P_la, atrial_rise_windows, np.argmax)
-    P_ra_max_idx = _window_indices(P_ra, atrial_rise_windows, np.argmax)
-    P_la_descent2_idx = _window_indices(P_la, pairs_mi, np.argmin)
-    P_la_descent1_windows = np.asarray([(c, o_next) for (_, c), (o_next, _) in zip(pairs_mi[:-1], pairs_mi[1:])], dtype=int)
-    P_la_descent1_idx = _window_indices(P_la, P_la_descent1_windows, np.argmin)
-    P_ra_descent2_idx = _window_indices(P_ra, pairs_tr, np.argmin)
-    P_ra_descent1_windows = np.asarray([(c, o_next) for (_, c), (o_next, _) in zip(pairs_tr[:-1], pairs_tr[1:])], dtype=int)
-    P_ra_descent1_idx = _window_indices(P_ra, P_ra_descent1_windows, np.argmin)
-
-    atrial_active_windows = _last_complete_pairs(_active_windows(phi_atr))
-    dP_lv_dt_idx = _window_indices(traces["dP_lv_dt_store"], atrial_active_windows, np.argmax)
-    dP_rv_dt_idx = _window_indices(traces["dP_rv_dt_store"], atrial_active_windows, np.argmax)
-
-    starts = np.where((phi_atr[:-1] == 0) & (phi_atr[1:] > 0))[0] + 1
-    local_atrial_start_idx = _tail_complete(starts)
-
-    HR_values = []
-    previous_hr = None
-    for current_hr in traces["HR_store"][::-1]:
-        if not np.isfinite(current_hr):
-            continue
-        if previous_hr is None or current_hr != previous_hr:
-            HR_values.append(current_hr)
-            previous_hr = current_hr
-            if len(HR_values) == 10:
-                break
-
-    dtr = np.diff(traces["finish_breath_time"])
-    breath_starts = np.where(dtr > 0)[0] + 1
-    tidal = traces["tidal_store"]
-    if breath_starts.size >= 2 and breath_starts[-1] > breath_starts[-2]:
-        max_tidal = float(np.nanmax(tidal[breath_starts[-2]:breath_starts[-1]]))
-    else:
-        positive_tidal = tidal[np.isfinite(tidal) & (tidal > 0)]
-        max_tidal = float(np.nanmax(positive_tidal)) if positive_tidal.size else np.nan
-
-    breath_period = traces["t1_store"] + traces["t2_store"]
-    minute_ventilation_series = np.full_like(traces["VAflow_store"], np.nan, dtype=float)
-    valid_breath_period = np.isfinite(breath_period) & (breath_period > 0)
-    if np.any(valid_breath_period):
-        VD = _parameter_value("GV_dead") * traces["VAflow_store"] + _parameter_value("V0_dead")
-        minute_ventilation_series[valid_breath_period] = (
-            traces["VAflow_store"][valid_breath_period] + VD[valid_breath_period] / breath_period[valid_breath_period]
-        ) * 60
-    valid_minute_ventilation = minute_ventilation_series[np.isfinite(minute_ventilation_series)]
-    minute_ventilation = float(valid_minute_ventilation[-1]) if valid_minute_ventilation.size else np.nan
-
-    total_volume = V_ra + V_rv + V_lv + V_la
-    total_min_idx = _window_indices(total_volume, atrial_active_windows, np.argmin)
-    total_max_idx = _window_indices(total_volume, atrial_active_windows, np.argmax)
-    mean_min_total_volume = _mean_at(total_volume, total_min_idx)
-    mean_max_total_volume = _mean_at(total_volume, total_max_idx)
-    volume_percentage_change = (
-        (mean_max_total_volume - mean_min_total_volume) / mean_max_total_volume
-        if np.isfinite(mean_max_total_volume) and mean_max_total_volume != 0
-        else np.nan
-    )
-
-    target_values_full = np.array([
-        _mean_values(HR_values),
-        _mean_at(P_sa, P_sa_max_idx),
-        _mean_at(P_sa, open_ao),
-        _mean_at(V_lv, pairs_ao[:, 0]),
-        _mean_at(V_lv, pairs_ao[:, 1]),
-        _mean_at(V_rv, pairs_po[:, 0]),
-        _mean_at(V_rv, pairs_po[:, 1]),
-        _mean_at(P_rv, P_rv_max_idx),
-        _mean_at(P_rv, P_rv_edp_idx),
-        _mean_at(V_ra, pairs_tr[:, 1]),
-        _mean_at(V_ra, pairs_tr[:, 0]),
-        _mean_at(P_ra, P_ra_descent1_idx),
-        _mean_at(P_ra, P_ra_max_idx),
-        _mean_at(P_ra, pairs_tr[:, 0]),
-        _mean_at(P_ra, P_ra_descent2_idx),
-        _mean_at(V_la, pairs_mi[:, 1]),
-        _mean_at(V_la, pairs_mi[:, 0]),
-        _mean_at(P_la, P_la_descent1_idx),
-        _mean_at(P_la, P_la_max_idx),
-        _mean_at(P_la, pairs_mi[:, 0]),
-        _mean_at(P_la, P_la_descent2_idx),
-        _mean_at(V_la, local_atrial_start_idx),
-        _mean_at(V_ra, local_atrial_start_idx),
-        _mean_at(traces["dP_lv_dt_store"], dP_lv_dt_idx),
-        _mean_at(traces["dP_rv_dt_store"], dP_rv_dt_idx),
-        max_tidal,
-        minute_ventilation,
-        _mean_values(traces["Q_pp_store"]),
-        _mean_values(traces["Pa_O2_every_store"]),
-        _mean_values(traces["Pa_CO2_every_store"]),
-        volume_percentage_change,
-    ], dtype=float)
-
-    keep_mask = np.ones(len(RESULT_OUTPUT_NAMES_FULL), dtype=bool)
-    keep_mask[RESULT_COLS_TO_DROP] = False
-    targets = {
-        name: value for name, value, keep in zip(RESULT_OUTPUT_NAMES_FULL, target_values_full, keep_mask) if keep
-    }
-    return traces, minute_ventilation_series, targets
-
-
-def plot_results_section(conditions, buffer_limit=BUFFER_LIMIT):
-    traces, minute_ventilation_series, targets = _collect_results_plot_data(conditions, buffer_limit)
-    time = traces["time"]
-    if time.size == 0:
-        raise ValueError("No valid circular-buffer time points were available for plotting.")
-
-    print("Kept result targets:")
-    for name, value in targets.items():
-        print(f"{name}: {value:.6g}")
-
-    step = max(1, int(np.ceil(time.size / 8000)))
-    plot_slice = slice(None, None, step)
-    t_plot = time[plot_slice]
-    finite_time = time[np.isfinite(time)]
-    time_axis_start = float(finite_time[0])
-    time_axis_end = float(finite_time[-1])
-    overview_time_axis_start = max(time_axis_start, time_axis_end - RESULTS_OVERVIEW_WINDOW_SECONDS)
-    atrial_detail_time_axis_start = max(time_axis_start, time_axis_end - RESULTS_ATRIAL_DETAIL_WINDOW_SECONDS)
-
-    colors = PLOT_COLORS
-
-    plt.rcParams.update(JOURNAL_RC_PARAMS)
-    fig, axes = plt.subplots(4, 2, figsize=(11.0, 14.0), constrained_layout=True)
-    fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.09, hspace=0.14, wspace=0.04)
-    axes = axes.ravel()
-    secondary_axes = []
-    overview_time_window_axes = []
-    atrial_detail_time_window_axes = []
-
-    ax = axes[0]
-    overview_time_window_axes.append(ax)
-    ax.plot(t_plot, traces["P_sa_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{sa}}$")
-    _horizontal_target(ax, targets["Systolic_Pressure"], TARGET_LABELS["Systolic_Pressure"], colors["rose_dark"])
-    _horizontal_target(ax, targets["Diastolic_Pressure"], TARGET_LABELS["Diastolic_Pressure"], colors["rose_light"])
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$P_{\mathrm{sa}}$ (mmHg)")
-    ax_hr = ax.twinx()
-    secondary_axes.append(ax_hr)
-    ax_hr.plot(
-        t_plot,
-        traces["HR_store"][plot_slice] * HEART_RATE_PLOT_SCALE,
-        color=colors["solid_blue"],
-        linewidth=SOLID_LINEWIDTH,
-        label=TARGET_LABELS["Heart_Rate"],
-    )
-    _horizontal_target(ax_hr, targets["Heart_Rate"] * HEART_RATE_PLOT_SCALE, TARGET_MEAN_LABELS["Heart_Rate"], colors["teal_dark"])
-    ax_hr.set_ylabel("HR (BPM)")
-    _combined_legend(ax, ax_hr)
-
-    ax = axes[1]
-    pv_slice = slice(None, None, max(1, int(np.ceil(time.size / 12000))))
-    ax.plot(traces["V_lv_store"][pv_slice], traces["P_lv_store"][pv_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="LV")
-    ax.plot(traces["V_rv_store"][pv_slice], traces["P_rv_store"][pv_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label="RV")
-    _vertical_target(ax, targets["EDV"], TARGET_LABELS["EDV"], colors["rose_dark"])
-    _vertical_target(ax, targets["ESV"], TARGET_LABELS["ESV"], colors["rose_light"])
-    _vertical_target(ax, targets["Max_RV_Volume"], TARGET_LABELS["Max_RV_Volume"], colors["blue_dark"])
-    _vertical_target(ax, targets["Min_RV_Volume"], TARGET_LABELS["Min_RV_Volume"], colors["blue_light"])
-    _horizontal_target(ax, targets["Max_RV_Pressure"], TARGET_LABELS["Max_RV_Pressure"], colors["blue_dark"])
-    _horizontal_target(ax, targets["Min_RV_Pressure"], TARGET_LABELS["Min_RV_Pressure"], colors["blue_light"])
-    ax.set_xlabel(r"$V$ (mL)")
-    ax.set_ylabel(r"$P$ (mmHg)")
-    _ventricular_pv_legend(ax)
-
-    ax = axes[2]
-    ax.plot(traces["V_la_store"][pv_slice], traces["P_la_store"][pv_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label="LA")
-    ax.plot(traces["V_ra_store"][pv_slice], traces["P_ra_store"][pv_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label="RA")
-    ax.set_xlabel(r"$V$ (mL)")
-    ax.set_ylabel(r"$P$ (mmHg)")
-    _legend_above(ax, *ax.get_legend_handles_labels())
-
-    ax = axes[3]
-    ax.plot(t_plot, traces["V_ra_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$V_{\mathrm{RA}}$")
-    _horizontal_target(ax, targets["Min_RA_Volume"], TARGET_LABELS["Min_RA_Volume"], colors["rose_dark"])
-    _horizontal_target(ax, targets["Max_RA_Volume"], TARGET_LABELS["Max_RA_Volume"], colors["lavender_dark"], linestyle=(0, (5, 2)))
-    _horizontal_target(ax, targets["RA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["RA_Volume_Before_Atrial_Contraction"], colors["rose_light"])
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$V_{\mathrm{RA}}$ (mL)")
-    ax_p = ax.twinx()
-    secondary_axes.append(ax_p)
-    ax_p.plot(t_plot, traces["P_ra_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{RA}}$")
-    _horizontal_target(ax_p, targets["Max_RA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_RA_Pressure_Atrial_contraction"], colors["blue_dark"])
-    _horizontal_target(ax_p, targets["Max_RA_Pressure_Tricuspid_Opening"], TARGET_LABELS["Max_RA_Pressure_Tricuspid_Opening"], colors["teal_light"])
-    ax_p.set_ylabel(r"$P_{\mathrm{RA}}$ (mmHg)")
-    _atrial_targets_legend(ax, ax_p)
-    atrial_detail_time_window_axes.append(ax)
-
-    ax = axes[4]
-    ax.plot(t_plot, traces["V_la_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$V_{\mathrm{LA}}$")
-    _horizontal_target(ax, targets["Min_LA_Volume"], TARGET_LABELS["Min_LA_Volume"], colors["rose_dark"])
-    _horizontal_target(ax, targets["Max_LA_Volume"], TARGET_LABELS["Max_LA_Volume"], colors["lavender_dark"], linestyle=(0, (5, 2)))
-    _horizontal_target(ax, targets["LA_Volume_Before_Atrial_Contraction"], TARGET_LABELS["LA_Volume_Before_Atrial_Contraction"], colors["rose_light"])
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$V_{\mathrm{LA}}$ (mL)")
-    ax_p = ax.twinx()
-    secondary_axes.append(ax_p)
-    ax_p.plot(t_plot, traces["P_la_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$P_{\mathrm{LA}}$")
-    _horizontal_target(ax_p, targets["Max_LA_Pressure_Atrial_contraction"], TARGET_LABELS["Max_LA_Pressure_Atrial_contraction"], colors["blue_dark"])
-    _horizontal_target(ax_p, targets["Max_LA_Pressure_Mitral_Opening"], TARGET_LABELS["Max_LA_Pressure_Mitral_Opening"], colors["teal_light"])
-    ax_p.set_ylabel(r"$P_{\mathrm{LA}}$ (mmHg)")
-    _atrial_targets_legend(ax, ax_p)
-    atrial_detail_time_window_axes.append(ax)
-
-    ax = axes[5]
-    ax.plot(t_plot, traces["dP_lv_dt_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=r"$\mathrm{d}P_{\mathrm{LV}}/\mathrm{d}t$")
-    ax.plot(t_plot, traces["dP_rv_dt_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=r"$\mathrm{d}P_{\mathrm{RV}}/\mathrm{d}t$")
-    _horizontal_target(ax, targets["LV_Pressure_Deriv"], TARGET_LABELS["LV_Pressure_Deriv"], colors["rose_dark"])
-    _horizontal_target(ax, targets["RV_Pressure_Deriv"], TARGET_LABELS["RV_Pressure_Deriv"], colors["blue_dark"])
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$\mathrm{d}P/\mathrm{d}t$ (mmHg/s)")
-    _legend_above(ax, *ax.get_legend_handles_labels())
-    atrial_detail_time_window_axes.append(ax)
-
-    ax = axes[6]
-    overview_time_window_axes.append(ax)
-    ax.plot(t_plot, traces["tidal_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["Tidal_Volume"])
-    _horizontal_target(ax, targets["Tidal_Volume"], TARGET_MEAN_LABELS["Tidal_Volume"], colors["rose_dark"])
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Inspired/Expired Volume (L)")
-    ax_mv = ax.twinx()
-    secondary_axes.append(ax_mv)
-    ax_mv.plot(t_plot, minute_ventilation_series[plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["Minute_Ventilation"])
-    _horizontal_target(ax_mv, targets["Minute_Ventilation"], TARGET_LABELS["Minute_Ventilation"], colors["teal_dark"])
-    ax_mv.set_ylabel(r"$\dot{V}_E$ (L/min)")
-    _combined_legend(ax, ax_mv)
-
-    ax = axes[7]
-    overview_time_window_axes.append(ax)
-    ax.plot(t_plot, traces["Pa_O2_every_store"][plot_slice], color=colors["solid_red"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["PaO2"])
-    ax.plot(t_plot, traces["Pa_CO2_every_store"][plot_slice], color=colors["solid_blue"], linewidth=SOLID_LINEWIDTH, label=TARGET_LABELS["PaCO2"])
-    _horizontal_target(ax, targets["PaO2"], TARGET_MEAN_LABELS["PaO2"], colors["rose_dark"])
-    _horizontal_target(ax, targets["PaCO2"], TARGET_MEAN_LABELS["PaCO2"], colors["blue_dark"])
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$P_{\mathrm{a}O_2}$ / $P_{\mathrm{a}CO_2}$ (mmHg)")
-    _legend_above(ax, *ax.get_legend_handles_labels())
-
-    for axis in overview_time_window_axes:
-        axis.set_xlim(overview_time_axis_start, time_axis_end)
-    for axis in atrial_detail_time_window_axes:
-        axis.set_xlim(atrial_detail_time_axis_start, time_axis_end)
-
-    for axis in axes:
-        _style_journal_axis(axis)
-    for axis in secondary_axes:
-        _style_journal_axis(axis, secondary_y=True)
-    _add_panel_letters(axes)
-
-    fig.savefig(rf"{root}\Run_model_Paper_results_targets_{state}.png", dpi=600, bbox_inches="tight", pad_inches=0.35)
-    plt.close(fig)
-
-
-def _load_simulation_cache(cache_path=CACHE_PATH):
-    if not cache_path.exists():
-        return None
-    with cache_path.open("rb") as f:
-        cache = pickle.load(f)
-    if cache.get("version") != CACHE_VERSION:
-        print(f"Ignoring stale simulation cache: {cache_path}")
-        return None
-    print(f"Loaded cached simulation results from {cache_path}")
-    return cache
-
-
-def _save_simulation_cache(conditions, solution, cache_path=CACHE_PATH):
+def save_run_cache(results, cache_path=RUN_CACHE_PATH):
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache = {
-        "version": CACHE_VERSION,
-        "conditions": conditions,
-        "solution_status": solution.status,
-        "solution_message": solution.message,
-        "gas_exchange": _extract_gas_exchange_solution_data(solution),
+        "cache_version": 1,
+        "result_names": SIMULATION_RESULT_NAMES,
+        "results": dict(zip(SIMULATION_RESULT_NAMES, results)),
     }
-    with cache_path.open("wb") as f:
-        pickle.dump(cache, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print(f"Saved simulation results cache to {cache_path}")
+    with cache_path.open("wb") as fh:
+        pickle.dump(cache, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"Saved simulation cache: {cache_path}")
 
 
-def _use_cached_results():
-    import argparse
+def load_run_cache(cache_path=RUN_CACHE_PATH):
+    with cache_path.open("rb") as fh:
+        cache = pickle.load(fh)
 
-    parser = argparse.ArgumentParser(description="Run or replot cached Run_model_Paper results.")
-    parser.add_argument(
-        "--rerun",
-        action="store_true",
-        help="rerun the ODE simulation and overwrite the cached plotting data",
-    )
-    args = parser.parse_args()
-    return not args.rerun
+    results = cache.get("results", {})
+    missing = [name for name in SIMULATION_RESULT_NAMES if name not in results]
+    if missing:
+        raise KeyError(f"Cache is missing keys: {', '.join(missing)}")
+
+    print(f"Loaded simulation cache: {cache_path}")
+    return tuple(results[name] for name in SIMULATION_RESULT_NAMES)
+
+
+def run_or_load_simulation():
+    if LOAD_RUN_CACHE and not REFRESH_RUN_CACHE and RUN_CACHE_PATH.exists():
+        try:
+            return load_run_cache()
+        except (OSError, EOFError, pickle.UnpicklingError, KeyError) as exc:
+            print(f"Could not load simulation cache ({exc}); rerunning model.")
+
+    results = simulate()
+    if SAVE_RUN_CACHE:
+        save_run_cache(results)
+    return results
 
 
 if __name__ == "__main__":
 
-    cache = _load_simulation_cache() if _use_cached_results() else None
-    solution = None
-    cached_gas_exchange = None
-    if cache is None:
-        simulation_result = simulate()
-        solution = simulation_result if hasattr(simulation_result, "status") else simulation_result[0]
-        print("ODE Status:", solution.status)
-        print("ODE Message:", solution.message)
-        if hasattr(simulation_result, "status"):
-            raise SystemExit("Skipping plots because the ODE solve did not return post-processed results.")
-        conditions = simulation_result[11]
-        _save_simulation_cache(conditions, solution)
-    else:
-        conditions = cache["conditions"]
-        cached_gas_exchange = cache.get("gas_exchange")
-        print("ODE Status:", cache.get("solution_status", "cached"))
-        print("ODE Message:", cache.get("solution_message", "loaded from cache"))
+    # A = np.load("IC_final.npy", allow_pickle=True)
+    # B = np.load("Next_final.npy", allow_pickle=True).item()
+    # # #
+    # for key, value in B.items():
+    #     if isinstance(value, np.ndarray):
+    #         print(f"{key}: {value[-1]}")
+    #     else:
+    #         print(f"{key}: {value}")
 
-    history_end = np.where(conditions["time_history"] == 1e6)[0]
-    if history_end.size:
-        print(history_end[0] - 1)
+    # # Pic
+    # state_vars = [
+    #     "VT_pa", "VT_pp", "VT_pv", "Q_pa",
+    #     "VT_la", "VT_lv", "VT_ra", "VT_rv",
+    #     "VT_sv", "VT_bv", "VT_hv", "VT_rmv", "VT_amv", "P_sp", "P_sa", "Q_sa", "VT_vc",
+    #     "theta_ao", "dtheta_ao_dt", "theta_po", "dtheta_po_dt", "theta_mi", "dtheta_mi_dt", "theta_tr", "dtheta_tr_dt",
+    #
+    #     # Cardio controller state variables
+    #     "theta_change_O2_sp", "theta_change_CO2_sp", "theta_change_O2_sv", "theta_change_CO2_sv", "theta_change_O2_sh",
+    #     "theta_change_CO2_sh", "P_tilda", "f_ac", "f_ap", "R_ep_change", "R_sp_change",
+    #     "R_rmp_n_change", "R_amp_n_change", "Vu_ev_change", "Vu_sv_change", "Vu_rmv_change", "Vu_amv_change",
+    #     "Emax_lv_change",
+    #     "Emax_rv_change", "Ts_change", "Tv_change", "xb_O2", "xb_CO2", "xh_O2", "xh_CO2", "Wh", "xrm_O2", "xrm_CO2",
+    #     "xam_O2", "xM", "x_met",
+    #     "P_n_current",
+    #
+    #     # Gas exchange state variables
+    #     "Pd_1_O2", "Pd_1_CO2", "Pd_2_O2", "Pd_2_CO2", "Pd_3_O2", "Pd_3_CO2", "Pd_4_O2", "Pd_4_CO2", "Pd_5_O2",
+    #     "Pd_5_CO2",
+    #     "Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PA_O2", "PA_CO2", "PCSFCO2", "MRTO2", "MRTCO2", "CTO2",
+    #     "CvtCO2", "CBO2", "CvbCO2", "MRV",
+    #
+    #     # Resp control state variable
+    #     "VE_integral"
+    # ]
+    # Initial_Conditions = dict(zip(state_vars, A))
+    #
+    # # Example output (pretty-printed)
+    # import pprint
+    #
+    # pprint.pprint(Initial_Conditions)
 
-    plot_results_section(conditions)
-    plot_activation_atrial_pv_section(conditions)
-    plot_gas_exchange_section(conditions, solution, cached_gas_exchange)
 
-    if solution is not None and hasattr(solution, "t") and hasattr(solution, "y"):
-        time = solution.t
-        state_variables = solution.y
-        colors = GAS_EXCHANGE_COLORS
+    # lp = LineProfiler()
+    # lp.add_function(Resp_Control_Breath_Optimiser.objective)
+    #
+    # lp.add_function(model_derivatives)
+    # lp.enable()
+    # solution1, HR1, Psys1, Pdia1, save_IC1, save_Next1, t_full1, y_full1 = simulate()
+    solution, HR, Psys, Pdia, EDV, ESV, V_rv_max, V_rv_min, P_rv_max, P_rv_min, mean_P_peri, save_IC, save_Next, t_full, y_full = run_or_load_simulation()
+    Next_Conditions = save_Next
+    print("ODE Status:", solution.status)
+    print("ODE Message:", solution.message)
 
-        # # Plot all state variables
-        # plt.figure(figsize=(14, 10))
-        #
-        # for i, label in enumerate(required_gas_keys):
-        #     if label in ["Pa_O2", "Pa_CO2", "dPa_O2_dt", "dPa_CO2_dt", "PCSFCO2", "MRTO2", "MRTCO2", "CTO2", "CvtCO2", "CBO2", "CvbCO2", "MRV"]:  # Skip "VT_sv"
-        #         continue
-        #     color = colors[i % len(colors)]
-        #     plt.plot(time, state_variables[len(required_cardio_keys + required_cardio_control_keys) + i], label=label,
-        #              color=color, linestyle='-', markersize=4)
-        #
-        # plt.xlabel("Time")
-        # plt.ylabel("State Variables")
-        # plt.title("Evolution of State Variables Over Time")
-        # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # Place the legend outside the plot
-        # plt.grid()
-        # plt.tight_layout()
-        # plt.show()
+    # np.save(f'IC_final_resp.npy', solution.y[:, -1])  # individual chunks
+    # np.save(f'Next_final_resp.npy', save_Next)  # individual chunks
+    # lp.disable()
+    # lp.print_stats()
+
+    index = np.where(Next_Conditions["time_history"] == 1e6)[0][0] - 1
+    # print(HR)
+    print(len(Next_Conditions["time_history"][:index]))
+
+    plt.rcParams.update(PAPER_PLOT_RC)
+    full_time = Next_Conditions["time_history"][:index]
+    plot_start = max(0, index - 1400000)
+    plot_slice = slice(plot_start, index)
+    plot_time = Next_Conditions["time_history"][plot_slice]
+
+    # variables_to_plot = [
+    #     # "CvbCO2", "CvbO2", "VAflow", "V",
+    #     "AA", # "P_sa", "VT_vc", #"PvtCO2", "dV_dt"
+    # ]
+    #
+    # for key in variables_to_plot:
+    #     if key in Next_Conditions:  # Check if the key exists in updates
+    #         plt.figure(figsize=(8, 4))  # Create a new figure for each variable
+    #         plt.plot(Next_Conditions["time_history"][:index], Next_Conditions[key][:index], label=key, linewidth=2)
+    #         plt.xlabel("Time (s)")
+    #         plt.ylabel(key)
+    #         plt.title(f"Plot of {key} over Time")
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
+
+    # plt.rcParams.update({
+    #     "font.size": 15,  # Larger font
+    #     # "font.weight": "bold",  # Bold text
+    #     # "axes.labelweight": "bold",
+    #     "axes.titlesize": 15,
+    #     # "axes.titleweight": "bold",
+    #     "legend.fontsize": 15,
+    #     "lines.linewidth": 3.5,  # Thicker lines
+    # })
+
+
+    i = Next_Conditions["i"].item() % BUFFER_LIMIT
+    sorted_times = np.concatenate((Next_Conditions["all_time"][i:], Next_Conditions["all_time"][:i]))
+
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(full_time, Next_Conditions["f_sv"][:index],
+    #          label="Venous Volume\nSympathetic Activity", color=PAPER_COLORS["red"])
+    # ax1.plot(full_time, Next_Conditions["f_sh"][:index],
+    #          label = "HR & Contractility\nSympathetic Activity", color=PAPER_COLORS["purple"])
+    # ax1.plot(full_time, Next_Conditions["f_sp"][:index],
+    #          label = "Peripheral Resistance\nSympathetic Activity", color=PAPER_COLORS["teal"])
+    # ax1.plot(full_time, Next_Conditions["f_v"][:index],
+    #          label="Vagal Activity", color=PAPER_COLORS["blue"])
+    #
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Firing rate (spikes/s)")
+    # apply_paper_axis_style(ax1)
+    # fig.tight_layout()
+    # plt.show()
+
+
+
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(full_time, Next_Conditions["f_ab"][:index], label="Baroreceptor firing",
+    #          color=PAPER_COLORS["red"])
+    # ax1.plot(full_time, Next_Conditions["f_ap"][:index],
+    #          label="Lung stretch receptor firing", color=PAPER_COLORS["purple"])
+    # ax1.plot(full_time, Next_Conditions["f_ac"][:index], label="Chemoreceptor firing",
+    #          color=PAPER_COLORS["teal"])
+    # ax1.plot(full_time, Next_Conditions["Nt"][:index],
+    #          label="Respiratory neuromuscular drive", color=PAPER_COLORS["blue"])
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Firing rate (spikes/s)")
+    # apply_paper_axis_style(ax1)
+    # fig.tight_layout()
+    # plt.show()
+
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(plot_time, Next_Conditions["V_sv"][plot_slice],
+    #          label="Splanchnic V$_{Stressed}$", color=PAPER_COLORS["red"])
+    # ax1.plot(plot_time, Next_Conditions["V_ev"][plot_slice],
+    #          label="Extrasplanchnic V$_{Stressed}$", color=PAPER_COLORS["purple"])
+    # ax1.plot(plot_time, Next_Conditions["V_amv"][plot_slice],
+    #          label="Active Muscle V$_{Stressed}$", color=PAPER_COLORS["teal"])
+    # ax1.plot(plot_time, Next_Conditions["V_rmv"][plot_slice],
+    #          label="Resting V$_{Stressed}$", color=PAPER_COLORS["blue"])
+    #
+    # ax1.set_ylabel("Volume (mL)")
+    # ax1.set_xlabel("Time (s)")
+    # apply_paper_axis_style(ax1)
+    # fig.tight_layout()
+    # plt.show()
+
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(plot_time, Next_Conditions["R_hp"][plot_slice],
+    #          label="Coronary R$_{Peripheral}$", color=PAPER_COLORS["red"])
+    # ax1.plot(plot_time, Next_Conditions["R_rmp"][plot_slice],
+    #          label="Resting Muscle R$_{Peripheral}$", color=PAPER_COLORS["orange"])
+    # ax1.plot(plot_time, Next_Conditions["R_bp"][plot_slice],
+    #          label="Brain R$_{Peripheral}$", color=PAPER_COLORS["green"])
+    # ax1.plot(plot_time, Next_Conditions["R_sp"][plot_slice],
+    #          label="Splanchnic R$_{Peripheral}$", color=PAPER_COLORS["teal"])
+    # ax1.plot(plot_time, Next_Conditions["R_amp"][plot_slice],
+    #          label="Active Muscle R$_{Peripheral}$", color=PAPER_COLORS["blue"])
+    # ax1.plot(plot_time, Next_Conditions["R_ep"][plot_slice],
+    #          label="Extrasplanchnic R$_{Peripheral}$", color=PAPER_COLORS["purple"])
+    #
+    #
+    # ax1.set_ylabel(r"Resistance (mmHg$\cdot$s/ml)")
+    # ax1.set_xlabel("Time (s)")
+    # apply_paper_axis_style(ax1)
+    # fig.tight_layout()
+    # plt.show()
+    #
+    # fig, ax1 = plt.subplots()
+    # ax1.plot(plot_time, 60 * Next_Conditions["HR"][plot_slice],
+    #          label="Heart Rate", color=PAPER_COLORS["red"])
+    # ax1.set_xlabel("Time (s)")
+    # ax1.set_ylabel("Heart Rate (bpm)")
+    # apply_paper_axis_style(ax1, show_legend=False)
+    #
+    # ax2 = ax1.twinx()
+    # ax2.plot(plot_time, Next_Conditions["Emax_rv"][plot_slice],
+    #          label="RV Max Elastance", color=PAPER_COLORS["purple"])
+    # ax2.plot(plot_time, Next_Conditions["Emax_lv"][plot_slice],
+    #          label="LV Max Elastance", color=PAPER_COLORS["teal"])
+    #
+    # ax2.set_ylabel("Elastance (mmHg/ml)")
+    # ax2.grid(False)
+    # ax2.spines["top"].set_visible(False)
+    # ax2.spines["left"].set_visible(False)
+    # ax2.spines["right"].set_visible(True)
+    # ax2.spines["right"].set_color("#707070")
+    # ax2.spines["right"].set_linewidth(1.4)
+    # ax2.tick_params(axis="y", colors="#4d4d4d", labelsize=13, width=1.2, length=4)
+    # ax2.yaxis.label.set_color("#333333")
+    #
+    # handles1, labels1 = ax1.get_legend_handles_labels()
+    # handles2, labels2 = ax2.get_legend_handles_labels()
+    # style_paper_legend(
+    #     ax1.legend(handles1 + handles2, labels1 + labels2,
+    #                loc="best", frameon=True)
+    # )
+    # fig.tight_layout()
+    #
+    # plt.show()
+
+    t1 = Next_Conditions["TI"][:index]
+    Breath_time = 1 / Next_Conditions["BF"][:index]
+    t2 = Breath_time - t1
+    # Minute_Ventilation = 60 * (Next_Conditions["VAflow"][index - 1400000:index] + t1 / (t1 + t2))
+    VD = new_params["GV_dead"] * Next_Conditions["VAflow"][:index] + new_params["V0_dead"]
+    VDflow = (1 / (t1 + t2)) * VD
+    Minute_Ventilation = (Next_Conditions["VAflow"][:index] + VDflow) * 60
+
+    fig, ax1 = plt.subplots()
+    # ax1.plot(Next_Conditions["time_history"][:index], Minute_Ventilation, label="Minute Ventilation", color="r")
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Ventilation (L/min)")
+    # ax1.grid(True)
+    # # plt.show()
+    # ax2 = ax1.twinx()
+    ax1.plot(full_time, 60 * Next_Conditions["VAflow"][:index],
+             label="Alveolar Ventilation", color=PAPER_COLORS["red"])
+    apply_paper_axis_style(ax1)
+    fig.tight_layout()
+    # ax2.tick_params(axis='y', labelcolor="k")
+    # ax2.legend(loc="upper right")
+    plt.show()

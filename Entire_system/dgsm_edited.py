@@ -203,6 +203,10 @@ def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level, varia
     dgsm = vi * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
     # AA = A * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
 
+    # if don't need uncertainty bars, no need for bootstrap
+    if num_resamples <= 0:
+        return dgsm, np.nan
+
     len_base = len(base)
     s = np.empty(num_resamples)
     r = np.random.randint(len_base, size=(num_resamples, len_base))

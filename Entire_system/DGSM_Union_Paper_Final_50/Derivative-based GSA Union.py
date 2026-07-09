@@ -396,16 +396,24 @@ plot_output_names = output_names_reduced
 n_out = len(plot_output_names)
 n_rows = math.ceil(n_out / n_cols)
 
+# Match the pastel publication style used by the DGSM convergence and
+# target-overlap figures.  The palette cycles by output panel while each
+# panel retains the original single-series horizontal bar chart.
+panel_colors = ("#CDB8E5", "#AFC8E8", "#8FCAD4", "#E89A9A")
+line_dark = "#2F4858"
+grid_color = "#E5E7EB"
+
 fig, axes = plt.subplots(
     n_rows, n_cols,
     figsize=(4.8 * n_cols, 3.6 * n_rows),
-    constrained_layout=True
+    constrained_layout=True,
+    facecolor="white",
 )
 axes = np.atleast_1d(axes).ravel()
 
 dgsm_summary = OrderedDict()
 
-for ax, out_name in zip(axes, plot_output_names):
+for plot_index, (ax, out_name) in enumerate(zip(axes, plot_output_names)):
     dg = dgsm_by_output[out_name]["dgsm"]
     cf = dgsm_by_output[out_name]["conf"]
     pn = dgsm_by_output[out_name]["names"]
@@ -470,14 +478,30 @@ for ax, out_name in zip(axes, plot_output_names):
 
     # plot (reverse so biggest is at top)
     y = np.arange(len(dg_keep))
-    ax.barh(y, dg_keep[::-1], xerr=cf_keep[::-1])
+    ax.barh(
+        y,
+        dg_keep[::-1],
+        xerr=cf_keep[::-1],
+        color=panel_colors[plot_index % len(panel_colors)],
+        edgecolor="none",
+        error_kw={
+            "ecolor": line_dark,
+            "elinewidth": 0.9,
+            "capsize": 2,
+            "capthick": 0.9,
+        },
+    )
     ax.set_yticks(y)
     ax.set_yticklabels(pn_keep[::-1], fontsize=9)
     ax.set_title(
         f"{out_name}\n{coverage*100:.0f}% DGSM, params >= {min_frac*100:.0f}% ({len(dg_keep)} params){note}",
         fontsize=10
     )
-    ax.grid(axis="x", linestyle="--", alpha=0.5)
+    ax.set_facecolor("white")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="x", color=grid_color, linewidth=0.8)
+    ax.set_axisbelow(True)
 
     dgsm_summary[out_name] = {
         "n_params_90": len(dg_keep),
